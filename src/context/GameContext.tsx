@@ -37,7 +37,7 @@ const defaultConfig: GameConfig = {
   maxDeltaTime: 0.1,
   debugMode: false,
   soundEnabled: true,
-  musicEnabled: true,
+
   difficulty: 'normal',
 };
 

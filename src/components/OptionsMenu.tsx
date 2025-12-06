@@ -384,16 +384,6 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
               value={settings.soundVolume}
               onChange={(v): void => updateSetting('soundVolume', v)}
             />
-            <ToggleSetting
-              label="Enable Music"
-              value={settings.musicEnabled}
-              onChange={(v): void => updateSetting('musicEnabled', v)}
-            />
-            <SliderSetting
-              label="Music Volume"
-              value={settings.musicVolume}
-              onChange={(v): void => updateSetting('musicVolume', v)}
-            />
           </>
         )}
 

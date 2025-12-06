@@ -99,6 +99,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const [levelLoading, setLevelLoading] = useState(true);
   const [playerFuel, setPlayerFuel] = useState(PLAYER.FUEL_AMOUNT);
   
+  // Use ref for current level to avoid dependency issues
+  const currentLevelRef = useRef(state.currentLevel);
+  currentLevelRef.current = state.currentLevel;
+  
   // Game settings state - subscribe to changes
   const [currentSettings, setCurrentSettings] = useState(gameSettings.getAll());
   
@@ -135,7 +139,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         soundSystem.setEnabled(settings.soundEnabled);
         // Convert 0-100 to 0-1
         soundSystem.setSfxVolume(settings.soundVolume / 100);
-        soundSystem.setMusicVolume(settings.musicVolume / 100);
       }
     });
     return unsubscribe;
@@ -376,13 +379,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         soundSystem.setEnabled(settings.soundEnabled);
         // Convert 0-100 to 0-1
         soundSystem.setSfxVolume(settings.soundVolume / 100);
-        soundSystem.setMusicVolume(settings.musicVolume / 100);
         
         // Load level progress
         levelSystem.loadLevelProgress();
         
-        // Try to load the first level (binary format)
-        const levelLoaded = await levelSystem.loadLevel(1);
+        // Get the current level from ref (or default to 1)
+        const levelToLoad = currentLevelRef.current || 1;
+        
+        // Try to load the level (binary format)
+        const levelLoaded = await levelSystem.loadLevel(levelToLoad);
         
         if (levelLoaded) {
           // Store player spawn position from level system
@@ -411,7 +416,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           });
           
           // Show intro dialog for this level (if any)
-          const levelInfo = levelSystem.getLevelInfo(1);
+          const levelInfo = levelSystem.getLevelInfo(levelToLoad);
           if (levelInfo) {
             const dialogs = getDialogsForLevel(levelInfo.file);
             if (dialogs.length > 0) {

@@ -121,7 +121,7 @@ function LevelRow({
         style={{
           position: 'absolute',
           left: '20px',
-          top: '5px',
+          top: '10px',
           width: '265px',
           height: '36px',
           fontSize: '24px',
@@ -144,7 +144,7 @@ function LevelRow({
         className={flickerClass}
         style={{
           position: 'absolute',
-          left: '260px',
+          left: '230px',
           top: '20px',
           width: '120px', // Increased from 60px to prevent wrapping with monospace font
           height: '15px',

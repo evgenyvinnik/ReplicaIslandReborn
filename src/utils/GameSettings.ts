@@ -8,9 +8,7 @@
 export interface GameSettings {
   // Sound settings
   soundEnabled: boolean;
-  musicEnabled: boolean;
   soundVolume: number;
-  musicVolume: number;
   
   // Control settings
   clickAttackEnabled: boolean;
@@ -59,9 +57,7 @@ const DEFAULT_KEY_BINDINGS: KeyBindings = {
 const DEFAULT_SETTINGS: GameSettings = {
   // Sound
   soundEnabled: true,
-  musicEnabled: true,
   soundVolume: 80,
-  musicVolume: 60,
   
   // Controls
   clickAttackEnabled: true,

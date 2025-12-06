@@ -166,7 +166,7 @@ export interface SpriteAsset {
 export interface AudioAsset {
   name: string;
   path: string;
-  type: 'sfx' | 'music';
+  type: 'sfx';
 }
 
 // Render command for draw queue
@@ -206,7 +206,6 @@ export interface GameConfig {
   maxDeltaTime: number;
   debugMode: boolean;
   soundEnabled: boolean;
-  musicEnabled: boolean;
   difficulty: 'easy' | 'normal' | 'hard';
 }
 

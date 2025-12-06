@@ -1,11 +1,6 @@
 /**
- * Sound System - Web Audio API wrapper for game audio
+ * Sound System - Web Audio API wrapper for game sound effects
  * Ported from: Original/src/com/replica/replicaisland/SoundSystem.java
- * 
- * Note: The original game included bwv_115.mid (Bach's BWV 115 cantata) for background
- * music, but the playback was commented out in the source code. For the web port,
- * we need to convert the MIDI to OGG/MP3 format. Place the converted file at:
- * public/assets/sounds/music_background.ogg
  */
 
 /**
@@ -47,15 +42,6 @@ export const SoundEffects = {
   ROCKETS: 'rockets',
 } as const;
 
-/**
- * Music track names
- */
-export const MusicTracks = {
-  // Background music - originally bwv_115.mid (Bach's BWV 115 cantata)
-  // Convert the MIDI file to OGG/MP3 and place at public/assets/sounds/music_background.ogg
-  BACKGROUND: 'music_background',
-} as const;
-
 export type SoundEffectName = typeof SoundEffects[keyof typeof SoundEffects];
 
 /**
@@ -70,7 +56,6 @@ export const SoundPriority = {
 export interface SoundConfig {
   masterVolume: number;
   sfxVolume: number;
-  musicVolume: number;
   enabled: boolean;
 }
 
@@ -83,7 +68,6 @@ interface PlayingSound {
   source: AudioBufferSourceNode;
   gainNode: GainNode;
   name: string;
-  isMusic: boolean;
   loop: boolean;
 }
 
@@ -91,17 +75,14 @@ export class SoundSystem {
   private audioContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
-  private musicGain: GainNode | null = null;
 
   private sounds: Map<string, LoadedSound> = new Map();
   private playingSounds: Map<number, PlayingSound> = new Map();
   private nextSoundId: number = 0;
 
-  private currentMusicId: number = -1;
   private config: SoundConfig = {
     masterVolume: 1.0,
     sfxVolume: 1.0,
-    musicVolume: 0.7,
     enabled: true,
   };
 
@@ -124,11 +105,9 @@ export class SoundSystem {
       // Create gain nodes
       this.masterGain = this.audioContext.createGain();
       this.sfxGain = this.audioContext.createGain();
-      this.musicGain = this.audioContext.createGain();
 
-      // Connect: source -> sfx/music gain -> master gain -> destination
+      // Connect: source -> sfx gain -> master gain -> destination
       this.sfxGain.connect(this.masterGain);
-      this.musicGain.connect(this.masterGain);
       this.masterGain.connect(this.audioContext.destination);
 
       // Apply initial volumes
@@ -204,51 +183,16 @@ export class SoundSystem {
    * Play a sound effect
    */
   playSfx(name: string, volume: number = 1.0, loop: boolean = false): number {
-    return this.playSound(name, volume, loop, false);
-  }
-
-  /**
-   * Play background music
-   */
-  playMusic(name: string, volume: number = 1.0): number {
-    // Stop current music if playing
-    this.stopMusic();
-
-    const id = this.playSound(name, volume, true, true);
-    this.currentMusicId = id;
-    return id;
-  }
-
-  /**
-   * Stop background music
-   */
-  stopMusic(): void {
-    if (this.currentMusicId >= 0) {
-      this.stopSound(this.currentMusicId);
-      this.currentMusicId = -1;
-    }
-  }
-
-  /**
-   * Play a sound
-   */
-  private playSound(
-    name: string,
-    volume: number,
-    loop: boolean,
-    isMusic: boolean
-  ): number {
     if (!this.audioContext || !this.config.enabled) return -1;
     if (this.audioContext.state === 'closed') return -1;
 
     // Limit concurrent sounds to prevent browser crash
-    if (!isMusic && this.playingSounds.size > 32) {
+    if (this.playingSounds.size > 32) {
       return -1;
     }
     
     // Ensure gain nodes are initialized
-    const targetGain = isMusic ? this.musicGain : this.sfxGain;
-    if (!targetGain) {
+    if (!this.sfxGain) {
       console.warn('Sound system not properly initialized - gain nodes missing');
       return -1;
     }
@@ -268,22 +212,18 @@ export class SoundSystem {
       gainNode.gain.value = volume;
 
       source.connect(gainNode);
-      gainNode.connect(targetGain);
+      gainNode.connect(this.sfxGain);
 
       const id = this.nextSoundId++;
       this.playingSounds.set(id, {
         source,
         gainNode,
         name,
-        isMusic,
         loop,
       });
 
       source.onended = (): void => {
         this.playingSounds.delete(id);
-        if (isMusic && id === this.currentMusicId) {
-          this.currentMusicId = -1;
-        }
       };
 
       source.start(0);
@@ -313,15 +253,14 @@ export class SoundSystem {
    * Stop all sounds
    */
   stopAll(): void {
-    this.playingSounds.forEach((sound, id) => {
+    this.playingSounds.forEach((sound) => {
       try {
         sound.source.stop();
       } catch {
         // Ignore
       }
-      this.playingSounds.delete(id);
     });
-    this.currentMusicId = -1;
+    this.playingSounds.clear();
   }
 
   /**
@@ -357,14 +296,6 @@ export class SoundSystem {
    */
   setSfxVolume(volume: number): void {
     this.config.sfxVolume = Math.max(0, Math.min(1, volume));
-    this.updateVolumes();
-  }
-
-  /**
-   * Set music volume
-   */
-  setMusicVolume(volume: number): void {
-    this.config.musicVolume = Math.max(0, Math.min(1, volume));
     this.updateVolumes();
   }
 
@@ -405,9 +336,6 @@ export class SoundSystem {
     }
     if (this.sfxGain) {
       this.sfxGain.gain.value = this.config.sfxVolume;
-    }
-    if (this.musicGain) {
-      this.musicGain.gain.value = this.config.musicVolume;
     }
   }
 
@@ -460,59 +388,6 @@ export class SoundSystem {
     );
 
     await Promise.all(loadPromises);
-    
-    // Try to load background music (optional - may not exist)
-    await this.loadBackgroundMusic();
-  }
-
-  /**
-   * Load background music (optional - fails gracefully if file doesn't exist)
-   * 
-   * The original game included bwv_115.mid (Bach's BWV 115 cantata).
-   * To add background music:
-   * 1. Convert the MIDI file to OGG format using a tool like Timidity
-   * 2. Place the file at: public/assets/sounds/music_background.ogg
-   */
-  async loadBackgroundMusic(): Promise<void> {
-    try {
-      await this.loadSound('music_background', '/assets/sounds/music_background.ogg', true);
-    } catch {
-      // Music file is optional - game works fine without it
-    }
-  }
-
-  /**
-   * Start playing background music
-   * @returns The music sound ID, or -1 if music couldn't be started
-   */
-  startBackgroundMusic(): number {
-    if (!this.config.enabled) return -1;
-    
-    // Check if music is already playing
-    if (this.currentMusicId >= 0) {
-      return this.currentMusicId;
-    }
-    
-    // Only play if the music file was loaded
-    if (!this.isLoaded('music_background')) {
-      return -1;
-    }
-    
-    return this.playMusic('music_background', 0.6);
-  }
-
-  /**
-   * Check if music is currently playing
-   */
-  isMusicPlaying(): boolean {
-    return this.currentMusicId >= 0 && this.playingSounds.has(this.currentMusicId);
-  }
-
-  /**
-   * Get music enabled setting
-   */
-  getMusicEnabled(): boolean {
-    return this.config.enabled && this.config.musicVolume > 0;
   }
 
   /**

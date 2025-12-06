@@ -31,8 +31,6 @@ export function PauseMenu({
   const settingsOptions = useMemo(() => [
     { label: 'Sound', key: 'soundEnabled' as const, type: 'toggle' },
     { label: 'Sound Volume', key: 'soundVolume' as const, type: 'slider' },
-    { label: 'Music', key: 'musicEnabled' as const, type: 'toggle' },
-    { label: 'Music Volume', key: 'musicVolume' as const, type: 'slider' },
   ], []);
   const [settingsSelectedOption, setSettingsSelectedOption] = useState(0);
 
@@ -110,17 +108,17 @@ export function PauseMenu({
         const setting = settingsOptions[settingsSelectedOption];
         if (setting) {
           if (e.key === 'ArrowLeft') {
-            if (setting.key === 'soundVolume' || setting.key === 'musicVolume') {
+            if (setting.key === 'soundVolume') {
               const current = settings[setting.key] as number;
               gameSettings.set(setting.key, Math.max(0, current - 10));
             }
           } else if (e.key === 'ArrowRight') {
-            if (setting.key === 'soundVolume' || setting.key === 'musicVolume') {
+            if (setting.key === 'soundVolume') {
               const current = settings[setting.key] as number;
               gameSettings.set(setting.key, Math.min(100, current + 10));
             }
           } else if (e.key === 'Enter' || e.key === ' ') {
-            if (setting.key === 'soundEnabled' || setting.key === 'musicEnabled') {
+            if (setting.key === 'soundEnabled') {
               gameSettings.set(setting.key, !settings[setting.key]);
             }
           }
