@@ -1,0 +1,188 @@
+/**
+ * Game Context - Global game state management
+ */
+
+import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import { GameState, type GameConfig, type SaveData } from '../types';
+
+// Game context state
+interface GameContextState {
+  gameState: GameState;
+  config: GameConfig;
+  saveData: SaveData;
+  currentLevel: number;
+  isPaused: boolean;
+  isLoading: boolean;
+  loadingProgress: number;
+  error: string | null;
+}
+
+// Actions
+type GameAction =
+  | { type: 'SET_GAME_STATE'; payload: GameState }
+  | { type: 'SET_CONFIG'; payload: Partial<GameConfig> }
+  | { type: 'SET_SAVE_DATA'; payload: Partial<SaveData> }
+  | { type: 'SET_CURRENT_LEVEL'; payload: number }
+  | { type: 'SET_PAUSED'; payload: boolean }
+  | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_LOADING_PROGRESS'; payload: number }
+  | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'RESET' };
+
+// Default config
+const defaultConfig: GameConfig = {
+  canvasWidth: 480,
+  canvasHeight: 320,
+  targetFPS: 60,
+  maxDeltaTime: 0.1,
+  debugMode: false,
+  soundEnabled: true,
+  musicEnabled: true,
+  difficulty: 'normal',
+};
+
+// Default save data
+const defaultSaveData: SaveData = {
+  currentLevel: 1,
+  completedLevels: [],
+  totalPearls: 0,
+  totalDeaths: 0,
+  playTime: 0,
+  lastPlayed: new Date().toISOString(),
+};
+
+// Initial state
+const initialState: GameContextState = {
+  gameState: GameState.LOADING,
+  config: defaultConfig,
+  saveData: defaultSaveData,
+  currentLevel: 1,
+  isPaused: false,
+  isLoading: true,
+  loadingProgress: 0,
+  error: null,
+};
+
+// Reducer
+function gameReducer(state: GameContextState, action: GameAction): GameContextState {
+  switch (action.type) {
+    case 'SET_GAME_STATE':
+      return { ...state, gameState: action.payload };
+    case 'SET_CONFIG':
+      return { ...state, config: { ...state.config, ...action.payload } };
+    case 'SET_SAVE_DATA':
+      return { ...state, saveData: { ...state.saveData, ...action.payload } };
+    case 'SET_CURRENT_LEVEL':
+      return { ...state, currentLevel: action.payload };
+    case 'SET_PAUSED':
+      return { ...state, isPaused: action.payload };
+    case 'SET_LOADING':
+      return { ...state, isLoading: action.payload };
+    case 'SET_LOADING_PROGRESS':
+      return { ...state, loadingProgress: action.payload };
+    case 'SET_ERROR':
+      return { ...state, error: action.payload };
+    case 'RESET':
+      return initialState;
+    default:
+      return state;
+  }
+}
+
+// Context
+interface GameContextValue {
+  state: GameContextState;
+  dispatch: React.Dispatch<GameAction>;
+  // Helper functions
+  startGame: (level?: number) => void;
+  pauseGame: () => void;
+  resumeGame: () => void;
+  goToMainMenu: () => void;
+  goToLevelSelect: () => void;
+  setLevel: (level: number) => void;
+  completeLevel: () => void;
+  gameOver: () => void;
+}
+
+const GameContext = createContext<GameContextValue | null>(null);
+
+// Provider component
+interface GameProviderProps {
+  children: ReactNode;
+}
+
+export function GameProvider({ children }: GameProviderProps): React.JSX.Element {
+  const [state, dispatch] = useReducer(gameReducer, initialState);
+
+  const startGame = (level?: number): void => {
+    if (level !== undefined) {
+      dispatch({ type: 'SET_CURRENT_LEVEL', payload: level });
+    }
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.PLAYING });
+    dispatch({ type: 'SET_PAUSED', payload: false });
+  };
+
+  const pauseGame = (): void => {
+    dispatch({ type: 'SET_PAUSED', payload: true });
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.PAUSED });
+  };
+
+  const resumeGame = (): void => {
+    dispatch({ type: 'SET_PAUSED', payload: false });
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.PLAYING });
+  };
+
+  const goToMainMenu = (): void => {
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.MAIN_MENU });
+    dispatch({ type: 'SET_PAUSED', payload: false });
+  };
+
+  const goToLevelSelect = (): void => {
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.LEVEL_SELECT });
+  };
+
+  const setLevel = (level: number): void => {
+    dispatch({ type: 'SET_CURRENT_LEVEL', payload: level });
+  };
+
+  const completeLevel = (): void => {
+    const newCompletedLevels = [...state.saveData.completedLevels];
+    if (!newCompletedLevels.includes(state.currentLevel)) {
+      newCompletedLevels.push(state.currentLevel);
+    }
+    dispatch({ type: 'SET_SAVE_DATA', payload: { completedLevels: newCompletedLevels } });
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.LEVEL_COMPLETE });
+  };
+
+  const gameOver = (): void => {
+    dispatch({
+      type: 'SET_SAVE_DATA',
+      payload: { totalDeaths: state.saveData.totalDeaths + 1 },
+    });
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.GAME_OVER });
+  };
+
+  const value: GameContextValue = {
+    state,
+    dispatch,
+    startGame,
+    pauseGame,
+    resumeGame,
+    goToMainMenu,
+    goToLevelSelect,
+    setLevel,
+    completeLevel,
+    gameOver,
+  };
+
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+}
+
+// Hook
+export function useGameContext(): GameContextValue {
+  const context = useContext(GameContext);
+  if (!context) {
+    throw new Error('useGameContext must be used within a GameProvider');
+  }
+  return context;
+}
