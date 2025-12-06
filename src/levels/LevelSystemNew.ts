@@ -47,6 +47,9 @@ export class LevelSystem {
   private gameObjectManager: GameObjectManager | null = null;
   private hotSpotSystem: HotSpotSystem | null = null;
   
+  // Player spawn position (for respawning)
+  public playerSpawnPosition: { x: number; y: number } = { x: 100, y: 320 };
+  
   // Parser
   private levelParser: LevelParser = new LevelParser();
   
@@ -330,6 +333,8 @@ export class LevelSystem {
         obj.width = 48;
         obj.height = 48;
         this.gameObjectManager.setPlayer(obj);
+        // Store spawn position for respawning
+        this.playerSpawnPosition = { x: spawn.x, y: spawn.y };
         break;
 
       case GameObjectTypeIndex.COIN:
