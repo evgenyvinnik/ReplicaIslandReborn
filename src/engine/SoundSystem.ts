@@ -3,6 +3,56 @@
  * Ported from: Original/src/com/replica/replicaisland/SoundSystem.java
  */
 
+/**
+ * Sound effect names mapping
+ */
+export const SoundEffects = {
+  // UI
+  BUTTON: 'sound_button',
+  
+  // Player
+  STOMP: 'sound_stomp',
+  POING: 'sound_poing',      // Bounce/spring
+  POSSESSION: 'sound_possession',
+  
+  // Collectibles
+  GEM1: 'gem1',
+  GEM2: 'gem2',
+  GEM3: 'gem3',
+  DING: 'ding',
+  
+  // Combat
+  GUN: 'sound_gun',
+  CANNON: 'sound_cannon',
+  EXPLODE: 'sound_explode',
+  QUICK_EXPLOSION: 'quick_explosion',
+  
+  // Enemies
+  KABOCHA_HIT: 'sound_kabocha_hit',
+  ROKUDOU_HIT: 'sound_rokudou_hit',
+  BUZZ: 'sound_buzz',
+  
+  // Environment
+  BREAK_BLOCK: 'sound_break_block',
+  DOOR_OPEN: 'sound_open',
+  DOOR_CLOSE: 'sound_close',
+  DEEP_CLANG: 'deep_clang',
+  HARD_THUMP: 'hard_thump',
+  THUMP: 'thump',
+  ROCKETS: 'rockets',
+} as const;
+
+export type SoundEffectName = typeof SoundEffects[keyof typeof SoundEffects];
+
+/**
+ * Sound priorities
+ */
+export const SoundPriority = {
+  LOW: 0,
+  NORMAL: 1,
+  HIGH: 2,
+} as const;
+
 export interface SoundConfig {
   masterVolume: number;
   sfxVolume: number;
@@ -310,4 +360,78 @@ export class SoundSystem {
     this.sounds.clear();
     this.initialized = false;
   }
+
+  /**
+   * Preload all game sounds
+   */
+  async preloadAllSounds(): Promise<void> {
+    const soundFiles = [
+      'deep_clang',
+      'ding',
+      'gem1',
+      'gem2',
+      'gem3',
+      'hard_thump',
+      'quick_explosion',
+      'rockets',
+      'sound_break_block',
+      'sound_button',
+      'sound_buzz',
+      'sound_cannon',
+      'sound_close',
+      'sound_explode',
+      'sound_gun',
+      'sound_kabocha_hit',
+      'sound_open',
+      'sound_poing',
+      'sound_possession',
+      'sound_rokudou_hit',
+      'sound_stomp',
+      'thump',
+    ];
+
+    const loadPromises = soundFiles.map(name =>
+      this.loadSound(name, `/assets/sounds/${name}.ogg`).catch(err => {
+        console.warn(`Failed to load sound ${name}:`, err);
+      })
+    );
+
+    await Promise.all(loadPromises);
+  }
+
+  /**
+   * Pause a specific sound by ID
+   */
+  pause(soundId: number): void {
+    // Web Audio API doesn't support pause directly on BufferSourceNode
+    // We would need to track position and recreate, which is complex
+    // For now, just stop the sound
+    const sound = this.playingSounds.get(soundId);
+    if (sound && this.audioContext) {
+      // Fade out quickly instead of abrupt stop
+      sound.gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.1);
+    }
+  }
+
+  /**
+   * Resume a specific sound by ID
+   */
+  resume(soundId: number): void {
+    // Since we can't truly pause/resume, this is a no-op
+    // The sound would need to be replayed
+    const sound = this.playingSounds.get(soundId);
+    if (sound && this.audioContext) {
+      sound.gainNode.gain.linearRampToValueAtTime(1, this.audioContext.currentTime + 0.1);
+    }
+  }
+
+  /**
+   * Check if sound is enabled
+   */
+  getSoundEnabled(): boolean {
+    return this.config.enabled;
+  }
 }
+
+// Export singleton instance
+export const soundSystem = new SoundSystem();

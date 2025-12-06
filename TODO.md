@@ -24,18 +24,20 @@ This document tracks what has been implemented and what still needs to be done t
   - Stomp button
 - [x] Keyboard support (WASD/Arrows, Space, X)
 
-### Core Engine (Partial)
+### Core Engine
 - [x] GameLoop.ts - Basic game loop with fixed timestep
-- [x] SystemRegistry.ts - Central system hub
+- [x] SystemRegistry.ts - Central system hub (updated with new systems)
 - [x] TimeSystem.ts - Time management
 - [x] InputSystem.ts - Keyboard and virtual button input
 - [x] CameraSystem.ts - Basic camera following
-- [x] RenderSystem.ts - **Canvas 2D rendering (partial implementation)**
+- [x] RenderSystem.ts - Canvas 2D rendering with tileset support
 - [x] CollisionSystem.ts - Basic collision detection
-- [x] SoundSystem.ts - **Stub only, no actual implementation**
+- [x] SoundSystem.ts - Web Audio API implementation with sound loading
+- [x] HotSpotSystem.ts - **NEW** Special tile behaviors (death zones, triggers, etc.)
+- [x] AnimationSystem.ts - **NEW** Animation state machine with player animations
 
 ### Canvas Rendering Status
-The `RenderSystem.ts` **does use HTML5 Canvas 2D API** but has limited functionality:
+The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 
 **Implemented:**
 - [x] Canvas context initialization (`getContext('2d')`)
@@ -45,15 +47,21 @@ The `RenderSystem.ts` **does use HTML5 Canvas 2D API** but has limited functiona
 - [x] Camera-relative rendering
 - [x] Render queue with z-sorting
 - [x] Pixel art mode (`imageSmoothingEnabled = false`)
+- [x] Tileset loading (`loadTileset`, `loadAllTilesets`) - **NEW**
+- [x] Tile rendering with frame calculation - **NEW**
 
 **NOT Implemented:**
-- [ ] Tile map rendering from tilesets (critical for levels)
-- [ ] Parallax scrolling backgrounds
-- [ ] Sprite sheet animation playback
+- [ ] Parallax scrolling backgrounds (TileMapRenderer has partial support)
 - [ ] Text rendering with custom fonts
 - [ ] Particle effects
 - [ ] Screen transitions/fades
 - [ ] Layer management (background, midground, foreground, overlay)
+
+### Level System
+- [x] LevelParser.ts - **NEW** Binary .bin level file parser
+- [x] LevelSystemNew.ts - **NEW** Complete level management with binary support
+- [x] TileMapRenderer.ts - **NEW** Tile-based rendering with parallax
+- [x] GameObjectTypes.ts - **NEW** Object type definitions matching original
 
 ### Entity System (Partial)
 - [x] GameObject.ts - Basic game object
@@ -72,32 +80,45 @@ The `RenderSystem.ts` **does use HTML5 Canvas 2D API** but has limited functiona
   - Player sprites (andou_*.png)
   - Enemy sprites (enemy_*.png)
   - Object sprites (object_*.png)
-  - Background sprites (background_*.png) - **PARTIAL**
+  - Background sprites (background_*.png)
   - UI sprites (ui_*.png)
   - Title assets (title.png, title_background.png)
 
-### Missing Critical Assets (for Level Rendering)
-
-#### Tileset Images (NOT COPIED)
+### Tileset Images
 | File | Purpose | Status |
 |------|---------|--------|
-| `grass.png` | World 2 tile graphics | ❌ Not copied |
+| `grass.png` | World 2 tile graphics | ✅ Copied |
 | `island.png` | World 1 tile graphics | ✅ Copied |
-| `sewage.png` | Sewer level tiles | ❌ Not copied |
-| `cave.png` | Underground tiles | ❌ Not copied |
-| `lab.png` | Lab level tiles | ❌ Not copied |
-| `tutorial.png` | Tutorial level tiles | ❌ Not copied |
+| `sewage.png` | Sewer level tiles | ✅ Copied |
+| `cave.png` | Underground tiles | ✅ Copied |
+| `lab.png` | Lab level tiles | ✅ Copied |
+| `tutorial.png` | Tutorial level tiles | ✅ Copied |
 | `titletileset.png` | Title screen tiles | ✅ Copied |
 
-#### Background Images (PARTIAL)
+### Sound Assets
+| Category | Status |
+|----------|--------|
+| Sound effects (22 .ogg files) | ✅ Copied to public/assets/sounds/ |
+| Sound system preloading | ✅ Implemented |
+
+### Level Files
+| Category | Status |
+|----------|--------|
+| Binary level files (.bin) | ✅ Copied to public/assets/levels/ |
+| Level parser (signature 96) | ✅ Implemented |
+| TiledWorld parser (signature 42) | ✅ Implemented |
+
+### Background Images
 | File | Purpose | Status |
 |------|---------|--------|
-| `background_sunset.png` | Sunset sky background | ❌ Not copied |
+| `background_sunset.png` | Sunset sky background | ✅ Copied |
 | `background_island.png` | Island background | ✅ Copied |
 | `background_island2.png` | Alternate island bg | ✅ Copied |
-| `background_sewage.png` | Sewer background | ❌ Not copied |
-| `background_underground.png` | Cave background | ❌ Not copied |
+| `background_sewage.png` | Sewer background | ✅ Copied |
+| `background_underground.png` | Cave background | ✅ Copied |
 | `background_grass.png` | Grass area background | ✅ Copied |
+| `background_grass2.png` | Forest background | ✅ Copied |
+| `background_lab01.png` | Lab background | ✅ Copied |
 | `background_grass2.png` | Forest background | ❌ Not copied |
 | `background_lab01.png` | Lab background | ❌ Not copied |
 | `background_diary.png` | Diary screen bg | ❌ Not copied |

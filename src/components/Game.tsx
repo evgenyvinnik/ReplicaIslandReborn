@@ -13,10 +13,12 @@ import { SoundSystem } from '../engine/SoundSystem';
 import { CameraSystem } from '../engine/CameraSystem';
 import { CollisionSystem } from '../engine/CollisionSystem';
 import { TimeSystem } from '../engine/TimeSystem';
+import { HotSpotSystem } from '../engine/HotSpotSystem';
+import { AnimationSystem } from '../engine/AnimationSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
-import { LevelSystem } from '../levels/LevelSystem';
-import { TileMap } from '../levels/TileMap';
+import { LevelSystem } from '../levels/LevelSystemNew';
+import { TileMapRenderer } from '../levels/TileMapRenderer';
 import { HUD } from './HUD';
 import { OnScreenControls } from './OnScreenControls';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
@@ -35,11 +37,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const gameLoopRef = useRef<GameLoop | null>(null);
   const systemRegistryRef = useRef<SystemRegistry | null>(null);
   const renderSystemRef = useRef<RenderSystem | null>(null);
-  const tileMapRef = useRef<TileMap | null>(null);
+  const tileMapRendererRef = useRef<TileMapRenderer | null>(null);
   
   const [isInitialized, setIsInitialized] = useState(false);
   const [fps, setFps] = useState(0);
   const [scale, setScale] = useState(1);
+  const [levelLoading, setLevelLoading] = useState(true);
 
   // Initialize game systems
   useEffect(() => {
@@ -77,6 +80,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const timeSystem = new TimeSystem();
     systemRegistry.register(timeSystem, 'time');
 
+    // Hot spot system
+    const hotSpotSystem = new HotSpotSystem();
+    systemRegistry.register(hotSpotSystem, 'hotSpot');
+
+    // Animation system
+    const animationSystem = new AnimationSystem();
+    animationSystem.registerPlayerAnimations();
+    systemRegistry.register(animationSystem, 'animation');
+
     // Game object manager
     const gameObjectManager = new GameObjectManager();
     gameObjectManager.setCamera(cameraSystem);
@@ -87,54 +99,91 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     factory.setRenderSystem(renderSystem);
     factory.setCollisionSystem(collisionSystem);
     factory.setInputSystem(inputSystem);
+    systemRegistry.register(factory, 'factory');
 
     // Level system
     const levelSystem = new LevelSystem();
-    levelSystem.setSystems(collisionSystem, gameObjectManager);
+    levelSystem.setSystems(collisionSystem, gameObjectManager, hotSpotSystem);
     systemRegistry.register(levelSystem, 'level');
 
-    // Tile map - use placeholder tileset
-    const tileMap = new TileMap();
+    // Tile map renderer
+    const tileMapRenderer = new TileMapRenderer();
+    tileMapRenderer.setViewport(width, height);
+    tileMapRendererRef.current = tileMapRenderer;
+
+    // Placeholder tileset for fallback
     const placeholderTileset = generatePlaceholderTileset(32);
     renderSystem.registerCanvasSprite('tileset', placeholderTileset, 32, 32);
-    tileMapRef.current = tileMap;
 
-    // Create a simple test level
-    const testLevelWidth = 30;
-    const testLevelHeight = 10;
-    const tileData: number[] = [];
-    
-    for (let y = 0; y < testLevelHeight; y++) {
-      for (let x = 0; x < testLevelWidth; x++) {
-        if (y === testLevelHeight - 1) {
-          // Ground
-          tileData.push(1);
-        } else if (y === testLevelHeight - 2 && x > 0 && x < testLevelWidth - 1) {
-          // Grass top
-          tileData.push(3);
+    // Load assets and level
+    const initializeGame = async (): Promise<void> => {
+      setLevelLoading(true);
+      
+      try {
+        // Load tilesets
+        await renderSystem.loadAllTilesets();
+        
+        // Initialize sound system
+        await soundSystem.initialize();
+        await soundSystem.preloadAllSounds();
+        
+        // Load level progress
+        levelSystem.loadLevelProgress();
+        
+        // Try to load the first level (binary format)
+        const levelLoaded = await levelSystem.loadLevel(1);
+        
+        if (levelLoaded) {
+          // Initialize tile map renderer from parsed level
+          const parsedLevel = levelSystem.getParsedLevel();
+          if (parsedLevel) {
+            tileMapRenderer.initializeFromLevel(parsedLevel);
+          }
+          
+          // Set camera bounds
+          cameraSystem.setBounds({
+            minX: 0,
+            minY: 0,
+            maxX: levelSystem.getLevelWidth() - width,
+            maxY: levelSystem.getLevelHeight() - height,
+          });
         } else {
-          // Sky
-          tileData.push(0);
+          // Fallback: create test level
+          createTestLevel(factory, gameObjectManager, renderSystem);
         }
+      } catch (error) {
+        console.error('Failed to load level:', error);
+        // Create test level as fallback
+        createTestLevel(factory, gameObjectManager, renderSystem);
       }
-    }
-    
-    tileMap.loadFromArray(tileData, testLevelWidth, testLevelHeight, 32);
+      
+      setLevelLoading(false);
+    };
 
-    // Spawn player
-    const player = factory.spawn(GameObjectType.PLAYER, 100, 200, false);
-    if (player) {
-      player.type = 'player';
-      gameObjectManager.setPlayer(player);
-    }
+    // Function to create a test level when binary loading fails
+    const createTestLevel = (
+      factory: GameObjectFactory,
+      gameObjectManager: GameObjectManager,
+      _renderSystem: RenderSystem
+    ): void => {
+      // Spawn player
+      const player = factory.spawn(GameObjectType.PLAYER, 100, 200, false);
+      if (player) {
+        player.type = 'player';
+        gameObjectManager.setPlayer(player);
+      }
 
-    // Spawn some collectibles
-    factory.spawn(GameObjectType.COIN, 200, 200, false);
-    factory.spawn(GameObjectType.COIN, 250, 200, false);
-    factory.spawn(GameObjectType.PEARL, 300, 180, false);
+      // Spawn some collectibles
+      factory.spawn(GameObjectType.COIN, 200, 200, false);
+      factory.spawn(GameObjectType.COIN, 250, 200, false);
+      factory.spawn(GameObjectType.PEARL, 300, 180, false);
 
-    // Spawn an enemy
-    factory.spawn(GameObjectType.ENEMY_BROBOT, 400, 220, true);
+      // Spawn an enemy
+      factory.spawn(GameObjectType.ENEMY_BROBOT, 400, 220, true);
+    };
+
+    // Start initialization
+    initializeGame();
 
     // Game loop
     const gameLoop = new GameLoop();
@@ -166,8 +215,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Render callback
     gameLoop.setRenderCallback((_interpolation: number) => {
       // Render tile map
-      if (tileMapRef.current) {
-        tileMapRef.current.render(renderSystem, cameraSystem);
+      if (tileMapRendererRef.current) {
+        tileMapRendererRef.current.render(renderSystem, cameraSystem);
       }
 
       // Render game objects
@@ -295,7 +344,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }}
         />
         
-        {isInitialized && (
+        {isInitialized && !levelLoading && (
           <>
             <HUD fps={fps} showFPS={state.config.debugMode} />
             <OnScreenControls

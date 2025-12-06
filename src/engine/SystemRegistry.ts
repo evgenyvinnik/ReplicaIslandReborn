@@ -11,8 +11,11 @@ import type { CameraSystem } from './CameraSystem';
 import type { CollisionSystem } from './CollisionSystem';
 import type { RenderSystem } from './RenderSystem';
 import type { TimeSystem } from './TimeSystem';
+import type { HotSpotSystem } from './HotSpotSystem';
+import type { AnimationSystem } from './AnimationSystem';
 import type { LevelSystem } from '../levels/LevelSystem';
 import type { GameObjectManager } from '../entities/GameObjectManager';
+import type { GameObjectFactory } from '../entities/GameObjectFactory';
 
 /**
  * Central registry for all game systems
@@ -28,6 +31,9 @@ export class SystemRegistry {
   public timeSystem: TimeSystem | null = null;
   public levelSystem: LevelSystem | null = null;
   public gameObjectManager: GameObjectManager | null = null;
+  public gameObjectFactory: GameObjectFactory | null = null;
+  public hotSpotSystem: HotSpotSystem | null = null;
+  public animationSystem: AnimationSystem | null = null;
 
   // Game configuration
   public gameWidth: number = 480;
@@ -46,6 +52,9 @@ export class SystemRegistry {
     this.timeSystem = null;
     this.levelSystem = null;
     this.gameObjectManager = null;
+    this.gameObjectFactory = null;
+    this.hotSpotSystem = null;
+    this.animationSystem = null;
   }
 
   /**
@@ -76,6 +85,15 @@ export class SystemRegistry {
         break;
       case 'gameObject':
         this.gameObjectManager = system as unknown as GameObjectManager;
+        break;
+      case 'factory':
+        this.gameObjectFactory = system as unknown as GameObjectFactory;
+        break;
+      case 'hotSpot':
+        this.hotSpotSystem = system as unknown as HotSpotSystem;
+        break;
+      case 'animation':
+        this.animationSystem = system as unknown as AnimationSystem;
         break;
     }
   }

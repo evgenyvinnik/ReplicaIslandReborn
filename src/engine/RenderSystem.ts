@@ -126,6 +126,38 @@ export class RenderSystem {
   }
 
   /**
+   * Load a tileset image
+   * Tilesets use 32x32 tiles arranged in a grid
+   */
+  async loadTileset(name: string, url: string, tileSize: number = 32): Promise<void> {
+    return this.loadSprite(name, url, tileSize, tileSize);
+  }
+
+  /**
+   * Load all game tilesets
+   */
+  async loadAllTilesets(): Promise<void> {
+    const tilesets = [
+      'grass',
+      'island',
+      'sewage',
+      'cave',
+      'lab',
+      'tutorial',
+      'titletileset',
+    ];
+
+    const tileSize = 32;
+    const loadPromises = tilesets.map(name =>
+      this.loadTileset(name, `/assets/sprites/${name}.png`, tileSize).catch(err => {
+        console.warn(`Failed to load tileset ${name}:`, err);
+      })
+    );
+
+    await Promise.all(loadPromises);
+  }
+
+  /**
    * Register a canvas-based sprite directly
    */
   registerCanvasSprite(

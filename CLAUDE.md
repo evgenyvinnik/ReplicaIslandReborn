@@ -79,7 +79,7 @@ The React + Canvas web port will live in the repository root:
 ├── LICENSE                  # Project license
 ├── README.md                # Project overview
 ├── Original/                # Original Android source (reference)
-├── package.json             # NPM dependencies
+├── package.json             # Project dependencies
 ├── tsconfig.json            # TypeScript configuration
 ├── eslint.config.js         # ESLint configuration
 ├── vite.config.ts           # Vite build configuration
@@ -132,8 +132,9 @@ The React + Canvas web port will live in the repository root:
 
 ### Technology Stack
 
-- **Framework**: React 18+ with TypeScript
+- **Framework**: React 19 with TypeScript and React Compiler
 - **Build Tool**: Vite
+- **Runtime**: Bun
 - **Rendering**: HTML5 Canvas 2D API
 - **Audio**: Web Audio API
 - **Styling**: CSS Modules or Tailwind CSS
@@ -231,7 +232,7 @@ export default [
 
 ### Prerequisites
 
-- Node.js 18+ and npm (or pnpm/yarn)
+- Bun runtime (https://bun.sh/)
 - Modern web browser with Canvas support
 
 ### Development Setup
@@ -242,10 +243,10 @@ git clone https://github.com/evgenyvinnik/ReplicaIslandReborn.git
 cd ReplicaIslandReborn
 
 # Install dependencies
-npm install
+bun install
 
 # Start development server
-npm run dev
+bun run dev
 
 # Open browser at http://localhost:5173
 ```
@@ -253,19 +254,19 @@ npm run dev
 ### Available Scripts
 
 ```bash
-npm run dev        # Start Vite dev server with hot reload
-npm run build      # Build for production
-npm run preview    # Preview production build locally
-npm run lint       # Run ESLint
-npm run lint:fix   # Run ESLint with auto-fix
-npm run typecheck  # Run TypeScript type checking
-npm run test       # Run tests (Vitest)
+bun run dev        # Start Vite dev server with hot reload
+bun run build      # Build for production
+bun run preview    # Preview production build locally
+bun run lint       # Run ESLint
+bun run lint:fix   # Run ESLint with auto-fix
+bun run typecheck  # Run TypeScript type checking
+bun test           # Run tests
 ```
 
 ### Building for Production
 
 ```bash
-npm run build
+bun run build
 # Output will be in /dist folder
 # Deploy the dist folder to any static hosting (Vercel, Netlify, GitHub Pages)
 ```
