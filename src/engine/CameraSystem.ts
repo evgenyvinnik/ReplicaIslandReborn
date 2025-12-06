@@ -77,6 +77,13 @@ export class CameraSystem {
   }
 
   /**
+   * Get the current camera target
+   */
+  getTarget(): { getPosition: () => Vector2 } | null {
+    return this.target;
+  }
+
+  /**
    * Set camera bounds
    */
   setBounds(bounds: CameraBounds | null): void {

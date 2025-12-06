@@ -55,3 +55,8 @@ export type { AttackAtDistanceConfig } from './AttackAtDistanceComponent';
 
 export { LaunchProjectileComponent } from './LaunchProjectileComponent';
 export type { LaunchProjectileConfig } from './LaunchProjectileComponent';
+
+export { LifetimeComponent } from './LifetimeComponent';
+
+export { TheSourceComponent } from './TheSourceComponent';
+export type { TheSourceConfig } from './TheSourceComponent';

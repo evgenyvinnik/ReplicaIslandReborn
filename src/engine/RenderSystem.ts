@@ -126,6 +126,36 @@ export class RenderSystem {
   }
 
   /**
+   * Get a loaded sprite's image (for direct rendering)
+   */
+  getSpriteImage(name: string): HTMLImageElement | HTMLCanvasElement | null {
+    const sprite = this.sprites.get(name);
+    return sprite ? sprite.image : null;
+  }
+
+  /**
+   * Load a single image (no frames)
+   */
+  async loadSingleImage(name: string, url: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = (): void => {
+        this.sprites.set(name, {
+          image,
+          frameWidth: image.width,
+          frameHeight: image.height,
+          framesPerRow: 1,
+        });
+        resolve();
+      };
+      image.onerror = (): void => {
+        reject(new Error(`Failed to load image: ${name}`));
+      };
+      image.src = url;
+    });
+  }
+
+  /**
    * Load a tileset image
    * Tilesets use 32x32 tiles arranged in a grid
    */

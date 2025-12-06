@@ -16,6 +16,7 @@ import { CollisionSystem } from '../engine/CollisionSystem';
 import { TimeSystem } from '../engine/TimeSystem';
 import { HotSpotSystem, HotSpotType } from '../engine/HotSpotSystem';
 import { AnimationSystem } from '../engine/AnimationSystem';
+import { EffectsSystem } from '../engine/EffectsSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { LevelSystem } from '../levels/LevelSystemNew';
@@ -66,6 +67,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const systemRegistryRef = useRef<SystemRegistry | null>(null);
   const renderSystemRef = useRef<RenderSystem | null>(null);
   const soundSystemRef = useRef<SoundSystem | null>(null);
+  const effectsSystemRef = useRef<EffectsSystem | null>(null);
   const tileMapRendererRef = useRef<TileMapRenderer | null>(null);
   const backgroundImageRef = useRef<HTMLImageElement | null>(null);
   const levelSystemRef = useRef<LevelSystem | null>(null);
@@ -132,24 +134,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
   // Show intro dialog after level finishes loading
   useEffect(() => {
-    console.warn('[DialogTrigger] Effect running:', { 
-      levelLoading, 
-      isInitialized, 
-      hasShownIntro: hasShownIntroDialogRef.current,
-      currentLevel: state.currentLevel 
-    });
     if (!levelLoading && isInitialized && !hasShownIntroDialogRef.current) {
       const levelSystem = levelSystemRef.current;
-      console.warn('[DialogTrigger] Conditions met, levelSystem:', !!levelSystem);
       if (levelSystem) {
         const levelInfo = levelSystem.getLevelInfo(state.currentLevel);
-        console.warn('[DialogTrigger] levelInfo:', levelInfo);
         if (levelInfo) {
           const dialogs = getDialogsForLevel(levelInfo.file);
-          console.warn('[DialogTrigger] dialogs found:', dialogs.length, dialogs);
           if (dialogs.length > 0) {
             hasShownIntroDialogRef.current = true;
-            console.warn('[DialogTrigger] Setting active dialog:', dialogs[0]);
             setActiveDialog(dialogs[0]);
           }
         }
@@ -217,6 +209,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const animationSystem = new AnimationSystem();
     animationSystem.registerPlayerAnimations();
     systemRegistry.register(animationSystem, 'animation');
+
+    // Effects system (explosions, smoke, etc.)
+    const effectsSystem = new EffectsSystem();
+    effectsSystem.setRenderSystem(renderSystem);
+    effectsSystem.setSoundSystem(soundSystem);
+    effectsSystemRef.current = effectsSystem;
+    systemRegistry.register(effectsSystem, 'effects');
 
     // Game object manager
     const gameObjectManager = new GameObjectManager();
@@ -380,30 +379,27 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     // Load assets and level
     const initializeGame = async (): Promise<void> => {
-      console.warn('[InitializeGame] Starting...');
       setLevelLoading(true);
       
       // Reset inventory for new game
       resetInventory();
       
       try {
-        console.warn('[InitializeGame] Loading tilesets...');
         // Load tilesets
         await renderSystem.loadAllTilesets();
         
-        console.warn('[InitializeGame] Loading player sprites...');
         // Load player sprites
         await loadPlayerSprites();
         
-        console.warn('[InitializeGame] Loading collectible sprites...');
         // Load collectible sprites
         await loadCollectibleSprites();
         
-        console.warn('[InitializeGame] Loading enemy sprites...');
         // Load enemy sprites
         await loadEnemySprites();
         
-        console.warn('[InitializeGame] Initializing sound system...');
+        // Load effect sprites (explosions, smoke, etc.)
+        await effectsSystem.preloadSprites();
+        
         // Initialize sound system
         await soundSystem.initialize();
         await soundSystem.preloadAllSounds();
@@ -419,11 +415,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Get the current level from ref (or default to 1)
         const levelToLoad = currentLevelRef.current || 1;
-        console.warn('[InitializeGame] Loading level:', levelToLoad);
         
-        // Try to load the level (binary format)
+        // Try to load the level (JSON format)
         const levelLoaded = await levelSystem.loadLevel(levelToLoad);
-        console.warn('[InitializeGame] Level loaded:', levelLoaded);
         
         if (levelLoaded) {
           // Store player spawn position from level system
@@ -463,7 +457,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         createTestLevel(factory, gameObjectManager, collisionSystem);
       }
       
-      console.warn('[InitializeGame] Complete! Setting levelLoading to false');
       setLevelLoading(false);
     };
 
@@ -547,6 +540,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Update all game objects
       gameObjectManager.update(deltaTime, gameTime);
+      
+      // Update effects system (explosions, smoke, etc.)
+      effectsSystem.update(deltaTime);
 
       // Enemy AI - Different behaviors based on subType
       gameObjectManager.forEach((obj) => {
@@ -886,6 +882,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 obj.life = 0;
                 obj.setVisible(false);
                 obj.markForRemoval();
+                
+                // Spawn crush flash effect at enemy position
+                effectsSystem.spawnCrushFlash(
+                  objPos.x + obj.width / 2,
+                  objPos.y + obj.height / 2
+                );
                 
                 // Bounce player up
                 player.getVelocity().y = -200;
@@ -1373,6 +1375,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
         }
       });
+
+      // Render visual effects (explosions, smoke, etc.)
+      const ctx = (renderSystem as unknown as { ctx: CanvasRenderingContext2D }).ctx;
+      const cameraX = cameraSystem.getFocusPositionX() - width / 2;
+      const cameraY = cameraSystem.getFocusPositionY() - height / 2;
+      effectsSystem.render(ctx, cameraX, cameraY);
 
       // Draw HUD fuel bar
       const pState = playerStateRef.current;

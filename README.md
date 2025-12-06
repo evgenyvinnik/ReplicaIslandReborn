@@ -109,15 +109,15 @@ Source Lines of Code (SLOC) - non-empty lines:
 
 | Extension | Lines |
 |-----------|------:|
-| .ts | 12,483 |
-| .tsx | 3,008 |
-| .md | 1,766 |
-| .json | 290 |
-| .css | 279 |
+| .ts | 14,136 |
+| .tsx | 5,503 |
+| .json | 11,842 |
+| .md | 1,915 |
+| .css | 465 |
 | .mjs | 100 |
 | .js | 76 |
 | .html | 32 |
-| **Total** | **18,034** |
+| **Total** | **34,069** |
 
 *Run `bun run sloc` to recalculate. Excludes `node_modules/`, `dist/`, and `Original/` directories.*
 

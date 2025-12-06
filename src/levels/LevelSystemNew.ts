@@ -167,10 +167,10 @@ export class LevelSystem {
   private async loadConvertedJsonLevel(levelId: number, levelInfo: LevelInfo): Promise<boolean> {
     // Use .json extension (levels were converted from .bin to .json)
     const url = `/assets/levels/${levelInfo.file}.json`;
-    const parsed = await this.levelParser.parseLevel(url);
+    const parsed = await this.levelParser.parseJsonLevel(url);
     
     if (!parsed) {
-      console.error(`Failed to parse binary level: ${levelInfo.file}`);
+      console.error(`Failed to parse JSON level: ${levelInfo.file}`);
       return false;
     }
 
