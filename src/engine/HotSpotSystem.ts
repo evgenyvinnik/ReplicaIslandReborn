@@ -128,6 +128,7 @@ export class HotSpotSystem {
 
   /**
    * Get hot spot by tile coordinates
+   * tiles[x][y] - column-major order
    */
   getHotSpotByTile(tileX: number, tileY: number): number {
     if (!this.world) {
@@ -138,7 +139,8 @@ export class HotSpotSystem {
       return HotSpotType.NONE;
     }
 
-    return this.world.tiles[tileY][tileX];
+    // Column-major: tiles[x][y]
+    return this.world.tiles[tileX][tileY];
   }
 
 

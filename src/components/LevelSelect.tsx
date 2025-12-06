@@ -20,8 +20,9 @@ import {
   type LevelMetaData,
 } from '../data/levelTree';
 
-// Row height in pixels (original: 70dp, scaled for 320px height)
-const ROW_HEIGHT = 52;
+// Row height in pixels (original: 70dp)
+// Scaled down slightly to fit more levels in the 320px view
+const ROW_HEIGHT = 48;
 
 // Text colors from original
 const TEXT_COLOR_ENABLED = '#65ff99';
@@ -190,13 +191,13 @@ export function LevelSelect(): React.JSX.Element {
       setSelectedIndex(index);
       setFlickeringIndex(index);
 
-      // Start flicker animation, then start game
+      // Start flicker animation, then start game (800ms total animation)
       setTimeout(() => {
         setFlickeringIndex(-1);
         // Get the numeric level ID from the resource mapping
         const levelId = resourceToLevelId[levelData.level.resource] || 1;
         startGame(levelId);
-      }, 500);
+      }, 800);
     },
     [startGame]
   );
@@ -288,51 +289,20 @@ export function LevelSelect(): React.JSX.Element {
         overflow: 'hidden',
       }}
     >
-      {/* CSS for flicker animation */}
+      {/* CSS for flicker animation - matches original button_flicker.xml */}
       <style>
         {`
           @keyframes flicker {
-            0%, 100% { opacity: 1; }
-            25% { opacity: 0.3; }
-            50% { opacity: 1; }
-            75% { opacity: 0.3; }
+            0% { opacity: 1; }
+            100% { opacity: 0; }
           }
           .animate-flicker {
-            animation: flicker 0.5s ease-in-out;
+            animation: flicker 100ms ease-in-out 0s 8 alternate;
           }
         `}
       </style>
 
-      {/* Header with back button - minimal to maximize list space */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          padding: '2px 8px',
-          backgroundColor: '#000000',
-          flexShrink: 0,
-        }}
-      >
-        <button
-          onClick={goToMainMenu}
-          style={{
-            padding: '2px 10px',
-            fontSize: '10px',
-            fontFamily: 'monospace',
-            backgroundColor: 'transparent',
-            border: '1px solid #444',
-            borderRadius: '3px',
-            color: '#888',
-            cursor: 'pointer',
-          }}
-          onMouseEnter={(e) => (e.currentTarget.style.color = TEXT_COLOR_ENABLED)}
-          onMouseLeave={(e) => (e.currentTarget.style.color = '#888')}
-        >
-          ← BACK
-        </button>
-      </div>
-
-      {/* Level list - scrollable ListView style */}
+      {/* Level list - scrollable ListView style (matches original full-screen list) */}
       <div
         ref={listRef}
         style={{
@@ -353,25 +323,44 @@ export function LevelSelect(): React.JSX.Element {
         ))}
       </div>
 
-      {/* Footer with stats - minimal */}
+      {/* Minimal footer with back hint - since web doesn't have device back button */}
       <div
         style={{
-          padding: '2px 8px',
+          padding: '4px 8px',
           backgroundColor: '#000000',
-          borderTop: '1px solid #222',
+          borderTop: '1px solid #111',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          fontSize: '9px',
+          fontSize: '10px',
           fontFamily: 'monospace',
-          color: '#555',
+          color: '#444',
           flexShrink: 0,
         }}
       >
-        <span>
+        <button
+          onClick={goToMainMenu}
+          style={{
+            padding: '2px 8px',
+            fontSize: '10px',
+            fontFamily: 'monospace',
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: '#555',
+            cursor: 'pointer',
+          }}
+          onMouseEnter={(e): void => {
+            e.currentTarget.style.color = TEXT_COLOR_ENABLED;
+          }}
+          onMouseLeave={(e): void => {
+            e.currentTarget.style.color = '#555';
+          }}
+        >
+          ← Back (Esc)
+        </button>
+        <span style={{ color: '#333' }}>
           {completedCount}/{totalCount}
         </span>
-        <span>↑↓ Enter Esc</span>
       </div>
     </div>
   );

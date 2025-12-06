@@ -1,11 +1,18 @@
 /**
  * OnScreenControls Component - Twin-stick style controls from the original game
  * 
- * Replicates the original Replica Island control scheme:
- * - Left side: Movement slider (horizontal movement)
- * - Right side: Fly button (jump/fly) and Stomp button (attack)
+ * Replicates the original Replica Island control scheme from HudSystem.java:
+ * - Left side: Movement slider at (20, 32) from bottom-left
+ * - Right side: Fly button at (gameWidth - 128 + 12, 5) and Stomp button
  * 
- * Based on HudSystem.java and ButtonConstants.java from the original game.
+ * Original constants from HudSystem.java:
+ * - MOVEMENT_SLIDER_BASE_X = 20.0f
+ * - MOVEMENT_SLIDER_BASE_Y = 32.0f (from bottom)
+ * - MOVEMENT_SLIDER_BUTTON_X = MOVEMENT_SLIDER_BASE_X + 32.0f = 52
+ * - FLY_BUTTON_X = -12.0f (when slider mode: gameWidth - 128 - FLY_BUTTON_X)
+ * - FLY_BUTTON_Y = -5.0f (from bottom)
+ * - STOMP_BUTTON_X = 85.0f (when slider mode: gameWidth - 83.2 - STOMP_BUTTON_X)
+ * - STOMP_BUTTON_SCALE = 0.65f
  */
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
@@ -23,9 +30,24 @@ interface OnScreenControlsProps {
   keyboardRightActive?: boolean;
 }
 
-// Original game button dimensions (from ButtonConstants.java)
+// Original game layout constants (from HudSystem.java)
+// Slider mode positions - slider on left, buttons on right
+const MOVEMENT_SLIDER_BASE_X = 20;  // From left edge
+const MOVEMENT_SLIDER_BASE_Y = 32;  // From bottom edge
 const MOVEMENT_SLIDER_WIDTH = 128;
-const SLIDER_BUTTON_WIDTH = 32;
+const SLIDER_BUTTON_WIDTH = 64;     // Slider button sprite is 64x64
+
+// Actual sprite sizes (checked via file command):
+// - ui_button_fly_*.png: 128x128
+// - ui_button_stomp_*.png: 128x128
+// - ui_movement_slider_base.png: 128x32
+// - ui_movement_slider_button_*.png: 64x64
+
+// Display sizes for 480x320 game screen
+// Original uses FLY_BUTTON_WIDTH = 128, STOMP_BUTTON_SCALE = 0.65
+// But for web, scale down to fit better
+const FLY_BUTTON_DISPLAY_SIZE = 64;   // 128 / 2 for better fit
+const STOMP_BUTTON_DISPLAY_SIZE = 48; // Scaled down further
 
 export function OnScreenControls({
   onMovementChange,
@@ -163,19 +185,36 @@ export function OnScreenControls({
 
   return (
     <div className="game-controls-overlay">
-      {/* Left side - Movement slider */}
-      <div className="controls-left">
+      {/* Left side - Movement slider (original: X=20, Y=32 from bottom) */}
+      <div 
+        className="controls-left"
+        style={{
+          position: 'absolute',
+          left: MOVEMENT_SLIDER_BASE_X,
+          bottom: MOVEMENT_SLIDER_BASE_Y,
+        }}
+      >
         <div 
           ref={sliderRef}
           className="movement-slider-container"
           onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
+          style={{
+            position: 'relative',
+            width: MOVEMENT_SLIDER_WIDTH,
+            height: 64,
+          }}
         >
           <img 
             src="/assets/sprites/ui_movement_slider_base.png" 
             alt="Movement base"
-            className="movement-slider-base"
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              imageRendering: 'pixelated',
+            }}
             draggable={false}
           />
           <img 
@@ -184,15 +223,33 @@ export function OnScreenControls({
               : '/assets/sprites/ui_movement_slider_button_off.png'
             }
             alt="Movement button"
-            className="movement-slider-button"
-            style={{ left: sliderButtonX }}
+            style={{
+              position: 'absolute',
+              bottom: 8,
+              left: sliderButtonX,
+              imageRendering: 'pixelated',
+              cursor: 'pointer',
+              transition: 'left 0.05s ease-out',
+            }}
             draggable={false}
           />
         </div>
       </div>
 
-      {/* Right side - Action buttons */}
-      <div className="controls-right">
+      {/* Right side - Action buttons (Fly above Stomp) */}
+      <div 
+        className="controls-right"
+        style={{
+          position: 'absolute',
+          right: 12,
+          bottom: 5,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 5,
+          alignItems: 'flex-end',
+        }}
+      >
+        {/* Stomp button (above fly, smaller) */}
         <div 
           className={`action-button ${stompPressed ? 'pressed' : ''}`}
           onMouseDown={handleStompDown}
@@ -200,14 +257,25 @@ export function OnScreenControls({
           onMouseLeave={handleStompUp}
           onTouchStart={handleStompDown}
           onTouchEnd={handleStompUp}
+          style={{ 
+            cursor: 'pointer',
+            opacity: stompPressed ? 1 : 0.8,
+            transform: stompPressed ? 'scale(0.95)' : 'scale(1)',
+            transition: 'all 0.1s ease',
+          }}
         >
           <img 
             src={stompPressed ? '/assets/sprites/ui_button_stomp_on.png' : '/assets/sprites/ui_button_stomp_off.png'}
             alt="Stomp"
-            style={{ width: 48, height: 48 }}
+            style={{ 
+              width: STOMP_BUTTON_DISPLAY_SIZE, 
+              height: STOMP_BUTTON_DISPLAY_SIZE,
+              imageRendering: 'pixelated',
+            }}
             draggable={false}
           />
         </div>
+        {/* Fly button (below stomp, larger) */}
         <div 
           className={`action-button ${flyPressed ? 'pressed' : ''}`}
           onMouseDown={handleFlyDown}
@@ -215,11 +283,21 @@ export function OnScreenControls({
           onMouseLeave={handleFlyUp}
           onTouchStart={handleFlyDown}
           onTouchEnd={handleFlyUp}
+          style={{
+            cursor: 'pointer',
+            opacity: flyPressed ? 1 : 0.8,
+            transform: flyPressed ? 'scale(0.95)' : 'scale(1)',
+            transition: 'all 0.1s ease',
+          }}
         >
           <img 
             src={flyPressed ? '/assets/sprites/ui_button_fly_on.png' : '/assets/sprites/ui_button_fly_off.png'}
             alt="Fly"
-            style={{ width: 64, height: 64 }}
+            style={{ 
+              width: FLY_BUTTON_DISPLAY_SIZE, 
+              height: FLY_BUTTON_DISPLAY_SIZE,
+              imageRendering: 'pixelated',
+            }}
             draggable={false}
           />
         </div>

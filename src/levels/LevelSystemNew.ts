@@ -258,13 +258,17 @@ export class LevelSystem {
   }
 
   /**
-   * Flatten 2D tile array to 1D
+   * Flatten 2D tile array to 1D (column-major tiles[x][y] -> row-major 1D array)
    */
   private flattenTileArray(tiles: number[][]): number[] {
+    // tiles is column-major [x][y], we need row-major output
+    const width = tiles.length;
+    const height = tiles[0]?.length || 0;
     const result: number[] = [];
-    for (let y = 0; y < tiles.length; y++) {
-      for (let x = 0; x < tiles[y].length; x++) {
-        result.push(tiles[y][x]);
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        result.push(tiles[x][y]);
       }
     }
     return result;
@@ -272,23 +276,28 @@ export class LevelSystem {
 
   /**
    * Spawn objects from binary object layer
+   * Uses column-major tiles[x][y] matching original Java
    */
   private spawnObjectsFromLayer(objectLayer: { width: number; height: number; tiles: number[][] }): void {
     if (!this.gameObjectManager) return;
 
     const spawnList: SpawnInfo[] = [];
+    const worldHeight = objectLayer.height * this.tileHeight;
 
     // Scan the object layer for spawn points
+    // tiles[x][y] is column-major
     for (let y = 0; y < objectLayer.height; y++) {
       for (let x = 0; x < objectLayer.width; x++) {
-        const tileValue = objectLayer.tiles[y][x];
+        const tileValue = objectLayer.tiles[x][y];
         
         // Skip empty tiles (-1) and skip markers (negative values)
         if (tileValue < 0) continue;
 
-        // Calculate world position (bottom-left origin)
-        const worldX = x * this.tileWidth + this.tileWidth / 2;
-        const worldY = (objectLayer.height - 1 - y) * this.tileHeight + this.tileHeight / 2;
+        // Calculate world position - matches original Java:
+        // worldX = x * tileWidth
+        // worldY = worldHeight - ((y + 1) * tileHeight)
+        const worldX = x * this.tileWidth;
+        const worldY = worldHeight - ((y + 1) * this.tileHeight);
 
         spawnList.push({
           type: tileValue,
@@ -315,126 +324,128 @@ export class LevelSystem {
 
   /**
    * Spawn a single object by type index
+   * Matches original Java which centers objects in tiles
    */
   private spawnObjectByType(spawn: SpawnInfo): void {
     if (!this.gameObjectManager) return;
 
     const typeName = getObjectTypeName(spawn.type);
     
-    // Create object and set position
+    // Create object 
     const obj = this.gameObjectManager.createObject();
-    obj.setPosition(spawn.x, spawn.y);
     obj.type = typeName.toLowerCase();
+
+    // Default size (will be overridden per type)
+    let objWidth = 32;
+    let objHeight = 32;
 
     // Configure based on type
     switch (spawn.type) {
       case GameObjectTypeIndex.PLAYER:
         obj.type = 'player';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 64;
+        objHeight = 64;
         this.gameObjectManager.setPlayer(obj);
-        // Store spawn position for respawning
-        this.playerSpawnPosition = { x: spawn.x, y: spawn.y };
         break;
 
       case GameObjectTypeIndex.COIN:
         obj.type = 'coin';
-        obj.width = 32;
-        obj.height = 32;
+        objWidth = 32;
+        objHeight = 32;
         obj.activationRadius = 100;
         break;
 
       case GameObjectTypeIndex.RUBY:
         obj.type = 'ruby';
-        obj.width = 32;
-        obj.height = 32;
+        objWidth = 32;
+        objHeight = 32;
         obj.activationRadius = 100;
         break;
 
       case GameObjectTypeIndex.DIARY:
         obj.type = 'diary';
-        obj.width = 32;
-        obj.height = 32;
+        objWidth = 32;
+        objHeight = 32;
         obj.activationRadius = 100;
         break;
 
       case GameObjectTypeIndex.BAT:
         obj.type = 'enemy';
         obj.subType = 'bat';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 48;
+        objHeight = 48;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.STING:
         obj.type = 'enemy';
         obj.subType = 'sting';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 48;
+        objHeight = 48;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.ONION:
         obj.type = 'enemy';
         obj.subType = 'onion';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 48;
+        objHeight = 48;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.BROBOT:
         obj.type = 'enemy';
         obj.subType = 'brobot';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 48;
+        objHeight = 48;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.SKELETON:
         obj.type = 'enemy';
         obj.subType = 'skeleton';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 48;
+        objHeight = 48;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.SNAILBOMB:
         obj.type = 'enemy';
         obj.subType = 'snailbomb';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 48;
+        objHeight = 48;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.SHADOWSLIME:
         obj.type = 'enemy';
         obj.subType = 'shadowslime';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 48;
+        objHeight = 48;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.MUDMAN:
         obj.type = 'enemy';
         obj.subType = 'mudman';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 48;
+        objHeight = 48;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.KARAGUIN:
         obj.type = 'enemy';
         obj.subType = 'karaguin';
-        obj.width = 48;
-        obj.height = 48;
+        objWidth = 48;
+        objHeight = 48;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.PINK_NAMAZU:
         obj.type = 'enemy';
         obj.subType = 'namazu';
-        obj.width = 64;
-        obj.height = 64;
+        objWidth = 64;
+        objHeight = 64;
         obj.activationRadius = 250;
         break;
         
@@ -442,8 +453,8 @@ export class LevelSystem {
       case GameObjectTypeIndex.TURRET_LEFT:
         obj.type = 'enemy';
         obj.subType = 'turret';
-        obj.width = 32;
-        obj.height = 32;
+        objWidth = 32;
+        objHeight = 32;
         obj.activationRadius = 300;
         break;
 
@@ -451,55 +462,80 @@ export class LevelSystem {
       case GameObjectTypeIndex.DOOR_BLUE:
       case GameObjectTypeIndex.DOOR_GREEN:
         obj.type = 'door';
-        obj.width = 32;
-        obj.height = 64;
+        objWidth = 32;
+        objHeight = 64;
         break;
 
       case GameObjectTypeIndex.BUTTON_RED:
       case GameObjectTypeIndex.BUTTON_BLUE:
       case GameObjectTypeIndex.BUTTON_GREEN:
         obj.type = 'button';
-        obj.width = 32;
-        obj.height = 16;
+        objWidth = 32;
+        objHeight = 16;
         break;
 
       case GameObjectTypeIndex.WANDA:
         obj.type = 'npc';
         obj.subType = 'wanda';
-        obj.width = 48;
-        obj.height = 64;
+        objWidth = 48;
+        objHeight = 64;
         obj.activationRadius = 150;
         break;
         
       case GameObjectTypeIndex.KYLE:
         obj.type = 'npc';
         obj.subType = 'kyle';
-        obj.width = 48;
-        obj.height = 64;
+        objWidth = 48;
+        objHeight = 64;
         obj.activationRadius = 150;
         break;
         
       case GameObjectTypeIndex.KABOCHA:
         obj.type = 'npc';
         obj.subType = 'kabocha';
-        obj.width = 48;
-        obj.height = 64;
+        objWidth = 48;
+        objHeight = 64;
         obj.activationRadius = 150;
         break;
         
       case GameObjectTypeIndex.ROKUDOU:
         obj.type = 'npc';
         obj.subType = 'rokudou';
-        obj.width = 48;
-        obj.height = 64;
+        objWidth = 48;
+        objHeight = 64;
         obj.activationRadius = 150;
         break;
 
       default:
-        // Generic object
-        obj.width = 32;
-        obj.height = 32;
+        // Generic object - keep default size
         break;
+    }
+
+    // Set object dimensions
+    obj.width = objWidth;
+    obj.height = objHeight;
+    
+    // Calculate position - center objects in tile (matches original Java)
+    // Original: if (object.height < tileHeight) object.y += (tileHeight - object.height) / 2
+    // Original: if (object.width < tileWidth) object.x += (tileWidth - object.width) / 2
+    // Original: if (object.width > tileWidth) object.x -= (object.width - tileWidth) / 2
+    let posX = spawn.x;
+    let posY = spawn.y;
+    
+    if (objHeight < this.tileHeight) {
+      posY += (this.tileHeight - objHeight) / 2;
+    }
+    if (objWidth < this.tileWidth) {
+      posX += (this.tileWidth - objWidth) / 2;
+    } else if (objWidth > this.tileWidth) {
+      posX -= (objWidth - this.tileWidth) / 2;
+    }
+    
+    obj.setPosition(posX, posY);
+    
+    // Store player spawn position for respawning
+    if (spawn.type === GameObjectTypeIndex.PLAYER) {
+      this.playerSpawnPosition = { x: posX, y: posY };
     }
 
     this.gameObjectManager.add(obj);

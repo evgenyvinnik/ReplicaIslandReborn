@@ -96,6 +96,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const [levelLoading, setLevelLoading] = useState(true);
   const [playerFuel, setPlayerFuel] = useState(PLAYER.FUEL_AMOUNT);
   
+  // Game settings state - subscribe to changes
+  const [currentSettings, setCurrentSettings] = useState(gameSettings.getAll());
+  
   // Input state for on-screen controls sync (keyboard/gamepad -> UI)
   const [inputUIState, setInputUIState] = useState({
     flyActive: false,
@@ -107,6 +110,21 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   // Dialog state
   const [activeDialog, setActiveDialog] = useState<Dialog | null>(null);
   const dialogTriggerCooldownRef = useRef(0);
+
+  // Subscribe to settings changes
+  useEffect(() => {
+    const unsubscribe = gameSettings.subscribe((settings) => {
+      setCurrentSettings(settings);
+      // Apply sound settings immediately
+      const soundSystem = systemRegistryRef.current?.soundSystem;
+      if (soundSystem) {
+        soundSystem.setEnabled(settings.soundEnabled);
+        soundSystem.setSfxVolume(settings.soundVolume);
+        soundSystem.setMusicVolume(settings.musicVolume);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   // Initialize game systems
   useEffect(() => {
@@ -1323,43 +1341,45 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         {isInitialized && !levelLoading && (
           <>
-            <HUD fps={fps} showFPS={state.config.debugMode} fuel={playerFuel} gameWidth={width} gameHeight={height} />
-            <OnScreenControls
-              onMovementChange={(direction: number): void => {
-                const inputSystem = systemRegistryRef.current?.inputSystem;
-                if (inputSystem) {
-                  inputSystem.setVirtualAxis('horizontal', direction);
-                }
-              }}
-              onFlyPressed={(): void => {
-                const inputSystem = systemRegistryRef.current?.inputSystem;
-                if (inputSystem) {
-                  inputSystem.setVirtualButton('fly', true);
-                }
-              }}
-              onFlyReleased={(): void => {
-                const inputSystem = systemRegistryRef.current?.inputSystem;
-                if (inputSystem) {
-                  inputSystem.setVirtualButton('fly', false);
-                }
-              }}
-              onStompPressed={(): void => {
-                const inputSystem = systemRegistryRef.current?.inputSystem;
-                if (inputSystem) {
-                  inputSystem.setVirtualButton('stomp', true);
-                }
-              }}
-              onStompReleased={(): void => {
-                const inputSystem = systemRegistryRef.current?.inputSystem;
-                if (inputSystem) {
-                  inputSystem.setVirtualButton('stomp', false);
-                }
-              }}
-              keyboardFlyActive={inputUIState.flyActive}
-              keyboardStompActive={inputUIState.stompActive}
-              keyboardLeftActive={inputUIState.leftActive}
-              keyboardRightActive={inputUIState.rightActive}
-            />
+            <HUD fps={fps} showFPS={currentSettings.showFPS} fuel={playerFuel} gameWidth={width} gameHeight={height} />
+            {currentSettings.onScreenControlsEnabled && (
+              <OnScreenControls
+                onMovementChange={(direction: number): void => {
+                  const inputSystem = systemRegistryRef.current?.inputSystem;
+                  if (inputSystem) {
+                    inputSystem.setVirtualAxis('horizontal', direction);
+                  }
+                }}
+                onFlyPressed={(): void => {
+                  const inputSystem = systemRegistryRef.current?.inputSystem;
+                  if (inputSystem) {
+                    inputSystem.setVirtualButton('fly', true);
+                  }
+                }}
+                onFlyReleased={(): void => {
+                  const inputSystem = systemRegistryRef.current?.inputSystem;
+                  if (inputSystem) {
+                    inputSystem.setVirtualButton('fly', false);
+                  }
+                }}
+                onStompPressed={(): void => {
+                  const inputSystem = systemRegistryRef.current?.inputSystem;
+                  if (inputSystem) {
+                    inputSystem.setVirtualButton('stomp', true);
+                  }
+                }}
+                onStompReleased={(): void => {
+                  const inputSystem = systemRegistryRef.current?.inputSystem;
+                  if (inputSystem) {
+                    inputSystem.setVirtualButton('stomp', false);
+                  }
+                }}
+                keyboardFlyActive={inputUIState.flyActive}
+                keyboardStompActive={inputUIState.stompActive}
+                keyboardLeftActive={inputUIState.leftActive}
+                keyboardRightActive={inputUIState.rightActive}
+              />
+            )}
           </>
         )}
         

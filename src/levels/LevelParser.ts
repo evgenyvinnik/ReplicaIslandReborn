@@ -75,11 +75,12 @@ export const BackgroundImages: Record<number, string> = {
 
 /**
  * Represents a TiledWorld layer
+ * Note: tiles are stored in COLUMN-MAJOR order as tiles[x][y] to match original Java code
  */
 export interface TiledWorldData {
   width: number;
   height: number;
-  tiles: number[][];
+  tiles: number[][]; // tiles[x][y] - column-major order
 }
 
 /**
@@ -140,6 +141,7 @@ function byteArrayToFloat(bytes: Uint8Array, offset: number): number {
 /**
  * Parse a TiledWorld from binary data
  * Format: signature (42), width (4 bytes), height (4 bytes), tile data
+ * Note: Data is read row by row but stored column-major as tiles[x][y] to match original Java
  */
 function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldData; bytesRead: number } | null {
   const signature = data[offset];
@@ -156,10 +158,15 @@ function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldD
   const height = byteArrayToInt(data, currentOffset);
   currentOffset += 4;
 
-  // Read tile data
+  // Initialize column-major tiles array: tiles[x][y]
   const tiles: number[][] = [];
+  for (let x = 0; x < width; x++) {
+    tiles[x] = new Array(height);
+  }
+
+  // Read tile data row by row, but store in column-major order
+  // This matches the original Java: mTilesArray[x][y] = (byte)byteStream.read()
   for (let y = 0; y < height; y++) {
-    tiles[y] = [];
     for (let x = 0; x < width; x++) {
       // Tile values are signed bytes
       let tileValue = data[currentOffset++];
@@ -167,7 +174,7 @@ function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldD
       if (tileValue > 127) {
         tileValue = tileValue - 256;
       }
-      tiles[y][x] = tileValue;
+      tiles[x][y] = tileValue;
     }
   }
 
@@ -182,14 +189,15 @@ function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldD
 /**
  * Calculate skip values for empty tiles (optimization from original game)
  * Empty tiles are marked with negative values indicating how many tiles to skip
+ * tiles[x][y] - column-major order
  */
 function calculateSkips(world: TiledWorldData): void {
   let emptyTileCount = 0;
   for (let y = world.height - 1; y >= 0; y--) {
     for (let x = world.width - 1; x >= 0; x--) {
-      if (world.tiles[y][x] < 0) {
+      if (world.tiles[x][y] < 0) {
         emptyTileCount++;
-        world.tiles[y][x] = -emptyTileCount;
+        world.tiles[x][y] = -emptyTileCount;
       } else {
         emptyTileCount = 0;
       }
@@ -349,12 +357,13 @@ export class LevelParser {
 
   /**
    * Get tile at tile coordinates
+   * tiles[x][y] - column-major order
    */
   getTile(world: TiledWorldData, tileX: number, tileY: number): number {
     if (tileX < 0 || tileX >= world.width || tileY < 0 || tileY >= world.height) {
       return -1;
     }
-    return world.tiles[tileY][tileX];
+    return world.tiles[tileX][tileY];
   }
 }
 

@@ -32,8 +32,8 @@ import { getInventory, addInventoryListener, type InventoryRecord } from '../ent
 // HUD Layout Constants (from original HudSystem.java)
 // ============================================================================
 
-// Fuel bar positioning - reduced padding to keep bar in bounds
-const FUEL_BAR_EDGE_PADDING = 8;
+// Fuel bar positioning (from original HudSystem.java)
+const FUEL_BAR_EDGE_PADDING = 15;
 
 // Fuel bar animation speeds (per second)
 const FUEL_DECREASE_BAR_SPEED = 0.75;
@@ -43,11 +43,12 @@ const FUEL_INCREASE_BAR_SPEED = 2.0;
 const COLLECTABLE_EDGE_PADDING = 8;
 const RUBY_OFFSET_FROM_CENTER = 100; // Rubies are 100px right of center
 
-// Sprite dimensions (from actual sprite files)
+// Sprite dimensions - ui_bar_bg.png is 128x16, but original uses 100-pixel effective width
+// Original: barWidth = (int)((100 - 4) * mFuelPercent)
 const FUEL_BAR_BG_WIDTH = 128;
 const FUEL_BAR_BG_HEIGHT = 16;
 const FUEL_BAR_INNER_OFFSET = 2;
-const FUEL_BAR_INNER_MAX_WIDTH = 124; // 128 - 4 (2px padding each side)
+const FUEL_BAR_INNER_MAX_WIDTH = 96; // Original uses (100-4)=96 pixels for the bar
 
 const COIN_SPRITE_SIZE = 16;  // object_coin01.png is 16x16
 const RUBY_SPRITE_SIZE = 32;  // object_ruby01.png is 32x32
@@ -337,7 +338,7 @@ export function HUD({
       }}
     >
       {/* ================================================================== */}
-      {/* FUEL BAR - Top Left (original: bottom-left) */}
+      {/* FUEL BAR - Top Left (original: bottom-left in OpenGL coords) */}
       {/* ================================================================== */}
       <div
         style={{
@@ -346,7 +347,7 @@ export function HUD({
           top: fuelBarTop,
         }}
       >
-        {/* Fuel background */}
+        {/* Fuel background - 128x16 sprite */}
         <img
           src="/assets/sprites/ui_bar_bg.png"
           alt="fuel bg"
@@ -359,7 +360,7 @@ export function HUD({
             imageRendering: 'pixelated',
           }}
         />
-        {/* Fuel bar (clipped to show percentage) */}
+        {/* Fuel bar fill - uses 8x8 tile stretched/tiled */}
         {fuelBarWidth >= 1 && (
           <div
             style={{
@@ -368,19 +369,12 @@ export function HUD({
               top: FUEL_BAR_INNER_OFFSET,
               width: fuelBarWidth,
               height: FUEL_BAR_BG_HEIGHT - (FUEL_BAR_INNER_OFFSET * 2),
-              overflow: 'hidden',
+              backgroundImage: 'url(/assets/sprites/ui_bar.png)',
+              backgroundRepeat: 'repeat',
+              backgroundSize: '8px 12px',
+              imageRendering: 'pixelated',
             }}
-          >
-            <img
-              src="/assets/sprites/ui_bar.png"
-              alt="fuel"
-              style={{
-                width: FUEL_BAR_INNER_MAX_WIDTH,
-                height: FUEL_BAR_BG_HEIGHT - (FUEL_BAR_INNER_OFFSET * 2),
-                imageRendering: 'pixelated',
-              }}
-            />
-          </div>
+          />
         )}
       </div>
 
