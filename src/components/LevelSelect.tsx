@@ -276,10 +276,6 @@ export function LevelSelect(): React.JSX.Element {
     }
   };
 
-  // Count completed and total levels
-  const completedCount = levelList.filter((l) => l.level.completed).length;
-  const totalCount = levelList.length;
-
   return (
     <div
       style={{
@@ -323,46 +319,6 @@ export function LevelSelect(): React.JSX.Element {
             isFlickering={flickeringIndex === index}
           />
         ))}
-      </div>
-
-      {/* Minimal footer with back hint - since web doesn't have device back button */}
-      <div
-        style={{
-          padding: '4px 8px',
-          backgroundColor: '#000000',
-          borderTop: '1px solid #111',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: '10px',
-          fontFamily: 'monospace',
-          color: '#444',
-          flexShrink: 0,
-        }}
-      >
-        <button
-          onClick={goToMainMenu}
-          style={{
-            padding: '2px 8px',
-            fontSize: '10px',
-            fontFamily: 'monospace',
-            backgroundColor: 'transparent',
-            border: 'none',
-            color: '#555',
-            cursor: 'pointer',
-          }}
-          onMouseEnter={(e): void => {
-            e.currentTarget.style.color = TEXT_COLOR_ENABLED;
-          }}
-          onMouseLeave={(e): void => {
-            e.currentTarget.style.color = '#555';
-          }}
-        >
-          ← Back (Esc)
-        </button>
-        <span style={{ color: '#333' }}>
-          {completedCount}/{totalCount}
-        </span>
       </div>
     </div>
   );

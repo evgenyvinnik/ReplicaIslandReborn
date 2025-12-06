@@ -119,7 +119,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const activeDialogRef = useRef<Dialog | null>(null);
   const dialogTriggerCooldownRef = useRef(0);
   const hasShownIntroDialogRef = useRef(false);
-  const introDialogTimeoutRef = useRef<number | null>(null);
 
   // Sync ref with state
   useEffect(() => {
@@ -130,6 +129,23 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   useEffect(() => {
     gameStateRef.current = state.gameState;
   }, [state.gameState]);
+
+  // Show intro dialog after level finishes loading
+  useEffect(() => {
+    if (!levelLoading && isInitialized && !hasShownIntroDialogRef.current) {
+      const levelSystem = levelSystemRef.current;
+      if (levelSystem) {
+        const levelInfo = levelSystem.getLevelInfo(state.currentLevel);
+        if (levelInfo) {
+          const dialogs = getDialogsForLevel(levelInfo.file);
+          if (dialogs.length > 0) {
+            hasShownIntroDialogRef.current = true;
+            setActiveDialog(dialogs[0]);
+          }
+        }
+      }
+    }
+  }, [levelLoading, isInitialized, state.currentLevel]);
 
   // Subscribe to settings changes
   useEffect(() => {
@@ -418,22 +434,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             maxY: levelSystem.getLevelHeight(),
           });
           
-          // Show intro dialog for this level (if any) - only once
-          const levelInfo = levelSystem.getLevelInfo(levelToLoad);
-          console.warn('Level info:', levelInfo);
-          if (levelInfo && !hasShownIntroDialogRef.current) {
-            const dialogs = getDialogsForLevel(levelInfo.file);
-            console.warn('Dialogs for level:', levelInfo.file, dialogs);
-            if (dialogs.length > 0) {
-              // Show the first dialog (intro) after a short delay to ensure render is ready
-              console.warn('Setting active dialog:', dialogs[0]);
-              hasShownIntroDialogRef.current = true;
-              // Use setTimeout to ensure the dialog shows after React has finished rendering
-              introDialogTimeoutRef.current = window.setTimeout(() => {
-                setActiveDialog(dialogs[0]);
-              }, 100);
-            }
-          }
+          // Note: Intro dialog is now shown via a separate useEffect after levelLoading becomes false
         } else {
           // Fallback: create test level
           createTestLevel(factory, gameObjectManager, collisionSystem);
@@ -1374,9 +1375,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Cleanup
     return (): void => {
       clearInterval(fpsInterval);
-      if (introDialogTimeoutRef.current) {
-        clearTimeout(introDialogTimeoutRef.current);
-      }
       hasShownIntroDialogRef.current = false; // Reset for strict mode double-render
       gameLoop.stop();
       inputSystem.destroy();
@@ -1527,13 +1525,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setActiveDialog(null);
             }}
           />
-        )}
-        
-        {/* Debug: Show when activeDialog is set */}
-        {activeDialog === null && (
-          <div style={{ position: 'absolute', top: 0, left: 0, color: 'yellow', zIndex: 2000, fontSize: '10px' }}>
-            No dialog
-          </div>
         )}
         
         {/* Pause menu overlay */}

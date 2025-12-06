@@ -15,6 +15,8 @@ export enum GameState {
   DIALOG = 'DIALOG',
   GAME_OVER = 'GAME_OVER',
   LEVEL_COMPLETE = 'LEVEL_COMPLETE',
+  ANDROID_HOME = 'ANDROID_HOME',
+  ANDROID_RECENTS = 'ANDROID_RECENTS',
 }
 
 // Action types for game objects

@@ -13,6 +13,7 @@ import { Game } from './components/Game';
 import { LoadingScreen } from './components/LoadingScreen';
 import { PhoneFrame } from './components/PhoneFrame';
 import { AndroidHomeScreen } from './components/AndroidHomeScreen';
+import { AndroidRecentsScreen } from './components/AndroidRecentsScreen';
 
 // Original game resolution
 const GAME_WIDTH = 480;
@@ -130,11 +131,17 @@ function AppContent(): React.JSX.Element {
         
         <div 
            className={`app-container ${osMode === 'recents' ? 'shrunk' : ''}`}
-           onClick={osMode === 'recents' ? handleAppLaunch : undefined}
            style={{ display: osMode === 'home' ? 'none' : 'block' }}
         >
            {renderScreen()}
         </div>
+
+        {osMode === 'recents' && (
+          <AndroidRecentsScreen 
+            onResume={handleAppLaunch} 
+            isOverlay={true} 
+          />
+        )}
 
         {osMode === 'home' && <AndroidHomeScreen onLaunch={handleAppLaunch} />}
       </div>
