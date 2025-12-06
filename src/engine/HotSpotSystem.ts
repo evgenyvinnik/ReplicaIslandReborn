@@ -155,15 +155,15 @@ export class HotSpotSystem {
   }
 
   /**
-   * Convert world Y to tile Y (Y is flipped - origin at bottom)
+   * Convert world Y to tile Y
+   * Using Y-down coordinate system (Y=0 at top, like Canvas)
    */
   getHitTileY(worldY: number): number {
     if (!this.world || this.levelHeight === 0) {
       return 0;
     }
-    // Flip Y coordinate (world origin is bottom-left, tile origin is top-left)
-    const flippedY = this.levelHeight - worldY;
-    return Math.floor((flippedY / this.levelHeight) * this.world.height);
+    // Direct mapping since both world and tiles use Y=0 at top
+    return Math.floor((worldY / this.levelHeight) * this.world.height);
   }
 
   /**
@@ -179,14 +179,15 @@ export class HotSpotSystem {
 
   /**
    * Get the center world Y position of a tile
+   * Using Y-down coordinate system (Y=0 at top, like Canvas)
    */
   getTileCenterWorldPositionY(tileY: number): number {
     if (!this.world || this.levelHeight === 0) {
       return 0;
     }
     const tileHeightWorld = this.levelHeight / this.world.height;
-    // Flip Y coordinate
-    return this.levelHeight - (tileY * tileHeightWorld + tileHeightWorld / 2);
+    // Direct mapping, no Y flip
+    return tileY * tileHeightWorld + tileHeightWorld / 2;
   }
 
   /**

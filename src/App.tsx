@@ -2,7 +2,7 @@
  * Main App Component
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useGameContext, GameProvider } from './context/GameContext';
 import { GameState } from './types';
 import { MainMenu } from './components/MainMenu';
@@ -18,8 +18,31 @@ const GAME_WIDTH = 480;
 const GAME_HEIGHT = 320;
 
 function AppContent(): React.JSX.Element {
-  const { state, dispatch, goToMainMenu } = useGameContext();
+  const { state, dispatch, goToMainMenu, pauseGame, resumeGame } = useGameContext();
   const [loadingProgress, setLoadingProgress] = useState(0);
+
+  // Handle back button press
+  const handleBack = useCallback(() => {
+    switch (state.gameState) {
+      case GameState.PLAYING:
+      case GameState.DIALOG:
+        pauseGame();
+        break;
+      case GameState.PAUSED:
+        resumeGame();
+        break;
+      case GameState.LEVEL_SELECT:
+      case GameState.DIFFICULTY_SELECT:
+      case GameState.OPTIONS:
+      case GameState.GAME_OVER:
+      case GameState.LEVEL_COMPLETE:
+        goToMainMenu();
+        break;
+      case GameState.MAIN_MENU:
+        // Already at main menu
+        break;
+    }
+  }, [state.gameState, pauseGame, resumeGame, goToMainMenu]);
 
   // Simulate initial loading
   useEffect(() => {
@@ -64,7 +87,7 @@ function AppContent(): React.JSX.Element {
   };
 
   return (
-    <PhoneFrame gameWidth={GAME_WIDTH} gameHeight={GAME_HEIGHT}>
+    <PhoneFrame gameWidth={GAME_WIDTH} gameHeight={GAME_HEIGHT} onBack={handleBack}>
       {renderScreen()}
     </PhoneFrame>
   );

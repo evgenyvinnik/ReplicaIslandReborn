@@ -277,15 +277,19 @@ export class LevelSystem {
   /**
    * Spawn objects from binary object layer
    * Uses column-major tiles[x][y] matching original Java
+   * 
+   * COORDINATE SYSTEM:
+   * - Tile coordinates: y=0 at TOP of level (standard for tile grids)
+   * - World/Canvas coordinates: y=0 at TOP (standard for Canvas)
+   * - So we DON'T need to flip Y, just convert tile to pixel coords
    */
   private spawnObjectsFromLayer(objectLayer: { width: number; height: number; tiles: number[][] }): void {
     if (!this.gameObjectManager) return;
 
     const spawnList: SpawnInfo[] = [];
-    const worldHeight = objectLayer.height * this.tileHeight;
 
     // Scan the object layer for spawn points
-    // tiles[x][y] is column-major
+    // tiles[x][y] is column-major where y=0 is top of level
     for (let y = 0; y < objectLayer.height; y++) {
       for (let x = 0; x < objectLayer.width; x++) {
         const tileValue = objectLayer.tiles[x][y];
@@ -293,11 +297,11 @@ export class LevelSystem {
         // Skip empty tiles (-1) and skip markers (negative values)
         if (tileValue < 0) continue;
 
-        // Calculate world position - matches original Java:
-        // worldX = x * tileWidth
-        // worldY = worldHeight - ((y + 1) * tileHeight)
+        // Calculate world position (pixel coords)
+        // Direct conversion: tile coords to pixel coords
+        // y=0 tile is at y=0 pixels (top of level)
         const worldX = x * this.tileWidth;
-        const worldY = worldHeight - ((y + 1) * this.tileHeight);
+        const worldY = y * this.tileHeight;
 
         spawnList.push({
           type: tileValue,

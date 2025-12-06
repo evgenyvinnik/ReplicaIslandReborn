@@ -338,6 +338,7 @@ export class LevelParser {
 
   /**
    * Get tile at world position
+   * Using Y-down coordinate system (Y=0 at top, like Canvas)
    */
   getTileAtWorldPos(
     world: TiledWorldData,
@@ -345,12 +346,12 @@ export class LevelParser {
     worldY: number,
     tileWidth: number,
     tileHeight: number,
-    levelHeight: number
+    _levelHeight: number  // Not used with Y-down system
   ): number {
     // Convert world coordinates to tile coordinates
-    // Note: Y is flipped in the original game (origin at bottom-left)
+    // Direct mapping since both use Y=0 at top
     const tileX = Math.floor(worldX / tileWidth);
-    const tileY = Math.floor((levelHeight - worldY) / tileHeight);
+    const tileY = Math.floor(worldY / tileHeight);
 
     return this.getTile(world, tileX, tileY);
   }

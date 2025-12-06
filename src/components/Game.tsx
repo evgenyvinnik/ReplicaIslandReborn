@@ -407,12 +407,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
           }
           
-          // Set camera bounds
+          // Set camera bounds - these are world bounds, not viewport-adjusted
+          // CameraSystem will handle viewport offset internally
           cameraSystem.setBounds({
             minX: 0,
             minY: 0,
-            maxX: Math.max(0, levelSystem.getLevelWidth() - width),
-            maxY: Math.max(0, levelSystem.getLevelHeight() - height),
+            maxX: levelSystem.getLevelWidth(),
+            maxY: levelSystem.getLevelHeight(),
           });
           
           // Show intro dialog for this level (if any)

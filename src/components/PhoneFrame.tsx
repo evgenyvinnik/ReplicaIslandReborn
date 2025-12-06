@@ -12,9 +12,10 @@ interface PhoneFrameProps {
   children: React.ReactNode;
   gameWidth: number;
   gameHeight: number;
+  onBack?: () => void;
 }
 
-export function PhoneFrame({ children, gameWidth, gameHeight }: PhoneFrameProps): React.JSX.Element {
+export function PhoneFrame({ children, gameWidth, gameHeight, onBack }: PhoneFrameProps): React.JSX.Element {
   return (
     <div className="phone-frame-container">
       <div className="phone-frame-outer-wrapper">
@@ -40,7 +41,12 @@ export function PhoneFrame({ children, gameWidth, gameHeight }: PhoneFrameProps)
             {/* Right bezel with Android navigation buttons */}
             <div className="phone-bezel phone-bezel-right">
               <div className="android-nav-buttons">
-                <div className="nav-button nav-button-back">
+                <div 
+                  className="nav-button nav-button-back" 
+                  onClick={onBack}
+                  style={{ cursor: onBack ? 'pointer' : 'default' }}
+                  title="Back"
+                >
                   <svg viewBox="0 0 24 24" width="20" height="20">
                     <path fill="#555" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
                   </svg>

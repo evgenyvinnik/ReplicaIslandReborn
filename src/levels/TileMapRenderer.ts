@@ -146,27 +146,19 @@ export class TileMapRenderer {
     const parallaxY = cameraY * layer.scrollSpeedY;
 
     // Calculate tile coordinates for rendering
-    // Note: Y is flipped (world origin at bottom-left, tile origin at top-left)
+    // Using Y-down coordinate system (Y=0 at top, like Canvas)
+    // Tiles are stored with y=0 at top of level
     const startTileX = Math.max(0, Math.floor(parallaxX / this.tileWidth) - 1);
     const endTileX = Math.min(
       world.width,
       Math.ceil((parallaxX + this.viewWidth) / this.tileWidth) + 1
     );
 
-    // For Y, we need to account for the coordinate flip
-    // In the original game, world origin is at bottom-left
-    // Tiles are stored with y=0 at top of level
-    const worldYBottom = cameraY;
-    const worldYTop = cameraY + this.viewHeight;
-    
-    // Convert to tile coordinates 
-    // The world height represents the full level, Y=0 is at bottom
-    // Tile y=0 is at the TOP of the level, so we need to flip
-    const tilesPerColumn = world.height;
-    const startTileY = Math.max(0, tilesPerColumn - 1 - Math.ceil((worldYTop) / this.tileHeight) - 1);
+    // Y coordinates: direct mapping since both world and tiles use Y=0 at top
+    const startTileY = Math.max(0, Math.floor(parallaxY / this.tileHeight) - 1);
     const endTileY = Math.min(
       world.height,
-      tilesPerColumn - Math.floor((worldYBottom) / this.tileHeight) + 1
+      Math.ceil((parallaxY + this.viewHeight) / this.tileHeight) + 1
     );
 
     // Render visible tiles - tiles[x][y] is column-major
@@ -188,11 +180,9 @@ export class TileMapRenderer {
           continue;
         }
 
-        // Calculate world position for this tile
-        // X: direct mapping
-        // Y: flipped (tile row 0 is at top of level, but world Y=0 at bottom)
+        // Calculate world position for this tile (direct mapping, no Y flip)
         const worldX = tileX * this.tileWidth;
-        const worldY = (tilesPerColumn - 1 - tileY) * this.tileHeight;
+        const worldY = tileY * this.tileHeight;
 
         // Apply parallax offset for rendering
         const renderX = worldX + (cameraX - parallaxX);
@@ -221,10 +211,7 @@ export class TileMapRenderer {
 
     const layer = this.layers[layerIndex];
     const tileX = Math.floor(worldX / this.tileWidth);
-    
-    // Flip Y coordinate: world Y=0 is bottom, tile Y=0 is top
-    const tilesPerColumn = layer.world.height;
-    const tileY = tilesPerColumn - 1 - Math.floor(worldY / this.tileHeight);
+    const tileY = Math.floor(worldY / this.tileHeight);  // Direct mapping, no Y flip
 
     if (tileX < 0 || tileX >= layer.world.width || 
         tileY < 0 || tileY >= layer.world.height) {

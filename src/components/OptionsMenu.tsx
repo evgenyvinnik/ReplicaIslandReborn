@@ -2,6 +2,21 @@
  * Options Menu Component
  * Settings and preferences screen for Replica Island Reborn
  * Ported from: Original/res/xml/preferences.xml, SetPreferencesActivity.java
+ * 
+ * Original structure:
+ * - Game Settings (category)
+ *   - Enable Sound
+ *   - Configure Controls (sub-screen)
+ *     - Click Attack
+ *     - Configure Keyboard
+ *     - Motion Sensitivity
+ *     - On-Screen Controls
+ * - Game Data (category)
+ *   - Erase Saved Game
+ * - About (category)
+ *   - Go to website
+ *   - More Information (sub-screen)
+ *     - About, Thanks, License
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,12 +27,14 @@ interface OptionsMenuProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'sound' | 'controls' | 'game' | 'data';
+// Screen hierarchy: main -> controls -> keyboard | main -> about
+type Screen = 'main' | 'controls' | 'keyboard' | 'about';
 
 export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
   const [settings, setSettings] = useState<GameSettings>(gameSettings.getAll());
-  const [activeTab, setActiveTab] = useState<SettingsTab>('sound');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('main');
   const [showEraseConfirm, setShowEraseConfirm] = useState(false);
+  const [showEraseToast, setShowEraseToast] = useState(false);
   const [keyBindingMode, setKeyBindingMode] = useState<keyof GameSettings['keyBindings'] | null>(null);
 
   // Subscribe to settings changes
@@ -39,7 +56,6 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
         return;
       }
 
-      // Set the new key binding
       gameSettings.setKeyBinding(keyBindingMode, [e.code]);
       setKeyBindingMode(null);
     };
@@ -48,14 +64,19 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
     return (): void => window.removeEventListener('keydown', handleKeyDown);
   }, [keyBindingMode]);
 
-  // Update a setting
+  // Hide toast after 2 seconds
+  useEffect(() => {
+    if (showEraseToast) {
+      const timer = setTimeout(() => setShowEraseToast(false), 2000);
+      return (): void => clearTimeout(timer);
+    }
+  }, [showEraseToast]);
+
   const updateSetting = <K extends keyof GameSettings>(key: K, value: GameSettings[K]): void => {
     gameSettings.set(key, value);
   };
 
-  // Handle save data erase
   const handleEraseSaveData = (): void => {
-    // Clear game progress from localStorage
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         window.localStorage.removeItem('replica_island_save');
@@ -65,160 +86,214 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
       // Ignore errors
     }
     setShowEraseConfirm(false);
+    setShowEraseToast(true);
   };
 
-  // Tab button component
-  const TabButton = ({ tab, label }: { tab: SettingsTab; label: string }): React.JSX.Element => (
+  const handleBack = (): void => {
+    if (currentScreen === 'keyboard') {
+      setCurrentScreen('controls');
+    } else if (currentScreen === 'controls' || currentScreen === 'about') {
+      setCurrentScreen('main');
+    } else {
+      onClose();
+    }
+  };
+
+  // Shared styles
+  const styles = {
+    container: {
+      position: 'absolute' as const,
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: '#000000',
+      display: 'flex',
+      flexDirection: 'column' as const,
+      zIndex: 1000,
+    },
+    header: {
+      display: 'flex',
+      alignItems: 'center',
+      padding: '12px 16px',
+      borderBottom: '1px solid #333333',
+      backgroundColor: '#1a1a1a',
+    },
+    headerTitle: {
+      flex: 1,
+      margin: 0,
+      color: '#ffffff',
+      fontSize: '18px',
+      fontFamily: 'sans-serif',
+      fontWeight: 'normal' as const,
+    },
+    content: {
+      flex: 1,
+      overflowY: 'auto' as const,
+    },
+    category: {
+      borderBottom: '1px solid #333333',
+    },
+    categoryTitle: {
+      padding: '12px 16px 8px',
+      color: '#8ab4f8',
+      fontSize: '14px',
+      fontFamily: 'sans-serif',
+      fontWeight: 500,
+    },
+    preferenceItem: {
+      display: 'block',
+      width: '100%',
+      padding: '12px 16px',
+      backgroundColor: 'transparent',
+      border: 'none',
+      borderBottom: '1px solid #222222',
+      cursor: 'pointer',
+      textAlign: 'left' as const,
+    },
+    preferenceTitle: {
+      color: '#ffffff',
+      fontSize: '16px',
+      fontFamily: 'sans-serif',
+      marginBottom: '4px',
+    },
+    preferenceSummary: {
+      color: '#9e9e9e',
+      fontSize: '14px',
+      fontFamily: 'sans-serif',
+      lineHeight: 1.4,
+    },
+    checkbox: {
+      width: '20px',
+      height: '20px',
+      borderRadius: '4px',
+      border: '2px solid #8ab4f8',
+      backgroundColor: 'transparent',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkmark: {
+      color: '#8ab4f8',
+      fontSize: '14px',
+    },
+  };
+
+  // Checkbox preference component (matches Android CheckBoxPreference)
+  const CheckBoxPreference = ({
+    title,
+    summary,
+    checked,
+    onChange,
+  }: {
+    title: string;
+    summary: string;
+    checked: boolean;
+    onChange: (v: boolean) => void;
+  }): React.JSX.Element => (
     <button
-      onClick={(): void => setActiveTab(tab)}
+      onClick={(): void => onChange(!checked)}
       style={{
-        flex: 1,
-        padding: '8px 4px',
-        backgroundColor: activeTab === tab ? '#446688' : 'rgba(0, 0, 0, 0.3)',
-        border: 'none',
-        borderBottom: activeTab === tab ? '2px solid #88aacc' : '2px solid transparent',
-        color: activeTab === tab ? '#ffffff' : 'rgba(255, 255, 255, 0.6)',
-        fontSize: '11px',
-        fontFamily: 'monospace',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
+        ...styles.preferenceItem,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
       }}
     >
-      {label}
+      <div style={{ flex: 1, marginRight: '16px' }}>
+        <div style={styles.preferenceTitle}>{title}</div>
+        <div style={styles.preferenceSummary}>{summary}</div>
+      </div>
+      <div style={{
+        ...styles.checkbox,
+        backgroundColor: checked ? '#8ab4f8' : 'transparent',
+        borderColor: checked ? '#8ab4f8' : '#666666',
+      }}>
+        {checked && <span style={{ ...styles.checkmark, color: '#000000' }}>✓</span>}
+      </div>
     </button>
   );
 
-  // Toggle setting component
-  const ToggleSetting = ({
-    label,
-    description,
-    value,
-    onChange,
+  // Screen preference (navigates to sub-screen)
+  const ScreenPreference = ({
+    title,
+    summary,
+    onClick,
   }: {
-    label: string;
-    description?: string;
-    value: boolean;
-    onChange: (v: boolean) => void;
+    title: string;
+    summary?: string;
+    onClick: () => void;
   }): React.JSX.Element => (
-    <div style={{ marginBottom: '12px' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <span style={{ color: '#ffffff', fontSize: '12px', fontFamily: 'monospace' }}>
-          {label}
-        </span>
-        <button
-          onClick={(): void => onChange(!value)}
-          style={{
-            width: '48px',
-            height: '24px',
-            borderRadius: '12px',
-            border: 'none',
-            backgroundColor: value ? '#4488aa' : '#444444',
-            position: 'relative',
-            cursor: 'pointer',
-            transition: 'background-color 0.2s',
-          }}
-        >
-          <div
-            style={{
-              width: '20px',
-              height: '20px',
-              borderRadius: '10px',
-              backgroundColor: '#ffffff',
-              position: 'absolute',
-              top: '2px',
-              left: value ? '26px' : '2px',
-              transition: 'left 0.2s',
-            }}
-          />
-        </button>
-      </div>
-      {description && (
-        <div
-          style={{
-            color: 'rgba(255, 255, 255, 0.5)',
-            fontSize: '10px',
-            fontFamily: 'monospace',
-            marginTop: '4px',
-          }}
-        >
-          {description}
-        </div>
-      )}
+    <button
+      onClick={onClick}
+      style={styles.preferenceItem}
+    >
+      <div style={styles.preferenceTitle}>{title}</div>
+      {summary && <div style={styles.preferenceSummary}>{summary}</div>}
+    </button>
+  );
+
+  // Static preference (non-interactive info display)
+  const StaticPreference = ({
+    title,
+    summary,
+  }: {
+    title: string;
+    summary: string;
+  }): React.JSX.Element => (
+    <div style={{ ...styles.preferenceItem, cursor: 'default' }}>
+      <div style={styles.preferenceTitle}>{title}</div>
+      <div style={styles.preferenceSummary}>{summary}</div>
     </div>
   );
 
-  // Slider setting component
-  const SliderSetting = ({
-    label,
-    description,
+  // Slider preference (matches Android SliderPreference)
+  const SliderPreference = ({
+    title,
+    summary,
     value,
-    min = 0,
-    max = 100,
+    minText,
+    maxText,
     onChange,
   }: {
-    label: string;
-    description?: string;
+    title: string;
+    summary: string;
     value: number;
-    min?: number;
-    max?: number;
+    minText: string;
+    maxText: string;
     onChange: (v: number) => void;
   }): React.JSX.Element => (
-    <div style={{ marginBottom: '12px' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '4px',
-        }}
-      >
-        <span style={{ color: '#ffffff', fontSize: '12px', fontFamily: 'monospace' }}>
-          {label}
-        </span>
-        <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '11px', fontFamily: 'monospace' }}>
-          {value}%
-        </span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e): void => onChange(parseInt(e.target.value, 10))}
-        style={{
-          width: '100%',
-          height: '8px',
-          WebkitAppearance: 'none',
-          appearance: 'none',
-          backgroundColor: '#333',
-          borderRadius: '4px',
-          outline: 'none',
-          cursor: 'pointer',
-        }}
-      />
-      {description && (
-        <div
+    <div style={{ ...styles.preferenceItem, cursor: 'default' }}>
+      <div style={styles.preferenceTitle}>{title}</div>
+      <div style={styles.preferenceSummary}>{summary}</div>
+      <div style={{ marginTop: '12px' }}>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={value}
+          onChange={(e): void => onChange(parseInt(e.target.value, 10))}
           style={{
-            color: 'rgba(255, 255, 255, 0.5)',
-            fontSize: '10px',
-            fontFamily: 'monospace',
-            marginTop: '4px',
+            width: '100%',
+            height: '4px',
+            WebkitAppearance: 'none',
+            appearance: 'none',
+            backgroundColor: '#333333',
+            borderRadius: '2px',
+            outline: 'none',
+            cursor: 'pointer',
           }}
-        >
-          {description}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+          <span style={{ color: '#666666', fontSize: '12px' }}>{minText}</span>
+          <span style={{ color: '#666666', fontSize: '12px' }}>{maxText}</span>
         </div>
-      )}
+      </div>
     </div>
   );
 
-  // Key binding setting component
-  const KeyBindingSetting = ({
+  // Key binding row for keyboard config
+  const KeyBindingRow = ({
     label,
     action,
   }: {
@@ -230,334 +305,189 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
     const displayKey = currentKey.replace('Key', '').replace('Arrow', '');
 
     return (
-      <div
+      <button
+        onClick={(): void => setKeyBindingMode(isBinding ? null : action)}
         style={{
+          ...styles.preferenceItem,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '8px',
         }}
       >
-        <span style={{ color: '#ffffff', fontSize: '12px', fontFamily: 'monospace' }}>
-          {label}
-        </span>
-        <button
-          onClick={(): void => setKeyBindingMode(isBinding ? null : action)}
-          style={{
-            padding: '4px 12px',
-            backgroundColor: isBinding ? '#884444' : 'rgba(0, 0, 0, 0.3)',
-            border: `1px solid ${isBinding ? '#aa6666' : '#446688'}`,
-            borderRadius: '4px',
-            color: '#ffffff',
-            fontSize: '11px',
-            fontFamily: 'monospace',
-            cursor: 'pointer',
-            minWidth: '80px',
-          }}
-        >
+        <span style={styles.preferenceTitle}>{label}</span>
+        <span style={{
+          padding: '6px 16px',
+          backgroundColor: isBinding ? '#8ab4f8' : '#333333',
+          borderRadius: '4px',
+          color: isBinding ? '#000000' : '#ffffff',
+          fontSize: '14px',
+          minWidth: '80px',
+          textAlign: 'center',
+        }}>
           {isBinding ? 'Press key...' : displayKey}
-        </button>
-      </div>
+        </span>
+      </button>
     );
   };
 
-  // Difficulty option component
-  const DifficultyOption = ({
-    difficulty,
-    label,
-    description,
-  }: {
-    difficulty: GameSettings['difficulty'];
-    label: string;
-    description: string;
-  }): React.JSX.Element => (
-    <button
-      onClick={(): void => updateSetting('difficulty', difficulty)}
-      style={{
-        display: 'block',
-        width: '100%',
-        padding: '8px 12px',
-        marginBottom: '8px',
-        backgroundColor:
-          settings.difficulty === difficulty ? 'rgba(68, 136, 170, 0.5)' : 'rgba(0, 0, 0, 0.3)',
-        border: `1px solid ${settings.difficulty === difficulty ? '#88aacc' : '#446688'}`,
-        borderRadius: '4px',
-        cursor: 'pointer',
-        textAlign: 'left',
-      }}
-    >
-      <div style={{ color: '#ffffff', fontSize: '12px', fontFamily: 'monospace' }}>
-        {label}
-      </div>
-      <div
+  // Header with back button
+  const Header = ({ title }: { title: string }): React.JSX.Element => (
+    <div style={styles.header}>
+      <button
+        onClick={handleBack}
         style={{
-          color: 'rgba(255, 255, 255, 0.5)',
-          fontSize: '10px',
-          fontFamily: 'monospace',
-          marginTop: '2px',
+          padding: '8px',
+          marginRight: '8px',
+          backgroundColor: 'transparent',
+          border: 'none',
+          color: '#ffffff',
+          fontSize: '20px',
+          cursor: 'pointer',
         }}
+        aria-label="Back"
       >
-        {description}
+        ←
+      </button>
+      <h2 style={styles.headerTitle}>{title}</h2>
+    </div>
+  );
+
+  // Main settings screen
+  const MainScreen = (): React.JSX.Element => (
+    <>
+      <Header title="Settings" />
+      <div style={styles.content}>
+        {/* Game Settings Category */}
+        <div style={styles.category}>
+          <div style={styles.categoryTitle}>{UIStrings.preference_game_settings}</div>
+          <CheckBoxPreference
+            title={UIStrings.preference_enable_sound}
+            summary={UIStrings.preference_enable_sound_summary}
+            checked={settings.soundEnabled}
+            onChange={(v): void => updateSetting('soundEnabled', v)}
+          />
+          <ScreenPreference
+            title={UIStrings.preference_configure_controls}
+            onClick={(): void => setCurrentScreen('controls')}
+          />
+        </div>
+
+        {/* Game Data Category */}
+        <div style={styles.category}>
+          <div style={styles.categoryTitle}>{UIStrings.preference_save_game}</div>
+          <button
+            onClick={(): void => setShowEraseConfirm(true)}
+            style={styles.preferenceItem}
+          >
+            <div style={styles.preferenceTitle}>{UIStrings.preference_erase_save_game}</div>
+          </button>
+        </div>
+
+        {/* About Category */}
+        <div style={styles.category}>
+          <div style={styles.categoryTitle}>{UIStrings.preference_about}</div>
+          <button
+            onClick={(): void => { window.open('http://replicaisland.net', '_blank'); }}
+            style={styles.preferenceItem}
+          >
+            <div style={styles.preferenceTitle}>{UIStrings.preference_visit_site}</div>
+          </button>
+          <ScreenPreference
+            title={UIStrings.preference_misc}
+            onClick={(): void => setCurrentScreen('about')}
+          />
+        </div>
       </div>
-    </button>
+    </>
+  );
+
+  // Configure Controls sub-screen
+  const ControlsScreen = (): React.JSX.Element => (
+    <>
+      <Header title={UIStrings.preference_configure_controls} />
+      <div style={styles.content}>
+        <CheckBoxPreference
+          title={UIStrings.preference_enable_click_attack}
+          summary={UIStrings.preference_enable_click_attack_summary}
+          checked={settings.clickAttackEnabled}
+          onChange={(v): void => updateSetting('clickAttackEnabled', v)}
+        />
+        <ScreenPreference
+          title={UIStrings.preference_key_config}
+          summary={UIStrings.preference_key_config_summary}
+          onClick={(): void => setCurrentScreen('keyboard')}
+        />
+        <SliderPreference
+          title={UIStrings.preference_movement_sensitivity}
+          summary={UIStrings.preference_movement_sensitivity_summary}
+          value={settings.movementSensitivity}
+          minText={UIStrings.preference_movement_min}
+          maxText={UIStrings.preference_movement_max}
+          onChange={(v): void => updateSetting('movementSensitivity', v)}
+        />
+        <CheckBoxPreference
+          title={UIStrings.preference_enable_screen_controls}
+          summary={UIStrings.preference_enable_screen_controls_summary}
+          checked={settings.onScreenControlsEnabled}
+          onChange={(v): void => updateSetting('onScreenControlsEnabled', v)}
+        />
+      </div>
+    </>
+  );
+
+  // Keyboard configuration sub-screen
+  const KeyboardScreen = (): React.JSX.Element => (
+    <>
+      <Header title={UIStrings.preference_key_config_dialog_title} />
+      <div style={styles.content}>
+        <KeyBindingRow label={UIStrings.preference_key_config_left} action="left" />
+        <KeyBindingRow label={UIStrings.preference_key_config_right} action="right" />
+        <KeyBindingRow label={UIStrings.preference_key_config_jump} action="jump" />
+        <KeyBindingRow label={UIStrings.preference_key_config_attack} action="attack" />
+        <button
+          onClick={(): void => gameSettings.resetKeyBindings()}
+          style={{
+            ...styles.preferenceItem,
+            marginTop: '16px',
+          }}
+        >
+          <div style={{ ...styles.preferenceTitle, color: '#8ab4f8' }}>Reset to Defaults</div>
+        </button>
+      </div>
+    </>
+  );
+
+  // About / More Information sub-screen
+  const AboutScreen = (): React.JSX.Element => (
+    <>
+      <Header title={UIStrings.preference_misc} />
+      <div style={styles.content}>
+        <StaticPreference
+          title={UIStrings.preference_about_title}
+          summary={UIStrings.preference_about_summary}
+        />
+        <StaticPreference
+          title={UIStrings.preference_thanks_title}
+          summary={UIStrings.preference_thanks_summary}
+        />
+        <StaticPreference
+          title={UIStrings.preference_licence_title}
+          summary={UIStrings.preference_licence_summary}
+        />
+        <StaticPreference
+          title={UIStrings.preference_web_port_title}
+          summary={UIStrings.preference_web_port_summary}
+        />
+      </div>
+    </>
   );
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-        display: 'flex',
-        flexDirection: 'column',
-        zIndex: 1000,
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '12px 16px',
-          borderBottom: '1px solid #446688',
-        }}
-      >
-        <h2
-          style={{
-            margin: 0,
-            color: '#88aacc',
-            fontSize: '16px',
-            fontFamily: 'monospace',
-            fontWeight: 'bold',
-          }}
-        >
-          OPTIONS
-        </h2>
-        <button
-          onClick={onClose}
-          style={{
-            padding: '4px 12px',
-            backgroundColor: 'transparent',
-            border: '1px solid #446688',
-            borderRadius: '4px',
-            color: '#88aacc',
-            fontSize: '12px',
-            fontFamily: 'monospace',
-            cursor: 'pointer',
-          }}
-        >
-          CLOSE
-        </button>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #446688' }}>
-        <TabButton tab="sound" label="SOUND" />
-        <TabButton tab="controls" label="CONTROLS" />
-        <TabButton tab="game" label="GAME" />
-        <TabButton tab="data" label="DATA" />
-      </div>
-
-      {/* Content */}
-      <div
-        style={{
-          flex: 1,
-          padding: '16px',
-          overflowY: 'auto',
-        }}
-      >
-        {/* Sound Tab */}
-        {activeTab === 'sound' && (
-          <>
-            <ToggleSetting
-              label={UIStrings.preference_enable_sound}
-              description={UIStrings.preference_enable_sound_summary}
-              value={settings.soundEnabled}
-              onChange={(v): void => updateSetting('soundEnabled', v)}
-            />
-            <SliderSetting
-              label="Sound Volume"
-              value={settings.soundVolume}
-              onChange={(v): void => updateSetting('soundVolume', v)}
-            />
-          </>
-        )}
-
-        {/* Controls Tab */}
-        {activeTab === 'controls' && (
-          <>
-            <ToggleSetting
-              label={UIStrings.preference_enable_click_attack}
-              description={UIStrings.preference_enable_click_attack_summary}
-              value={settings.clickAttackEnabled}
-              onChange={(v): void => updateSetting('clickAttackEnabled', v)}
-            />
-            <ToggleSetting
-              label={UIStrings.preference_enable_screen_controls}
-              description={UIStrings.preference_enable_screen_controls_summary}
-              value={settings.onScreenControlsEnabled}
-              onChange={(v): void => updateSetting('onScreenControlsEnabled', v)}
-            />
-            <SliderSetting
-              label={UIStrings.preference_movement_sensitivity}
-              description={UIStrings.preference_movement_sensitivity_summary}
-              value={settings.movementSensitivity}
-              onChange={(v): void => updateSetting('movementSensitivity', v)}
-            />
-            
-            <div
-              style={{
-                marginTop: '16px',
-                marginBottom: '8px',
-                color: '#88aacc',
-                fontSize: '12px',
-                fontFamily: 'monospace',
-              }}
-            >
-              KEYBOARD BINDINGS
-            </div>
-            <KeyBindingSetting label="Move Left" action="left" />
-            <KeyBindingSetting label="Move Right" action="right" />
-            <KeyBindingSetting label="Jump / Fly" action="jump" />
-            <KeyBindingSetting label="Attack / Stomp" action="attack" />
-            <KeyBindingSetting label="Pause" action="pause" />
-            
-            <button
-              onClick={(): void => gameSettings.resetKeyBindings()}
-              style={{
-                marginTop: '8px',
-                padding: '8px 16px',
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                border: '1px solid #446688',
-                borderRadius: '4px',
-                color: '#88aacc',
-                fontSize: '11px',
-                fontFamily: 'monospace',
-                cursor: 'pointer',
-              }}
-            >
-              Reset to Defaults
-            </button>
-          </>
-        )}
-
-        {/* Game Tab */}
-        {activeTab === 'game' && (
-          <>
-            <div
-              style={{
-                marginBottom: '12px',
-                color: '#88aacc',
-                fontSize: '12px',
-                fontFamily: 'monospace',
-              }}
-            >
-              DIFFICULTY
-            </div>
-            <DifficultyOption
-              difficulty="baby"
-              label="Baby"
-              description={UIStrings.baby_description}
-            />
-            <DifficultyOption
-              difficulty="kids"
-              label="Kids"
-              description={UIStrings.kids_description}
-            />
-            <DifficultyOption
-              difficulty="adults"
-              label="Adults"
-              description={UIStrings.adults_description}
-            />
-            
-            <div style={{ marginTop: '16px' }}>
-              <ToggleSetting
-                label="Show FPS"
-                value={settings.showFPS}
-                onChange={(v): void => updateSetting('showFPS', v)}
-              />
-              <ToggleSetting
-                label="Pixel Perfect Rendering"
-                value={settings.pixelPerfect}
-                onChange={(v): void => updateSetting('pixelPerfect', v)}
-              />
-            </div>
-          </>
-        )}
-
-        {/* Data Tab */}
-        {activeTab === 'data' && (
-          <>
-            <div
-              style={{
-                marginBottom: '16px',
-                padding: '12px',
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                border: '1px solid #446688',
-                borderRadius: '4px',
-              }}
-            >
-              <div
-                style={{
-                  color: '#ffffff',
-                  fontSize: '12px',
-                  fontFamily: 'monospace',
-                  marginBottom: '8px',
-                }}
-              >
-                {UIStrings.preference_erase_save_game}
-              </div>
-              <div
-                style={{
-                  color: 'rgba(255, 255, 255, 0.5)',
-                  fontSize: '10px',
-                  fontFamily: 'monospace',
-                  marginBottom: '12px',
-                }}
-              >
-                This will delete all your progress including completed levels and collected items.
-              </div>
-              <button
-                onClick={(): void => setShowEraseConfirm(true)}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#884444',
-                  border: '1px solid #aa6666',
-                  borderRadius: '4px',
-                  color: '#ffffff',
-                  fontSize: '11px',
-                  fontFamily: 'monospace',
-                  cursor: 'pointer',
-                }}
-              >
-                Erase Save Data
-              </button>
-            </div>
-
-            <button
-              onClick={(): void => {
-                gameSettings.reset();
-              }}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                border: '1px solid #446688',
-                borderRadius: '4px',
-                color: '#88aacc',
-                fontSize: '11px',
-                fontFamily: 'monospace',
-                cursor: 'pointer',
-              }}
-            >
-              Reset All Settings to Defaults
-            </button>
-          </>
-        )}
-      </div>
+    <div style={styles.container}>
+      {currentScreen === 'main' && <MainScreen />}
+      {currentScreen === 'controls' && <ControlsScreen />}
+      {currentScreen === 'keyboard' && <KeyboardScreen />}
+      {currentScreen === 'about' && <AboutScreen />}
 
       {/* Erase Confirmation Dialog */}
       {showEraseConfirm && (
@@ -568,7 +498,7 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -577,47 +507,49 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
         >
           <div
             style={{
-              backgroundColor: '#1a2a3a',
-              border: '2px solid #446688',
+              backgroundColor: '#2d2d2d',
               borderRadius: '8px',
-              padding: '20px',
-              maxWidth: '280px',
-              textAlign: 'center',
+              padding: '24px',
+              maxWidth: '300px',
+              width: '90%',
             }}
           >
             <h3
               style={{
-                margin: '0 0 12px',
-                color: '#ffaa88',
-                fontSize: '14px',
-                fontFamily: 'monospace',
+                margin: '0 0 16px',
+                color: '#ffffff',
+                fontSize: '20px',
+                fontFamily: 'sans-serif',
+                fontWeight: 'normal',
               }}
             >
               {UIStrings.preference_erase_save_game_dialog_title}
             </h3>
             <p
               style={{
-                margin: '0 0 16px',
-                color: '#ffffff',
-                fontSize: '11px',
-                fontFamily: 'monospace',
-                lineHeight: '1.5',
+                margin: '0 0 24px',
+                color: '#9e9e9e',
+                fontSize: '14px',
+                fontFamily: 'sans-serif',
+                lineHeight: 1.5,
               }}
             >
               {UIStrings.preference_erase_save_game_dialog}
             </p>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button
                 onClick={(): void => setShowEraseConfirm(false)}
                 style={{
-                  padding: '8px 16px',
-                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                  border: '1px solid #446688',
+                  padding: '10px 24px',
+                  backgroundColor: 'transparent',
+                  border: 'none',
                   borderRadius: '4px',
-                  color: '#88aacc',
-                  fontSize: '11px',
-                  fontFamily: 'monospace',
+                  color: '#8ab4f8',
+                  fontSize: '14px',
+                  fontFamily: 'sans-serif',
+                  fontWeight: 500,
                   cursor: 'pointer',
+                  textTransform: 'uppercase',
                 }}
               >
                 {UIStrings.preference_erase_save_game_dialog_cancel}
@@ -625,20 +557,43 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
               <button
                 onClick={handleEraseSaveData}
                 style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#884444',
-                  border: '1px solid #aa6666',
+                  padding: '10px 24px',
+                  backgroundColor: 'transparent',
+                  border: 'none',
                   borderRadius: '4px',
-                  color: '#ffffff',
-                  fontSize: '11px',
-                  fontFamily: 'monospace',
+                  color: '#8ab4f8',
+                  fontSize: '14px',
+                  fontFamily: 'sans-serif',
+                  fontWeight: 500,
                   cursor: 'pointer',
+                  textTransform: 'uppercase',
                 }}
               >
                 {UIStrings.preference_erase_save_game_dialog_ok}
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {showEraseToast && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '32px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#323232',
+            color: '#ffffff',
+            padding: '12px 24px',
+            borderRadius: '4px',
+            fontSize: '14px',
+            fontFamily: 'sans-serif',
+            zIndex: 1002,
+          }}
+        >
+          {UIStrings.saved_game_erased_notification}
         </div>
       )}
     </div>
