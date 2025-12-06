@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+bun.lockb
 
 # Build output
 dist/
@@ -41,3 +42,8 @@ coverage/
 
 # Misc
 *.local
+
+# Package manager locks (using bun.lockb)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
