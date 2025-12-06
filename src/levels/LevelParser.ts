@@ -398,13 +398,33 @@ export class LevelParser {
     const tileWidth = 32;
     const tileHeight = 32;
 
+    // Helper function to convert row-major tiles to column-major
+    // JSON stores tiles[row][col] (tiles[y][x]), but rest of code expects tiles[x][y]
+    const convertToColumnMajor = (rowMajorTiles: number[][], width: number, height: number): number[][] => {
+      const columnMajor: number[][] = [];
+      for (let x = 0; x < width; x++) {
+        columnMajor[x] = [];
+        for (let y = 0; y < height; y++) {
+          columnMajor[x][y] = rowMajorTiles[y][x];
+        }
+      }
+      return columnMajor;
+    };
+
     // Parse each layer
     for (const layerData of data.layers) {
+      // Convert tiles from row-major to column-major
+      const convertedWorld = {
+        width: layerData.world.width,
+        height: layerData.world.height,
+        tiles: convertToColumnMajor(layerData.world.tiles, layerData.world.width, layerData.world.height),
+      };
+
       const layer: ParsedLayer = {
         type: layerData.typeId,
         themeIndex: layerData.themeId,
         scrollSpeed: layerData.scrollSpeed,
-        world: layerData.world,
+        world: convertedWorld,
       };
 
       layers.push(layer);

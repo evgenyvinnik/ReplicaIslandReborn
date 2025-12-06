@@ -1,15 +1,16 @@
 /**
  * Difficulty Menu Component
  * 
- * Matches the original Replica Island difficulty selection:
- * - Baby (Easy) - More lives, less enemies
- * - Kids (Normal) - Standard gameplay
- * - Adults (Hard) - Fewer lives, more damage
+ * Matches the original Replica Island difficulty selection layout:
+ * - Centered panel with semi-transparent dark background
+ * - Three difficulty buttons (Baby, Kids, Adults) with descriptions below each
+ * - Button flicker animation on selection
+ * - Fade out animation when starting game
  * 
- * Ported from: DifficultyMenuActivity.java
+ * Ported from: DifficultyMenuActivity.java and difficulty_menu.xml
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useGameContext } from '../context/GameContext';
 import { GameState } from '../types';
 
@@ -31,29 +32,42 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
   const [selectedIndex, setSelectedIndex] = useState(1); // Default to Kids (Normal)
   const [fadeOut, setFadeOut] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [flickeringButton, setFlickeringButton] = useState<Difficulty | null>(null);
+  const loadedCount = useRef(0);
 
+  // Descriptions matching original strings.xml
   const difficultyOptions: DifficultyOption[] = useMemo(() => [
     {
       id: 'baby',
       label: 'BABY',
-      description: 'Recommended for young children. Extra lives and easier enemies.',
+      description: 'No challenge at all.',
       value: 0,
     },
     {
       id: 'kids',
       label: 'KIDS',
-      description: 'Recommended for most players. Standard difficulty.',
+      description: 'A comfortable ride to the end.',
       value: 1,
     },
     {
       id: 'adults',
       label: 'ADULTS',
-      description: 'Recommended for experienced players. Fewer lives and tougher enemies.',
+      description: 'True accomplishment requires hardship.',
       value: 2,
     },
   ], []);
 
+  const handleImageLoad = useCallback((): void => {
+    loadedCount.current++;
+    // 3 button images + 1 background
+    if (loadedCount.current >= 4) {
+      setImagesLoaded(true);
+    }
+  }, []);
+
   const handleSelect = useCallback((option: DifficultyOption): void => {
+    if (fadeOut || flickeringButton) return;
+
     // Set difficulty in config
     const difficultyMap: Record<number, 'easy' | 'normal' | 'hard'> = {
       0: 'easy',
@@ -66,24 +80,29 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
       payload: { difficulty: difficultyMap[option.value] } 
     });
     
-    // Trigger fade out animation
-    setFadeOut(true);
+    // Start button flicker animation
+    setFlickeringButton(option.id);
     
     // Call the onSelect callback if provided
     if (onSelect) {
       onSelect(option.id);
     }
     
+    // Trigger fade out after flicker animation
+    setTimeout(() => {
+      setFadeOut(true);
+    }, 300);
+    
     // After fade out, start the game
     setTimeout(() => {
       startGame(state.currentLevel);
-    }, 500);
-  }, [dispatch, onSelect, startGame, state.currentLevel]);
+    }, 800);
+  }, [dispatch, onSelect, startGame, state.currentLevel, fadeOut, flickeringButton]);
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
-      if (fadeOut) return;
+      if (fadeOut || flickeringButton) return;
       
       switch (e.key) {
         case 'ArrowUp':
@@ -111,133 +130,7 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
     return (): void => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedIndex, fadeOut, handleSelect, difficultyOptions, dispatch]);
-
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        position: 'relative',
-        overflow: 'hidden',
-        opacity: fadeOut ? 0 : 1,
-        transition: 'opacity 0.5s ease-out',
-      }}
-    >
-      {/* Background Image */}
-      <img
-        src="/assets/sprites/title_background.png"
-        alt=""
-        onLoad={(): void => setImagesLoaded(true)}
-        style={{
-          position: 'absolute',
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          imageRendering: 'pixelated',
-        }}
-      />
-
-      {/* Content overlay */}
-      <div
-        style={{
-          position: 'relative',
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '20px',
-          opacity: imagesLoaded ? 1 : 0,
-          transition: 'opacity 0.5s ease-in',
-        }}
-      >
-        {/* Title */}
-        <div
-          style={{
-            fontSize: '24px',
-            color: '#FFFFFF',
-            fontFamily: 'sans-serif',
-            fontWeight: 'bold',
-            textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)',
-            marginBottom: '30px',
-            letterSpacing: '2px',
-          }}
-        >
-          SELECT DIFFICULTY
-        </div>
-
-        {/* Difficulty Options */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            alignItems: 'center',
-          }}
-        >
-          {difficultyOptions.map((option, index) => (
-            <DifficultyButton
-              key={option.id}
-              option={option}
-              isSelected={index === selectedIndex}
-              onClick={(): void => handleSelect(option)}
-              onHover={(): void => setSelectedIndex(index)}
-            />
-          ))}
-        </div>
-
-        {/* Description of selected option */}
-        <div
-          style={{
-            marginTop: '30px',
-            padding: '10px 20px',
-            backgroundColor: 'rgba(0, 0, 0, 0.6)',
-            borderRadius: '4px',
-            maxWidth: '300px',
-            textAlign: 'center',
-          }}
-        >
-          <p
-            style={{
-              color: '#FFFFFF',
-              fontFamily: 'sans-serif',
-              fontSize: '11px',
-              margin: 0,
-              lineHeight: '1.4',
-            }}
-          >
-            {difficultyOptions[selectedIndex].description}
-          </p>
-        </div>
-
-        {/* Navigation hint */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '20px',
-            fontSize: '10px',
-            color: 'rgba(255, 255, 255, 0.5)',
-            fontFamily: 'monospace',
-          }}
-        >
-          ↑↓ Navigate • Enter to Select • Esc to Go Back
-        </div>
-      </div>
-    </div>
-  );
-}
-
-interface DifficultyButtonProps {
-  option: DifficultyOption;
-  isSelected: boolean;
-  onClick: () => void;
-  onHover: () => void;
-}
-
-function DifficultyButton({ option, isSelected, onClick, onHover }: DifficultyButtonProps): React.JSX.Element {
-  const [isPressed, setIsPressed] = useState(false);
+  }, [selectedIndex, fadeOut, flickeringButton, handleSelect, difficultyOptions, dispatch]);
 
   // Map difficulty to sprite
   const spriteMap: Record<Difficulty, string> = {
@@ -247,33 +140,135 @@ function DifficultyButton({ option, isSelected, onClick, onHover }: DifficultyBu
   };
 
   return (
-    <button
-      onClick={onClick}
-      onMouseEnter={onHover}
-      onMouseDown={(): void => setIsPressed(true)}
-      onMouseUp={(): void => setIsPressed(false)}
-      onMouseLeave={(): void => setIsPressed(false)}
+    <div
       style={{
-        padding: 0,
-        background: 'none',
-        border: isSelected ? '2px solid #ffcc00' : '2px solid transparent',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        transition: 'all 0.15s ease',
-        transform: isPressed ? 'scale(0.95)' : isSelected ? 'scale(1.05)' : 'scale(1)',
-        filter: isSelected ? 'brightness(1.2)' : 'brightness(0.85)',
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* Background Image - matches original title_background */}
       <img
-        src={spriteMap[option.id]}
-        alt={option.label}
+        src="/assets/sprites/title_background.png"
+        alt=""
+        onLoad={handleImageLoad}
         style={{
-          display: 'block',
+          position: 'absolute',
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
           imageRendering: 'pixelated',
-          filter: 'drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5))',
+          opacity: fadeOut ? 0 : 1,
+          transition: 'opacity 0.5s ease-out',
         }}
-        draggable={false}
       />
-    </button>
+
+      {/* Centered panel - matches original custom_toast_border style */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)', // #99000000 = 60% opacity black
+          borderRadius: '10px',
+          padding: '40px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '0',
+          opacity: imagesLoaded && !fadeOut ? 1 : 0,
+          transition: 'opacity 0.5s ease-in-out',
+        }}
+      >
+        {/* Difficulty Options - vertical stack matching original layout */}
+        {difficultyOptions.map((option, index) => (
+          <div 
+            key={option.id}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              marginTop: index > 0 ? '15px' : '0',
+              opacity: fadeOut && flickeringButton !== option.id ? 0 : 1,
+              transition: 'opacity 0.3s ease-out',
+            }}
+          >
+            {/* Button image */}
+            <button
+              onClick={(): void => handleSelect(option)}
+              onMouseEnter={(): void => setSelectedIndex(index)}
+              style={{
+                padding: 0,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                animation: flickeringButton === option.id ? 'buttonFlicker 0.3s ease-in-out' : 'none',
+                outline: selectedIndex === index ? '2px solid rgba(255, 204, 0, 0.5)' : 'none',
+                outlineOffset: '2px',
+                borderRadius: '4px',
+              }}
+            >
+              <img
+                src={spriteMap[option.id]}
+                alt={option.label}
+                onLoad={handleImageLoad}
+                style={{
+                  display: 'block',
+                  imageRendering: 'pixelated',
+                }}
+                draggable={false}
+              />
+            </button>
+            
+            {/* Description text directly below button - matches original layout */}
+            <span
+              style={{
+                color: '#FFFFFF',
+                fontSize: '14px',
+                fontFamily: 'sans-serif',
+                textAlign: 'center',
+                marginTop: '4px',
+                opacity: fadeOut ? 0 : 1,
+                transition: 'opacity 0.3s ease-out',
+              }}
+            >
+              {option.description}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Navigation hint - for keyboard users */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          fontSize: '10px',
+          color: 'rgba(255, 255, 255, 0.5)',
+          fontFamily: 'monospace',
+          opacity: imagesLoaded && !fadeOut ? 1 : 0,
+          transition: 'opacity 0.5s ease-in-out',
+        }}
+      >
+        ↑↓ Navigate • Enter to Select • Esc to Go Back
+      </div>
+
+      {/* CSS keyframes for button flicker animation */}
+      <style>
+        {`
+          @keyframes buttonFlicker {
+            0%, 100% { opacity: 1; }
+            20% { opacity: 0.3; }
+            40% { opacity: 1; }
+            60% { opacity: 0.3; }
+            80% { opacity: 1; }
+          }
+        `}
+      </style>
+    </div>
   );
 }

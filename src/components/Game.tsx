@@ -80,6 +80,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     fuel: PLAYER.FUEL_AMOUNT,
     jumpTime: 0,
     touchingGround: false,
+    wasTouchingGround: false, // Track previous frame for landing detection
     rocketsOn: false,
     stomping: false,
     stompTime: 0,
@@ -693,6 +694,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           pState.deathTime = 1.0; // 1 second death animation
           soundSystem.playSfx(SoundEffects.EXPLODE);
           
+          // Spawn explosion effect at player position
+          effectsSystem.spawnExplosion(px, py, 'large');
+          
           // Screen shake for death
           cameraSystem.shake(15, 0.5);
           
@@ -958,8 +962,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const velocity = player.getVelocity();
       const position = player.getPosition();
 
+      // Save previous ground state for landing detection
+      pState.wasTouchingGround = pState.touchingGround;
+      
       // Check if grounded
       pState.touchingGround = player.touchingGround();
+      
+      // Detect landing (just hit the ground this frame)
+      const justLanded = pState.touchingGround && !pState.wasTouchingGround;
+      if (justLanded) {
+        // Spawn dust effect at player's feet
+        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2, position.y + PLAYER.HEIGHT);
+        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2 - 10, position.y + PLAYER.HEIGHT);
+        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2 + 10, position.y + PLAYER.HEIGHT);
+      }
 
       // Refuel when on ground
       if (pState.fuel < PLAYER.FUEL_AMOUNT) {
@@ -1388,8 +1404,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       renderSystem.drawRect(10, 10, 100, 10, '#333333', 100, 0.8);
       renderSystem.drawRect(10, 10, 100 * fuelPercent, 10, '#44ff44', 101, 0.9);
 
-      // Swap and render
-      renderSystem.swap(cameraSystem.getFocusPositionX(), cameraSystem.getFocusPositionY());
+      // Swap and render - camera at top-left corner for world-space objects
+      const cameraTopLeftX = cameraSystem.getFocusPositionX() - width / 2;
+      const cameraTopLeftY = cameraSystem.getFocusPositionY() - height / 2;
+      renderSystem.swap(cameraTopLeftX, cameraTopLeftY);
     });
 
     setIsInitialized(true);

@@ -23,21 +23,26 @@ This document tracks what has been implemented and what still needs to be done t
   - Fly button
   - Stomp button
 - [x] Keyboard support (WASD/Arrows, Space, X)
-- [x] Pause menu overlay - **NEW**
-- [x] Game over screen - **NEW**
-- [x] Level complete screen - **NEW**
+- [x] Pause menu overlay
+- [x] Game over screen
+- [x] Level complete screen
+- [x] Difficulty menu (matches original layout with dark panel)
 
 ### Core Engine
 - [x] GameLoop.ts - Basic game loop with fixed timestep
 - [x] SystemRegistry.ts - Central system hub (updated with new systems)
 - [x] TimeSystem.ts - Time management
 - [x] InputSystem.ts - Keyboard and virtual button input
-- [x] CameraSystem.ts - Camera following with screen shake - **UPDATED**
+- [x] CameraSystem.ts - Camera following with screen shake
 - [x] RenderSystem.ts - Canvas 2D rendering with tileset support
 - [x] CollisionSystem.ts - Basic collision detection
 - [x] SoundSystem.ts - Web Audio API implementation with sound loading
-- [x] HotSpotSystem.ts - **NEW** Special tile behaviors (death zones, triggers, etc.)
-- [x] AnimationSystem.ts - **NEW** Animation state machine with player animations
+- [x] HotSpotSystem.ts - Special tile behaviors (death zones, triggers, etc.)
+- [x] AnimationSystem.ts - Animation state machine with player animations
+- [x] EffectsSystem.ts - Visual effects (explosions, smoke, dust, crush flash)
+- [x] ChannelSystem.ts - Event/messaging system
+- [x] GameFlowEvent.ts - Game state transitions
+- [x] GameObjectCollisionSystem.ts - Object-to-object collision
 
 ### Canvas Rendering Status
 The `RenderSystem.ts` uses HTML5 Canvas 2D API:
@@ -50,55 +55,62 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 - [x] Camera-relative rendering
 - [x] Render queue with z-sorting
 - [x] Pixel art mode (`imageSmoothingEnabled = false`)
-- [x] Tileset loading (`loadTileset`, `loadAllTilesets`) - **NEW**
-- [x] Tile rendering with frame calculation - **NEW**
-- [x] Collectible sprite rendering with animation - **NEW**
-- [x] Enemy sprite rendering with animation - **NEW**
-- [x] NPC sprite rendering - **NEW**
-- [x] FadeTransition component for screen effects - **NEW**
-
-**NOT Implemented:**
-- [ ] Parallax scrolling backgrounds (TileMapRenderer has partial support)
-- [ ] Text rendering with custom fonts
-- [ ] Particle effects
+- [x] Tileset loading (`loadTileset`, `loadAllTilesets`)
+- [x] Tile rendering with frame calculation
+- [x] Collectible sprite rendering with animation
+- [x] Enemy sprite rendering with animation
+- [x] NPC sprite rendering
+- [x] FadeTransition component for screen effects
+- [x] Effects/particle system (EffectsSystem.ts)
 
 ### Level System
-- [x] LevelParser.ts - **NEW** Binary .bin level file parser
-- [x] LevelSystemNew.ts - **NEW** Complete level management with binary support
-- [x] TileMapRenderer.ts - **NEW** Tile-based rendering with parallax
-- [x] GameObjectTypes.ts - **NEW** Object type definitions matching original
+- [x] LevelParser.ts - Binary .bin level file parser
+- [x] LevelSystemNew.ts - Complete level management with binary support
+- [x] TileMapRenderer.ts - Tile-based rendering with parallax
+- [x] GameObjectTypes.ts - Object type definitions matching original
 
-### Entity System (Partial)
+### Entity System
 - [x] GameObject.ts - Basic game object
 - [x] GameComponent.ts - Component base class
 - [x] GameObjectManager.ts - Object management
 - [x] GameObjectFactory.ts - Object spawning
 
-### Components (Partial)
-- [x] SpriteComponent.ts - Basic sprite rendering
-- [x] PhysicsComponent.ts - Basic physics
-- [x] MovementComponent.ts - Basic movement
-- [x] PlayerComponent.ts - Basic player logic
+### Components Implemented (23 total)
+| Component | Original Java | Status |
+|-----------|---------------|--------|
+| SpriteComponent.ts | SpriteComponent.java | ✅ Done |
+| PhysicsComponent.ts | PhysicsComponent.java | ✅ Done |
+| MovementComponent.ts | MovementComponent.java | ✅ Done |
+| PlayerComponent.ts | PlayerComponent.java | ✅ Done |
+| PatrolComponent.ts | PatrolComponent.java | ✅ Done |
+| HitReactionComponent.ts | HitReactionComponent.java | ✅ Done |
+| HitPlayerComponent.ts | HitPlayerComponent.java | ✅ Done |
+| InventoryComponent.ts | InventoryComponent.java | ✅ Done |
+| AttackAtDistanceComponent.ts | AttackAtDistanceComponent.java | ✅ Done |
+| LaunchProjectileComponent.ts | LaunchProjectileComponent.java | ✅ Done |
+| LauncherComponent.ts | LauncherComponent.java | ✅ Done |
+| SleeperComponent.ts | SleeperComponent.java | ✅ Done |
+| PopOutComponent.ts | PopOutComponent.java | ✅ Done |
+| TheSourceComponent.ts | TheSourceComponent.java | ✅ Done |
+| LifetimeComponent.ts | LifetimeComponent.java | ✅ Done |
+| BackgroundCollisionComponent.ts | BackgroundCollisionComponent.java | ✅ Done |
+| DynamicCollisionComponent.ts | DynamicCollisionComponent.java | ✅ Done |
+| GenericAnimationComponent.ts | GenericAnimationComponent.java | ✅ Done |
+| EnemyAnimationComponent.ts | EnemyAnimationComponent.java | ✅ Done |
+| NPCAnimationComponent.ts | NPCAnimationComponent.java | ✅ Done |
+| ButtonAnimationComponent.ts | ButtonAnimationComponent.java | ✅ Done |
+| DoorAnimationComponent.ts | DoorAnimationComponent.java | ✅ Done |
+
+### Collision System
+| Component | Status |
+|-----------|--------|
+| CollisionVolume.ts | ✅ Done |
+| AABoxCollisionVolume.ts | ✅ Done |
+| SphereCollisionVolume.ts | ✅ Done |
 
 ### Assets
 - [x] Copied sprite assets from Original/res/drawable/ (261 files)
-  - Player sprites (andou_*.png)
-  - Enemy sprites (enemy_*.png)
-  - Object sprites (object_*.png)
-  - Background sprites (background_*.png)
-  - UI sprites (ui_*.png)
-  - Title assets (title.png, title_background.png)
-
-### Tileset Images
-| File | Purpose | Status |
-|------|---------|--------|
-| `grass.png` | World 2 tile graphics | ✅ Copied |
-| `island.png` | World 1 tile graphics | ✅ Copied |
-| `sewage.png` | Sewer level tiles | ✅ Copied |
-| `cave.png` | Underground tiles | ✅ Copied |
-| `lab.png` | Lab level tiles | ✅ Copied |
-| `tutorial.png` | Tutorial level tiles | ✅ Copied |
-| `titletileset.png` | Title screen tiles | ✅ Copied |
+- [x] Effect sprites (45 files: effect_*.png)
 
 ### Sound Assets
 | Category | Status |
@@ -106,21 +118,9 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 | Sound effects (22 .ogg files) | ✅ Copied to public/assets/sounds/ |
 | Sound system preloading | ✅ Implemented |
 | Sound playback (SFX) | ✅ Working |
-| Sound controls UI | ✅ Implemented (upper-left of phone frame) |
-| Music playback system | ✅ Implemented (infrastructure ready) |
-| Background music (MIDI→OGG) | ⚠️ Needs MIDI conversion (see notes below) |
+| Sound controls UI | ✅ Implemented |
 
-#### Music Implementation Notes
-The original game included `bwv_115.mid` (Bach's BWV 115 cantata) for background music, but the playback code was actually **commented out** in the source (`MainMenuActivity.java` line 167). For the web port:
-
-1. The `SoundSystem.ts` is ready to play background music
-2. Convert `Original/res/raw/bwv_115.mid` to OGG format using tools like:
-   - Timidity: `timidity bwv_115.mid -Ov -o music_background.ogg`
-   - Online converters
-3. Place the converted file at: `public/assets/sounds/music_background.ogg`
-4. Call `soundSystem.startBackgroundMusic()` to play
-
-### Game Integration (NEW)
+### Game Integration
 | Feature | Status |
 |---------|--------|
 | Player physics (ground/air movement) | ✅ Implemented |
@@ -138,67 +138,180 @@ The original game included `bwv_115.mid` (Bach's BWV 115 cantata) for background
 | Sound effects integration | ✅ Implemented |
 | Inventory system | ✅ Implemented |
 | HUD with inventory display | ✅ Implemented |
-| Enemy patrol AI | ✅ Implemented (PatrolComponent.ts) |
-| Hit/damage reaction system | ✅ Implemented (HitReactionComponent.ts) |
+| Enemy patrol AI | ✅ Implemented |
+| Hit/damage reaction system | ✅ Implemented |
 | Player death/respawn | ✅ Implemented |
 | Level completion flow | ✅ Implemented |
 | NPC dialog triggers | ✅ Implemented |
-
-### Level Files
-| Category | Status |
-|----------|--------|
-| Binary level files (.bin) | ✅ Copied to public/assets/levels/ |
-| Level parser (signature 96) | ✅ Implemented |
-| TiledWorld parser (signature 42) | ✅ Implemented |
-
-### Background Images
-| File | Purpose | Status |
-|------|---------|--------|
-| `background_sunset.png` | Sunset sky background | ✅ Copied |
-| `background_island.png` | Island background | ✅ Copied |
-| `background_island2.png` | Alternate island bg | ✅ Copied |
-| `background_sewage.png` | Sewer background | ✅ Copied |
-| `background_underground.png` | Cave background | ✅ Copied |
-| `background_grass.png` | Grass area background | ✅ Copied |
-| `background_grass2.png` | Forest background | ✅ Copied |
-| `background_lab01.png` | Lab background | ✅ Copied |
-| `background_grass2.png` | Forest background | ❌ Not copied |
-| `background_lab01.png` | Lab background | ❌ Not copied |
-| `background_diary.png` | Diary screen bg | ❌ Not copied |
+| Visual effects (explosions, dust) | ✅ Implemented |
 
 ---
 
-## ❌ Not Implemented
+## ❌ Not Yet Implemented
 
-### Original Java Classes NOT Ported (118 files)
+### HIGH PRIORITY - Core Missing Features
 
-#### Core Systems (HIGH PRIORITY)
-| Original File | Description | Priority |
-|---------------|-------------|----------|
-| `LevelBuilder.java` | Parses .bin level files, spawns objects | ✅ Done (LevelParser.ts + LevelSystemNew.ts) |
-| `TiledWorld.java` | Tile-based world/collision map | ✅ Done (TileMapRenderer.ts) |
-| `HotSpotSystem.java` | Special tile behaviors (doors, triggers) | ✅ Done (HotSpotSystem.ts) |
-| `GameObjectCollisionSystem.java` | Object-to-object collision | ✅ Done (GameObjectCollisionSystem.ts) |
-| `ChannelSystem.java` | Event/messaging system | ✅ Done (ChannelSystem.ts) |
-| `GameFlowEvent.java` | Game state transitions | ✅ Done (GameFlowEvent.ts) |
-| `VibrationSystem.java` | Haptic feedback (use Gamepad API) | LOW |
+#### 1. Boss Battles
+| Boss | Original File | Status |
+|------|---------------|--------|
+| The Source (Final Boss) | TheSourceComponent.java | ✅ Component exists |
+| Evil Kabocha | GameObjectFactory.java (EVIL_KABOCHA spawn) | ❌ Need EvilKabochaComponent.ts |
 
-#### Animation System (HIGH PRIORITY)
-| Original File | Description | Priority |
-|---------------|-------------|----------|
-| `AnimationComponent.java` | Animation state machine | ✅ Partial (AnimationSystem.ts) |
-| `AnimationFrame.java` | Individual frame data | ✅ Partial |
-| `SpriteAnimation.java` | Animation sequences | ✅ Partial |
-| `GenericAnimationComponent.java` | Reusable animations | ✅ Done (GenericAnimationComponent.ts) |
-| `EnemyAnimationComponent.java` | Enemy-specific animations | ✅ Done (EnemyAnimationComponent.ts) |
-| `NPCAnimationComponent.java` | NPC animations | ✅ Done (NPCAnimationComponent.ts) |
-| `ButtonAnimationComponent.java` | Button animations | ✅ Done (ButtonAnimationComponent.ts) |
-| `DoorAnimationComponent.java` | Door open/close animations | ✅ Done (DoorAnimationComponent.ts) |
-| `FixedAnimationComponent.java` | Static animations | MEDIUM |
+The Evil Kabocha boss appears in certain levels and has unique attack patterns. Need to create a dedicated component.
 
-#### Player & Combat (HIGH PRIORITY)
-| Original File | Description | Priority |
-|---------------|-------------|----------|
+#### 2. Ghost/Possession Mechanic
+| Component | Original File | Description |
+|-----------|---------------|-------------|
+| GhostComponent | GhostComponent.java | Player possesses a "ghost" form with different controls |
+
+The Ghost mechanic allows the player to control a floating ghost entity. This is used in specific story moments. The component handles:
+- Movement via tilt/stick input
+- Lifetime tracking with fade-out
+- Camera target switching
+- Ambient sound loop
+- Action type switching
+
+#### 3. Music System
+| Issue | Solution |
+|-------|----------|
+| Original uses MIDI (`bwv_115.mid`) | Convert to MP3/OGG format |
+| MIDI not supported in browsers | Use Timidity or online converter |
+| SoundSystem ready for music | Just needs converted file |
+
+**Steps to add music:**
+1. Convert `Original/res/raw/bwv_115.mid` to OGG
+2. Place at `public/assets/sounds/music_background.ogg`
+3. Call `soundSystem.startBackgroundMusic()`
+
+#### 4. Cutscene/Animation Player
+| Files | Purpose | Status |
+|-------|---------|--------|
+| AnimationPlayerActivity.java | Plays ending cutscenes | ❌ Not implemented |
+| kyle_fall.xml | Kyle death animation (16 frames) | ❌ Not implemented |
+| wanda_game_over.xml | Wanda ending | ❌ Not implemented |
+| kabocha_game_over.xml | Kabocha ending | ❌ Not implemented |
+| rokudou_game_over.xml | Rokudou ending | ❌ Not implemented |
+| good_ending_animation.xml | Good ending parallax | ❌ Not implemented |
+| kabocha_ending_animation.xml | Kabocha ending parallax | ❌ Not implemented |
+| rokudou_ending_animation.xml | Rokudou ending parallax | ❌ Not implemented |
+
+### MEDIUM PRIORITY - Gameplay Polish
+
+#### 5. Diary System
+| Component | Original File | Description |
+|-----------|---------------|-------------|
+| DiaryActivity | DiaryActivity.java | Shows diary entry popup when collecting diary items |
+| diary.xml layout | res/layout/diary.xml | UI layout for diary display |
+
+When player collects a diary item, should show a modal with the diary text and animated background.
+
+#### 6. Extras Menu
+| Component | Original File | Description |
+|-----------|---------------|-------------|
+| ExtrasMenuActivity | ExtrasMenuActivity.java | Unlockable extras menu |
+| extras_menu.xml | res/layout/extras_menu.xml | Layout with locked/unlocked states |
+
+Unlocks after completing the game. Contains:
+- Linear Mode (play all levels in order)
+- Level Select (jump to any completed level)
+- Controls configuration
+
+#### 7. Missing Components
+| Component | Original File | Priority | Description |
+|-----------|---------------|----------|-------------|
+| GravityComponent | GravityComponent.java | MEDIUM | Custom gravity zones |
+| CameraBiasComponent | CameraBiasComponent.java | MEDIUM | Shifts camera focus |
+| OrbitalMagnetComponent | OrbitalMagnetComponent.java | LOW | Magnetic attraction for collectibles |
+| ChangeComponentsComponent | ChangeComponentsComponent.java | LOW | Dynamic component swapping |
+| SimpleCollisionComponent | SimpleCollisionComponent.java | MEDIUM | Simplified collision for effects |
+| SimplePhysicsComponent | SimplePhysicsComponent.java | LOW | Simplified physics for projectiles |
+| SolidSurfaceComponent | SolidSurfaceComponent.java | MEDIUM | Solid collision surfaces |
+| SelectDialogComponent | SelectDialogComponent.java | LOW | Dialog selection UI |
+| FixedAnimationComponent | FixedAnimationComponent.java | LOW | Static looping animations |
+| FadeDrawableComponent | FadeDrawableComponent.java | LOW | Fade in/out effects |
+| MotionBlurComponent | MotionBlurComponent.java | LOW | Motion blur visual effect |
+| ScrollerComponent | ScrollerComponent.java | LOW | Parallax scrolling helper |
+| FrameRateWatcherComponent | FrameRateWatcherComponent.java | LOW | Performance monitoring |
+| PlaySingleSoundComponent | PlaySingleSoundComponent.java | LOW | One-shot sound on spawn |
+| CrusherAndouComponent | CrusherAndouComponent.java | MEDIUM | Full stomp attack logic |
+
+#### 8. Camera System Enhancements
+| Feature | Original | Status |
+|---------|----------|--------|
+| Camera bias points | CameraBiasComponent.java | ❌ Not implemented |
+| Focus on specific objects | TAKE_CAMERA_FOCUS hotspot | ⚠️ Partial |
+
+### LOW PRIORITY - Nice to Have
+
+#### 9. Vibration/Haptic Feedback
+| Component | Original File | Description |
+|-----------|---------------|-------------|
+| VibrationSystem | VibrationSystem.java | Haptic feedback on damage/death |
+
+Can be implemented using the Gamepad Haptic API or Vibration API for supported browsers.
+
+#### 10. Save System Enhancements
+| Feature | Status |
+|---------|--------|
+| Basic level progress | ✅ LocalStorage |
+| Diary collection tracking | ⚠️ Partial |
+| High scores | ❌ Not implemented |
+| Time stamps per level | ❌ Not implemented |
+
+#### 11. Localization
+| Language | Original Files | Status |
+|----------|----------------|--------|
+| English | res/values-en/ | ✅ Using English strings |
+| Japanese | res/values-ja/ | ❌ Not implemented |
+
+---
+
+## 📋 Implementation Checklist by Priority
+
+### Phase 1: Complete Core Gameplay (HIGH)
+- [ ] Create EvilKabochaComponent.ts for Evil Kabocha boss
+- [ ] Implement GhostComponent.ts for possession mechanic
+- [ ] Convert MIDI music to OGG and enable playback
+- [ ] Add CameraBiasComponent.ts for camera focus points
+
+### Phase 2: Story & Polish (MEDIUM)
+- [ ] Create DiaryOverlay.tsx for diary collection UI
+- [ ] Add cutscene player for game endings
+- [ ] Implement GravityComponent.ts for gravity zones
+- [ ] Add SolidSurfaceComponent.ts for moving platforms
+- [ ] Create CrusherAndouComponent.ts for advanced stomp
+
+### Phase 3: Extras & Completion (LOW)
+- [ ] Create ExtrasMenu.tsx with unlock system
+- [ ] Add vibration/haptic feedback
+- [ ] Implement high score tracking
+- [ ] Add Japanese language support
+- [ ] Create level time tracking
+
+---
+
+## Summary Statistics
+
+| Category | Original | Ported | Percentage |
+|----------|----------|--------|------------|
+| Java Classes | 130 | ~55 | 42% |
+| Components | 35 | 23 | 66% |
+| Sound Effects | 22 | 22 | 100% |
+| Level Files (.bin) | 47 | 47 | 100% |
+| Dialog Files (.xml) | 38 | 38 | 100% |
+| Tileset Images | 7 | 7 | 100% |
+| Background Images | 9 | 9 | 100% |
+| Sprite Assets | 423 | 306 | 72% |
+| UI Screens | 8 | 7 | 88% |
+
+**Overall Completion: ~80%**
+
+The game is fully playable with all levels, enemies, NPCs, and dialog. The main gaps are:
+1. **Evil Kabocha boss** - Need dedicated component
+2. **Ghost/possession mechanic** - Unique gameplay feature
+3. **Background music** - Just needs MIDI→OGG conversion
+4. **Cutscenes** - End-game animations
+5. **Diary UI** - Popup when collecting diary items
 | `PlayerComponent.java` | Player physics/controls | ✅ Done (in Game.tsx) |
 | `HitReactionComponent.java` | Damage/hit responses | ✅ Done (HitReactionComponent.ts) |
 | `HitPlayerComponent.java` | Player hit detection | ✅ Done (HitPlayerComponent.ts) |
@@ -217,7 +330,8 @@ The original game included `bwv_115.mid` (Bach's BWV 115 cantata) for background
 | `LauncherComponent.java` | Launch pads | ✅ Done (LauncherComponent.ts) |
 | `SleeperComponent.java` | Sleeping enemies | ✅ Done (SleeperComponent.ts) |
 | `PopOutComponent.java` | Pop-out enemies | ✅ Done (PopOutComponent.ts) |
-| `TheSourceComponent.java` | Final boss | LOW |
+| `TheSourceComponent.java` | Final boss | ✅ Done (TheSourceComponent.ts) |
+| `LifetimeComponent.java` | Object lifetime/death | ✅ Done (LifetimeComponent.ts) |
 
 #### Physics & Collision (MEDIUM PRIORITY)
 | Original File | Description | Priority |
@@ -761,10 +875,8 @@ The game is now playable with:
 - ✅ **Pause menu** - In-game pause with settings
 - ✅ **Game over screen** - Shows when player runs out of lives
 - ✅ **Level complete screen** - Shows score and bonus when completing levels
+- ✅ **Effects system** - Explosions, smoke, dust, crush flash effects
 
 Still needs:
 - **Music** - MIDI not supported, need MP3/OGG conversion
-- **Boss battles** - The Source, Evil Kabocha
-- **Particle effects** - Dust, explosions, etc.
-- **Game over screen** - Show when lives reach 0
-
+- **Boss battles** - Evil Kabocha (TheSourceComponent done)
