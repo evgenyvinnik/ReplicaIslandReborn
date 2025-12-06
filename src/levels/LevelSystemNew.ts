@@ -354,14 +354,92 @@ export class LevelSystem {
         break;
 
       case GameObjectTypeIndex.BAT:
-      case GameObjectTypeIndex.STING:
-      case GameObjectTypeIndex.ONION:
-      case GameObjectTypeIndex.BROBOT:
-      case GameObjectTypeIndex.SKELETON:
         obj.type = 'enemy';
+        obj.subType = 'bat';
         obj.width = 48;
         obj.height = 48;
         obj.activationRadius = 200;
+        break;
+        
+      case GameObjectTypeIndex.STING:
+        obj.type = 'enemy';
+        obj.subType = 'sting';
+        obj.width = 48;
+        obj.height = 48;
+        obj.activationRadius = 200;
+        break;
+        
+      case GameObjectTypeIndex.ONION:
+        obj.type = 'enemy';
+        obj.subType = 'onion';
+        obj.width = 48;
+        obj.height = 48;
+        obj.activationRadius = 200;
+        break;
+        
+      case GameObjectTypeIndex.BROBOT:
+        obj.type = 'enemy';
+        obj.subType = 'brobot';
+        obj.width = 48;
+        obj.height = 48;
+        obj.activationRadius = 200;
+        break;
+        
+      case GameObjectTypeIndex.SKELETON:
+        obj.type = 'enemy';
+        obj.subType = 'skeleton';
+        obj.width = 48;
+        obj.height = 48;
+        obj.activationRadius = 200;
+        break;
+        
+      case GameObjectTypeIndex.SNAILBOMB:
+        obj.type = 'enemy';
+        obj.subType = 'snailbomb';
+        obj.width = 48;
+        obj.height = 48;
+        obj.activationRadius = 200;
+        break;
+        
+      case GameObjectTypeIndex.SHADOWSLIME:
+        obj.type = 'enemy';
+        obj.subType = 'shadowslime';
+        obj.width = 48;
+        obj.height = 48;
+        obj.activationRadius = 200;
+        break;
+        
+      case GameObjectTypeIndex.MUDMAN:
+        obj.type = 'enemy';
+        obj.subType = 'mudman';
+        obj.width = 48;
+        obj.height = 48;
+        obj.activationRadius = 200;
+        break;
+        
+      case GameObjectTypeIndex.KARAGUIN:
+        obj.type = 'enemy';
+        obj.subType = 'karaguin';
+        obj.width = 48;
+        obj.height = 48;
+        obj.activationRadius = 200;
+        break;
+        
+      case GameObjectTypeIndex.PINK_NAMAZU:
+        obj.type = 'enemy';
+        obj.subType = 'namazu';
+        obj.width = 64;
+        obj.height = 64;
+        obj.activationRadius = 250;
+        break;
+        
+      case GameObjectTypeIndex.TURRET:
+      case GameObjectTypeIndex.TURRET_LEFT:
+        obj.type = 'enemy';
+        obj.subType = 'turret';
+        obj.width = 32;
+        obj.height = 32;
+        obj.activationRadius = 300;
         break;
 
       case GameObjectTypeIndex.DOOR_RED:
@@ -381,10 +459,32 @@ export class LevelSystem {
         break;
 
       case GameObjectTypeIndex.WANDA:
+        obj.type = 'npc';
+        obj.subType = 'wanda';
+        obj.width = 48;
+        obj.height = 64;
+        obj.activationRadius = 150;
+        break;
+        
       case GameObjectTypeIndex.KYLE:
+        obj.type = 'npc';
+        obj.subType = 'kyle';
+        obj.width = 48;
+        obj.height = 64;
+        obj.activationRadius = 150;
+        break;
+        
       case GameObjectTypeIndex.KABOCHA:
+        obj.type = 'npc';
+        obj.subType = 'kabocha';
+        obj.width = 48;
+        obj.height = 64;
+        obj.activationRadius = 150;
+        break;
+        
       case GameObjectTypeIndex.ROKUDOU:
         obj.type = 'npc';
+        obj.subType = 'rokudou';
         obj.width = 48;
         obj.height = 64;
         obj.activationRadius = 150;

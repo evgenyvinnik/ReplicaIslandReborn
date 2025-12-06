@@ -103,6 +103,8 @@ The `Original/` directory contains the complete source code for the original And
 
 ## Project Statistics
 
+### Web Port (This Project)
+
 Source Lines of Code (SLOC) - non-empty lines:
 
 | Extension | Lines |
@@ -118,6 +120,19 @@ Source Lines of Code (SLOC) - non-empty lines:
 | **Total** | **18,034** |
 
 *Run `bun run sloc` to recalculate. Excludes `node_modules/`, `dist/`, and `Original/` directories.*
+
+### Original Android Implementation
+
+Source Lines of Code (SLOC) - non-empty lines:
+
+| Extension | Lines |
+|-----------|------:|
+| .java | 25,789 |
+| .xml | 3,444 |
+| .js | 240 |
+| **Total** | **29,473** |
+
+*The original Android game in the `Original/` directory, excluding `.svn/` metadata.*
 
 ## License
 

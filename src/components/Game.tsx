@@ -54,7 +54,7 @@ const PLAYER = {
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { state, pauseGame, resumeGame, gameOver } = useGameContext();
+  const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel, startGame } = useGameContext();
   
   // Systems refs
   const gameLoopRef = useRef<GameLoop | null>(null);
@@ -63,6 +63,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const soundSystemRef = useRef<SoundSystem | null>(null);
   const tileMapRendererRef = useRef<TileMapRenderer | null>(null);
   const backgroundImageRef = useRef<HTMLImageElement | null>(null);
+  const levelSystemRef = useRef<LevelSystem | null>(null);
+  
+  // Player spawn point (set when level loads)
+  const playerSpawnRef = useRef({ x: 100, y: 320 });
   
   // Player state ref for physics
   const playerStateRef = useRef({
@@ -79,6 +83,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     animFrame: 0,
     animTimer: 0,
     lastAnimState: '',
+    // Death/respawn state
+    isDying: false,
+    deathTime: 0,
   });
   
   const [isInitialized, setIsInitialized] = useState(false);
@@ -149,6 +156,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const levelSystem = new LevelSystem();
     levelSystem.setSystems(collisionSystem, gameObjectManager, hotSpotSystem);
     systemRegistry.register(levelSystem, 'level');
+    levelSystemRef.current = levelSystem;
 
     // Tile map renderer
     const tileMapRenderer = new TileMapRenderer();
@@ -206,12 +214,82 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       await Promise.all(loadPromises);
     };
 
-    // Load collectible sprites
+    // Load collectible sprites (with animation frames)
     const loadCollectibleSprites = async (): Promise<void> => {
       const sprites = [
+        // Coins - 5 animation frames
         { name: 'coin01', file: 'object_coin01', w: 32, h: 32 },
+        { name: 'coin02', file: 'object_coin02', w: 32, h: 32 },
+        { name: 'coin03', file: 'object_coin03', w: 32, h: 32 },
+        { name: 'coin04', file: 'object_coin04', w: 32, h: 32 },
+        { name: 'coin05', file: 'object_coin05', w: 32, h: 32 },
+        // Rubies - 5 animation frames
         { name: 'ruby01', file: 'object_ruby01', w: 32, h: 32 },
+        { name: 'ruby02', file: 'object_ruby02', w: 32, h: 32 },
+        { name: 'ruby03', file: 'object_ruby03', w: 32, h: 32 },
+        { name: 'ruby04', file: 'object_ruby04', w: 32, h: 32 },
+        { name: 'ruby05', file: 'object_ruby05', w: 32, h: 32 },
+        // Diary
         { name: 'diary01', file: 'object_diary01', w: 32, h: 32 },
+      ];
+
+      const loadPromises = sprites.map(sprite =>
+        renderSystem.loadSprite(sprite.name, `/assets/sprites/${sprite.file}.png`, sprite.w, sprite.h)
+          .catch(err => console.warn(`Failed to load sprite ${sprite.name}:`, err))
+      );
+
+      await Promise.all(loadPromises);
+    };
+
+    // Load enemy sprites
+    const loadEnemySprites = async (): Promise<void> => {
+      const sprites = [
+        // Bat enemy - 4 frames
+        { name: 'bat01', file: 'enemy_bat01', w: 64, h: 64 },
+        { name: 'bat02', file: 'enemy_bat02', w: 64, h: 64 },
+        { name: 'bat03', file: 'enemy_bat03', w: 64, h: 64 },
+        { name: 'bat04', file: 'enemy_bat04', w: 64, h: 64 },
+        // Sting enemy - 3 frames
+        { name: 'sting01', file: 'enemy_sting01', w: 64, h: 64 },
+        { name: 'sting02', file: 'enemy_sting02', w: 64, h: 64 },
+        { name: 'sting03', file: 'enemy_sting03', w: 64, h: 64 },
+        // Onion enemy - 3 frames
+        { name: 'onion01', file: 'enemy_onion01', w: 64, h: 64 },
+        { name: 'onion02', file: 'enemy_onion02', w: 64, h: 64 },
+        { name: 'onion03', file: 'enemy_onion03', w: 64, h: 64 },
+        // Brobot enemy - idle & walk
+        { name: 'brobot_idle01', file: 'enemy_brobot_idle01', w: 64, h: 64 },
+        { name: 'brobot_idle02', file: 'enemy_brobot_idle02', w: 64, h: 64 },
+        { name: 'brobot_idle03', file: 'enemy_brobot_idle03', w: 64, h: 64 },
+        { name: 'brobot_walk01', file: 'enemy_brobot_walk01', w: 64, h: 64 },
+        { name: 'brobot_walk02', file: 'enemy_brobot_walk02', w: 64, h: 64 },
+        { name: 'brobot_walk03', file: 'enemy_brobot_walk03', w: 64, h: 64 },
+        // Skeleton enemy
+        { name: 'skeleton_stand', file: 'enemy_skeleton_stand', w: 64, h: 64 },
+        { name: 'skeleton_walk01', file: 'enemy_skeleton_walk01', w: 64, h: 64 },
+        { name: 'skeleton_walk02', file: 'enemy_skeleton_walk02', w: 64, h: 64 },
+        { name: 'skeleton_walk03', file: 'enemy_skeleton_walk03', w: 64, h: 64 },
+        { name: 'skeleton_walk04', file: 'enemy_skeleton_walk04', w: 64, h: 64 },
+        { name: 'skeleton_walk05', file: 'enemy_skeleton_walk05', w: 64, h: 64 },
+        // Karaguin enemy - 3 frames
+        { name: 'karaguin01', file: 'enemy_karaguin01', w: 64, h: 64 },
+        { name: 'karaguin02', file: 'enemy_karaguin02', w: 64, h: 64 },
+        { name: 'karaguin03', file: 'enemy_karaguin03', w: 64, h: 64 },
+        // Mud/Mudman enemy
+        { name: 'mudman_stand', file: 'enemy_mud_stand', w: 64, h: 64 },
+        { name: 'mudman_idle01', file: 'enemy_mud_idle01', w: 64, h: 64 },
+        { name: 'mudman_idle02', file: 'enemy_mud_idle02', w: 64, h: 64 },
+        { name: 'mudman_walk01', file: 'enemy_mud_walk01', w: 64, h: 64 },
+        { name: 'mudman_walk02', file: 'enemy_mud_walk02', w: 64, h: 64 },
+        { name: 'mudman_walk03', file: 'enemy_mud_walk03', w: 64, h: 64 },
+        // Shadow Slime enemy
+        { name: 'shadowslime_stand', file: 'enemy_shadowslime_stand', w: 64, h: 64 },
+        { name: 'shadowslime_idle01', file: 'enemy_shadowslime_idle01', w: 64, h: 64 },
+        { name: 'shadowslime_idle02', file: 'enemy_shadowslime_idle02', w: 64, h: 64 },
+        // NPC sprites
+        { name: 'wanda_stand', file: 'enemy_wanda_stand', w: 64, h: 64 },
+        { name: 'kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 64 },
+        { name: 'kabocha_stand', file: 'enemy_kabocha_stand', w: 64, h: 64 },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -238,6 +316,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Load collectible sprites
         await loadCollectibleSprites();
+        
+        // Load enemy sprites
+        await loadEnemySprites();
         
         // Initialize sound system
         await soundSystem.initialize();
@@ -359,6 +440,60 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Update all game objects
       gameObjectManager.update(deltaTime, gameTime);
+
+      // Simple enemy AI - patrol back and forth
+      const ENEMY_SPEED = 50; // pixels per second
+      gameObjectManager.forEach((obj) => {
+        if (obj.type !== 'enemy' || !obj.isVisible() || obj.life <= 0) return;
+        
+        // Initialize patrol direction if not set
+        if (obj.facingDirection.x === 0) {
+          obj.facingDirection.x = 1;
+        }
+        
+        // Move enemy
+        const velocity = obj.getVelocity();
+        const position = obj.getPosition();
+        
+        // Set velocity based on facing direction
+        velocity.x = obj.facingDirection.x * ENEMY_SPEED;
+        
+        // Check for walls and reverse direction
+        const nextX = position.x + velocity.x * deltaTime;
+        const collision = collisionSystem.checkTileCollision(
+          nextX, position.y, obj.width, obj.height, velocity.x, velocity.y
+        );
+        
+        if (collision.leftWall || collision.rightWall) {
+          // Reverse direction
+          obj.facingDirection.x *= -1;
+          velocity.x = obj.facingDirection.x * ENEMY_SPEED;
+        }
+        
+        // Apply gravity for non-flying enemies
+        if (obj.subType !== 'bat' && obj.subType !== 'sting') {
+          velocity.y += 400 * deltaTime; // Gravity
+        } else {
+          // Flying enemies bob up and down slightly
+          velocity.y = Math.sin(gameTime * 3 + obj.id) * 20;
+        }
+        
+        // Update position
+        position.x += velocity.x * deltaTime;
+        position.y += velocity.y * deltaTime;
+        
+        // Check ground collision
+        const groundCheck = collisionSystem.checkTileCollision(
+          position.x, position.y, obj.width, obj.height, velocity.x, velocity.y
+        );
+        
+        if (groundCheck.grounded) {
+          const tileSize = 32;
+          const groundY = Math.floor((position.y + obj.height) / tileSize) * tileSize - obj.height;
+          position.y = groundY;
+          velocity.y = 0;
+        }
+      });
 
       // Check hot spots
       if (player && hotSpotSystem) {
@@ -806,31 +941,137 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, '#4caf50', 10);
           }
         } else {
-          // Draw other objects
-          let color = '#ff6b6b'; // Default enemy color
+          // Draw other objects with sprites
+          const OBJECT_FRAME_TIME = 0.15; // Animation speed for objects
+          
+          // Use object's animTimer and animFrame for per-object animation
+          // Initialize if not set
+          if (obj.animTimer === undefined) obj.animTimer = Math.random(); // Random offset to desync animations
+          if (obj.animFrame === undefined) obj.animFrame = 0;
+          
+          // Update animation timer
+          obj.animTimer += 1 / 60;
+          if (obj.animTimer >= OBJECT_FRAME_TIME) {
+            obj.animTimer -= OBJECT_FRAME_TIME;
+            obj.animFrame++;
+          }
+          
+          let spriteName: string | null = null;
+          let spriteFrames: string[] = [];
+          const spriteOffset = { x: 0, y: 0 };
           
           switch (obj.type) {
             case 'coin':
-              color = '#ffd700';
+              spriteFrames = ['coin01', 'coin02', 'coin03', 'coin04', 'coin05'];
+              obj.animFrame = obj.animFrame % spriteFrames.length;
+              spriteName = spriteFrames[obj.animFrame];
+              spriteOffset.x = -obj.width / 2;
+              spriteOffset.y = -obj.height / 2;
               break;
             case 'ruby':
             case 'pearl':
-              color = '#ff69b4';
+              spriteFrames = ['ruby01', 'ruby02', 'ruby03', 'ruby04', 'ruby05'];
+              obj.animFrame = obj.animFrame % spriteFrames.length;
+              spriteName = spriteFrames[obj.animFrame];
+              spriteOffset.x = -obj.width / 2;
+              spriteOffset.y = -obj.height / 2;
               break;
-            case 'enemy':
-              color = '#ff4444';
+            case 'diary':
+              spriteName = 'diary01';
+              spriteOffset.x = -obj.width / 2;
+              spriteOffset.y = -obj.height / 2;
               break;
-            case 'npc':
-              color = '#44aaff';
+            case 'enemy': {
+              // Determine enemy type by subtype or default to bat
+              const enemyType = obj.subType || 'bat';
+              switch (enemyType) {
+                case 'bat':
+                  spriteFrames = ['bat01', 'bat02', 'bat03', 'bat04'];
+                  break;
+                case 'sting':
+                  spriteFrames = ['sting01', 'sting02', 'sting03'];
+                  break;
+                case 'onion':
+                  spriteFrames = ['onion01', 'onion02', 'onion03'];
+                  break;
+                case 'brobot':
+                  // Animate based on velocity
+                  if (Math.abs(obj.getVelocity().x) > 10) {
+                    spriteFrames = ['brobot_walk01', 'brobot_walk02', 'brobot_walk03'];
+                  } else {
+                    spriteFrames = ['brobot_idle01', 'brobot_idle02', 'brobot_idle03'];
+                  }
+                  break;
+                case 'skeleton':
+                  if (Math.abs(obj.getVelocity().x) > 10) {
+                    spriteFrames = ['skeleton_walk01', 'skeleton_walk02', 'skeleton_walk03', 'skeleton_walk04', 'skeleton_walk05'];
+                  } else {
+                    spriteFrames = ['skeleton_stand'];
+                  }
+                  break;
+                case 'karaguin':
+                  spriteFrames = ['karaguin01', 'karaguin02', 'karaguin03'];
+                  break;
+                case 'mudman':
+                  if (Math.abs(obj.getVelocity().x) > 10) {
+                    spriteFrames = ['mudman_walk01', 'mudman_walk02', 'mudman_walk03'];
+                  } else {
+                    spriteFrames = ['mudman_idle01', 'mudman_idle02'];
+                  }
+                  break;
+                case 'shadowslime':
+                  spriteFrames = ['shadowslime_idle01', 'shadowslime_idle02'];
+                  break;
+                default:
+                  // Default to bat animation for unhandled enemy types
+                  spriteFrames = ['bat01', 'bat02', 'bat03', 'bat04'];
+              }
+              obj.animFrame = obj.animFrame % spriteFrames.length;
+              spriteName = spriteFrames[obj.animFrame];
+              spriteOffset.x = -8;
+              spriteOffset.y = -8;
               break;
+            }
+            case 'npc': {
+              // NPCs use their subtype to determine sprite
+              const npcType = obj.subType || 'wanda';
+              spriteName = `${npcType}_stand`;
+              spriteOffset.x = -8;
+              spriteOffset.y = -8;
+              break;
+            }
             case 'door':
-              color = '#8844ff';
+              // Doors are rendered as rectangles for now
               break;
-            default:
-              color = '#888888';
           }
           
-          renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, color, 5);
+          // Try to draw sprite, fall back to colored rectangle
+          if (spriteName && renderSystem.hasSprite(spriteName)) {
+            const scaleX = obj.facingDirection.x < 0 ? -1 : 1;
+            renderSystem.drawSprite(
+              spriteName, 
+              pos.x + spriteOffset.x, 
+              pos.y + spriteOffset.y, 
+              0, 
+              5, 
+              1, 
+              scaleX, 
+              1
+            );
+          } else {
+            // Fallback to colored rectangles
+            let color = '#888888';
+            switch (obj.type) {
+              case 'coin': color = '#ffd700'; break;
+              case 'ruby':
+              case 'pearl': color = '#ff69b4'; break;
+              case 'diary': color = '#ffaa00'; break;
+              case 'enemy': color = '#ff4444'; break;
+              case 'npc': color = '#44aaff'; break;
+              case 'door': color = '#8844ff'; break;
+            }
+            renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, color, 5);
+          }
         }
       });
 

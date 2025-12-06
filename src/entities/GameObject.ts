@@ -52,6 +52,11 @@ export class GameObject implements Poolable {
   // Action state
   private currentAction: ActionType = ActionType.INVALID;
 
+  // Animation state (for simple objects without AnimationComponent)
+  public animTimer: number = 0;
+  public animFrame: number = 0;
+  public subType: string = '';
+
   // Components organized by phase
   private components: Map<ComponentPhase, GameComponent[]> = new Map();
   private allComponents: GameComponent[] = [];
@@ -85,6 +90,9 @@ export class GameObject implements Poolable {
     this.facingDirection.set(1, 0);
 
     this.currentAction = ActionType.INVALID;
+    this.animTimer = 0;
+    this.animFrame = 0;
+    this.subType = '';
     this.positionLocked = false;
     this.activationRadius = 0;
     this.destroyOnDeactivation = false;
