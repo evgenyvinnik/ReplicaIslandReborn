@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import { SoundControls } from './SoundControls';
 
 interface PhoneFrameProps {
   children: React.ReactNode;
@@ -16,6 +17,9 @@ interface PhoneFrameProps {
 export function PhoneFrame({ children, gameWidth, gameHeight }: PhoneFrameProps): React.JSX.Element {
   return (
     <div className="phone-frame-container">
+      {/* Sound controls - positioned upper left */}
+      <SoundControls className="phone-sound-controls" />
+      
       <div className="phone-frame-wrapper">
         <div className="phone-frame">
         {/* Left bezel with speaker grille */}

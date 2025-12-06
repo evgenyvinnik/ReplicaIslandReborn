@@ -342,3 +342,93 @@ button:focus {
   letter-spacing: 0.5px;
 }
 
+/* Sound Controls - positioned upper left of phone frame */
+.sound-controls {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+}
+
+.phone-sound-controls {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 100;
+}
+
+.sound-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(145deg, #3a3a4a 0%, #2a2a3a 50%, #1a1a2a 100%);
+  border: 2px solid #444;
+  border-radius: 8px;
+  color: #8f8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+.sound-control-btn:hover {
+  background: linear-gradient(145deg, #4a4a5a 0%, #3a3a4a 50%, #2a2a3a 100%);
+  border-color: #555;
+  transform: translateY(-1px);
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+.sound-control-btn:active {
+  transform: translateY(0);
+  box-shadow: 
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.sound-control-btn.muted {
+  color: #f66;
+  border-color: #633;
+}
+
+.sound-control-btn.muted:hover {
+  border-color: #844;
+}
+
+.sound-control-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sound-control-btn .sound-label {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.sound-control-btn .mute-slash {
+  position: absolute;
+  font-size: 24px;
+  font-weight: bold;
+  color: #f44;
+  transform: rotate(-45deg);
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Sound master button (larger) */
+.sound-control-btn.sound-master {
+  width: 40px;
+  height: 40px;
+}
+
+.sound-control-btn.sound-master svg {
+  width: 24px;
+  height: 24px;
+}
+

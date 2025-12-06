@@ -20,13 +20,14 @@ import {
   type LevelMetaData,
 } from '../data/levelTree';
 
-// Row height in pixels (original: 70dp)
-// Scaled down slightly to fit more levels in the 320px view
-const ROW_HEIGHT = 48;
+// Row height in pixels - matches original 70dp at mdpi (1:1 pixel ratio)
+// This means ~4-5 rows visible at a time with scrolling
+const ROW_HEIGHT = 70;
 
 // Text colors from original
 const TEXT_COLOR_ENABLED = '#65ff99';
-const TEXT_COLOR_DISABLED = '#066659';
+// Original disabled color #066659 is too dark - using a brighter version for readability
+const TEXT_COLOR_DISABLED = '#4a9980';
 
 // Level row state types
 type RowState = 'enabled' | 'disabled' | 'completed';
@@ -112,40 +113,43 @@ function LevelRow({
         }}
       />
 
-      {/* Level title - positioned like original (x=20dp, y=5dp, scaled) */}
+      {/* Level title - original: x=20dp, y=5dp, width=265dp, 24sp bold */}
       <div
         style={{
           position: 'absolute',
-          left: '15px',
-          top: '4px',
-          width: '200px',
-          height: '28px',
-          fontSize: '18px',
+          left: '20px',
+          top: '8px',
+          width: '260px',
+          height: '36px',
+          fontSize: '22px',
           fontWeight: 'bold',
           color: getTextColor(),
-          fontFamily: 'monospace',
+          fontFamily: '"Courier New", Courier, monospace',
           textAlign: 'left',
-          lineHeight: '28px',
+          lineHeight: '36px',
           overflow: 'hidden',
           whiteSpace: 'nowrap',
           textOverflow: 'ellipsis',
+          textShadow: '1px 1px 1px rgba(0,0,0,0.8)',
+          letterSpacing: '-0.5px',
         }}
       >
         {level.name}
       </div>
 
-      {/* Timestamp - positioned like original (x=290dp, y=25dp, scaled) */}
+      {/* Timestamp - original: x=290dp, y=25dp, width=60dp, 12sp */}
       <div
         style={{
           position: 'absolute',
-          right: '15px',
-          top: '18px',
-          width: 'auto',
-          height: '12px',
-          fontSize: '10px',
+          left: '295px',
+          top: '28px',
+          width: '170px',
+          height: '18px',
+          fontSize: '14px',
           color: getTextColor(),
-          fontFamily: 'monospace',
-          textAlign: 'right',
+          fontFamily: '"Courier New", Courier, monospace',
+          textAlign: 'left',
+          textShadow: '1px 1px 1px rgba(0,0,0,0.8)',
         }}
       >
         {level.timeStamp}
