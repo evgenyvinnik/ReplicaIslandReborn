@@ -132,14 +132,24 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
   // Show intro dialog after level finishes loading
   useEffect(() => {
+    console.warn('[DialogTrigger] Effect running:', { 
+      levelLoading, 
+      isInitialized, 
+      hasShownIntro: hasShownIntroDialogRef.current,
+      currentLevel: state.currentLevel 
+    });
     if (!levelLoading && isInitialized && !hasShownIntroDialogRef.current) {
       const levelSystem = levelSystemRef.current;
+      console.warn('[DialogTrigger] Conditions met, levelSystem:', !!levelSystem);
       if (levelSystem) {
         const levelInfo = levelSystem.getLevelInfo(state.currentLevel);
+        console.warn('[DialogTrigger] levelInfo:', levelInfo);
         if (levelInfo) {
           const dialogs = getDialogsForLevel(levelInfo.file);
+          console.warn('[DialogTrigger] dialogs found:', dialogs.length, dialogs);
           if (dialogs.length > 0) {
             hasShownIntroDialogRef.current = true;
+            console.warn('[DialogTrigger] Setting active dialog:', dialogs[0]);
             setActiveDialog(dialogs[0]);
           }
         }

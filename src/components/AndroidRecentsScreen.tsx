@@ -8,88 +8,96 @@ import React from 'react';
 interface AndroidRecentsScreenProps {
   onResume: () => void;
   screenshot?: string; // Optional screenshot of the game state
-  isOverlay?: boolean; // If true, renders as an overlay matching the shrunk app position
+  isOverlay?: boolean;
 }
 
-export function AndroidRecentsScreen({ onResume, screenshot, isOverlay = false }: AndroidRecentsScreenProps): React.JSX.Element {
+export function AndroidRecentsScreen({ onResume }: AndroidRecentsScreenProps): React.JSX.Element {
   return (
     <div
       style={{
         width: '100%',
         height: '100%',
-        backgroundColor: isOverlay ? 'transparent' : 'rgba(0, 0, 0, 0.8)',
-        position: 'absolute',
-        top: 0,
-        left: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        position: 'relative',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 10, // Ensure it's above the app
-        pointerEvents: isOverlay ? 'none' : 'auto', 
+        padding: '20px',
       }}
     >
       {/* Recents Card */}
       <div
         onClick={onResume}
         style={{
-          width: '100%', // Match the app container width (which is 100% of parent)
-          height: '100%', // Match the app container height
-          // We need to match the scale(0.7) of the app container
-          transform: 'scale(0.7)',
-          backgroundColor: isOverlay ? 'transparent' : '#333',
+          width: '70%',
+          height: '60%',
+          backgroundColor: '#333',
           borderRadius: '8px',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: isOverlay ? 'none' : '0 10px 20px rgba(0,0,0,0.5)',
+          boxShadow: '0 10px 20px rgba(0,0,0,0.5)',
           cursor: 'pointer',
+          transform: 'scale(0.9)',
+          transition: 'transform 0.2s',
           position: 'relative',
-          pointerEvents: 'auto', // Re-enable pointer events for the card
-          border: isOverlay ? '2px solid #444' : 'none', // Add border in overlay mode
         }}
+        onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(0.95)')}
+        onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(0.9)')}
       >
         {/* App Title Bar */}
         <div
           style={{
-            height: '30px',
-            backgroundColor: '#222',
+            backgroundColor: '#444',
+            padding: '8px 12px',
             display: 'flex',
             alignItems: 'center',
-            padding: '0 10px',
-            borderBottom: '1px solid #444',
-            zIndex: 2,
+            gap: '8px',
           }}
         >
-          <img 
-            src="/assets/sprites/ui_icon.png" 
-            alt="Icon" 
-            style={{ width: '16px', height: '16px', marginRight: '8px' }}
-            onError={(e) => (e.currentTarget.style.display = 'none')}
+          <img
+            src="/assets/sprites/icon.png"
+            alt=""
+            style={{ width: '16px', height: '16px' }}
           />
-          <span style={{ color: '#fff', fontSize: '12px', flex: 1 }}>Replica Island</span>
-          <span style={{ color: '#aaa', fontSize: '16px' }}>×</span>
+          <span
+            style={{
+              color: '#fff',
+              fontSize: '12px',
+              fontFamily: 'sans-serif',
+            }}
+          >
+            Replica Island
+          </span>
         </div>
 
-        {/* App Preview / Screenshot / Transparent Area */}
+        {/* App Preview (Placeholder) */}
         <div
           style={{
             flex: 1,
-            backgroundColor: isOverlay ? 'transparent' : '#000',
-            backgroundImage: !isOverlay && screenshot ? `url(${screenshot})` : 'none',
+            backgroundImage: 'url(/assets/sprites/title_background.png)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            position: 'relative',
           }}
         >
-          {!isOverlay && !screenshot && (
-            <div style={{ color: '#666', fontSize: '14px' }}>
-              Game Paused
-            </div>
-          )}
+          {/* Overlay to make it look "inactive" */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              backgroundColor: 'rgba(0,0,0,0.3)',
+            }}
+          />
         </div>
+      </div>
+      
+      <div style={{ marginTop: '20px', color: '#aaa', fontSize: '14px', fontFamily: 'sans-serif' }}>
+        Tap to resume
       </div>
     </div>
   );

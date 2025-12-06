@@ -1,6 +1,7 @@
 /**
  * Android Home Screen Component
- * Simulates an early Android (1.x/2.x) home screen
+ * Simulates an early Android 1.0/1.5 (Cupcake) home screen
+ * Very simple - just wallpaper, status bar, and app icons
  */
 
 import React, { useState, useEffect } from 'react';
@@ -11,18 +12,20 @@ interface AndroidHomeScreenProps {
 
 export function AndroidHomeScreen({ onLaunch }: AndroidHomeScreenProps): React.JSX.Element {
   const [timeString, setTimeString] = useState('');
-  const [dateString, setDateString] = useState('');
 
   useEffect(() => {
-    const updateTime = () => {
+    const updateTime = (): void => {
       const now = new Date();
-      setTimeString(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      setDateString(now.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }));
+      const hours = now.getHours();
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      setTimeString(`${displayHours}:${minutes} ${ampm}`);
     };
     
     updateTime();
     const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
+    return (): void => clearInterval(interval);
   }, []);
 
   return (
@@ -30,64 +33,65 @@ export function AndroidHomeScreen({ onLaunch }: AndroidHomeScreenProps): React.J
       style={{
         width: '100%',
         height: '100%',
-        backgroundColor: '#222',
-        backgroundImage: 'linear-gradient(to bottom, #333, #000)',
+        // Early Android had simple gradient wallpapers
+        background: 'linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
         position: 'relative',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
         overflow: 'hidden',
-        fontFamily: 'Roboto, sans-serif',
+        fontFamily: 'Arial, sans-serif',
       }}
     >
-      {/* Status Bar */}
+      {/* Status Bar - Android 1.x style: black with white text */}
       <div
         style={{
           width: '100%',
-          height: '24px',
-          backgroundColor: 'rgba(0,0,0,0.5)',
+          height: '20px',
+          backgroundColor: '#000',
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           alignItems: 'center',
-          padding: '0 8px',
-          color: '#fff',
-          fontSize: '12px',
+          padding: '0 6px',
+          boxSizing: 'border-box',
         }}
       >
-        <span>{timeString}</span>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <span>📶</span>
-          <span>🔋</span>
+        {/* Signal bars */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1px', marginRight: '6px' }}>
+          {[4, 6, 8, 10].map((h, i) => (
+            <div key={i} style={{ width: '3px', height: `${h}px`, backgroundColor: '#8f8' }} />
+          ))}
         </div>
+        {/* Battery icon - simple rectangle */}
+        <div style={{ display: 'flex', alignItems: 'center', marginRight: '6px' }}>
+          <div style={{ 
+            width: '18px', height: '9px', 
+            border: '1px solid #fff', 
+            borderRadius: '1px',
+            position: 'relative',
+          }}>
+            <div style={{ 
+              width: '80%', height: '100%', 
+              backgroundColor: '#8f8',
+            }} />
+          </div>
+          <div style={{ width: '2px', height: '5px', backgroundColor: '#fff', marginLeft: '1px' }} />
+        </div>
+        {/* Time */}
+        <span style={{ color: '#fff', fontSize: '11px' }}>{timeString}</span>
       </div>
 
-      {/* Clock Widget */}
+      {/* App Grid Area - centered icons */}
       <div
         style={{
-          marginTop: '40px',
+          flex: 1,
           display: 'flex',
           flexDirection: 'column',
+          justifyContent: 'flex-start',
           alignItems: 'center',
-          color: '#fff',
-          textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+          padding: '40px 20px',
         }}
       >
-        <div style={{ fontSize: '48px', fontWeight: '300', lineHeight: 1 }}>{timeString}</div>
-        <div style={{ fontSize: '14px', opacity: 0.8 }}>{dateString}</div>
-      </div>
-
-      {/* App Grid */}
-      <div
-        style={{
-          marginTop: '40px',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: '20px',
-          width: '100%',
-          padding: '0 20px',
-        }}
-      >
-        {/* Replica Island Icon */}
+        {/* Single app icon - Replica Island */}
         <button
           onClick={onLaunch}
           style={{
@@ -97,33 +101,35 @@ export function AndroidHomeScreen({ onLaunch }: AndroidHomeScreenProps): React.J
             flexDirection: 'column',
             alignItems: 'center',
             cursor: 'pointer',
-            padding: 0,
+            padding: '8px',
           }}
         >
+          {/* Icon from original game */}
           <div
             style={{
-              width: '56px',
-              height: '56px',
+              width: '48px',
+              height: '48px',
               marginBottom: '4px',
-              position: 'relative',
             }}
           >
             <img
-              src="/assets/icon.png"
+              src="/assets/sprites/icon.png"
               alt="Replica Island"
               style={{
                 width: '100%',
                 height: '100%',
-                filter: 'drop-shadow(0px 2px 2px rgba(0,0,0,0.5))',
+                imageRendering: 'pixelated',
               }}
             />
           </div>
+          {/* App label - Android 1.x style */}
           <span
             style={{
               color: '#fff',
-              fontSize: '12px',
+              fontSize: '11px',
               textAlign: 'center',
-              textShadow: '1px 1px 2px #000',
+              textShadow: '1px 1px 1px #000, -1px -1px 1px #000, 1px -1px 1px #000, -1px 1px 1px #000',
+              fontWeight: 'bold',
             }}
           >
             Replica Island
@@ -131,40 +137,37 @@ export function AndroidHomeScreen({ onLaunch }: AndroidHomeScreenProps): React.J
         </button>
       </div>
 
-      {/* Bottom Dock */}
+      {/* Bottom dock/tray handle - Android 1.x had the app drawer handle */}
       <div
         style={{
           position: 'absolute',
-          bottom: 0,
-          left: 0,
-          width: '100%',
-          height: '60px',
-          backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0))',
+          bottom: '8px',
+          left: '50%',
+          transform: 'translateX(-50%)',
           display: 'flex',
-          justifyContent: 'space-around',
+          flexDirection: 'column',
           alignItems: 'center',
-          padding: '0 20px',
         }}
       >
-        <div style={{ fontSize: '24px', cursor: 'pointer' }}>📞</div>
+        {/* App drawer tab (non-functional, just decorative) */}
         <div
           style={{
-            width: '40px',
-            height: '40px',
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            borderRadius: '50%',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2, 1fr)',
-            gap: '2px',
-            padding: '8px',
-            cursor: 'pointer',
+            width: '60px',
+            height: '24px',
+            backgroundColor: 'rgba(255,255,255,0.1)',
+            borderRadius: '12px 12px 0 0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
-          {[...Array(4)].map((_, i) => (
-            <div key={i} style={{ backgroundColor: '#fff', borderRadius: '1px' }}></div>
-          ))}
+          {/* Grid icon */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2px' }}>
+            {[...Array(9)].map((_, i) => (
+              <div key={i} style={{ width: '4px', height: '4px', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: '1px' }} />
+            ))}
+          </div>
         </div>
-        <div style={{ fontSize: '24px', cursor: 'pointer' }}>🌐</div>
       </div>
     </div>
   );
