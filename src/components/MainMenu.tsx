@@ -11,7 +11,7 @@ import React, { useState } from 'react';
 import { useGameContext } from '../context/GameContext';
 
 export function MainMenu(): React.JSX.Element {
-  const { startGame, goToLevelSelect, state } = useGameContext();
+  const { startGame, goToLevelSelect, goToOptions, state } = useGameContext();
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
   return (
@@ -101,7 +101,7 @@ export function MainMenu(): React.JSX.Element {
           <ImageButton 
             src="/assets/sprites/ui_button_options.png" 
             alt="Options"
-            onClick={(): void => { /* Options */ }} 
+            onClick={goToOptions} 
           />
         </div>
 

@@ -218,31 +218,31 @@ button:focus {
   transform: rotate(90deg);
 }
 
-/* Volume and power buttons */
+/* Volume and power buttons (landscape orientation) */
 .volume-buttons {
   position: absolute;
-  top: 60px;
-  left: -6px;
+  top: -6px;
+  left: 60px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
 }
 
 .volume-button {
-  width: 4px;
-  height: 30px;
-  background: linear-gradient(90deg, #222 0%, #444 50%, #222 100%);
-  border-radius: 2px 0 0 2px;
+  width: 30px;
+  height: 4px;
+  background: linear-gradient(180deg, #222 0%, #444 50%, #222 100%);
+  border-radius: 2px 2px 0 0;
 }
 
 .power-button {
   position: absolute;
-  top: 80px;
-  right: -6px;
-  width: 4px;
-  height: 40px;
-  background: linear-gradient(270deg, #222 0%, #444 50%, #222 100%);
-  border-radius: 0 2px 2px 0;
+  bottom: -6px;
+  left: 80px;
+  width: 40px;
+  height: 4px;
+  background: linear-gradient(0deg, #222 0%, #444 50%, #222 100%);
+  border-radius: 0 0 2px 2px;
 }
 
 /* On-screen controls overlay */

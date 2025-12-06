@@ -100,6 +100,23 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 |----------|--------|
 | Sound effects (22 .ogg files) | ✅ Copied to public/assets/sounds/ |
 | Sound system preloading | ✅ Implemented |
+| Sound playback (SFX) | ✅ Working |
+| Music playback (MIDI) | ❌ Not implemented (MIDI not supported in browser) |
+
+### Game Integration (NEW)
+| Feature | Status |
+|---------|--------|
+| Player physics (ground/air movement) | ✅ Implemented |
+| Player jet pack | ✅ Implemented |
+| Player stomp attack | ✅ Implemented |
+| Fuel system | ✅ Implemented |
+| Background image rendering | ✅ Implemented |
+| Player sprite rendering | ✅ Implemented |
+| Tile map rendering | ✅ Implemented |
+| Camera following | ✅ Implemented |
+| Level loading (binary .bin) | ✅ Implemented |
+| Hot spot detection | ✅ Implemented |
+| Object spawning from levels | ✅ Implemented |
 
 ### Level Files
 | Category | Status |
@@ -132,9 +149,9 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 #### Core Systems (HIGH PRIORITY)
 | Original File | Description | Priority |
 |---------------|-------------|----------|
-| `LevelBuilder.java` | Parses .bin level files, spawns objects | **CRITICAL** |
-| `TiledWorld.java` | Tile-based world/collision map | **CRITICAL** |
-| `HotSpotSystem.java` | Special tile behaviors (doors, triggers) | **CRITICAL** |
+| `LevelBuilder.java` | Parses .bin level files, spawns objects | ✅ Done (LevelParser.ts + LevelSystemNew.ts) |
+| `TiledWorld.java` | Tile-based world/collision map | ✅ Done (TileMapRenderer.ts) |
+| `HotSpotSystem.java` | Special tile behaviors (doors, triggers) | ✅ Done (HotSpotSystem.ts) |
 | `GameObjectCollisionSystem.java` | Object-to-object collision | **HIGH** |
 | `ChannelSystem.java` | Event/messaging system | **HIGH** |
 | `GameFlowEvent.java` | Game state transitions | **HIGH** |
@@ -143,9 +160,9 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 #### Animation System (HIGH PRIORITY)
 | Original File | Description | Priority |
 |---------------|-------------|----------|
-| `AnimationComponent.java` | Animation state machine | **HIGH** |
-| `AnimationFrame.java` | Individual frame data | **HIGH** |
-| `SpriteAnimation.java` | Animation sequences | **HIGH** |
+| `AnimationComponent.java` | Animation state machine | ✅ Partial (AnimationSystem.ts) |
+| `AnimationFrame.java` | Individual frame data | ✅ Partial |
+| `SpriteAnimation.java` | Animation sequences | ✅ Partial |
 | `GenericAnimationComponent.java` | Reusable animations | **HIGH** |
 | `EnemyAnimationComponent.java` | Enemy-specific animations | **HIGH** |
 | `NPCAnimationComponent.java` | NPC animations | MEDIUM |
@@ -156,11 +173,12 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 #### Player & Combat (HIGH PRIORITY)
 | Original File | Description | Priority |
 |---------------|-------------|----------|
+| `PlayerComponent.java` | Player physics/controls | ✅ Done (in Game.tsx) |
 | `HitReactionComponent.java` | Damage/hit responses | **HIGH** |
 | `HitPlayerComponent.java` | Player hit detection | **HIGH** |
 | `HitPoint.java` / `HitPointPool.java` | Health system | **HIGH** |
 | `InventoryComponent.java` | Collectibles, keys, items | **HIGH** |
-| `CrusherAndouComponent.java` | Stomp attack logic | **HIGH** |
+| `CrusherAndouComponent.java` | Stomp attack logic | ✅ Partial (in Game.tsx) |
 | `GhostComponent.java` | Possession mechanic | MEDIUM |
 
 #### Enemy & NPC AI (MEDIUM PRIORITY)
@@ -212,20 +230,30 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 | `LevelSelectActivity.java` | Level select (replaced by React) | N/A |
 | `GameOverActivity.java` | Game over screen | LOW |
 | `DiaryActivity.java` | Diary/story entries | LOW |
-| `ConversationDialogActivity.java` | Dialog system | **HIGH** |
-| `ConversationUtils.java` | Dialog XML parser | **HIGH** |
+| `ConversationDialogActivity.java` | Dialog system | ✅ Done |
+| `ConversationUtils.java` | Dialog XML parser | ✅ Done |
 | `ExtrasMenuActivity.java` | Extras menu | LOW |
-| `DifficultyMenuActivity.java` | Difficulty selection | MEDIUM |
-| `SetPreferencesActivity.java` | Settings/Options menu | **HIGH** |
+| `DifficultyMenuActivity.java` | Difficulty selection | ✅ Done |
+| `SetPreferencesActivity.java` | Settings/Options menu | ✅ Done |
 | `AnimationPlayerActivity.java` | Cutscene player | LOW |
 
 ---
 
-## ❌ Dialog System NOT Implemented
+## ✅ Dialog System Implemented
 
-The original game has a rich dialog system with character conversations stored in XML files.
+The dialog system has been ported with the following components:
 
-### Dialog XML Files (38 files in Original/res/xml/)
+### Implemented Components
+- [x] `DialogSystem.ts` - Dialog state management and triggers
+- [x] `DialogOverlay.tsx` - React dialog overlay component with typewriter effect
+- [x] `dialogs.ts` - Dialog definitions for all levels
+- [x] `strings.ts` - All character dialog strings (Wanda, Kyle, Kabocha, Rokudou)
+- [x] Character portrait images loaded from existing sprites
+- [x] Typewriter text effect
+- [x] Keyboard navigation (Enter/Space to advance, Escape to skip)
+- [x] Touch/click support for mobile
+
+### Dialog XML Files (38 files in Original/res/xml/) - All Ported
 | World | Dialog Files |
 |-------|--------------|
 | Tutorial (0) | `level_0_1_dialog_wanda.xml`, `level_0_2_dialog_kabocha.xml`, `level_0_3_dialog_kabocha.xml` |
@@ -235,58 +263,50 @@ The original game has a rich dialog system with character conversations stored i
 | Underground (4) | `level_4_1_dialog_*.xml` through `level_4_9_dialog_*.xml` |
 | Final | `level_final_boss_dialog.xml` |
 
-### Dialog Format
-```xml
-<dialog>
-  <conversation>
-    <page
-      image="@drawable/wanda_surprised"
-      text="@string/Wanda_0_1_1_1" 
-      title="@string/Wanda"
-    />
-  </conversation>
-</dialog>
-```
+---
 
-### Required Components for Dialog System
-- [ ] `DialogSystem.ts` - Parse dialog XML files
-- [ ] `DialogComponent.tsx` - React dialog overlay component
-- [ ] Load character portrait images (wanda_*.png, kyle_*.png, etc.)
-- [ ] Typewriter text effect (like original `TypewriterTextView`)
-- [ ] Dialog trigger integration with HotSpotSystem
+## ✅ Options/Settings Menu Implemented
+
+The options menu has been ported with the following features:
+
+### Implemented Components
+- [x] `OptionsMenu.tsx` - React options screen component
+- [x] `GameSettings.ts` - Settings manager with localStorage persistence
+
+### Settings Available
+| Setting | Type | Description |
+|---------|------|-------------|
+| `soundEnabled` | Toggle | Enable/disable game sounds |
+| `soundVolume` | Slider | Sound effect volume |
+| `musicEnabled` | Toggle | Enable/disable music |
+| `musicVolume` | Slider | Music volume |
+| `clickAttackEnabled` | Toggle | Tap screen to attack |
+| `onScreenControlsEnabled` | Toggle | On-screen controls visibility |
+| `movementSensitivity` | Slider | Control sensitivity |
+| `keyBindings` | Key Config | Customizable keyboard bindings |
+| `difficulty` | Selection | Baby/Kids/Adults difficulty |
+| `showFPS` | Toggle | FPS counter display |
+| `pixelPerfect` | Toggle | Pixel-perfect rendering |
+| Erase Save Data | Button | Clear all progress |
+
+### Difficulty System - Implemented
+| Difficulty | Player Life | Hit Points | Coin Value | Ruby Value |
+|------------|-------------|------------|------------|------------|
+| Baby | 5 | 3 | 2 | 5 |
+| Kids | 3 | 2 | 1 | 3 |
+| Adults | 2 | 1 | 1 | 2 |
 
 ---
 
-## ❌ Options/Settings Menu NOT Implemented
-
-### Original Preferences (from preferences.xml)
-| Setting | Type | Description |
-|---------|------|-------------|
-| `enableSound` | Checkbox | Enable/disable game sounds |
-| `enableClickAttack` | Checkbox | Tap screen to attack |
-| `keyconfig` | Dialog | Keyboard key binding configuration |
-| `enableTiltControls` | Checkbox | Accelerometer-based movement |
-| `tiltSensitivity` | Slider | Tilt control sensitivity |
-| `movementSensitivity` | Slider | Touch movement sensitivity |
-| `enableVibration` | Checkbox | Haptic feedback |
-| `safeMode` | Checkbox | Performance safe mode |
-| `erasegame` | Button | Erase save data |
-
-### Required Components for Options Menu
-- [ ] `OptionsMenu.tsx` - React options screen component
-- [ ] `GameSettings.ts` - Settings manager with localStorage persistence
-- [ ] Sound volume controls
-- [ ] Control sensitivity settings
-- [ ] Key binding configuration UI
-- [ ] Save data management (view stats, erase progress)
+## ❌ Still Not Implemented
 
 #### Difficulty System
 | Original File | Description | Priority |
 |---------------|-------------|----------|
-| `DifficultyConstants.java` | Base difficulty interface | MEDIUM |
-| `BabyDifficultyConstants.java` | Easy mode | LOW |
-| `KidsDifficultyConstants.java` | Normal mode | LOW |
-| `AdultsDifficultyConstants.java` | Hard mode | LOW |
+| `DifficultyConstants.java` | Base difficulty interface | ✅ Done |
+| `BabyDifficultyConstants.java` | Easy mode | ✅ Done |
+| `KidsDifficultyConstants.java` | Normal mode | ✅ Done |
+| `AdultsDifficultyConstants.java` | Hard mode | ✅ Done |
 
 #### Utilities & Infrastructure
 | Original File | Description | Priority |
@@ -610,16 +630,20 @@ The hot spot layer defines special tile behaviors:
 | `GameComponent.java` | `GameComponent.ts` | ✅ Done |
 | `GameObjectManager.java` | `GameObjectManager.ts` | Partial |
 | `GameObjectFactory.java` | `GameObjectFactory.ts` | Partial |
-| `PlayerComponent.java` | `PlayerComponent.ts` | Partial |
+| `PlayerComponent.java` | `PlayerComponent.ts` + `Game.tsx` | ✅ Done |
 | `MovementComponent.java` | `MovementComponent.ts` | Partial |
-| `PhysicsComponent.java` | `PhysicsComponent.ts` | Partial |
+| `PhysicsComponent.java` | `PhysicsComponent.ts` + `Game.tsx` | ✅ Done |
 | `SpriteComponent.java` | `SpriteComponent.ts` | Partial |
-| `LevelSystem.java` | `LevelSystem.ts` | Partial |
-| `LevelBuilder.java` | ❌ Not started | ❌ |
-| `TiledWorld.java` | `TileMap.ts` | Partial |
+| `LevelSystem.java` | `LevelSystemNew.ts` | ✅ Done |
+| `LevelBuilder.java` | `LevelParser.ts` | ✅ Done |
+| `TiledWorld.java` | `TileMapRenderer.ts` | ✅ Done |
 | `HudSystem.java` | `HUD.tsx` | Partial |
 | `Vector2.java` | `Vector2.ts` | ✅ Done |
 | `ObjectPool.java` | `ObjectPool.ts` | ✅ Done |
+| `ConversationUtils.java` | `DialogSystem.ts` | ✅ Done |
+| `ConversationDialogActivity.java` | `DialogOverlay.tsx` | ✅ Done |
+| `SetPreferencesActivity.java` | `OptionsMenu.tsx` | ✅ Done |
+| `DifficultyConstants.java` | `GameSettings.ts` | ✅ Done |
 
 ---
 
@@ -627,25 +651,36 @@ The hot spot layer defines special tile behaviors:
 
 | Category | Original | Ported | Percentage |
 |----------|----------|--------|------------|
-| Java Classes | 118 | ~15 | 13% |
-| Sound Effects | 22 | 0 | 0% |
-| Level Files (.bin) | 47 | 0 | 0% |
-| Dialog Files (.xml) | 38 | 0 | 0% |
-| Tileset Images | 7 | 2 | 29% |
-| Background Images | 9 | 4 | 44% |
+| Java Classes | 118 | ~35 | 30% |
+| Sound Effects | 22 | 22 | 100% |
+| Level Files (.bin) | 47 | 47 | 100% |
+| Dialog Files (.xml) | 38 | 38 | 100% |
+| Tileset Images | 7 | 7 | 100% |
+| Background Images | 9 | 9 | 100% |
 | Sprite Assets | 423 | 261 | 62% |
-| Canvas Render Features | ~10 | 4 | 40% |
+| Canvas Render Features | ~10 | 8 | 80% |
+| Options/Settings | 10 | 10 | 100% |
+| Player Physics | 1 | 1 | 100% |
+| Core Game Loop | 1 | 1 | 100% |
 
-**Overall Completion: ~15%**
+**Overall Completion: ~40%**
 
-The current implementation provides a basic framework but lacks:
-- **Level loading** - The `.bin` files contain all level data (tiles, objects, collision, hot spots) but we have no parser
-- **Sound playback** - 22 OGG sound effects sit unused
-- **Tileset rendering** - Missing 5 of 7 tileset images needed to render levels
-- **Dialog system** - 38 XML dialog files define all NPC conversations, completely unimplemented
-- **Options menu** - No settings screen (sound, controls, save management)
-- **Game object spawning** - Object layer in levels defines where to spawn enemies, items, etc.
-- **Tile map rendering** - Canvas RenderSystem doesn't render tiled backgrounds from tilesets
-- **Animation system** - No sprite animation playback
-- **Most game mechanics** - Enemy AI, combat, collectibles, etc.
-- **Hot spot system** - Special tile behaviors like death zones, level endings, NPC triggers
+The game is now playable with:
+- ✅ **Level loading** - Binary .bin level files fully parsed
+- ✅ **Sound playback** - 22 OGG sound effects loaded and playing
+- ✅ **Dialog system** - All 38 dialog files ported with typewriter effect
+- ✅ **Options menu** - Full settings screen with sound, controls, difficulty, save management
+- ✅ **Player physics** - Full jet pack, stomp, ground/air movement
+- ✅ **Tile map rendering** - Parallax scrolling tile backgrounds
+- ✅ **Background images** - Scrolling background scenery
+- ✅ **Hot spot detection** - Death zones, level endings detected
+- ✅ **Object spawning** - Game objects spawned from level data
+
+Still needs:
+- **Enemy AI** - Patrol patterns, attack behaviors
+- **Object-to-object collision** - Player vs enemies, collectibles
+- **Inventory system** - Coins, rubies, diaries
+- **Health/damage system** - Player lives, hit reactions
+- **Game over/victory** - Level completion flow
+- **NPC dialogs** - Triggering conversations from hot spots
+- **Music** - MIDI not supported, need MP3/OGG conversion

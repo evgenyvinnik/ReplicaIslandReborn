@@ -7,6 +7,7 @@ import { useGameContext, GameProvider } from './context/GameContext';
 import { GameState } from './types';
 import { MainMenu } from './components/MainMenu';
 import { LevelSelect } from './components/LevelSelect';
+import { OptionsMenu } from './components/OptionsMenu';
 import { Game } from './components/Game';
 import { LoadingScreen } from './components/LoadingScreen';
 import { PhoneFrame } from './components/PhoneFrame';
@@ -16,7 +17,7 @@ const GAME_WIDTH = 480;
 const GAME_HEIGHT = 320;
 
 function AppContent(): React.JSX.Element {
-  const { state, dispatch } = useGameContext();
+  const { state, dispatch, goToMainMenu } = useGameContext();
   const [loadingProgress, setLoadingProgress] = useState(0);
 
   // Simulate initial loading
@@ -46,10 +47,13 @@ function AppContent(): React.JSX.Element {
         return <MainMenu />;
       case GameState.LEVEL_SELECT:
         return <LevelSelect />;
+      case GameState.OPTIONS:
+        return <OptionsMenu onClose={goToMainMenu} />;
       case GameState.PLAYING:
       case GameState.PAUSED:
       case GameState.GAME_OVER:
       case GameState.LEVEL_COMPLETE:
+      case GameState.DIALOG:
         return <Game width={GAME_WIDTH} height={GAME_HEIGHT} />;
       default:
         return <LoadingScreen progress={0} />;

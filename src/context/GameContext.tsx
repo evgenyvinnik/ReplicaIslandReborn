@@ -99,6 +99,7 @@ interface GameContextValue {
   resumeGame: () => void;
   goToMainMenu: () => void;
   goToLevelSelect: () => void;
+  goToOptions: () => void;
   setLevel: (level: number) => void;
   completeLevel: () => void;
   gameOver: () => void;
@@ -141,6 +142,10 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.LEVEL_SELECT });
   };
 
+  const goToOptions = (): void => {
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.OPTIONS });
+  };
+
   const setLevel = (level: number): void => {
     dispatch({ type: 'SET_CURRENT_LEVEL', payload: level });
   };
@@ -170,6 +175,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     resumeGame,
     goToMainMenu,
     goToLevelSelect,
+    goToOptions,
     setLevel,
     completeLevel,
     gameOver,
