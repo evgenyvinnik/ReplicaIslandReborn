@@ -2,7 +2,7 @@
  * Main App Component
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useGameContext, GameProvider } from './context/GameContext';
 import { GameState } from './types';
 import { MainMenu } from './components/MainMenu';
@@ -22,6 +22,8 @@ const GAME_HEIGHT = 320;
 function AppContent(): React.JSX.Element {
   const { state, dispatch, goToMainMenu, pauseGame, resumeGame } = useGameContext();
   const [osMode, setOsMode] = useState<'app' | 'home' | 'recents'>('app');
+  // Track if we paused the game due to going to recents/home (vs user manually pausing)
+  const pausedByOsRef = useRef(false);
 
   // Handle back button press
   const handleBack = useCallback(() => {
@@ -35,27 +37,27 @@ function AppContent(): React.JSX.Element {
     switch (state.gameState) {
       case GameState.PLAYING:
       case GameState.DIALOG:
-        pauseGame();
-        break;
       case GameState.PAUSED:
-        resumeGame();
+      case GameState.GAME_OVER:
+      case GameState.LEVEL_COMPLETE:
+        // From any in-game state, go back to main menu
+        goToMainMenu();
         break;
       case GameState.LEVEL_SELECT:
       case GameState.DIFFICULTY_SELECT:
       case GameState.OPTIONS:
-      case GameState.GAME_OVER:
-      case GameState.LEVEL_COMPLETE:
         goToMainMenu();
         break;
       case GameState.MAIN_MENU:
         // Already at main menu
         break;
     }
-  }, [state.gameState, pauseGame, resumeGame, goToMainMenu, osMode]);
+  }, [state.gameState, goToMainMenu, osMode]);
 
   const handleHome = useCallback(() => {
     setOsMode('home');
     if (state.gameState === GameState.PLAYING || state.gameState === GameState.DIALOG) {
+      pausedByOsRef.current = true;
       pauseGame();
     }
   }, [state.gameState, pauseGame]);
@@ -66,6 +68,7 @@ function AppContent(): React.JSX.Element {
     } else {
       setOsMode('recents');
       if (state.gameState === GameState.PLAYING || state.gameState === GameState.DIALOG) {
+        pausedByOsRef.current = true;
         pauseGame();
       }
     }
@@ -73,7 +76,12 @@ function AppContent(): React.JSX.Element {
 
   const handleAppLaunch = useCallback(() => {
     setOsMode('app');
-  }, []);
+    // Only auto-resume if we paused due to going to recents/home
+    if (state.gameState === GameState.PAUSED && pausedByOsRef.current) {
+      pausedByOsRef.current = false;
+      resumeGame();
+    }
+  }, [state.gameState, resumeGame]);
 
   // Simulate initial loading
   useEffect(() => {
@@ -132,14 +140,15 @@ function AppContent(): React.JSX.Element {
            {renderScreen()}
         </div>
 
+        {osMode === 'home' && <AndroidHomeScreen onLaunch={handleAppLaunch} />}
+        
+        {/* Recents screen overlays phone screen content */}
         {osMode === 'recents' && (
           <AndroidRecentsScreen 
             onResume={handleAppLaunch} 
             isOverlay={true} 
           />
         )}
-
-        {osMode === 'home' && <AndroidHomeScreen onLaunch={handleAppLaunch} />}
       </div>
     </PhoneFrame>
   );

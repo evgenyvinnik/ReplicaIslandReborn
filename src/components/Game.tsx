@@ -1551,28 +1551,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         {/* Pause menu overlay */}
         {state.gameState === GameState.PAUSED && (
-          <PauseMenu
-            onResume={resumeGame}
-            onRestart={(): void => {
-              resetInventory();
-              // Reload current level
-              const levelSys = levelSystemRef.current;
-              if (levelSys) {
-                levelSys.loadLevel(state.currentLevel).then(() => {
-                  const spawn = levelSys.playerSpawnPosition;
-                  playerSpawnRef.current = { ...spawn };
-                  const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
-                  const player = gameObjectMgr?.getPlayer();
-                  if (player) {
-                    player.setPosition(spawn.x, spawn.y);
-                    player.getVelocity().x = 0;
-                    player.getVelocity().y = 0;
-                  }
-                });
-              }
-              resumeGame();
-            }}
-          />
+          <PauseMenu />
         )}
         
         {/* Game over overlay */}

@@ -30,7 +30,7 @@ export function AndroidRecentsScreen({ onResume }: AndroidRecentsScreenProps): R
         justifyContent: 'center',
         padding: '20px',
         cursor: 'pointer',
-        zIndex: 100,
+        zIndex: 3000,
       }}
     >
       {/* Recents Card */}

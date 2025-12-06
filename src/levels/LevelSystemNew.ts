@@ -149,8 +149,9 @@ export class LevelSystem {
     }
 
     try {
+      // All levels now use JSON format (converted from binary)
       if (levelInfo.binary) {
-        return await this.loadBinaryLevel(levelId, levelInfo);
+        return await this.loadConvertedJsonLevel(levelId, levelInfo);
       } else {
         return await this.loadJsonLevel(levelId, levelInfo);
       }
@@ -161,13 +162,12 @@ export class LevelSystem {
   }
 
   /**
-   * Load a binary .bin level file
+   * Load a converted JSON level file (originally binary, now in JSON format)
    */
-  private async loadBinaryLevel(levelId: number, levelInfo: LevelInfo): Promise<boolean> {
-    const url = `/assets/levels/${levelInfo.file}.bin`;
-    console.warn(`[LevelSystem] Loading binary level from: ${url}`);
+  private async loadConvertedJsonLevel(levelId: number, levelInfo: LevelInfo): Promise<boolean> {
+    // Use .json extension (levels were converted from .bin to .json)
+    const url = `/assets/levels/${levelInfo.file}.json`;
     const parsed = await this.levelParser.parseLevel(url);
-    console.warn(`[LevelSystem] Parse result:`, parsed ? 'success' : 'null');
     
     if (!parsed) {
       console.error(`Failed to parse binary level: ${levelInfo.file}`);
