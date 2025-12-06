@@ -1,5 +1,6 @@
 /**
  * Level Select Component
+ * Styled to fit within the phone frame at 480x320 resolution
  */
 
 import React from 'react';
@@ -15,6 +16,7 @@ export function LevelSelect(): React.JSX.Element {
     { id: 3, name: 'Tutorial 3', unlocked: state.saveData.completedLevels.includes(2) },
     { id: 4, name: 'Forest 1', unlocked: state.saveData.completedLevels.includes(3) },
     { id: 5, name: 'Forest 2', unlocked: state.saveData.completedLevels.includes(4) },
+    { id: 6, name: 'Forest 3', unlocked: state.saveData.completedLevels.includes(5) },
   ];
 
   return (
@@ -24,10 +26,10 @@ export function LevelSelect(): React.JSX.Element {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        backgroundColor: '#1a1a2e',
+        background: 'linear-gradient(180deg, #1a1a3e 0%, #0a0a1e 100%)',
         color: '#ffffff',
         fontFamily: 'monospace',
-        padding: '32px',
+        padding: '12px',
       }}
     >
       {/* Header */}
@@ -36,23 +38,24 @@ export function LevelSelect(): React.JSX.Element {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '32px',
+          marginBottom: '12px',
         }}
       >
-        <h1 style={{ fontSize: '24px', color: '#4caf50' }}>Select Level</h1>
+        <h1 style={{ fontSize: '14px', color: '#4caf50', letterSpacing: '2px' }}>SELECT LEVEL</h1>
         <button
           onClick={goToMainMenu}
           style={{
-            padding: '8px 16px',
-            fontSize: '14px',
+            padding: '4px 12px',
+            fontSize: '10px',
             fontFamily: 'monospace',
-            backgroundColor: 'transparent',
+            backgroundColor: 'rgba(0,0,0,0.3)',
             border: '1px solid #666',
-            color: '#666',
+            borderRadius: '4px',
+            color: '#888',
             cursor: 'pointer',
           }}
         >
-          Back
+          BACK
         </button>
       </div>
 
@@ -60,8 +63,8 @@ export function LevelSelect(): React.JSX.Element {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-          gap: '16px',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '8px',
           flex: 1,
           overflowY: 'auto',
         }}
@@ -83,13 +86,14 @@ export function LevelSelect(): React.JSX.Element {
       {/* Stats */}
       <div
         style={{
-          marginTop: '32px',
-          paddingTop: '16px',
+          marginTop: '8px',
+          paddingTop: '8px',
           borderTop: '1px solid #333',
           display: 'flex',
-          gap: '32px',
-          fontSize: '14px',
-          color: '#888',
+          justifyContent: 'center',
+          gap: '16px',
+          fontSize: '9px',
+          color: '#666',
         }}
       >
         <span>Completed: {state.saveData.completedLevels.length}/{levels.length}</span>
@@ -112,33 +116,33 @@ function LevelCard({ level, completed, onClick }: LevelCardProps): React.JSX.Ele
       onClick={onClick}
       disabled={!level.unlocked}
       style={{
-        padding: '16px',
-        backgroundColor: level.unlocked ? '#2a2a4e' : '#1a1a2e',
+        padding: '8px',
+        backgroundColor: level.unlocked ? 'rgba(42, 42, 78, 0.8)' : 'rgba(26, 26, 46, 0.5)',
         border: completed
           ? '2px solid #4caf50'
           : level.unlocked
-            ? '2px solid #444'
-            : '2px solid #333',
-        borderRadius: '8px',
+            ? '1px solid #444'
+            : '1px solid #333',
+        borderRadius: '4px',
         color: level.unlocked ? '#fff' : '#555',
         cursor: level.unlocked ? 'pointer' : 'not-allowed',
-        textAlign: 'left',
+        textAlign: 'center',
         transition: 'all 0.2s ease',
         fontFamily: 'monospace',
       }}
     >
-      <div style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>
-        Level {level.id}
+      <div style={{ fontSize: '8px', color: '#888', marginBottom: '2px' }}>
+        {level.id}
       </div>
-      <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{level.name}</div>
+      <div style={{ fontSize: '10px', fontWeight: 'bold' }}>{level.name}</div>
       {completed && (
-        <div style={{ fontSize: '12px', color: '#4caf50', marginTop: '8px' }}>
-          ✓ Completed
+        <div style={{ fontSize: '8px', color: '#4caf50', marginTop: '4px' }}>
+          ✓
         </div>
       )}
       {!level.unlocked && (
-        <div style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
-          🔒 Locked
+        <div style={{ fontSize: '8px', color: '#666', marginTop: '4px' }}>
+          🔒
         </div>
       )}
     </button>

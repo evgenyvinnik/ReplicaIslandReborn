@@ -144,7 +144,14 @@ export class InputSystem {
    */
   isActionActive(action: keyof typeof DEFAULT_KEY_BINDINGS): boolean {
     const keys = this.keyBindings[action];
-    return keys.some((key) => this.keys.has(key));
+    const keyActive = keys.some((key) => this.keys.has(key));
+    
+    // Also check virtual attack button
+    if (action === 'attack' && this.keys.has('VirtualAttack')) {
+      return true;
+    }
+    
+    return keyActive;
   }
 
   /**
@@ -208,11 +215,39 @@ export class InputSystem {
   }
 
   /**
-   * Set virtual button state
+   * Set virtual axis value (for on-screen slider controls)
+   * Maps to the virtual joystick internally
    */
-  setVirtualButton(button: 'jump' | 'attack', pressed: boolean): void {
-    if (button === 'jump') {
+  setVirtualAxis(axis: 'horizontal' | 'vertical', value: number): void {
+    if (axis === 'horizontal') {
+      this.virtualJoystickX = Math.max(-1, Math.min(1, value));
+    } else {
+      this.virtualJoystickY = Math.max(-1, Math.min(1, value));
+    }
+  }
+
+  /**
+   * Set virtual button state (for on-screen buttons)
+   * Supports both original names and Replica Island specific names
+   */
+  setVirtualButton(button: 'jump' | 'attack' | 'fly' | 'stomp', pressed: boolean): void {
+    // 'fly' maps to jump, 'stomp' maps to attack
+    if (button === 'jump' || button === 'fly') {
       this.touchJump = pressed;
+    }
+    // For stomp/attack, we simulate key press
+    if (button === 'attack' || button === 'stomp') {
+      if (pressed) {
+        if (!this.keys.has('VirtualAttack')) {
+          this.keys.add('VirtualAttack');
+          this.keysPressedThisFrame.add('VirtualAttack');
+        }
+      } else {
+        if (this.keys.has('VirtualAttack')) {
+          this.keys.delete('VirtualAttack');
+          this.keysReleasedThisFrame.add('VirtualAttack');
+        }
+      }
     }
   }
 

@@ -18,6 +18,7 @@ import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory
 import { LevelSystem } from '../levels/LevelSystem';
 import { TileMap } from '../levels/TileMap';
 import { HUD } from './HUD';
+import { OnScreenControls } from './OnScreenControls';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 
 interface GameProps {
@@ -295,7 +296,42 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         />
         
         {isInitialized && (
-          <HUD fps={fps} showFPS={state.config.debugMode} />
+          <>
+            <HUD fps={fps} showFPS={state.config.debugMode} />
+            <OnScreenControls
+              onMovementChange={(direction: number): void => {
+                // Handle horizontal movement from slider
+                const inputSystem = systemRegistryRef.current?.inputSystem;
+                if (inputSystem) {
+                  inputSystem.setVirtualAxis('horizontal', direction);
+                }
+              }}
+              onFlyPressed={(): void => {
+                const inputSystem = systemRegistryRef.current?.inputSystem;
+                if (inputSystem) {
+                  inputSystem.setVirtualButton('fly', true);
+                }
+              }}
+              onFlyReleased={(): void => {
+                const inputSystem = systemRegistryRef.current?.inputSystem;
+                if (inputSystem) {
+                  inputSystem.setVirtualButton('fly', false);
+                }
+              }}
+              onStompPressed={(): void => {
+                const inputSystem = systemRegistryRef.current?.inputSystem;
+                if (inputSystem) {
+                  inputSystem.setVirtualButton('stomp', true);
+                }
+              }}
+              onStompReleased={(): void => {
+                const inputSystem = systemRegistryRef.current?.inputSystem;
+                if (inputSystem) {
+                  inputSystem.setVirtualButton('stomp', false);
+                }
+              }}
+            />
+          </>
         )}
       </div>
     </div>

@@ -1,0 +1,630 @@
+# Replica Island Reborn - TODO
+
+This document tracks what has been implemented and what still needs to be done to complete the web port of Replica Island.
+
+---
+
+## ✅ Completed
+
+### Project Setup
+- [x] Vite + React + TypeScript project configuration
+- [x] ESLint configuration with strict TypeScript rules
+- [x] Build system working (typecheck + bundle)
+- [x] Development server running
+
+### UI/UX
+- [x] Phone frame component (Android phone-style bezel aesthetic)
+- [x] Main menu with original title_background.png and title.png assets
+- [x] Loading screen
+- [x] Level select screen (basic)
+- [x] HUD component
+- [x] On-screen controls (twin-stick style matching original)
+  - Movement slider (left side)
+  - Fly button
+  - Stomp button
+- [x] Keyboard support (WASD/Arrows, Space, X)
+
+### Core Engine (Partial)
+- [x] GameLoop.ts - Basic game loop with fixed timestep
+- [x] SystemRegistry.ts - Central system hub
+- [x] TimeSystem.ts - Time management
+- [x] InputSystem.ts - Keyboard and virtual button input
+- [x] CameraSystem.ts - Basic camera following
+- [x] RenderSystem.ts - **Canvas 2D rendering (partial implementation)**
+- [x] CollisionSystem.ts - Basic collision detection
+- [x] SoundSystem.ts - **Stub only, no actual implementation**
+
+### Canvas Rendering Status
+The `RenderSystem.ts` **does use HTML5 Canvas 2D API** but has limited functionality:
+
+**Implemented:**
+- [x] Canvas context initialization (`getContext('2d')`)
+- [x] Sprite loading and caching (`loadSprite`, `registerCanvasSprite`)
+- [x] Sprite rendering with frames (`drawSprite`)
+- [x] Rectangle rendering (`drawRect`)
+- [x] Camera-relative rendering
+- [x] Render queue with z-sorting
+- [x] Pixel art mode (`imageSmoothingEnabled = false`)
+
+**NOT Implemented:**
+- [ ] Tile map rendering from tilesets (critical for levels)
+- [ ] Parallax scrolling backgrounds
+- [ ] Sprite sheet animation playback
+- [ ] Text rendering with custom fonts
+- [ ] Particle effects
+- [ ] Screen transitions/fades
+- [ ] Layer management (background, midground, foreground, overlay)
+
+### Entity System (Partial)
+- [x] GameObject.ts - Basic game object
+- [x] GameComponent.ts - Component base class
+- [x] GameObjectManager.ts - Object management
+- [x] GameObjectFactory.ts - Object spawning
+
+### Components (Partial)
+- [x] SpriteComponent.ts - Basic sprite rendering
+- [x] PhysicsComponent.ts - Basic physics
+- [x] MovementComponent.ts - Basic movement
+- [x] PlayerComponent.ts - Basic player logic
+
+### Assets
+- [x] Copied sprite assets from Original/res/drawable/ (261 files)
+  - Player sprites (andou_*.png)
+  - Enemy sprites (enemy_*.png)
+  - Object sprites (object_*.png)
+  - Background sprites (background_*.png) - **PARTIAL**
+  - UI sprites (ui_*.png)
+  - Title assets (title.png, title_background.png)
+
+### Missing Critical Assets (for Level Rendering)
+
+#### Tileset Images (NOT COPIED)
+| File | Purpose | Status |
+|------|---------|--------|
+| `grass.png` | World 2 tile graphics | ❌ Not copied |
+| `island.png` | World 1 tile graphics | ✅ Copied |
+| `sewage.png` | Sewer level tiles | ❌ Not copied |
+| `cave.png` | Underground tiles | ❌ Not copied |
+| `lab.png` | Lab level tiles | ❌ Not copied |
+| `tutorial.png` | Tutorial level tiles | ❌ Not copied |
+| `titletileset.png` | Title screen tiles | ✅ Copied |
+
+#### Background Images (PARTIAL)
+| File | Purpose | Status |
+|------|---------|--------|
+| `background_sunset.png` | Sunset sky background | ❌ Not copied |
+| `background_island.png` | Island background | ✅ Copied |
+| `background_island2.png` | Alternate island bg | ✅ Copied |
+| `background_sewage.png` | Sewer background | ❌ Not copied |
+| `background_underground.png` | Cave background | ❌ Not copied |
+| `background_grass.png` | Grass area background | ✅ Copied |
+| `background_grass2.png` | Forest background | ❌ Not copied |
+| `background_lab01.png` | Lab background | ❌ Not copied |
+| `background_diary.png` | Diary screen bg | ❌ Not copied |
+
+---
+
+## ❌ Not Implemented
+
+### Original Java Classes NOT Ported (118 files)
+
+#### Core Systems (HIGH PRIORITY)
+| Original File | Description | Priority |
+|---------------|-------------|----------|
+| `LevelBuilder.java` | Parses .bin level files, spawns objects | **CRITICAL** |
+| `TiledWorld.java` | Tile-based world/collision map | **CRITICAL** |
+| `HotSpotSystem.java` | Special tile behaviors (doors, triggers) | **CRITICAL** |
+| `GameObjectCollisionSystem.java` | Object-to-object collision | **HIGH** |
+| `ChannelSystem.java` | Event/messaging system | **HIGH** |
+| `GameFlowEvent.java` | Game state transitions | **HIGH** |
+| `VibrationSystem.java` | Haptic feedback (use Gamepad API) | LOW |
+
+#### Animation System (HIGH PRIORITY)
+| Original File | Description | Priority |
+|---------------|-------------|----------|
+| `AnimationComponent.java` | Animation state machine | **HIGH** |
+| `AnimationFrame.java` | Individual frame data | **HIGH** |
+| `SpriteAnimation.java` | Animation sequences | **HIGH** |
+| `GenericAnimationComponent.java` | Reusable animations | **HIGH** |
+| `EnemyAnimationComponent.java` | Enemy-specific animations | **HIGH** |
+| `NPCAnimationComponent.java` | NPC animations | MEDIUM |
+| `ButtonAnimationComponent.java` | Button animations | MEDIUM |
+| `DoorAnimationComponent.java` | Door open/close animations | MEDIUM |
+| `FixedAnimationComponent.java` | Static animations | MEDIUM |
+
+#### Player & Combat (HIGH PRIORITY)
+| Original File | Description | Priority |
+|---------------|-------------|----------|
+| `HitReactionComponent.java` | Damage/hit responses | **HIGH** |
+| `HitPlayerComponent.java` | Player hit detection | **HIGH** |
+| `HitPoint.java` / `HitPointPool.java` | Health system | **HIGH** |
+| `InventoryComponent.java` | Collectibles, keys, items | **HIGH** |
+| `CrusherAndouComponent.java` | Stomp attack logic | **HIGH** |
+| `GhostComponent.java` | Possession mechanic | MEDIUM |
+
+#### Enemy & NPC AI (MEDIUM PRIORITY)
+| Original File | Description | Priority |
+|---------------|-------------|----------|
+| `NPCComponent.java` | NPC behavior/AI | MEDIUM |
+| `PatrolComponent.java` | Enemy patrol patterns | MEDIUM |
+| `AttackAtDistanceComponent.java` | Ranged enemy attacks | MEDIUM |
+| `LaunchProjectileComponent.java` | Projectile spawning | MEDIUM |
+| `LauncherComponent.java` | Launch pads | MEDIUM |
+| `SleeperComponent.java` | Sleeping enemies | MEDIUM |
+| `PopOutComponent.java` | Pop-out enemies | MEDIUM |
+| `TheSourceComponent.java` | Final boss | LOW |
+
+#### Physics & Collision (MEDIUM PRIORITY)
+| Original File | Description | Priority |
+|---------------|-------------|----------|
+| `GravityComponent.java` | Gravity zones | MEDIUM |
+| `SimplePhysicsComponent.java` | Simplified physics | MEDIUM |
+| `SolidSurfaceComponent.java` | Solid collision surfaces | MEDIUM |
+| `BackgroundCollisionComponent.java` | Background layer collision | MEDIUM |
+| `DynamicCollisionComponent.java` | Moving platform collision | MEDIUM |
+| `SimpleCollisionComponent.java` | Simple AABB collision | MEDIUM |
+| `AABoxCollisionVolume.java` | Axis-aligned box volumes | MEDIUM |
+| `SphereCollisionVolume.java` | Circle collision volumes | MEDIUM |
+| `CollisionParameters.java` | Collision configuration | MEDIUM |
+| `CollisionVolume.java` | Base collision class | MEDIUM |
+
+#### Rendering (MEDIUM PRIORITY)
+| Original File | Description | Priority |
+|---------------|-------------|----------|
+| `DrawableBitmap.java` | Sprite drawing | MEDIUM |
+| `DrawableObject.java` | Base drawable class | MEDIUM |
+| `DrawableFactory.java` | Drawable creation | MEDIUM |
+| `RenderComponent.java` | Render component | MEDIUM |
+| `ScrollableBitmap.java` | Scrolling backgrounds | MEDIUM |
+| `ScrollerComponent.java` | Parallax scrolling | MEDIUM |
+| `TiledBackgroundVertexGrid.java` | Tiled background rendering | MEDIUM |
+| `TiledVertexGrid.java` | Tile grid rendering | MEDIUM |
+| `MotionBlurComponent.java` | Motion blur effect | LOW |
+| `FadeDrawableComponent.java` | Fade effects | LOW |
+| `Texture.java` | Texture management | MEDIUM |
+| `TextureLibrary.java` | Texture caching | MEDIUM |
+
+#### UI & Activities (LOW PRIORITY - React replacements exist)
+| Original File | Description | Priority |
+|---------------|-------------|----------|
+| `MainMenuActivity.java` | Main menu (replaced by React) | N/A |
+| `LevelSelectActivity.java` | Level select (replaced by React) | N/A |
+| `GameOverActivity.java` | Game over screen | LOW |
+| `DiaryActivity.java` | Diary/story entries | LOW |
+| `ConversationDialogActivity.java` | Dialog system | **HIGH** |
+| `ConversationUtils.java` | Dialog XML parser | **HIGH** |
+| `ExtrasMenuActivity.java` | Extras menu | LOW |
+| `DifficultyMenuActivity.java` | Difficulty selection | MEDIUM |
+| `SetPreferencesActivity.java` | Settings/Options menu | **HIGH** |
+| `AnimationPlayerActivity.java` | Cutscene player | LOW |
+
+---
+
+## ❌ Dialog System NOT Implemented
+
+The original game has a rich dialog system with character conversations stored in XML files.
+
+### Dialog XML Files (38 files in Original/res/xml/)
+| World | Dialog Files |
+|-------|--------------|
+| Tutorial (0) | `level_0_1_dialog_wanda.xml`, `level_0_2_dialog_kabocha.xml`, `level_0_3_dialog_kabocha.xml` |
+| Island (1) | `level_1_1_dialog_wanda.xml`, `level_1_5_dialog_wanda.xml`, `level_1_6_dialog_wanda.xml`, `level_1_9_dialog_wanda.xml` |
+| Grass (2) | `level_2_1_dialog_kyle.xml` through `level_2_9_dialog_*.xml` |
+| Sewer (3) | `level_3_3_dialog_wanda.xml` through `level_3_11_dialog_*.xml` |
+| Underground (4) | `level_4_1_dialog_*.xml` through `level_4_9_dialog_*.xml` |
+| Final | `level_final_boss_dialog.xml` |
+
+### Dialog Format
+```xml
+<dialog>
+  <conversation>
+    <page
+      image="@drawable/wanda_surprised"
+      text="@string/Wanda_0_1_1_1" 
+      title="@string/Wanda"
+    />
+  </conversation>
+</dialog>
+```
+
+### Required Components for Dialog System
+- [ ] `DialogSystem.ts` - Parse dialog XML files
+- [ ] `DialogComponent.tsx` - React dialog overlay component
+- [ ] Load character portrait images (wanda_*.png, kyle_*.png, etc.)
+- [ ] Typewriter text effect (like original `TypewriterTextView`)
+- [ ] Dialog trigger integration with HotSpotSystem
+
+---
+
+## ❌ Options/Settings Menu NOT Implemented
+
+### Original Preferences (from preferences.xml)
+| Setting | Type | Description |
+|---------|------|-------------|
+| `enableSound` | Checkbox | Enable/disable game sounds |
+| `enableClickAttack` | Checkbox | Tap screen to attack |
+| `keyconfig` | Dialog | Keyboard key binding configuration |
+| `enableTiltControls` | Checkbox | Accelerometer-based movement |
+| `tiltSensitivity` | Slider | Tilt control sensitivity |
+| `movementSensitivity` | Slider | Touch movement sensitivity |
+| `enableVibration` | Checkbox | Haptic feedback |
+| `safeMode` | Checkbox | Performance safe mode |
+| `erasegame` | Button | Erase save data |
+
+### Required Components for Options Menu
+- [ ] `OptionsMenu.tsx` - React options screen component
+- [ ] `GameSettings.ts` - Settings manager with localStorage persistence
+- [ ] Sound volume controls
+- [ ] Control sensitivity settings
+- [ ] Key binding configuration UI
+- [ ] Save data management (view stats, erase progress)
+
+#### Difficulty System
+| Original File | Description | Priority |
+|---------------|-------------|----------|
+| `DifficultyConstants.java` | Base difficulty interface | MEDIUM |
+| `BabyDifficultyConstants.java` | Easy mode | LOW |
+| `KidsDifficultyConstants.java` | Normal mode | LOW |
+| `AdultsDifficultyConstants.java` | Hard mode | LOW |
+
+#### Utilities & Infrastructure
+| Original File | Description | Priority |
+|---------------|-------------|----------|
+| `Vector2.java` | 2D vector (we have this) | ✅ Done |
+| `FixedSizeArray.java` | Optimized array | LOW |
+| `ObjectPool.java` / `TObjectPool.java` | Object pooling | MEDIUM |
+| `VectorPool.java` | Vector pooling | LOW |
+| `Lerp.java` | Linear interpolation | LOW |
+| `Interpolator.java` | Value interpolation | LOW |
+| `Utils.java` | General utilities | LOW |
+| `QuickSorter.java` / `ShellSorter.java` | Sorting algorithms | LOW |
+| `Grid.java` | Spatial grid | MEDIUM |
+| `DebugLog.java` / `DebugSystem.java` | Debug utilities | LOW |
+
+---
+
+## ❌ Sound Assets NOT Integrated
+
+### Music
+| File | Description | Status |
+|------|-------------|--------|
+| `bwv_115.mid` | Background music (MIDI) | ❌ Not loaded |
+
+### Sound Effects (18 files)
+| File | Description | Status |
+|------|-------------|--------|
+| `deep_clang.ogg` | Metal clang sound | ❌ Not loaded |
+| `ding.ogg` | Ding/chime sound | ❌ Not loaded |
+| `gem1.ogg` | Gem collect sound 1 | ❌ Not loaded |
+| `gem2.ogg` | Gem collect sound 2 | ❌ Not loaded |
+| `gem3.ogg` | Gem collect sound 3 | ❌ Not loaded |
+| `hard_thump.ogg` | Hard impact sound | ❌ Not loaded |
+| `quick_explosion.ogg` | Quick explosion | ❌ Not loaded |
+| `rockets.ogg` | Rocket sound | ❌ Not loaded |
+| `sound_break_block.ogg` | Block breaking | ❌ Not loaded |
+| `sound_button.ogg` | Button press | ❌ Not loaded |
+| `sound_buzz.ogg` | Buzz/electric sound | ❌ Not loaded |
+| `sound_cannon.ogg` | Cannon fire | ❌ Not loaded |
+| `sound_close.ogg` | Door close | ❌ Not loaded |
+| `sound_explode.ogg` | Explosion | ❌ Not loaded |
+| `sound_gun.ogg` | Gun fire | ❌ Not loaded |
+| `sound_kabocha_hit.ogg` | Kabocha enemy hit | ❌ Not loaded |
+| `sound_open.ogg` | Door open | ❌ Not loaded |
+| `sound_poing.ogg` | Bounce/spring sound | ❌ Not loaded |
+| `sound_possession.ogg` | Possession effect | ❌ Not loaded |
+| `sound_rokudou_hit.ogg` | Rokudou enemy hit | ❌ Not loaded |
+| `sound_stomp.ogg` | Stomp attack | ❌ Not loaded |
+| `thump.ogg` | Soft impact | ❌ Not loaded |
+
+### SoundSystem.ts Status
+The current `SoundSystem.ts` is a **stub** with the following limitations:
+- Uses Web Audio API structure but has no asset loading
+- No preloading of OGG files
+- No sound playback implementation
+- No volume controls connected to actual audio
+
+---
+
+## ❌ Level Files NOT Parsed
+
+### Binary Level Files (.bin) - 47 files
+
+The original game stores levels in binary `.bin` format. These need to be parsed using the format defined in `LevelBuilder.java`.
+
+#### Tutorial/Intro Levels (World 0)
+| File | Description | Status |
+|------|-------------|--------|
+| `level_0_1_sewer.bin` | Tutorial level 1 | ❌ Not parsed |
+| `level_0_1_sewer_kyle.bin` | Kyle variant | ❌ Not parsed |
+| `level_0_1_sewer_wanda.bin` | Wanda variant | ❌ Not parsed |
+| `level_0_2_lab.bin` | Tutorial level 2 | ❌ Not parsed |
+| `level_0_3_lab.bin` | Tutorial level 3 | ❌ Not parsed |
+
+#### World 1 - Island (9 levels)
+| File | Status |
+|------|--------|
+| `level_1_1_island.bin` - `level_1_9_island.bin` | ❌ Not parsed |
+
+#### World 2 - Grass (9 levels)
+| File | Status |
+|------|--------|
+| `level_2_1_grass.bin` - `level_2_9_grass.bin` | ❌ Not parsed |
+
+#### World 3 - Sewer/Underground (12 levels)
+| File | Status |
+|------|--------|
+| `level_3_0_sewer.bin` - `level_3_11_sewer.bin` | ❌ Not parsed |
+| `level_3_7_underground.bin` | ❌ Not parsed |
+
+#### World 4 - Underground (8 levels)
+| File | Status |
+|------|--------|
+| `level_4_1_underground.bin` - `level_4_9_underground.bin` | ❌ Not parsed |
+
+#### Boss Level
+| File | Status |
+|------|--------|
+| `level_final_boss_lab.bin` | ❌ Not parsed |
+
+### Level Binary Format
+
+Based on `LevelBuilder.java`, `LevelSystem.java`, and `TiledWorld.java`, the binary format is:
+
+#### Level File Format (signature 96)
+```
+Byte 0:     Signature (must be 96)
+Byte 1:     Layer count
+Byte 2:     Background index (0-6, maps to background image)
+For each layer:
+  Byte 0:     Layer type (0=background tiles, 1=collision, 2=objects, 3=hot spots)
+  Byte 1:     Tile/theme index (maps to tileset image)
+  Bytes 2-5:  Scroll speed (float, 4 bytes)
+  Then:       TiledWorld data for this layer
+```
+
+#### TiledWorld Data Format (signature 42)
+```
+Byte 0:     Signature (must be 42)
+Bytes 1-4:  Width in tiles (int, 4 bytes)
+Bytes 5-8:  Height in tiles (int, 4 bytes)
+Remaining:  Tile data (width × height bytes, row by row)
+            Each byte is a tile index (-1 = empty, or tileset index)
+```
+
+#### Layer Types
+| Type | Purpose | Description |
+|------|---------|-------------|
+| 0 | Background | Visual tile layer with parallax scrolling |
+| 1 | Collision | Defines solid tiles for collision detection |
+| 2 | Objects | Spawn locations - tile value = GameObjectType index |
+| 3 | Hot Spots | Special tile behaviors (doors, triggers, etc.) |
+
+#### Theme/Tileset Mapping (for background layers)
+| Index | Tileset | Image File |
+|-------|---------|------------|
+| 0 | GRASS | `grass.png` |
+| 1 | ISLAND | `island.png` |
+| 2 | SEWER | `sewage.png` |
+| 3 | UNDERGROUND | `cave.png` |
+| 4 | LAB | `lab.png` |
+| 5 | LIGHTING | `titletileset.png` |
+| 6 | TUTORIAL | `tutorial.png` |
+
+#### Background Image Mapping
+| Index | Background | Image File |
+|-------|------------|------------|
+| 0 | SUNSET | `background_sunset.png` |
+| 1 | ISLAND | `background_island.png` |
+| 2 | SEWER | `background_sewage.png` |
+| 3 | UNDERGROUND | `background_underground.png` |
+| 4 | FOREST | `background_grass2.png` |
+| 5 | ISLAND2 | `background_island2.png` |
+| 6 | LAB | `background_lab01.png` |
+
+#### Object Layer - Spawn Types (from GameObjectFactory.java)
+The object layer uses tile values to spawn game objects. Each tile value maps to a `GameObjectType`:
+
+| Index | Type | Description |
+|-------|------|-------------|
+| 0 | PLAYER | Player spawn point |
+| 1 | COIN | Collectible coin |
+| 2 | RUBY | Collectible ruby/pearl |
+| 3 | DIARY | Diary entry collectible |
+| 6 | BAT | Bat enemy |
+| 7 | STING | Sting enemy |
+| 8 | ONION | Onion enemy |
+| 10 | WANDA | Wanda NPC |
+| 11 | KYLE | Kyle NPC |
+| 12 | KYLE_DEAD | Dead Kyle |
+| 13 | ANDOU_DEAD | Dead Android |
+| 16 | BROBOT | Brobot enemy |
+| 17 | SNAILBOMB | Snailbomb enemy |
+| 18 | SHADOWSLIME | Shadow slime enemy |
+| 19 | MUDMAN | Mudman enemy |
+| 20 | SKELETON | Skeleton enemy |
+| 21 | KARAGUIN | Karaguin enemy |
+| 22 | PINK_NAMAZU | Pink Namazu enemy |
+| 23 | TURRET | Turret (right-facing) |
+| 24 | TURRET_LEFT | Turret (left-facing) |
+| 26 | KABOCHA | Kabocha NPC |
+| 27 | ROKUDOU_TERMINAL | Rokudou terminal |
+| 28 | KABOCHA_TERMINAL | Kabocha terminal |
+| 29 | EVIL_KABOCHA | Evil Kabocha boss |
+| 30 | ROKUDOU | Rokudou NPC |
+| 32 | DOOR_RED | Red door |
+| 33 | DOOR_BLUE | Blue door |
+| 34 | DOOR_GREEN | Green door |
+| 35 | BUTTON_RED | Red button |
+| 36 | BUTTON_BLUE | Blue button |
+| 37 | BUTTON_GREEN | Green button |
+| 38 | CANNON | Cannon |
+| 39 | BROBOT_SPAWNER | Brobot spawner (right) |
+| 40 | BROBOT_SPAWNER_LEFT | Brobot spawner (left) |
+| 41 | BREAKABLE_BLOCK | Breakable block |
+| 42 | THE_SOURCE | Final boss: The Source |
+| 43 | HINT_SIGN | Hint sign |
+| 48 | DUST | Dust effect |
+| 49-51 | EXPLOSION_* | Explosion effects |
+| 52-54 | DOOR_*_NONBLOCKING | Non-blocking doors |
+| 55 | GHOST_NPC | Ghost NPC |
+| 56 | CAMERA_BIAS | Camera position modifier |
+| 57 | FRAMERATE_WATCHER | Performance monitor |
+| 58 | INFINITE_SPAWNER | Infinite enemy spawner |
+| 59 | CRUSHER_ANDOU | Crusher Android |
+
+**Action Required**: Create a `LevelParser.ts` that can read the `.bin` format and:
+1. Parse the level header and layer definitions
+2. Load TiledWorld data for each layer  
+3. Map tile indices to the correct tileset images
+4. Spawn game objects from the object layer
+5. Set up collision from the collision layer
+6. Configure hot spots for special behaviors
+
+#### Hot Spot Types (from HotSpotSystem.java)
+The hot spot layer defines special tile behaviors:
+
+| Index | Type | Description |
+|-------|------|-------------|
+| -1 | NONE | No special behavior |
+| 0 | GO_RIGHT | AI moves right |
+| 1 | GO_LEFT | AI moves left |
+| 2 | GO_UP | AI moves up |
+| 3 | GO_DOWN | AI moves down |
+| 4-6 | WAIT_* | AI waits (short/medium/long) |
+| 7 | ATTACK | AI attacks |
+| 8 | TALK | NPC talks |
+| 9 | DIE | Instant death zone |
+| 10 | WALK_AND_TALK | NPC walks and talks |
+| 11 | TAKE_CAMERA_FOCUS | Camera focuses here |
+| 12 | RELEASE_CAMERA_FOCUS | Camera returns to player |
+| 13 | END_LEVEL | Level complete trigger |
+| 14 | GAME_EVENT | Triggers game event |
+| 15 | NPC_RUN_QUEUED_COMMANDS | NPC executes command queue |
+| 16-27 | NPC_GO_* | NPC movement directions |
+| 28 | NPC_STOP | NPC stops moving |
+| 29 | NPC_SLOW | NPC moves slowly |
+| 32-42 | NPC_SELECT_DIALOG_* | Dialog selection triggers |
+
+---
+
+## 🔄 Implementation Priority Roadmap
+
+### Phase 1: Core Gameplay (CRITICAL)
+1. **Level Loading**
+   - [ ] Create `LevelParser.ts` to parse `.bin` files
+   - [ ] Port `LevelBuilder.java` logic
+   - [ ] Port `TiledWorld.java` for tile collision
+   - [ ] Load actual level data instead of test level
+
+2. **Animation System**
+   - [ ] Port `SpriteAnimation.java`
+   - [ ] Port `AnimationComponent.java`
+   - [ ] Define sprite sheet coordinates from original assets
+   - [ ] Implement animation state machine
+
+3. **Sound System**
+   - [ ] Copy OGG files to `public/assets/sounds/`
+   - [ ] Implement proper `SoundSystem.ts` with Web Audio API
+   - [ ] Add sound effect triggers for game events
+   - [ ] Add background music support (MIDI or convert to MP3/OGG)
+
+### Phase 2: Player & Combat (HIGH)
+4. **Complete Player Controller**
+   - [ ] Port `HitReactionComponent.java`
+   - [ ] Port `InventoryComponent.java`
+   - [ ] Implement proper stomp attack from `CrusherAndouComponent.java`
+   - [ ] Health/lives system
+
+5. **Collision System**
+   - [ ] Port `GameObjectCollisionSystem.java`
+   - [ ] Port `HotSpotSystem.java` for special tiles
+   - [ ] Implement proper collision responses
+
+### Phase 3: Enemies & NPCs (MEDIUM)
+6. **Enemy AI**
+   - [ ] Port `PatrolComponent.java`
+   - [ ] Port enemy-specific components
+   - [ ] Implement basic enemy types (Brobot, Kabocha, etc.)
+
+7. **NPC System**
+   - [ ] Port `NPCComponent.java`
+   - [ ] Port `ConversationUtils.java`
+   - [ ] Implement dialog system
+
+### Phase 4: Polish (LOW)
+8. **Visual Polish**
+   - [ ] Parallax scrolling backgrounds
+   - [ ] Screen transitions/fades
+   - [ ] Particle effects
+
+9. **UI/UX**
+   - [ ] Proper level select with progression
+   - [ ] Game over screen
+   - [ ] Pause menu
+   - [ ] Settings/options
+
+10. **Save System**
+    - [ ] LocalStorage for progress
+    - [ ] Level unlock tracking
+    - [ ] High scores
+
+---
+
+## File Mapping: Original → Web Port
+
+| Original Java | Web Port TypeScript | Status |
+|---------------|---------------------|--------|
+| `AndouKun.java` | `App.tsx` | Partial |
+| `Game.java` | `GameLoop.ts` | Partial |
+| `GameThread.java` | `GameLoop.ts` | Partial |
+| `MainLoop.java` | `GameLoop.ts` | Partial |
+| `ObjectRegistry.java` | `SystemRegistry.ts` | ✅ Done |
+| `InputSystem.java` | `InputSystem.ts` | Partial |
+| `CameraSystem.java` | `CameraSystem.ts` | Partial |
+| `TimeSystem.java` | `TimeSystem.ts` | ✅ Done |
+| `SoundSystem.java` | `SoundSystem.ts` | ❌ Stub |
+| `RenderSystem.java` | `RenderSystem.ts` | Partial |
+| `CollisionSystem.java` | `CollisionSystem.ts` | Partial |
+| `GameObject.java` | `GameObject.ts` | Partial |
+| `GameComponent.java` | `GameComponent.ts` | ✅ Done |
+| `GameObjectManager.java` | `GameObjectManager.ts` | Partial |
+| `GameObjectFactory.java` | `GameObjectFactory.ts` | Partial |
+| `PlayerComponent.java` | `PlayerComponent.ts` | Partial |
+| `MovementComponent.java` | `MovementComponent.ts` | Partial |
+| `PhysicsComponent.java` | `PhysicsComponent.ts` | Partial |
+| `SpriteComponent.java` | `SpriteComponent.ts` | Partial |
+| `LevelSystem.java` | `LevelSystem.ts` | Partial |
+| `LevelBuilder.java` | ❌ Not started | ❌ |
+| `TiledWorld.java` | `TileMap.ts` | Partial |
+| `HudSystem.java` | `HUD.tsx` | Partial |
+| `Vector2.java` | `Vector2.ts` | ✅ Done |
+| `ObjectPool.java` | `ObjectPool.ts` | ✅ Done |
+
+---
+
+## Summary Statistics
+
+| Category | Original | Ported | Percentage |
+|----------|----------|--------|------------|
+| Java Classes | 118 | ~15 | 13% |
+| Sound Effects | 22 | 0 | 0% |
+| Level Files (.bin) | 47 | 0 | 0% |
+| Dialog Files (.xml) | 38 | 0 | 0% |
+| Tileset Images | 7 | 2 | 29% |
+| Background Images | 9 | 4 | 44% |
+| Sprite Assets | 423 | 261 | 62% |
+| Canvas Render Features | ~10 | 4 | 40% |
+
+**Overall Completion: ~15%**
+
+The current implementation provides a basic framework but lacks:
+- **Level loading** - The `.bin` files contain all level data (tiles, objects, collision, hot spots) but we have no parser
+- **Sound playback** - 22 OGG sound effects sit unused
+- **Tileset rendering** - Missing 5 of 7 tileset images needed to render levels
+- **Dialog system** - 38 XML dialog files define all NPC conversations, completely unimplemented
+- **Options menu** - No settings screen (sound, controls, save management)
+- **Game object spawning** - Object layer in levels defines where to spawn enemies, items, etc.
+- **Tile map rendering** - Canvas RenderSystem doesn't render tiled backgrounds from tilesets
+- **Animation system** - No sprite animation playback
+- **Most game mechanics** - Enemy AI, combat, collectibles, etc.
+- **Hot spot system** - Special tile behaviors like death zones, level endings, NPC triggers
