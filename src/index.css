@@ -438,3 +438,128 @@ button:focus {
   height: 24px;
 }
 
+
+/* Android OS Simulation */
+
+.android-home-screen {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, #333, #000);
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  color: white;
+  font-family: sans-serif;
+}
+
+.android-status-bar {
+  height: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 5px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.android-clock-widget {
+  margin-top: 20px;
+  text-align: center;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.widget-time {
+  font-size: 48px;
+  font-weight: bold;
+}
+
+.widget-date {
+  font-size: 16px;
+}
+
+.android-app-grid {
+  flex: 1;
+  padding: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+}
+
+.app-icon-container {
+  background: none;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 80px;
+  cursor: pointer;
+}
+
+.app-icon-wrapper {
+  width: 48px;
+  height: 48px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.app-icon {
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+}
+
+.app-label {
+  color: white;
+  font-size: 12px;
+  text-shadow: 0 1px 2px black;
+}
+
+.android-dock {
+  height: 50px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.dock-icon {
+  font-size: 24px;
+}
+
+/* Recents / Shrunk App Effect */
+.app-container {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.3s ease;
+  transform-origin: center center;
+}
+
+.app-container.shrunk {
+  transform: scale(0.7);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.app-container.shrunk > * {
+  pointer-events: none;
+}
+
+.recents-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 0;
+}

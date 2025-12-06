@@ -13,9 +13,18 @@ interface PhoneFrameProps {
   gameWidth: number;
   gameHeight: number;
   onBack?: () => void;
+  onHome?: () => void;
+  onRecents?: () => void;
 }
 
-export function PhoneFrame({ children, gameWidth, gameHeight, onBack }: PhoneFrameProps): React.JSX.Element {
+export function PhoneFrame({ 
+  children, 
+  gameWidth, 
+  gameHeight, 
+  onBack, 
+  onHome, 
+  onRecents 
+}: PhoneFrameProps): React.JSX.Element {
   return (
     <div className="phone-frame-container">
       <div className="phone-frame-outer-wrapper">
@@ -51,12 +60,22 @@ export function PhoneFrame({ children, gameWidth, gameHeight, onBack }: PhoneFra
                     <path fill="#555" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
                   </svg>
                 </div>
-                <div className="nav-button nav-button-home">
+                <div 
+                  className="nav-button nav-button-home"
+                  onClick={onHome}
+                  style={{ cursor: onHome ? 'pointer' : 'default' }}
+                  title="Home"
+                >
                   <svg viewBox="0 0 24 24" width="20" height="20">
                     <circle fill="#555" cx="12" cy="12" r="8"/>
                   </svg>
                 </div>
-                <div className="nav-button nav-button-recent">
+                <div 
+                  className="nav-button nav-button-recent"
+                  onClick={onRecents}
+                  style={{ cursor: onRecents ? 'pointer' : 'default' }}
+                  title="Recents"
+                >
                   <svg viewBox="0 0 24 24" width="20" height="20">
                     <rect fill="#555" x="4" y="4" width="16" height="16" rx="2"/>
                   </svg>

@@ -118,6 +118,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const [activeDialog, setActiveDialog] = useState<Dialog | null>(null);
   const activeDialogRef = useRef<Dialog | null>(null);
   const dialogTriggerCooldownRef = useRef(0);
+  const hasShownIntroDialogRef = useRef(false);
+  const introDialogTimeoutRef = useRef<number | null>(null);
 
   // Sync ref with state
   useEffect(() => {
@@ -416,13 +418,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             maxY: levelSystem.getLevelHeight(),
           });
           
-          // Show intro dialog for this level (if any)
+          // Show intro dialog for this level (if any) - only once
           const levelInfo = levelSystem.getLevelInfo(levelToLoad);
-          if (levelInfo) {
+          console.warn('Level info:', levelInfo);
+          if (levelInfo && !hasShownIntroDialogRef.current) {
             const dialogs = getDialogsForLevel(levelInfo.file);
+            console.warn('Dialogs for level:', levelInfo.file, dialogs);
             if (dialogs.length > 0) {
-              // Show the first dialog (intro)
-              setActiveDialog(dialogs[0]);
+              // Show the first dialog (intro) after a short delay to ensure render is ready
+              console.warn('Setting active dialog:', dialogs[0]);
+              hasShownIntroDialogRef.current = true;
+              // Use setTimeout to ensure the dialog shows after React has finished rendering
+              introDialogTimeoutRef.current = window.setTimeout(() => {
+                setActiveDialog(dialogs[0]);
+              }, 100);
             }
           }
         } else {
@@ -1365,6 +1374,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Cleanup
     return (): void => {
       clearInterval(fpsInterval);
+      if (introDialogTimeoutRef.current) {
+        clearTimeout(introDialogTimeoutRef.current);
+      }
+      hasShownIntroDialogRef.current = false; // Reset for strict mode double-render
       gameLoop.stop();
       inputSystem.destroy();
       soundSystem.destroy();
@@ -1514,6 +1527,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setActiveDialog(null);
             }}
           />
+        )}
+        
+        {/* Debug: Show when activeDialog is set */}
+        {activeDialog === null && (
+          <div style={{ position: 'absolute', top: 0, left: 0, color: 'yellow', zIndex: 2000, fontSize: '10px' }}>
+            No dialog
+          </div>
         )}
         
         {/* Pause menu overlay */}

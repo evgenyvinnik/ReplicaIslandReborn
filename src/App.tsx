@@ -12,6 +12,7 @@ import { OptionsMenu } from './components/OptionsMenu';
 import { Game } from './components/Game';
 import { LoadingScreen } from './components/LoadingScreen';
 import { PhoneFrame } from './components/PhoneFrame';
+import { AndroidHomeScreen } from './components/AndroidHomeScreen';
 
 // Original game resolution
 const GAME_WIDTH = 480;
@@ -20,9 +21,17 @@ const GAME_HEIGHT = 320;
 function AppContent(): React.JSX.Element {
   const { state, dispatch, goToMainMenu, pauseGame, resumeGame } = useGameContext();
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [osMode, setOsMode] = useState<'app' | 'home' | 'recents'>('app');
 
   // Handle back button press
   const handleBack = useCallback(() => {
+    if (osMode !== 'app') {
+      if (osMode === 'recents') {
+        setOsMode('app');
+      }
+      return;
+    }
+
     switch (state.gameState) {
       case GameState.PLAYING:
       case GameState.DIALOG:
@@ -42,7 +51,29 @@ function AppContent(): React.JSX.Element {
         // Already at main menu
         break;
     }
-  }, [state.gameState, pauseGame, resumeGame, goToMainMenu]);
+  }, [state.gameState, pauseGame, resumeGame, goToMainMenu, osMode]);
+
+  const handleHome = useCallback(() => {
+    setOsMode('home');
+    if (state.gameState === GameState.PLAYING || state.gameState === GameState.DIALOG) {
+      pauseGame();
+    }
+  }, [state.gameState, pauseGame]);
+
+  const handleRecents = useCallback(() => {
+    if (osMode === 'recents') {
+      setOsMode('app');
+    } else {
+      setOsMode('recents');
+      if (state.gameState === GameState.PLAYING || state.gameState === GameState.DIALOG) {
+        pauseGame();
+      }
+    }
+  }, [osMode, state.gameState, pauseGame]);
+
+  const handleAppLaunch = useCallback(() => {
+    setOsMode('app');
+  }, []);
 
   // Simulate initial loading
   useEffect(() => {
@@ -87,8 +118,26 @@ function AppContent(): React.JSX.Element {
   };
 
   return (
-    <PhoneFrame gameWidth={GAME_WIDTH} gameHeight={GAME_HEIGHT} onBack={handleBack}>
-      {renderScreen()}
+    <PhoneFrame 
+      gameWidth={GAME_WIDTH} 
+      gameHeight={GAME_HEIGHT} 
+      onBack={handleBack}
+      onHome={handleHome}
+      onRecents={handleRecents}
+    >
+      <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
+        {osMode === 'recents' && <div className="recents-background" />}
+        
+        <div 
+           className={`app-container ${osMode === 'recents' ? 'shrunk' : ''}`}
+           onClick={osMode === 'recents' ? handleAppLaunch : undefined}
+           style={{ display: osMode === 'home' ? 'none' : 'block' }}
+        >
+           {renderScreen()}
+        </div>
+
+        {osMode === 'home' && <AndroidHomeScreen onLaunch={handleAppLaunch} />}
+      </div>
     </PhoneFrame>
   );
 }

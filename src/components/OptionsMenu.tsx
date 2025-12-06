@@ -3,20 +3,10 @@
  * Settings and preferences screen for Replica Island Reborn
  * Ported from: Original/res/xml/preferences.xml, SetPreferencesActivity.java
  * 
- * Original structure:
- * - Game Settings (category)
- *   - Enable Sound
- *   - Configure Controls (sub-screen)
- *     - Click Attack
- *     - Configure Keyboard
- *     - Motion Sensitivity
- *     - On-Screen Controls
- * - Game Data (category)
- *   - Erase Saved Game
- * - About (category)
- *   - Go to website
- *   - More Information (sub-screen)
- *     - About, Thanks, License
+ * Styled to match Android 2.x (Gingerbread/Froyo) era PreferenceActivity
+ * - Gray color scheme with orange accents (#FF7700)
+ * - Inline slider layout (Min [====] Max)
+ * - 2-column keyboard config dialog
  */
 
 import React, { useState, useEffect } from 'react';
@@ -27,13 +17,37 @@ interface OptionsMenuProps {
   onClose: () => void;
 }
 
-// Screen hierarchy: main -> controls -> keyboard | main -> about
-type Screen = 'main' | 'controls' | 'keyboard' | 'about';
+// Screen hierarchy: main -> controls | main -> about
+// Keyboard config is shown as a dialog overlay
+type Screen = 'main' | 'controls' | 'about';
+
+// 2010-era Android color scheme
+const COLORS = {
+  background: '#000000',
+  headerBg: '#222222',
+  headerText: '#ffffff',
+  categoryText: '#ff7700', // Orange accent - matches original
+  itemBg: '#000000',
+  itemBgPressed: '#333333',
+  titleText: '#ffffff',
+  summaryText: '#aaaaaa',
+  divider: '#333333',
+  checkboxBorder: '#666666',
+  checkboxChecked: '#ff7700',
+  sliderTrack: '#444444',
+  sliderThumb: '#ff7700',
+  keyBg: 'rgba(153, 153, 153, 0.6)', // #99999999 from original
+  keyBgActive: 'rgba(255, 119, 0, 0.6)', // #99FF7700 from original
+  dialogBg: '#1a1a1a',
+  dialogBorder: '#444444',
+  buttonText: '#ffffff',
+};
 
 export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
   const [settings, setSettings] = useState<GameSettings>(gameSettings.getAll());
   const [currentScreen, setCurrentScreen] = useState<Screen>('main');
   const [showEraseConfirm, setShowEraseConfirm] = useState(false);
+  const [showKeyboardConfig, setShowKeyboardConfig] = useState(false);
   const [showEraseToast, setShowEraseToast] = useState(false);
   const [keyBindingMode, setKeyBindingMode] = useState<keyof GameSettings['keyBindings'] | null>(null);
 
@@ -90,96 +104,67 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
   };
 
   const handleBack = (): void => {
-    if (currentScreen === 'keyboard') {
-      setCurrentScreen('controls');
-    } else if (currentScreen === 'controls' || currentScreen === 'about') {
+    if (currentScreen === 'controls' || currentScreen === 'about') {
       setCurrentScreen('main');
     } else {
       onClose();
     }
   };
 
-  // Shared styles
-  const styles = {
-    container: {
-      position: 'absolute' as const,
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: '#000000',
-      display: 'flex',
-      flexDirection: 'column' as const,
-      zIndex: 1000,
-    },
-    header: {
-      display: 'flex',
-      alignItems: 'center',
-      padding: '12px 16px',
-      borderBottom: '1px solid #333333',
-      backgroundColor: '#1a1a1a',
-    },
-    headerTitle: {
-      flex: 1,
-      margin: 0,
-      color: '#ffffff',
-      fontSize: '18px',
-      fontFamily: 'sans-serif',
-      fontWeight: 'normal' as const,
-    },
-    content: {
-      flex: 1,
-      overflowY: 'auto' as const,
-    },
-    category: {
-      borderBottom: '1px solid #333333',
-    },
-    categoryTitle: {
-      padding: '12px 16px 8px',
-      color: '#8ab4f8',
-      fontSize: '14px',
-      fontFamily: 'sans-serif',
-      fontWeight: 500,
-    },
-    preferenceItem: {
-      display: 'block',
-      width: '100%',
-      padding: '12px 16px',
-      backgroundColor: 'transparent',
-      border: 'none',
-      borderBottom: '1px solid #222222',
-      cursor: 'pointer',
-      textAlign: 'left' as const,
-    },
-    preferenceTitle: {
-      color: '#ffffff',
-      fontSize: '16px',
-      fontFamily: 'sans-serif',
-      marginBottom: '4px',
-    },
-    preferenceSummary: {
-      color: '#9e9e9e',
-      fontSize: '14px',
-      fontFamily: 'sans-serif',
-      lineHeight: 1.4,
-    },
-    checkbox: {
-      width: '20px',
-      height: '20px',
-      borderRadius: '4px',
-      border: '2px solid #8ab4f8',
-      backgroundColor: 'transparent',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    checkmark: {
-      color: '#8ab4f8',
-      fontSize: '14px',
-    },
-  };
+  // Category header (uppercase, orange text - matches Android 2.x style)
+  const CategoryHeader = ({ title }: { title: string }): React.JSX.Element => (
+    <div
+      style={{
+        padding: '8px 8px 4px 8px',
+        backgroundColor: COLORS.background,
+        borderBottom: `1px solid ${COLORS.divider}`,
+      }}
+    >
+      <span
+        style={{
+          color: COLORS.categoryText,
+          fontSize: '12px',
+          fontFamily: 'sans-serif',
+          fontWeight: 'bold',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+        }}
+      >
+        {title}
+      </span>
+    </div>
+  );
 
-  // Checkbox preference component (matches Android CheckBoxPreference)
+  // Preference item base
+  const PreferenceItem = ({
+    children,
+    onClick,
+    disabled = false,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+  }): React.JSX.Element => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: 'block',
+        width: '100%',
+        padding: '12px 8px',
+        backgroundColor: COLORS.itemBg,
+        border: 'none',
+        borderBottom: `1px solid ${COLORS.divider}`,
+        cursor: disabled ? 'default' : 'pointer',
+        textAlign: 'left',
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      {children}
+    </button>
+  );
+
+  // Checkbox preference (Android 2.x style - checkbox on right)
   const CheckBoxPreference = ({
     title,
     summary,
@@ -191,30 +176,39 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
     checked: boolean;
     onChange: (v: boolean) => void;
   }): React.JSX.Element => (
-    <button
-      onClick={(): void => onChange(!checked)}
-      style={{
-        ...styles.preferenceItem,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-      }}
-    >
-      <div style={{ flex: 1, marginRight: '16px' }}>
-        <div style={styles.preferenceTitle}>{title}</div>
-        <div style={styles.preferenceSummary}>{summary}</div>
+    <PreferenceItem onClick={(): void => onChange(!checked)}>
+      <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, marginRight: '12px' }}>
+          <div style={{ color: COLORS.titleText, fontSize: '16px', fontFamily: 'sans-serif' }}>
+            {title}
+          </div>
+          <div style={{ color: COLORS.summaryText, fontSize: '13px', fontFamily: 'sans-serif', marginTop: '2px' }}>
+            {summary}
+          </div>
+        </div>
+        {/* Android 2.x style checkbox */}
+        <div
+          style={{
+            width: '18px',
+            height: '18px',
+            border: `2px solid ${checked ? COLORS.checkboxChecked : COLORS.checkboxBorder}`,
+            borderRadius: '3px',
+            backgroundColor: checked ? COLORS.checkboxChecked : 'transparent',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginTop: '2px',
+          }}
+        >
+          {checked && (
+            <span style={{ color: '#000000', fontSize: '12px', fontWeight: 'bold' }}>✓</span>
+          )}
+        </div>
       </div>
-      <div style={{
-        ...styles.checkbox,
-        backgroundColor: checked ? '#8ab4f8' : 'transparent',
-        borderColor: checked ? '#8ab4f8' : '#666666',
-      }}>
-        {checked && <span style={{ ...styles.checkmark, color: '#000000' }}>✓</span>}
-      </div>
-    </button>
+    </PreferenceItem>
   );
 
-  // Screen preference (navigates to sub-screen)
+  // Screen preference (navigates to sub-screen, shows > arrow)
   const ScreenPreference = ({
     title,
     summary,
@@ -224,16 +218,24 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
     summary?: string;
     onClick: () => void;
   }): React.JSX.Element => (
-    <button
-      onClick={onClick}
-      style={styles.preferenceItem}
-    >
-      <div style={styles.preferenceTitle}>{title}</div>
-      {summary && <div style={styles.preferenceSummary}>{summary}</div>}
-    </button>
+    <PreferenceItem onClick={onClick}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: COLORS.titleText, fontSize: '16px', fontFamily: 'sans-serif' }}>
+            {title}
+          </div>
+          {summary && (
+            <div style={{ color: COLORS.summaryText, fontSize: '13px', fontFamily: 'sans-serif', marginTop: '2px' }}>
+              {summary}
+            </div>
+          )}
+        </div>
+        <span style={{ color: COLORS.summaryText, fontSize: '16px' }}>›</span>
+      </div>
+    </PreferenceItem>
   );
 
-  // Static preference (non-interactive info display)
+  // Static preference (non-interactive info)
   const StaticPreference = ({
     title,
     summary,
@@ -241,13 +243,17 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
     title: string;
     summary: string;
   }): React.JSX.Element => (
-    <div style={{ ...styles.preferenceItem, cursor: 'default' }}>
-      <div style={styles.preferenceTitle}>{title}</div>
-      <div style={styles.preferenceSummary}>{summary}</div>
-    </div>
+    <PreferenceItem disabled>
+      <div style={{ color: COLORS.titleText, fontSize: '16px', fontFamily: 'sans-serif' }}>
+        {title}
+      </div>
+      <div style={{ color: COLORS.summaryText, fontSize: '13px', fontFamily: 'sans-serif', marginTop: '2px' }}>
+        {summary}
+      </div>
+    </PreferenceItem>
   );
 
-  // Slider preference (matches Android SliderPreference)
+  // Slider preference - inline layout like original: Min [====slider====] Max
   const SliderPreference = ({
     title,
     summary,
@@ -263,10 +269,32 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
     maxText: string;
     onChange: (v: number) => void;
   }): React.JSX.Element => (
-    <div style={{ ...styles.preferenceItem, cursor: 'default' }}>
-      <div style={styles.preferenceTitle}>{title}</div>
-      <div style={styles.preferenceSummary}>{summary}</div>
-      <div style={{ marginTop: '12px' }}>
+    <div
+      style={{
+        padding: '12px 8px',
+        backgroundColor: COLORS.itemBg,
+        borderBottom: `1px solid ${COLORS.divider}`,
+      }}
+    >
+      <div style={{ color: COLORS.titleText, fontSize: '16px', fontFamily: 'sans-serif' }}>
+        {title}
+      </div>
+      <div style={{ color: COLORS.summaryText, fontSize: '13px', fontFamily: 'sans-serif', marginTop: '2px' }}>
+        {summary}
+      </div>
+      {/* Inline slider: Min [====] Max - matches original layout */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginTop: '12px',
+          gap: '10px',
+        }}
+      >
+        <span style={{ color: COLORS.summaryText, fontSize: '13px', fontFamily: 'sans-serif' }}>
+          {minText}
+        </span>
         <input
           type="range"
           min={0}
@@ -274,81 +302,312 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
           value={value}
           onChange={(e): void => onChange(parseInt(e.target.value, 10))}
           style={{
-            width: '100%',
-            height: '4px',
+            width: '100px',
+            height: '16px',
             WebkitAppearance: 'none',
             appearance: 'none',
-            backgroundColor: '#333333',
-            borderRadius: '2px',
+            backgroundColor: COLORS.sliderTrack,
+            borderRadius: '8px',
             outline: 'none',
             cursor: 'pointer',
           }}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-          <span style={{ color: '#666666', fontSize: '12px' }}>{minText}</span>
-          <span style={{ color: '#666666', fontSize: '12px' }}>{maxText}</span>
-        </div>
+        <span style={{ color: COLORS.summaryText, fontSize: '13px', fontFamily: 'sans-serif' }}>
+          {maxText}
+        </span>
       </div>
     </div>
   );
 
-  // Key binding row for keyboard config
-  const KeyBindingRow = ({
-    label,
-    action,
-  }: {
-    label: string;
-    action: keyof GameSettings['keyBindings'];
-  }): React.JSX.Element => {
-    const isBinding = keyBindingMode === action;
-    const currentKey = settings.keyBindings[action][0] || 'None';
-    const displayKey = currentKey.replace('Key', '').replace('Arrow', '');
-
-    return (
-      <button
-        onClick={(): void => setKeyBindingMode(isBinding ? null : action)}
-        style={{
-          ...styles.preferenceItem,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <span style={styles.preferenceTitle}>{label}</span>
-        <span style={{
-          padding: '6px 16px',
-          backgroundColor: isBinding ? '#8ab4f8' : '#333333',
-          borderRadius: '4px',
-          color: isBinding ? '#000000' : '#ffffff',
-          fontSize: '14px',
-          minWidth: '80px',
-          textAlign: 'center',
-        }}>
-          {isBinding ? 'Press key...' : displayKey}
-        </span>
-      </button>
-    );
-  };
-
-  // Header with back button
+  // Header with title
   const Header = ({ title }: { title: string }): React.JSX.Element => (
-    <div style={styles.header}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '10px 8px',
+        backgroundColor: COLORS.headerBg,
+        borderBottom: `1px solid ${COLORS.divider}`,
+      }}
+    >
       <button
         onClick={handleBack}
         style={{
-          padding: '8px',
+          padding: '4px 8px',
           marginRight: '8px',
           backgroundColor: 'transparent',
           border: 'none',
-          color: '#ffffff',
-          fontSize: '20px',
+          color: COLORS.headerText,
+          fontSize: '18px',
           cursor: 'pointer',
         }}
         aria-label="Back"
       >
-        ←
+        ‹
       </button>
-      <h2 style={styles.headerTitle}>{title}</h2>
+      <span
+        style={{
+          color: COLORS.headerText,
+          fontSize: '18px',
+          fontFamily: 'sans-serif',
+        }}
+      >
+        {title}
+      </span>
+    </div>
+  );
+
+  // 2-column keyboard config dialog (matches original key_config.xml layout)
+  const KeyboardConfigDialog = (): React.JSX.Element => {
+    const getDisplayKey = (action: keyof GameSettings['keyBindings']): string => {
+      const key = settings.keyBindings[action][0] || 'None';
+      return key.replace('Key', '').replace('Arrow', '');
+    };
+
+    const KeyButton = ({
+      label,
+      action,
+    }: {
+      label: string;
+      action: keyof GameSettings['keyBindings'];
+    }): React.JSX.Element => {
+      const isActive = keyBindingMode === action;
+      return (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            marginBottom: '10px',
+          }}
+        >
+          <span
+            style={{
+              width: '50px',
+              color: COLORS.titleText,
+              fontSize: '14px',
+              fontFamily: 'sans-serif',
+            }}
+          >
+            {label}
+          </span>
+          <button
+            onClick={(): void => setKeyBindingMode(isActive ? null : action)}
+            style={{
+              width: '120px',
+              padding: '7px',
+              backgroundColor: isActive ? COLORS.keyBgActive : COLORS.keyBg,
+              border: 'none',
+              borderRadius: '10px',
+              color: COLORS.titleText,
+              fontSize: '14px',
+              fontFamily: 'sans-serif',
+              textAlign: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            {isActive ? 'Press...' : getDisplayKey(action)}
+          </button>
+        </div>
+      );
+    };
+
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001,
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: COLORS.dialogBg,
+            border: `1px solid ${COLORS.dialogBorder}`,
+            borderRadius: '8px',
+            padding: '20px',
+            minWidth: '320px',
+          }}
+        >
+          {/* Dialog title */}
+          <div
+            style={{
+              color: COLORS.titleText,
+              fontSize: '18px',
+              fontFamily: 'sans-serif',
+              marginBottom: '20px',
+              textAlign: 'center',
+            }}
+          >
+            {UIStrings.preference_key_config_dialog_title}
+          </div>
+
+          {/* 2-column grid layout (matches original key_config.xml) */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '20px',
+            }}
+          >
+            {/* Left column */}
+            <div>
+              <KeyButton label={UIStrings.preference_key_config_left} action="left" />
+              <KeyButton label={UIStrings.preference_key_config_right} action="right" />
+            </div>
+            {/* Right column */}
+            <div>
+              <KeyButton label={UIStrings.preference_key_config_jump} action="jump" />
+              <KeyButton label={UIStrings.preference_key_config_attack} action="attack" />
+            </div>
+          </div>
+
+          {/* Dialog buttons */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '16px',
+              marginTop: '24px',
+              borderTop: `1px solid ${COLORS.divider}`,
+              paddingTop: '16px',
+            }}
+          >
+            <button
+              onClick={(): void => {
+                gameSettings.resetKeyBindings();
+              }}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: COLORS.categoryText,
+                fontSize: '14px',
+                fontFamily: 'sans-serif',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+              }}
+            >
+              Reset
+            </button>
+            <button
+              onClick={(): void => {
+                setKeyBindingMode(null);
+                setShowKeyboardConfig(false);
+              }}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: COLORS.categoryText,
+                fontSize: '14px',
+                fontFamily: 'sans-serif',
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+              }}
+            >
+              {UIStrings.preference_key_config_dialog_ok}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Erase confirmation dialog (Android AlertDialog style)
+  const EraseConfirmDialog = (): React.JSX.Element => (
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1001,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: COLORS.dialogBg,
+          border: `1px solid ${COLORS.dialogBorder}`,
+          borderRadius: '8px',
+          padding: '20px',
+          maxWidth: '300px',
+          width: '90%',
+        }}
+      >
+        <div
+          style={{
+            color: COLORS.titleText,
+            fontSize: '18px',
+            fontFamily: 'sans-serif',
+            marginBottom: '12px',
+          }}
+        >
+          {UIStrings.preference_erase_save_game_dialog_title}
+        </div>
+        <div
+          style={{
+            color: COLORS.summaryText,
+            fontSize: '14px',
+            fontFamily: 'sans-serif',
+            lineHeight: 1.5,
+            marginBottom: '20px',
+          }}
+        >
+          {UIStrings.preference_erase_save_game_dialog}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '16px',
+            borderTop: `1px solid ${COLORS.divider}`,
+            paddingTop: '16px',
+          }}
+        >
+          <button
+            onClick={(): void => setShowEraseConfirm(false)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: COLORS.buttonText,
+              fontSize: '14px',
+              fontFamily: 'sans-serif',
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+            }}
+          >
+            {UIStrings.preference_erase_save_game_dialog_cancel}
+          </button>
+          <button
+            onClick={handleEraseSaveData}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: COLORS.categoryText,
+              fontSize: '14px',
+              fontFamily: 'sans-serif',
+              cursor: 'pointer',
+              textTransform: 'uppercase',
+            }}
+          >
+            {UIStrings.preference_erase_save_game_dialog_ok}
+          </button>
+        </div>
+      </div>
     </div>
   );
 
@@ -356,47 +615,39 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
   const MainScreen = (): React.JSX.Element => (
     <>
       <Header title="Settings" />
-      <div style={styles.content}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
         {/* Game Settings Category */}
-        <div style={styles.category}>
-          <div style={styles.categoryTitle}>{UIStrings.preference_game_settings}</div>
-          <CheckBoxPreference
-            title={UIStrings.preference_enable_sound}
-            summary={UIStrings.preference_enable_sound_summary}
-            checked={settings.soundEnabled}
-            onChange={(v): void => updateSetting('soundEnabled', v)}
-          />
-          <ScreenPreference
-            title={UIStrings.preference_configure_controls}
-            onClick={(): void => setCurrentScreen('controls')}
-          />
-        </div>
+        <CategoryHeader title={UIStrings.preference_game_settings} />
+        <CheckBoxPreference
+          title={UIStrings.preference_enable_sound}
+          summary={UIStrings.preference_enable_sound_summary}
+          checked={settings.soundEnabled}
+          onChange={(v): void => updateSetting('soundEnabled', v)}
+        />
+        <ScreenPreference
+          title={UIStrings.preference_configure_controls}
+          onClick={(): void => setCurrentScreen('controls')}
+        />
 
         {/* Game Data Category */}
-        <div style={styles.category}>
-          <div style={styles.categoryTitle}>{UIStrings.preference_save_game}</div>
-          <button
-            onClick={(): void => setShowEraseConfirm(true)}
-            style={styles.preferenceItem}
-          >
-            <div style={styles.preferenceTitle}>{UIStrings.preference_erase_save_game}</div>
-          </button>
-        </div>
+        <CategoryHeader title={UIStrings.preference_save_game} />
+        <PreferenceItem onClick={(): void => setShowEraseConfirm(true)}>
+          <div style={{ color: COLORS.titleText, fontSize: '16px', fontFamily: 'sans-serif' }}>
+            {UIStrings.preference_erase_save_game}
+          </div>
+        </PreferenceItem>
 
         {/* About Category */}
-        <div style={styles.category}>
-          <div style={styles.categoryTitle}>{UIStrings.preference_about}</div>
-          <button
-            onClick={(): void => { window.open('http://replicaisland.net', '_blank'); }}
-            style={styles.preferenceItem}
-          >
-            <div style={styles.preferenceTitle}>{UIStrings.preference_visit_site}</div>
-          </button>
-          <ScreenPreference
-            title={UIStrings.preference_misc}
-            onClick={(): void => setCurrentScreen('about')}
-          />
-        </div>
+        <CategoryHeader title={UIStrings.preference_about} />
+        <PreferenceItem onClick={(): void => { window.open('http://replicaisland.net', '_blank'); }}>
+          <div style={{ color: COLORS.titleText, fontSize: '16px', fontFamily: 'sans-serif' }}>
+            {UIStrings.preference_visit_site}
+          </div>
+        </PreferenceItem>
+        <ScreenPreference
+          title={UIStrings.preference_misc}
+          onClick={(): void => setCurrentScreen('about')}
+        />
       </div>
     </>
   );
@@ -405,7 +656,7 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
   const ControlsScreen = (): React.JSX.Element => (
     <>
       <Header title={UIStrings.preference_configure_controls} />
-      <div style={styles.content}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
         <CheckBoxPreference
           title={UIStrings.preference_enable_click_attack}
           summary={UIStrings.preference_enable_click_attack_summary}
@@ -415,7 +666,7 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
         <ScreenPreference
           title={UIStrings.preference_key_config}
           summary={UIStrings.preference_key_config_summary}
-          onClick={(): void => setCurrentScreen('keyboard')}
+          onClick={(): void => setShowKeyboardConfig(true)}
         />
         <SliderPreference
           title={UIStrings.preference_movement_sensitivity}
@@ -435,33 +686,11 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
     </>
   );
 
-  // Keyboard configuration sub-screen
-  const KeyboardScreen = (): React.JSX.Element => (
-    <>
-      <Header title={UIStrings.preference_key_config_dialog_title} />
-      <div style={styles.content}>
-        <KeyBindingRow label={UIStrings.preference_key_config_left} action="left" />
-        <KeyBindingRow label={UIStrings.preference_key_config_right} action="right" />
-        <KeyBindingRow label={UIStrings.preference_key_config_jump} action="jump" />
-        <KeyBindingRow label={UIStrings.preference_key_config_attack} action="attack" />
-        <button
-          onClick={(): void => gameSettings.resetKeyBindings()}
-          style={{
-            ...styles.preferenceItem,
-            marginTop: '16px',
-          }}
-        >
-          <div style={{ ...styles.preferenceTitle, color: '#8ab4f8' }}>Reset to Defaults</div>
-        </button>
-      </div>
-    </>
-  );
-
   // About / More Information sub-screen
   const AboutScreen = (): React.JSX.Element => (
     <>
       <Header title={UIStrings.preference_misc} />
-      <div style={styles.content}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
         <StaticPreference
           title={UIStrings.preference_about_title}
           summary={UIStrings.preference_about_summary}
@@ -483,100 +712,30 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
   );
 
   return (
-    <div style={styles.container}>
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: COLORS.background,
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 1000,
+      }}
+    >
       {currentScreen === 'main' && <MainScreen />}
       {currentScreen === 'controls' && <ControlsScreen />}
-      {currentScreen === 'keyboard' && <KeyboardScreen />}
       {currentScreen === 'about' && <AboutScreen />}
 
-      {/* Erase Confirmation Dialog */}
-      {showEraseConfirm && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1001,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: '#2d2d2d',
-              borderRadius: '8px',
-              padding: '24px',
-              maxWidth: '300px',
-              width: '90%',
-            }}
-          >
-            <h3
-              style={{
-                margin: '0 0 16px',
-                color: '#ffffff',
-                fontSize: '20px',
-                fontFamily: 'sans-serif',
-                fontWeight: 'normal',
-              }}
-            >
-              {UIStrings.preference_erase_save_game_dialog_title}
-            </h3>
-            <p
-              style={{
-                margin: '0 0 24px',
-                color: '#9e9e9e',
-                fontSize: '14px',
-                fontFamily: 'sans-serif',
-                lineHeight: 1.5,
-              }}
-            >
-              {UIStrings.preference_erase_save_game_dialog}
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button
-                onClick={(): void => setShowEraseConfirm(false)}
-                style={{
-                  padding: '10px 24px',
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  borderRadius: '4px',
-                  color: '#8ab4f8',
-                  fontSize: '14px',
-                  fontFamily: 'sans-serif',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                }}
-              >
-                {UIStrings.preference_erase_save_game_dialog_cancel}
-              </button>
-              <button
-                onClick={handleEraseSaveData}
-                style={{
-                  padding: '10px 24px',
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  borderRadius: '4px',
-                  color: '#8ab4f8',
-                  fontSize: '14px',
-                  fontFamily: 'sans-serif',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                }}
-              >
-                {UIStrings.preference_erase_save_game_dialog_ok}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Keyboard Config Dialog */}
+      {showKeyboardConfig && <KeyboardConfigDialog />}
 
-      {/* Toast notification */}
+      {/* Erase Confirmation Dialog */}
+      {showEraseConfirm && <EraseConfirmDialog />}
+
+      {/* Toast notification (Android style) */}
       {showEraseToast && (
         <div
           style={{
@@ -584,10 +743,10 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
             bottom: '32px',
             left: '50%',
             transform: 'translateX(-50%)',
-            backgroundColor: '#323232',
-            color: '#ffffff',
-            padding: '12px 24px',
-            borderRadius: '4px',
+            backgroundColor: '#444444',
+            color: COLORS.titleText,
+            padding: '10px 20px',
+            borderRadius: '20px',
             fontSize: '14px',
             fontFamily: 'sans-serif',
             zIndex: 1002,
