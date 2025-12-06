@@ -26,6 +26,13 @@ export abstract class GameComponent {
   }
 
   /**
+   * Set the component's update phase
+   */
+  protected setPhase(phase: ComponentPhase): void {
+    this.phase = phase;
+  }
+
+  /**
    * Set the parent game object
    */
   setParent(parent: GameObject | null): void {

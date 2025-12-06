@@ -61,6 +61,7 @@ export enum HitType {
   ATTACK = 4,
   LAUNCH = 5,
   POSSESS = 6,
+  DEPRESS = 7,   // Button press
 }
 
 // Input keys mapping

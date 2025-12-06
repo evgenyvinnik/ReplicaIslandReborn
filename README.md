@@ -101,6 +101,24 @@ bun test
 
 The `Original/` directory contains the complete source code for the original Android version of Replica Island, preserved for reference during the porting process.
 
+## Project Statistics
+
+Source Lines of Code (SLOC) - non-empty lines:
+
+| Extension | Lines |
+|-----------|------:|
+| .ts | 12,483 |
+| .tsx | 3,008 |
+| .md | 1,766 |
+| .json | 290 |
+| .css | 279 |
+| .mjs | 100 |
+| .js | 76 |
+| .html | 32 |
+| **Total** | **18,034** |
+
+*Run `bun run sloc` to recalculate. Excludes `node_modules/`, `dist/`, and `Original/` directories.*
+
 ## License
 
 This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details.

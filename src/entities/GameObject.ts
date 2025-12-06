@@ -312,6 +312,10 @@ export class GameObject implements Poolable {
     this.lastTouchedFloorTime = time;
   }
 
+  getLastTouchedFloorTime(): number {
+    return this.lastTouchedFloorTime;
+  }
+
   setLastTouchedCeilingTime(time: number): void {
     this.lastTouchedCeilingTime = time;
   }

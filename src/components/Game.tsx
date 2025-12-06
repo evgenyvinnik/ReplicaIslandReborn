@@ -24,6 +24,7 @@ import { HUD } from './HUD';
 import { OnScreenControls } from './OnScreenControls';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 import { gameSettings } from '../utils/GameSettings';
+import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
 
 interface GameProps {
   width?: number;
@@ -31,6 +32,8 @@ interface GameProps {
 }
 
 // Player physics constants (from original PlayerComponent.java)
+// Note: In canvas coordinates, positive Y is DOWN, negative Y is UP
+// The original Java code used a coordinate system where positive Y was UP
 const PLAYER = {
   GROUND_IMPULSE_SPEED: 5000,
   AIR_HORIZONTAL_IMPULSE_SPEED: 4000,
@@ -40,7 +43,7 @@ const PLAYER = {
   MAX_AIR_HORIZONTAL_SPEED: 150,
   MAX_UPWARD_SPEED: 250,
   JUMP_TO_JETS_DELAY: 0.5,
-  STOMP_VELOCITY: -1000,
+  STOMP_VELOCITY: 1000, // Positive = downward in canvas coordinates (was -1000 in original which had Y-up)
   AIR_DRAG_SPEED: 4000,
   GRAVITY: 500,
   FUEL_AMOUNT: 1.0,
@@ -51,7 +54,7 @@ const PLAYER = {
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { state, pauseGame, resumeGame } = useGameContext();
+  const { state, pauseGame, resumeGame, gameOver } = useGameContext();
   
   // Systems refs
   const gameLoopRef = useRef<GameLoop | null>(null);
@@ -69,12 +72,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     rocketsOn: false,
     stomping: false,
     stompTime: 0,
+    invincible: false,
+    invincibleTime: 0,
+    lastHitTime: 0,
+    // Animation state
+    animFrame: 0,
+    animTimer: 0,
+    lastAnimState: '',
   });
   
   const [isInitialized, setIsInitialized] = useState(false);
   const [fps, setFps] = useState(0);
   const [scale, setScale] = useState(1);
   const [levelLoading, setLevelLoading] = useState(true);
+  const [playerFuel, setPlayerFuel] = useState(PLAYER.FUEL_AMOUNT);
 
   // Initialize game systems
   useEffect(() => {
@@ -158,18 +169,33 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       });
     };
 
-    // Load player sprite sheets
+    // Load player sprite sheets (matching original game sprites)
     const loadPlayerSprites = async (): Promise<void> => {
       const sprites = [
+        // Idle
         { name: 'andou_stand', file: 'andou_stand' },
+        // Movement (diagonal poses)
+        { name: 'andou_diag01', file: 'andou_diag01' },
+        { name: 'andou_diag02', file: 'andou_diag02' },
+        { name: 'andou_diag03', file: 'andou_diag03' },
+        // Fast movement (extreme diagonal poses)
+        { name: 'andou_diagmore01', file: 'andou_diagmore01' },
+        { name: 'andou_diagmore02', file: 'andou_diagmore02' },
+        { name: 'andou_diagmore03', file: 'andou_diagmore03' },
+        // Boost up (flying straight up)
         { name: 'andou_flyup01', file: 'andou_flyup01' },
         { name: 'andou_flyup02', file: 'andou_flyup02' },
         { name: 'andou_flyup03', file: 'andou_flyup03' },
-        { name: 'andou_fall01', file: 'andou_fall01' },
-        { name: 'andou_fall02', file: 'andou_fall02' },
+        // Stomp attack (4 frame animation)
         { name: 'andou_stomp01', file: 'andou_stomp01' },
         { name: 'andou_stomp02', file: 'andou_stomp02' },
+        { name: 'andou_stomp03', file: 'andou_stomp03' },
+        { name: 'andou_stomp04', file: 'andou_stomp04' },
+        // Hit reaction
         { name: 'andou_hit', file: 'andou_hit' },
+        // Death animation
+        { name: 'andou_die01', file: 'andou_die01' },
+        { name: 'andou_die02', file: 'andou_die02' },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -199,6 +225,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Load assets and level
     const initializeGame = async (): Promise<void> => {
       setLevelLoading(true);
+      
+      // Reset inventory for new game
+      resetInventory();
       
       try {
         // Load tilesets
@@ -376,18 +405,99 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 playerRect.y + playerRect.height > objRect.y) {
               // Collected!
               obj.setVisible(false);
+              obj.markForRemoval();
               
-              // Play sound based on type
+              // Update inventory and play sound based on type
+              const inv = getInventory();
               if (obj.type === 'coin') {
+                setInventory({ coinCount: inv.coinCount + 1, score: inv.score + 1 });
                 soundSystem.playSfx(SoundEffects.GEM1, 0.5);
-              } else if (obj.type === 'ruby' || obj.type === 'pearl') {
+              } else if (obj.type === 'ruby') {
+                setInventory({ rubyCount: inv.rubyCount + 1, score: inv.score + 3 });
+                soundSystem.playSfx(SoundEffects.GEM2, 0.5);
+              } else if (obj.type === 'pearl') {
+                setInventory({ pearls: inv.pearls + 1, score: inv.score + 5 });
                 soundSystem.playSfx(SoundEffects.GEM2, 0.5);
               } else if (obj.type === 'diary') {
+                setInventory({ diaryCount: inv.diaryCount + 1, score: inv.score + 50 });
                 soundSystem.playSfx(SoundEffects.DING, 0.5);
               }
             }
           }
         });
+        
+        // Check enemy collisions in separate loop
+        gameObjectManager.forEach((obj) => {
+          if (obj === player || !obj.isVisible()) return;
+          
+          // Check if enemy - handle stomp/damage
+          if (obj.type === 'enemy' && obj.life > 0) {
+            const objPos = obj.getPosition();
+            const objRect = {
+              x: objPos.x,
+              y: objPos.y,
+              width: obj.width,
+              height: obj.height,
+            };
+            
+            // Simple AABB collision
+            if (playerRect.x < objRect.x + objRect.width &&
+                playerRect.x + playerRect.width > objRect.x &&
+                playerRect.y < objRect.y + objRect.height &&
+                playerRect.y + playerRect.height > objRect.y) {
+              
+              const pState = playerStateRef.current;
+              const playerVel = player.getVelocity();
+              
+              // Check if player is stomping (coming from above with stomp attack)
+              if (pState.stomping || (playerVel.y > 0 && playerPos.y < objPos.y)) {
+                // Player kills enemy with stomp
+                obj.life = 0;
+                obj.setVisible(false);
+                obj.markForRemoval();
+                
+                // Bounce player up
+                player.getVelocity().y = -200;
+                
+                soundSystem.playSfx(SoundEffects.STOMP);
+                
+                // Award points
+                const inv = getInventory();
+                setInventory({ score: inv.score + 25 });
+              } else if (!pState.invincible) {
+                // Enemy damages player (only if not invincible)
+                const inv = getInventory();
+                if (inv.lives > 0) {
+                  const newLives = inv.lives - 1;
+                  setInventory({ lives: newLives });
+                  soundSystem.playSfx(SoundEffects.THUMP);
+                  
+                  if (newLives <= 0) {
+                    // Game over
+                    gameOver();
+                    return;
+                  }
+                  
+                  // Grant invincibility frames
+                  pState.invincible = true;
+                  pState.invincibleTime = 2.0;  // 2 seconds
+                  
+                  // Knock player back
+                  const knockbackDir = playerPos.x < objPos.x ? -1 : 1;
+                  player.setVelocity(knockbackDir * 200, -150);
+                }
+              }
+            }
+          }
+        });
+      }
+      
+      // Update player invincibility timer
+      if (playerStateRef.current.invincible) {
+        playerStateRef.current.invincibleTime -= deltaTime;
+        if (playerStateRef.current.invincibleTime <= 0) {
+          playerStateRef.current.invincible = false;
+        }
       }
 
       // Update camera to follow player
@@ -424,6 +534,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
         pState.fuel = Math.min(PLAYER.FUEL_AMOUNT, pState.fuel);
       }
+      
+      // Update HUD fuel display
+      setPlayerFuel(pState.fuel);
 
       // Horizontal movement
       let moveX = 0;
@@ -581,6 +694,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Render game objects
       const player = gameObjectManager.getPlayer();
+      const FRAME_TIME = 1 / 24; // 24 FPS animation, matching original's Utils.framesToTime(24, 1)
       
       gameObjectManager.forEach((obj) => {
         if (!obj.isVisible()) return;
@@ -589,18 +703,99 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const isPlayer = obj === player;
         
         if (isPlayer) {
-          // Determine player sprite based on state
+          // Check if flashing (invincible) - skip every other frame
           const pState = playerStateRef.current;
-          let spriteName = 'andou_stand';
+          if (pState.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
+            return; // Skip rendering this frame for flashing effect
+          }
+          
+          const vel = obj.getVelocity();
+          const absVelX = Math.abs(vel.x);
+          
+          // Determine animation state based on player state (matching original AnimationComponent.java logic)
+          let animState = 'idle';
+          let animFrames: string[] = ['andou_stand'];
+          let looping = false;
           
           if (pState.stomping) {
-            spriteName = 'andou_stomp01';
-          } else if (pState.rocketsOn) {
-            spriteName = 'andou_flyup01';
-          } else if (!pState.touchingGround) {
-            const vel = obj.getVelocity();
-            spriteName = vel.y < 0 ? 'andou_flyup02' : 'andou_fall01';
+            // STOMP animation - 4 frames, not looping
+            animState = 'stomp';
+            animFrames = ['andou_stomp01', 'andou_stomp02', 'andou_stomp03', 'andou_stomp04'];
+            looping = false;
+          } else if (pState.touchingGround) {
+            // On ground
+            if (absVelX < 30) {
+              // IDLE - standing still
+              animState = 'idle';
+              animFrames = ['andou_stand'];
+            } else if (absVelX > 300) {
+              // MOVE_FAST - extreme diagonal
+              animState = 'move_fast';
+              animFrames = ['andou_diagmore01'];
+            } else {
+              // MOVE - slight diagonal
+              animState = 'move';
+              animFrames = ['andou_diag01'];
+            }
+          } else {
+            // In air
+            if (pState.rocketsOn) {
+              // Boosting
+              // Note: In canvas, negative vel.y = going up, positive = going down
+              if (absVelX < 100 && vel.y < -10) {
+                // BOOST_UP - going mostly up (vel.y < -10 means moving upward fast)
+                animState = 'boost_up';
+                animFrames = ['andou_flyup02', 'andou_flyup03'];
+                looping = true;
+              } else if (absVelX > 300) {
+                // BOOST_MOVE_FAST - fast diagonal boost
+                animState = 'boost_move_fast';
+                animFrames = ['andou_diagmore02', 'andou_diagmore03'];
+                looping = true;
+              } else {
+                // BOOST_MOVE - diagonal boost
+                animState = 'boost_move';
+                animFrames = ['andou_diag02', 'andou_diag03'];
+                looping = true;
+              }
+            } else {
+              // Falling without boost (use movement poses based on horizontal velocity)
+              if (absVelX < 1) {
+                animState = 'idle';
+                animFrames = ['andou_stand'];
+              } else if (absVelX > 300) {
+                animState = 'move_fast';
+                animFrames = ['andou_diagmore01'];
+              } else {
+                animState = 'move';
+                animFrames = ['andou_diag01'];
+              }
+            }
           }
+          
+          // Reset animation frame if state changed
+          if (animState !== pState.lastAnimState) {
+            pState.animFrame = 0;
+            pState.animTimer = 0;
+            pState.lastAnimState = animState;
+          }
+          
+          // Update animation timer
+          pState.animTimer += 1 / 60; // Assuming 60 FPS game loop
+          if (pState.animTimer >= FRAME_TIME) {
+            pState.animTimer -= FRAME_TIME;
+            pState.animFrame++;
+            
+            if (pState.animFrame >= animFrames.length) {
+              if (looping) {
+                pState.animFrame = 0;
+              } else {
+                pState.animFrame = animFrames.length - 1; // Stay on last frame
+              }
+            }
+          }
+          
+          const spriteName = animFrames[pState.animFrame] || animFrames[0];
           
           // Draw player sprite or fallback rectangle
           if (renderSystem.hasSprite(spriteName)) {
@@ -666,7 +861,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       inputSystem.destroy();
       soundSystem.destroy();
     };
-  }, [width, height, state.gameState, pauseGame, resumeGame]);
+  }, [width, height, state.gameState, pauseGame, resumeGame, gameOver]);
 
   // Handle resize
   useEffect(() => {
@@ -758,7 +953,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         {isInitialized && !levelLoading && (
           <>
-            <HUD fps={fps} showFPS={state.config.debugMode} />
+            <HUD fps={fps} showFPS={state.config.debugMode} fuel={playerFuel} gameWidth={width} gameHeight={height} />
             <OnScreenControls
               onMovementChange={(direction: number): void => {
                 const inputSystem = systemRegistryRef.current?.inputSystem;

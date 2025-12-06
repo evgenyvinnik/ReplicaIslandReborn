@@ -14,7 +14,9 @@ export class SpriteComponent extends GameComponent {
   private currentFrame: number = 0;
   private frameTimer: number = 0;
   private animations: Map<string, AnimationDefinition> = new Map();
+  private animationsByIndex: AnimationDefinition[] = [];
   private currentAnimation: AnimationDefinition | null = null;
+  private currentAnimationIndex: number = -1;
   private renderSystem: RenderSystem | null = null;
   private opacity: number = 1;
   private flipX: boolean = false;
@@ -48,14 +50,119 @@ export class SpriteComponent extends GameComponent {
   }
 
   /**
+   * Add an animation at a specific index
+   */
+  addAnimationAtIndex(index: number, animation: AnimationDefinition): void {
+    this.animationsByIndex[index] = animation;
+  }
+
+  /**
    * Play an animation by name
    */
-  playAnimation(name: string): void {
-    const animation = this.animations.get(name);
-    if (animation && animation !== this.currentAnimation) {
-      this.currentAnimation = animation;
-      this.currentFrame = 0;
-      this.frameTimer = 0;
+  playAnimation(nameOrIndex: string | number): void {
+    let animation: AnimationDefinition | undefined;
+    
+    if (typeof nameOrIndex === 'number') {
+      // Play by index
+      if (nameOrIndex === this.currentAnimationIndex) {
+        return; // Already playing this animation
+      }
+      if (nameOrIndex === -1) {
+        // Stop animation
+        this.currentAnimation = null;
+        this.currentAnimationIndex = -1;
+        return;
+      }
+      animation = this.animationsByIndex[nameOrIndex];
+      if (animation && animation !== this.currentAnimation) {
+        this.currentAnimation = animation;
+        this.currentAnimationIndex = nameOrIndex;
+        this.currentFrame = 0;
+        this.frameTimer = 0;
+      }
+    } else {
+      // Play by name
+      animation = this.animations.get(nameOrIndex);
+      if (animation && animation !== this.currentAnimation) {
+        this.currentAnimation = animation;
+        this.currentAnimationIndex = -1;
+        this.currentFrame = 0;
+        this.frameTimer = 0;
+      }
+    }
+  }
+
+  /**
+   * Check if the current animation has finished (for non-looping animations)
+   */
+  animationFinished(): boolean {
+    if (!this.currentAnimation) {
+      return true;
+    }
+    if (this.currentAnimation.loop) {
+      return false; // Looping animations never "finish"
+    }
+    return this.currentFrame >= this.currentAnimation.frames.length - 1;
+  }
+
+  /**
+   * Get current animation index
+   */
+  getCurrentAnimationIndex(): number {
+    return this.currentAnimationIndex;
+  }
+
+  /**
+   * Get current animation (if any)
+   */
+  getCurrentAnimation(): AnimationDefinition | null {
+    return this.currentAnimation;
+  }
+
+  /**
+   * Find an animation by index
+   * Returns the animation if it exists, null otherwise
+   */
+  findAnimation(index: number): AnimationDefinition | null {
+    return this.animationsByIndex[index] ?? null;
+  }
+
+  /**
+   * Find an animation by name
+   */
+  findAnimationByName(name: string): AnimationDefinition | null {
+    return this.animations.get(name) ?? null;
+  }
+
+  /**
+   * Get current animation time
+   */
+  getCurrentAnimationTime(): number {
+    return this.frameTimer;
+  }
+
+  /**
+   * Set current animation time offset
+   */
+  setCurrentAnimationTime(time: number): void {
+    this.frameTimer = time;
+    if (this.currentAnimation) {
+      // Calculate the correct frame based on time
+      const totalFrameTime = this.currentAnimation.frames.reduce(
+        (sum, frame) => sum + (frame.duration || 0.1),
+        0
+      );
+      if (totalFrameTime > 0) {
+        const normalizedTime = time % totalFrameTime;
+        let accumulatedTime = 0;
+        for (let i = 0; i < this.currentAnimation.frames.length; i++) {
+          accumulatedTime += this.currentAnimation.frames[i].duration || 0.1;
+          if (normalizedTime <= accumulatedTime) {
+            this.currentFrame = i;
+            break;
+          }
+        }
+      }
     }
   }
 
@@ -133,6 +240,12 @@ export class SpriteComponent extends GameComponent {
       }
     }
 
+    // Only render if the sprite is actually loaded (don't use placeholders)
+    // This allows Game.tsx to handle fallback rendering with colored rectangles
+    if (!this.renderSystem.hasSprite(this.spriteName)) {
+      return;
+    }
+
     // Queue sprite for rendering
     const pos = parent.getPosition();
     const frame = this.getCurrentFrameIndex();
@@ -172,6 +285,7 @@ export class SpriteComponent extends GameComponent {
     this.currentFrame = 0;
     this.frameTimer = 0;
     this.currentAnimation = null;
+    this.currentAnimationIndex = -1;
     this.opacity = 1;
     this.flipX = false;
     this.flipY = false;

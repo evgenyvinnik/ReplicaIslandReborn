@@ -17,6 +17,7 @@ import type { InputSystem } from '../engine/InputSystem';
 
 // Object type definitions
 export enum GameObjectType {
+  INVALID = '',
   PLAYER = 'player',
   ANDROID = 'android',
   ENEMY_BROBOT = 'enemy_brobot',

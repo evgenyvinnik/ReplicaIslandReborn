@@ -10,7 +10,8 @@
     "lint": "eslint src --ext .ts,.tsx",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "sloc": "bun scripts/calc-sloc.mjs"
   },
   "dependencies": {
     "react": "^19.0.0",

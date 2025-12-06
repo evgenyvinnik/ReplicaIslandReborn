@@ -9,6 +9,8 @@ import type { InputSystem } from './InputSystem';
 import type { SoundSystem } from './SoundSystem';
 import type { CameraSystem } from './CameraSystem';
 import type { CollisionSystem } from './CollisionSystem';
+import type { GameObjectCollisionSystem } from './GameObjectCollisionSystem';
+import type { ChannelSystem } from './ChannelSystem';
 import type { RenderSystem } from './RenderSystem';
 import type { TimeSystem } from './TimeSystem';
 import type { HotSpotSystem } from './HotSpotSystem';
@@ -27,6 +29,8 @@ export class SystemRegistry {
   public soundSystem: SoundSystem | null = null;
   public cameraSystem: CameraSystem | null = null;
   public collisionSystem: CollisionSystem | null = null;
+  public gameObjectCollisionSystem: GameObjectCollisionSystem | null = null;
+  public channelSystem: ChannelSystem | null = null;
   public renderSystem: RenderSystem | null = null;
   public timeSystem: TimeSystem | null = null;
   public levelSystem: LevelSystem | null = null;
@@ -48,6 +52,8 @@ export class SystemRegistry {
     this.soundSystem = null;
     this.cameraSystem = null;
     this.collisionSystem = null;
+    this.gameObjectCollisionSystem = null;
+    this.channelSystem = null;
     this.renderSystem = null;
     this.timeSystem = null;
     this.levelSystem = null;
@@ -94,6 +100,9 @@ export class SystemRegistry {
         break;
       case 'animation':
         this.animationSystem = system as unknown as AnimationSystem;
+        break;
+      case 'gameObjectCollision':
+        this.gameObjectCollisionSystem = system as unknown as GameObjectCollisionSystem;
         break;
     }
   }

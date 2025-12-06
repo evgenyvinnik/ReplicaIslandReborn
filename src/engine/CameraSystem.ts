@@ -152,6 +152,25 @@ export class CameraSystem {
   }
 
   /**
+   * Check if the camera is currently shaking
+   */
+  isShaking(): boolean {
+    return this.shakeTimer > 0;
+  }
+
+  /**
+   * Check if a point is visible on screen (with optional radius for objects)
+   */
+  isPointVisible(point: Vector2, radius: number = 0): boolean {
+    return (
+      point.x + radius >= this.focusPosition.x &&
+      point.x - radius <= this.focusPosition.x + this.viewportWidth &&
+      point.y + radius >= this.focusPosition.y &&
+      point.y - radius <= this.focusPosition.y + this.viewportHeight
+    );
+  }
+
+  /**
    * Set look-ahead distance
    */
   setLookAhead(x: number, y: number): void {

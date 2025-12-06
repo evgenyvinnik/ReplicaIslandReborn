@@ -78,6 +78,15 @@ export class Vector2 {
   }
 
   /**
+   * Multiply component-wise by another vector
+   */
+  multiplyVector(other: Vector2): this {
+    this.x *= other.x;
+    this.y *= other.y;
+    return this;
+  }
+
+  /**
    * Divide by a scalar
    */
   divide(scalar: number): this {
