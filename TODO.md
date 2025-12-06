@@ -125,6 +125,9 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 | HUD with inventory display | ✅ Implemented |
 | Enemy patrol AI | ✅ Implemented (PatrolComponent.ts) |
 | Hit/damage reaction system | ✅ Implemented (HitReactionComponent.ts) |
+| Player death/respawn | ✅ Implemented |
+| Level completion flow | ✅ Implemented |
+| NPC dialog triggers | ✅ Implemented |
 
 ### Level Files
 | Category | Status |
@@ -243,7 +246,7 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 | `ExtrasMenuActivity.java` | Extras menu | LOW |
 | `DifficultyMenuActivity.java` | Difficulty selection | ✅ Done |
 | `SetPreferencesActivity.java` | Settings/Options menu | ✅ Done |
-| `AnimationPlayerActivity.java` | Cutscene player | LOW |
+| `AnimationPlayerActivity.java` | Cutscene player (uses res/anim/*.xml) | LOW |
 
 ---
 
@@ -303,6 +306,45 @@ The options menu has been ported with the following features:
 | Baby | 5 | 3 | 2 | 5 |
 | Kids | 3 | 2 | 1 | 3 |
 | Adults | 2 | 1 | 1 | 2 |
+
+---
+
+## 🔶 Android View Animation XMLs (Original/res/anim/)
+
+**Note**: The `anim/` folder contains **Android View Animation XMLs** for UI transitions, NOT game sprite animations. These are Android-framework-specific animations used for screen transitions, button effects, and cutscenes.
+
+### Animation Files Overview (24 files)
+
+| Category | Files | Purpose | Web Port Status |
+|----------|-------|---------|-----------------|
+| **Screen Transitions** | `activity_fade_in.xml`, `activity_fade_out.xml` | Fade between Activities | ✅ `FadeTransition.tsx` |
+| **Button Effects** | `button_flicker.xml`, `button_slide.xml` | Button press feedback | ✅ CSS hover/active states |
+| **UI Arrow Animation** | `ui_button.xml` | Animated arrow indicator | ⚠️ Not needed (CSS) |
+| **Menu Slides** | `menu_show_left.xml`, `menu_show_right.xml`, `menu_hide_left.xml`, `menu_hide_right.xml` | Sliding panels | ✅ React state transitions |
+| **Fade Effects** | `fade.xml`, `fade_in.xml`, `fade_out.xml`, `fade_in_out.xml` | Alpha transitions | ✅ `FadeTransition.tsx` |
+| **Loading Message** | `wait_message_fade.xml` | Pulsing wait message | ✅ CSS animations |
+| **Kyle Death Cutscene** | `kyle_fall.xml` | 16-frame death sequence | ❌ Cutscene player needed |
+| **Ending Cutscenes** | `wanda_game_over.xml`, `kabocha_game_over.xml`, `rokudou_game_over.xml` | Game over animations | ❌ Cutscene player needed |
+| **Parallax Cutscenes** | `horizontal_layer1_slide.xml`, `horizontal_layer2_slide.xml` | Horizontal scrolling | ❌ Cutscene player needed |
+| **Rokudou Ending** | `rokudou_slide_bg.xml`, `rokudou_slide_cliffs.xml`, `rokudou_slide_rokudou.xml`, `rokudou_slide_sphere.xml` | Multi-layer parallax | ❌ Cutscene player needed |
+
+### Implemented in Web Port
+- [x] `FadeTransition.tsx` - Screen fade effects (covers activity_fade_*, fade_*)
+- [x] CSS transitions for button hover/click states
+- [x] React state-based screen transitions (menus)
+
+### Not Implemented (Cutscene System)
+- [ ] `AnimationPlayerActivity.java` equivalent - Cutscene player component
+- [ ] Kyle death sequence animation (16 frames at 83ms each = 1.33s)
+- [ ] Game ending animations (Wanda, Kabocha, Rokudou)
+- [ ] Multi-layer parallax cutscene rendering
+
+### Why These Aren't Game Animations
+
+The files in `anim/` are **Android View Animations** loaded via `AnimationUtils.loadAnimation()`, not game sprite animations. Game sprite animations are defined in:
+- `GameObjectFactory.java` - Programmatically creates `SpriteAnimation` objects
+- `SpriteAnimation.java` - Animation frame sequences with texture coordinates
+- Sprite sheet images in `res/drawable-normal-mdpi/`
 
 ---
 
@@ -580,44 +622,44 @@ The hot spot layer defines special tile behaviors:
    - [ ] Add sound effect triggers for game events
    - [ ] Add background music support (MIDI or convert to MP3/OGG)
 
-### Phase 2: Player & Combat (HIGH)
-4. **Complete Player Controller**
-   - [ ] Port `HitReactionComponent.java`
-   - [ ] Port `InventoryComponent.java`
-   - [ ] Implement proper stomp attack from `CrusherAndouComponent.java`
-   - [ ] Health/lives system
+### Phase 2: Player & Combat (HIGH) ✅ COMPLETE
+4. **Complete Player Controller** ✅
+   - [x] Port `HitReactionComponent.java`
+   - [x] Port `InventoryComponent.java`
+   - [x] Implement proper stomp attack from `CrusherAndouComponent.java`
+   - [x] Health/lives system
 
-5. **Collision System**
-   - [ ] Port `GameObjectCollisionSystem.java`
-   - [ ] Port `HotSpotSystem.java` for special tiles
-   - [ ] Implement proper collision responses
+5. **Collision System** ✅
+   - [x] Port `GameObjectCollisionSystem.java`
+   - [x] Port `HotSpotSystem.java` for special tiles
+   - [x] Implement proper collision responses
 
-### Phase 3: Enemies & NPCs (MEDIUM)
-6. **Enemy AI**
-   - [ ] Port `PatrolComponent.java`
-   - [ ] Port enemy-specific components
-   - [ ] Implement basic enemy types (Brobot, Kabocha, etc.)
+### Phase 3: Enemies & NPCs (MEDIUM) ✅ COMPLETE
+6. **Enemy AI** ✅
+   - [x] Port `PatrolComponent.java`
+   - [x] Port enemy-specific components
+   - [x] Implement basic enemy types (Brobot, Kabocha, etc.)
 
-7. **NPC System**
-   - [ ] Port `NPCComponent.java`
-   - [ ] Port `ConversationUtils.java`
-   - [ ] Implement dialog system
+7. **NPC System** ✅
+   - [x] Dialog system with typewriter effect
+   - [x] TALK hotspot triggers
+   - [x] NPC dialog triggers from levels
 
-### Phase 4: Polish (LOW)
-8. **Visual Polish**
-   - [ ] Parallax scrolling backgrounds
-   - [ ] Screen transitions/fades
+### Phase 4: Polish (LOW) - PARTIAL
+8. **Visual Polish** ✅ PARTIAL
+   - [x] Parallax scrolling backgrounds
+   - [x] Screen transitions/fades (FadeTransition.tsx)
    - [ ] Particle effects
 
-9. **UI/UX**
-   - [ ] Proper level select with progression
-   - [ ] Game over screen
-   - [ ] Pause menu
-   - [ ] Settings/options
+9. **UI/UX** ✅ MOSTLY COMPLETE
+   - [x] Level select with world/stage progression
+   - [ ] Game over screen (shows when lives = 0)
+   - [x] Pause menu
+   - [x] Settings/options
 
-10. **Save System**
-    - [ ] LocalStorage for progress
-    - [ ] Level unlock tracking
+10. **Save System** ✅ COMPLETE
+    - [x] LocalStorage for progress
+    - [x] Level unlock tracking
     - [ ] High scores
 
 ---
@@ -662,19 +704,21 @@ The hot spot layer defines special tile behaviors:
 
 | Category | Original | Ported | Percentage |
 |----------|----------|--------|------------|
-| Java Classes | 118 | ~35 | 30% |
+| Java Classes | 118 | ~45 | 38% |
 | Sound Effects | 22 | 22 | 100% |
 | Level Files (.bin) | 47 | 47 | 100% |
 | Dialog Files (.xml) | 38 | 38 | 100% |
 | Tileset Images | 7 | 7 | 100% |
 | Background Images | 9 | 9 | 100% |
 | Sprite Assets | 423 | 261 | 62% |
-| Canvas Render Features | ~10 | 8 | 80% |
+| Canvas Render Features | ~10 | 9 | 90% |
 | Options/Settings | 10 | 10 | 100% |
 | Player Physics | 1 | 1 | 100% |
 | Core Game Loop | 1 | 1 | 100% |
+| Level Progression | 1 | 1 | 100% |
+| Dialog Triggers | 1 | 1 | 100% |
 
-**Overall Completion: ~65%**
+**Overall Completion: ~70%**
 
 The game is now playable with:
 - ✅ **Level loading** - Binary .bin level files fully parsed
@@ -684,7 +728,7 @@ The game is now playable with:
 - ✅ **Player physics** - Full jet pack, stomp, ground/air movement
 - ✅ **Tile map rendering** - Parallax scrolling tile backgrounds
 - ✅ **Background images** - Scrolling background scenery
-- ✅ **Hot spot detection** - Death zones, level endings detected
+- ✅ **Hot spot detection** - Death zones, level endings, NPC triggers
 - ✅ **Object spawning** - Game objects spawned from level data
 - ✅ **Collectible sprites** - Coins, rubies, diaries with animated sprites
 - ✅ **Enemy sprites** - Bat, sting, brobot, skeleton, karaguin, mudman, etc.
@@ -694,11 +738,13 @@ The game is now playable with:
 - ✅ **Player damage** - Invincibility frames, knockback, life system
 - ✅ **Enemy stomp** - Kill enemies by stomping on them
 - ✅ **Screen transitions** - FadeTransition component for level changes
+- ✅ **Player death/respawn** - Respawn at level start with invincibility
+- ✅ **Level completion** - Detect END_LEVEL hotspot, advance to next level
+- ✅ **NPC dialog triggers** - TALK hotspots trigger dialog overlay
 
 Still needs:
 - **Advanced enemy AI** - More complex patrol patterns, attacks
-- **NPC dialogs** - Triggering conversations from hot spots
-- **Level progression** - Auto-advance to next level on completion
 - **Music** - MIDI not supported, need MP3/OGG conversion
 - **Boss battles** - The Source, Evil Kabocha
+- **Game over screen** - Show when lives reach 0
 

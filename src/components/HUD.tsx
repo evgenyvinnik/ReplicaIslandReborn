@@ -1,16 +1,70 @@
 /**
  * HUD Component - Heads-up display overlay
- * Uses original game sprites for authentic look
+ * Matches the original HudSystem.java layout from Replica Island
+ * 
+ * Original coordinate system uses bottom-left origin (OpenGL style).
+ * Web uses top-left origin, so Y positions are converted:
+ *   webY = gameHeight - originalY - elementHeight
+ * 
+ * Original HudSystem.java layout (when player exists):
+ * - Fuel bar: near top-left (15px padding, Y = gameHeight - height - 15 in OpenGL)
+ * - Coins: center horizontally, near top (Y = gameHeight - height - 8 in OpenGL)
+ * - Rubies: center + 100px horizontally, near top (same Y as coins)
+ * - FPS: bottom-right corner (Y = 10 in OpenGL, so bottom in web)
+ * 
+ * Actual sprite dimensions (from PNG files):
+ * - ui_bar_bg.png: 128x16
+ * - ui_bar.png: 8x8 (stretched to fill)
+ * - ui_0..9.png: 32x32
+ * - ui_x.png: 32x32
+ * - object_coin01.png: 16x16
+ * - object_ruby01.png: 32x32
+ * 
+ * Note: Lives and pearls are NOT part of original HudSystem.
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { useGameContext } from '../context/GameContext';
 import { GameState } from '../types';
 import { getInventory, addInventoryListener, type InventoryRecord } from '../entities/components/InventoryComponent';
 
-// HUD layout constants (from original HudSystem.java)
+// ============================================================================
+// HUD Layout Constants (from original HudSystem.java)
+// ============================================================================
+
+// Fuel bar positioning
 const FUEL_BAR_EDGE_PADDING = 15;
+
+// Fuel bar animation speeds (per second)
+const FUEL_DECREASE_BAR_SPEED = 0.75;
+const FUEL_INCREASE_BAR_SPEED = 2.0;
+
+// Collectables positioning
 const COLLECTABLE_EDGE_PADDING = 8;
+const RUBY_OFFSET_FROM_CENTER = 100; // Rubies are 100px right of center
+
+// Sprite dimensions (from actual sprite files)
+const FUEL_BAR_BG_WIDTH = 128;
+const FUEL_BAR_BG_HEIGHT = 16;
+const FUEL_BAR_INNER_OFFSET = 2;
+const FUEL_BAR_INNER_MAX_WIDTH = 124; // 128 - 4 (2px padding each side)
+
+const COIN_SPRITE_SIZE = 16;  // object_coin01.png is 16x16
+const RUBY_SPRITE_SIZE = 32;  // object_ruby01.png is 32x32
+
+const DIGIT_SPRITE_WIDTH = 32;  // ui_0.png etc are 32x32
+const DIGIT_SPRITE_HEIGHT = 32;
+const DIGIT_CHARACTER_WIDTH = DIGIT_SPRITE_WIDTH / 2; // Original uses half-width spacing (16px)
+
+const X_MARK_SIZE = 32;  // ui_x.png is 32x32
+
+// FPS display
+const FPS_EDGE_PADDING = 10;
+
+// ============================================================================
+// Digit Sprites
+// ============================================================================
+
 const DIGIT_SPRITES = [
   '/assets/sprites/ui_0.png',
   '/assets/sprites/ui_1.png',
@@ -24,6 +78,10 @@ const DIGIT_SPRITES = [
   '/assets/sprites/ui_9.png',
 ];
 
+// ============================================================================
+// Types
+// ============================================================================
+
 interface HUDProps {
   fps?: number;
   showFPS?: boolean;
@@ -32,25 +90,73 @@ interface HUDProps {
   gameHeight?: number;
 }
 
+// ============================================================================
+// Helper Functions (matching original HudSystem.java)
+// ============================================================================
+
 /**
- * Renders a number using digit sprites
+ * Converts an integer to a digit array (matching original intToDigitArray)
  */
-function DigitDisplay({ value, style }: { value: number; style?: React.CSSProperties }): React.JSX.Element {
-  const digits = useMemo(() => {
-    const str = Math.max(0, Math.floor(value)).toString();
-    return str.split('').map((d) => parseInt(d, 10));
-  }, [value]);
+function intToDigitArray(value: number): number[] {
+  const digits: number[] = [];
+  const v = Math.max(0, Math.floor(value));
+  
+  // Determine character count (original logic)
+  let characterCount = 1;
+  if (v >= 1000) characterCount = 4;
+  else if (v >= 100) characterCount = 3;
+  else if (v >= 10) characterCount = 2;
+  
+  let remainingValue = v;
+  for (let i = characterCount - 1; i >= 0; i--) {
+    digits[i] = remainingValue % 10;
+    remainingValue = Math.floor(remainingValue / 10);
+  }
+  
+  return digits;
+}
+
+// ============================================================================
+// Sub-Components
+// ============================================================================
+
+/**
+ * Renders a number using digit sprites (matching original drawNumber)
+ * @param drawX - Whether to draw the "x" mark before the number (like "x42")
+ */
+function DigitDisplay({ 
+  value, 
+  drawX = false,
+  style,
+}: { 
+  value: number; 
+  drawX?: boolean;
+  style?: React.CSSProperties;
+}): React.JSX.Element {
+  const digits = useMemo(() => intToDigitArray(value), [value]);
 
   return (
-    <span style={{ display: 'inline-flex', ...style }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', ...style }}>
+      {drawX && (
+        <img
+          src="/assets/sprites/ui_x.png"
+          alt="x"
+          style={{
+            width: X_MARK_SIZE,
+            height: X_MARK_SIZE,
+            imageRendering: 'pixelated',
+          }}
+        />
+      )}
       {digits.map((digit, i) => (
         <img
           key={i}
           src={DIGIT_SPRITES[digit]}
           alt={digit.toString()}
           style={{
-            width: '16px',
-            height: '16px',
+            width: DIGIT_SPRITE_WIDTH,
+            height: DIGIT_SPRITE_HEIGHT,
+            marginLeft: i > 0 || drawX ? -DIGIT_CHARACTER_WIDTH : 0, // Overlap like original
             imageRendering: 'pixelated',
           }}
         />
@@ -58,6 +164,51 @@ function DigitDisplay({ value, style }: { value: number; style?: React.CSSProper
     </span>
   );
 }
+
+/**
+ * Hook for animated fuel bar (smoothly transitions to target value)
+ * Matches original HudSystem update behavior
+ */
+function useFuelAnimation(targetFuel: number): number {
+  const [displayFuel, setDisplayFuel] = useState(targetFuel);
+  const lastTimeRef = useRef(performance.now());
+  
+  useEffect(() => {
+    let animationFrame: number;
+    
+    const animate = (currentTime: number): void => {
+      const deltaTime = (currentTime - lastTimeRef.current) / 1000;
+      lastTimeRef.current = currentTime;
+      
+      setDisplayFuel(current => {
+        if (Math.abs(current - targetFuel) < 0.001) {
+          return targetFuel;
+        }
+        
+        if (current < targetFuel) {
+          // Fuel increasing
+          const newValue = current + FUEL_INCREASE_BAR_SPEED * deltaTime;
+          return Math.min(newValue, targetFuel);
+        } else {
+          // Fuel decreasing
+          const newValue = current - FUEL_DECREASE_BAR_SPEED * deltaTime;
+          return Math.max(newValue, targetFuel);
+        }
+      });
+      
+      animationFrame = requestAnimationFrame(animate);
+    };
+    
+    animationFrame = requestAnimationFrame(animate);
+    return (): void => { cancelAnimationFrame(animationFrame); };
+  }, [targetFuel]);
+  
+  return displayFuel;
+}
+
+// ============================================================================
+// Main HUD Component
+// ============================================================================
 
 export function HUD({ 
   fps = 0, 
@@ -68,6 +219,9 @@ export function HUD({
 }: HUDProps): React.JSX.Element {
   const { state, goToMainMenu } = useGameContext();
   const [inventory, setInventory] = useState<InventoryRecord>(getInventory());
+  
+  // Animated fuel display (matching original HudSystem behavior)
+  const displayFuel = useFuelAnimation(fuel);
 
   // Subscribe to inventory changes
   useEffect(() => {
@@ -77,11 +231,32 @@ export function HUD({
     return unsubscribe;
   }, []);
 
-  // Calculate positions based on game dimensions
-  const coinX = gameWidth / 2 - 60;
-  const coinY = gameHeight - 40 - COLLECTABLE_EDGE_PADDING;
-  const rubyX = gameWidth / 2 + 40;
-  const rubyY = coinY;
+  // ========================================================================
+  // Position Calculations (converting from original bottom-left origin)
+  // ========================================================================
+  
+  // Fuel bar: original position is (PADDING, gameHeight - height - PADDING)
+  // In web coords (top-left origin): top = PADDING
+  const fuelBarTop = FUEL_BAR_EDGE_PADDING;
+  const fuelBarLeft = FUEL_BAR_EDGE_PADDING;
+  
+  // Coins: original position is (gameWidth/2 - width/2, gameHeight - height - PADDING)
+  // In web coords: near top of screen
+  const coinLeft = (gameWidth / 2) - (COIN_SPRITE_SIZE / 2);
+  const coinTop = COLLECTABLE_EDGE_PADDING;
+  
+  // Rubies: 100px to the right of coins (from original)
+  const rubyLeft = (gameWidth / 2) + RUBY_OFFSET_FROM_CENTER;
+  const rubyTop = COLLECTABLE_EDGE_PADDING;
+  
+  // FPS: original is bottom-right, web coords: bottom-right
+  // Original: (gameWidth - 10 - digitsWidth, 10) from bottom
+  // In web coords: bottom = gameHeight - 10 - height
+  const fpsRight = FPS_EDGE_PADDING;
+  const fpsBottom = FPS_EDGE_PADDING;
+
+  // Calculate fuel bar width based on percentage
+  const fuelBarWidth = Math.max(0, Math.floor(FUEL_BAR_INNER_MAX_WIDTH * displayFuel));
 
   return (
     <div
@@ -95,12 +270,14 @@ export function HUD({
         overflow: 'hidden',
       }}
     >
-      {/* === TOP LEFT: Fuel Bar === */}
+      {/* ================================================================== */}
+      {/* FUEL BAR - Top Left (original: bottom-left) */}
+      {/* ================================================================== */}
       <div
         style={{
           position: 'absolute',
-          left: FUEL_BAR_EDGE_PADDING,
-          top: FUEL_BAR_EDGE_PADDING,
+          left: fuelBarLeft,
+          top: fuelBarTop,
         }}
       >
         {/* Fuel background */}
@@ -111,164 +288,101 @@ export function HUD({
             position: 'absolute',
             left: 0,
             top: 0,
-            width: '100px',
-            height: '12px',
+            width: FUEL_BAR_BG_WIDTH,
+            height: FUEL_BAR_BG_HEIGHT,
             imageRendering: 'pixelated',
           }}
         />
         {/* Fuel bar (clipped to show percentage) */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 2,
-            top: 2,
-            width: `${Math.max(0, fuel * 96)}px`,
-            height: '8px',
-            overflow: 'hidden',
-          }}
-        >
-          <img
-            src="/assets/sprites/ui_bar.png"
-            alt="fuel"
+        {fuelBarWidth >= 1 && (
+          <div
             style={{
-              width: '96px',
-              height: '8px',
-              imageRendering: 'pixelated',
+              position: 'absolute',
+              left: FUEL_BAR_INNER_OFFSET,
+              top: FUEL_BAR_INNER_OFFSET,
+              width: fuelBarWidth,
+              height: FUEL_BAR_BG_HEIGHT - (FUEL_BAR_INNER_OFFSET * 2),
+              overflow: 'hidden',
             }}
-          />
-        </div>
+          >
+            <img
+              src="/assets/sprites/ui_bar.png"
+              alt="fuel"
+              style={{
+                width: FUEL_BAR_INNER_MAX_WIDTH,
+                height: FUEL_BAR_BG_HEIGHT - (FUEL_BAR_INNER_OFFSET * 2),
+                imageRendering: 'pixelated',
+              }}
+            />
+          </div>
+        )}
       </div>
 
-      {/* === TOP LEFT: Lives (below fuel bar) === */}
+      {/* ================================================================== */}
+      {/* COIN COUNT - Top Center (original: near top, center-left) */}
+      {/* ================================================================== */}
       <div
         style={{
           position: 'absolute',
-          left: FUEL_BAR_EDGE_PADDING,
-          top: FUEL_BAR_EDGE_PADDING + 20,
+          left: coinLeft,
+          top: coinTop,
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
-        }}
-      >
-        <img
-          src="/assets/sprites/andou_stand.png"
-          alt="life"
-          style={{
-            width: '24px',
-            height: '24px',
-            imageRendering: 'pixelated',
-          }}
-        />
-        <img
-          src="/assets/sprites/ui_x.png"
-          alt="x"
-          style={{
-            width: '12px',
-            height: '12px',
-            imageRendering: 'pixelated',
-          }}
-        />
-        <DigitDisplay value={inventory.lives} />
-      </div>
-
-      {/* === BOTTOM CENTER: Coin count === */}
-      <div
-        style={{
-          position: 'absolute',
-          left: coinX,
-          top: coinY,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '2px',
         }}
       >
         <img
           src="/assets/sprites/object_coin01.png"
           alt="coin"
           style={{
-            width: '32px',
-            height: '32px',
+            width: COIN_SPRITE_SIZE,
+            height: COIN_SPRITE_SIZE,
             imageRendering: 'pixelated',
           }}
         />
-        <img
-          src="/assets/sprites/ui_x.png"
-          alt="x"
-          style={{
-            width: '12px',
-            height: '12px',
-            imageRendering: 'pixelated',
-          }}
+        <DigitDisplay 
+          value={inventory.coinCount} 
+          drawX={true}
+          style={{ marginLeft: COIN_SPRITE_SIZE * 0.75 - COIN_SPRITE_SIZE }}
         />
-        <DigitDisplay value={inventory.coinCount} />
       </div>
 
-      {/* === BOTTOM CENTER-RIGHT: Ruby count === */}
+      {/* ================================================================== */}
+      {/* RUBY COUNT - Top Center-Right (original: center + 100px) */}
+      {/* ================================================================== */}
       <div
         style={{
           position: 'absolute',
-          left: rubyX,
-          top: rubyY,
+          left: rubyLeft,
+          top: rubyTop,
           display: 'flex',
           alignItems: 'center',
-          gap: '2px',
         }}
       >
         <img
           src="/assets/sprites/object_ruby01.png"
           alt="ruby"
           style={{
-            width: '32px',
-            height: '32px',
+            width: RUBY_SPRITE_SIZE,
+            height: RUBY_SPRITE_SIZE,
             imageRendering: 'pixelated',
           }}
         />
-        <img
-          src="/assets/sprites/ui_x.png"
-          alt="x"
-          style={{
-            width: '12px',
-            height: '12px',
-            imageRendering: 'pixelated',
-          }}
+        <DigitDisplay 
+          value={inventory.rubyCount} 
+          drawX={true}
+          style={{ marginLeft: RUBY_SPRITE_SIZE * 0.75 - RUBY_SPRITE_SIZE }}
         />
-        <DigitDisplay value={inventory.rubyCount} />
       </div>
 
-      {/* === TOP CENTER: Pearls/Gems collected === */}
-      <div
-        style={{
-          position: 'absolute',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          top: COLLECTABLE_EDGE_PADDING,
-          display: 'flex',
-          gap: '4px',
-        }}
-      >
-        {Array.from({ length: inventory.totalPearls }).map((_, i) => (
-          <img
-            key={i}
-            src="/assets/sprites/ui_gem.png"
-            alt="gem"
-            style={{
-              width: '24px',
-              height: '24px',
-              imageRendering: 'pixelated',
-              opacity: i < inventory.pearls ? 1 : 0.3,
-              filter: i < inventory.pearls ? 'none' : 'grayscale(100%)',
-            }}
-          />
-        ))}
-      </div>
-
-      {/* === TOP RIGHT: FPS counter === */}
+      {/* ================================================================== */}
+      {/* FPS COUNTER - Bottom Right (matching original position) */}
+      {/* ================================================================== */}
       {showFPS && (
         <div
           style={{
             position: 'absolute',
-            right: COLLECTABLE_EDGE_PADDING,
-            top: COLLECTABLE_EDGE_PADDING,
+            right: fpsRight,
+            bottom: fpsBottom,
             display: 'flex',
             alignItems: 'center',
           }}
@@ -277,7 +391,9 @@ export function HUD({
         </div>
       )}
 
-      {/* === Pause Overlay === */}
+      {/* ================================================================== */}
+      {/* PAUSE OVERLAY */}
+      {/* ================================================================== */}
       {state.gameState === GameState.PAUSED && (
         <div
           style={{
@@ -298,18 +414,20 @@ export function HUD({
             src="/assets/sprites/ui_paused.png"
             alt="PAUSED"
             style={{
-              width: '200px',
+              width: 200,
               imageRendering: 'pixelated',
-              marginBottom: '16px',
+              marginBottom: 16,
             }}
           />
-          <p style={{ fontSize: '14px', color: '#aaa', fontFamily: 'monospace' }}>
+          <p style={{ fontSize: 14, color: '#aaa', fontFamily: 'monospace' }}>
             Press ESC or P to resume
           </p>
         </div>
       )}
 
-      {/* === Game Over Overlay === */}
+      {/* ================================================================== */}
+      {/* GAME OVER OVERLAY */}
+      {/* ================================================================== */}
       {state.gameState === GameState.GAME_OVER && (
         <div
           style={{
@@ -327,28 +445,28 @@ export function HUD({
           }}
         >
           <h2 style={{ 
-            fontSize: '32px', 
+            fontSize: 32, 
             color: '#ff4444', 
-            marginBottom: '16px',
+            marginBottom: 16,
             fontFamily: 'monospace',
             textShadow: '2px 2px 0 #000',
           }}>
             GAME OVER
           </h2>
-          <p style={{ fontSize: '14px', color: '#aaa', fontFamily: 'monospace' }}>
+          <p style={{ fontSize: 14, color: '#aaa', fontFamily: 'monospace' }}>
             Deaths: {state.saveData.totalDeaths}
           </p>
           <button
             onClick={goToMainMenu}
             style={{
-              marginTop: '24px',
+              marginTop: 24,
               padding: '12px 24px',
-              fontSize: '16px',
+              fontSize: 16,
               fontFamily: 'monospace',
               backgroundColor: '#444',
               color: '#fff',
               border: '2px solid #888',
-              borderRadius: '4px',
+              borderRadius: 4,
               cursor: 'pointer',
             }}
           >
@@ -357,7 +475,9 @@ export function HUD({
         </div>
       )}
 
-      {/* === Level Complete Overlay === */}
+      {/* ================================================================== */}
+      {/* LEVEL COMPLETE OVERLAY */}
+      {/* ================================================================== */}
       {state.gameState === GameState.LEVEL_COMPLETE && (
         <div
           style={{
@@ -375,24 +495,32 @@ export function HUD({
           }}
         >
           <h2 style={{ 
-            fontSize: '32px', 
+            fontSize: 32, 
             color: '#44ff44', 
-            marginBottom: '16px',
+            marginBottom: 16,
             fontFamily: 'monospace',
             textShadow: '2px 2px 0 #000',
           }}>
             LEVEL COMPLETE!
           </h2>
-          <div style={{ display: 'flex', gap: '32px', marginTop: '16px' }}>
+          <div style={{ display: 'flex', gap: 32, marginTop: 16 }}>
             <div style={{ textAlign: 'center', color: '#fff', fontFamily: 'monospace' }}>
-              <img src="/assets/sprites/object_coin01.png" alt="coins" style={{ width: '32px', imageRendering: 'pixelated' }} />
-              <div style={{ marginTop: '8px' }}>
+              <img 
+                src="/assets/sprites/object_coin01.png" 
+                alt="coins" 
+                style={{ width: 32, imageRendering: 'pixelated' }} 
+              />
+              <div style={{ marginTop: 8 }}>
                 <DigitDisplay value={inventory.coinCount} />
               </div>
             </div>
             <div style={{ textAlign: 'center', color: '#fff', fontFamily: 'monospace' }}>
-              <img src="/assets/sprites/object_ruby01.png" alt="rubies" style={{ width: '32px', imageRendering: 'pixelated' }} />
-              <div style={{ marginTop: '8px' }}>
+              <img 
+                src="/assets/sprites/object_ruby01.png" 
+                alt="rubies" 
+                style={{ width: 32, imageRendering: 'pixelated' }} 
+              />
+              <div style={{ marginTop: 8 }}>
                 <DigitDisplay value={inventory.rubyCount} />
               </div>
             </div>

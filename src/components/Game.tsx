@@ -22,9 +22,11 @@ import { LevelSystem } from '../levels/LevelSystemNew';
 import { TileMapRenderer } from '../levels/TileMapRenderer';
 import { HUD } from './HUD';
 import { OnScreenControls } from './OnScreenControls';
+import { DialogOverlay } from './DialogOverlay';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 import { gameSettings } from '../utils/GameSettings';
 import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
+import { getDialogsForLevel, type Dialog } from '../data/dialogs';
 
 interface GameProps {
   width?: number;
@@ -54,7 +56,7 @@ const PLAYER = {
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel, startGame } = useGameContext();
+  const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel } = useGameContext();
   
   // Systems refs
   const gameLoopRef = useRef<GameLoop | null>(null);
@@ -93,6 +95,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const [scale, setScale] = useState(1);
   const [levelLoading, setLevelLoading] = useState(true);
   const [playerFuel, setPlayerFuel] = useState(PLAYER.FUEL_AMOUNT);
+  
+  // Dialog state
+  const [activeDialog, setActiveDialog] = useState<Dialog | null>(null);
+  const dialogTriggerCooldownRef = useRef(0);
 
   // Initialize game systems
   useEffect(() => {
@@ -337,6 +343,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const levelLoaded = await levelSystem.loadLevel(1);
         
         if (levelLoaded) {
+          // Store player spawn position from level system
+          playerSpawnRef.current = { ...levelSystem.playerSpawnPosition };
+          
           // Initialize tile map renderer from parsed level
           const parsedLevel = levelSystem.getParsedLevel();
           if (parsedLevel) {
@@ -500,13 +509,117 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const px = player.getPosition().x + player.width / 2;
         const py = player.getPosition().y + player.height / 2;
         const hotSpot = hotSpotSystem.getHotSpot(px, py);
+        const pState = playerStateRef.current;
         
-        if (hotSpot === HotSpotType.DIE) {
-          // Player death
+        if (hotSpot === HotSpotType.DIE && !pState.isDying) {
+          // Player death from death zone
+          pState.isDying = true;
+          pState.deathTime = 1.0; // 1 second death animation
           soundSystem.playSfx(SoundEffects.EXPLODE);
-        } else if (hotSpot === HotSpotType.END_LEVEL) {
+          
+          // Decrement lives
+          const inv = getInventory();
+          const newLives = inv.lives - 1;
+          setInventory({ lives: newLives });
+          
+          if (newLives <= 0) {
+            // Game over - no more lives
+            gameOver();
+          }
+        } else if (hotSpot === HotSpotType.END_LEVEL && !pState.isDying) {
           // Level complete
           soundSystem.playSfx(SoundEffects.DING);
+          
+          // Get next level info
+          const levelSys = levelSystemRef.current;
+          if (levelSys) {
+            const nextLevelId = levelSys.getNextLevelId();
+            if (nextLevelId !== null) {
+              // Unlock and go to next level
+              levelSys.unlockLevel(nextLevelId);
+              setLevel(nextLevelId);
+              // Reload the level system
+              levelSys.loadLevel(nextLevelId).then(() => {
+                // Store new spawn position
+                playerSpawnRef.current = { ...levelSys.playerSpawnPosition };
+                // Reset player position
+                const spawn = levelSys.playerSpawnPosition;
+                if (player) {
+                  player.setPosition(spawn.x, spawn.y);
+                }
+              });
+            } else {
+              // No more levels - game complete!
+              completeLevel();
+            }
+          }
+        }
+      }
+      
+      // Handle death animation and respawn
+      const pState = playerStateRef.current;
+      if (pState.isDying) {
+        pState.deathTime -= deltaTime;
+        
+        if (pState.deathTime <= 0) {
+          // Respawn player
+          pState.isDying = false;
+          pState.deathTime = 0;
+          
+          // Check if we have lives left
+          const inv = getInventory();
+          if (inv.lives > 0) {
+            // Reset player position to spawn point
+            const spawn = playerSpawnRef.current;
+            if (player) {
+              player.setPosition(spawn.x, spawn.y);
+              player.getVelocity().x = 0;
+              player.getVelocity().y = 0;
+            }
+            
+            // Give invincibility frames after respawn
+            pState.invincible = true;
+            pState.invincibleTime = 2.0;
+          }
+        }
+      }
+      
+      // Handle dialog trigger cooldown
+      if (dialogTriggerCooldownRef.current > 0) {
+        dialogTriggerCooldownRef.current -= deltaTime;
+      }
+      
+      // Check for TALK hot spots (NPC dialogs)
+      if (player && hotSpotSystem && activeDialog === null && dialogTriggerCooldownRef.current <= 0) {
+        const px = player.getPosition().x + player.width / 2;
+        const py = player.getPosition().y + player.height / 2;
+        const hotSpot = hotSpotSystem.getHotSpot(px, py);
+        
+        // Check for dialog triggers
+        if (hotSpot === HotSpotType.TALK || (hotSpot >= 32 && hotSpot <= 42)) {
+          // Get current level info to load the right dialog
+          const levelSys = levelSystemRef.current;
+          if (levelSys) {
+            const levelId = levelSys.getCurrentLevelId();
+            const levelInfo = levelSys.getLevelInfo(levelId);
+            
+            if (levelInfo) {
+              const dialogs = getDialogsForLevel(levelInfo.file);
+              
+              if (dialogs.length > 0) {
+                // Determine which dialog to show based on hotspot
+                const dialogIndex = (hotSpot >= 32 && hotSpot <= 42) ? (hotSpot - 32) : 0;
+                const dialog = dialogs[Math.min(dialogIndex, dialogs.length - 1)];
+                
+                if (dialog) {
+                  setActiveDialog(dialog);
+                  soundSystem.playSfx(SoundEffects.BUTTON);
+                  // Set cooldown to prevent immediate re-trigger
+                  dialogTriggerCooldownRef.current = 2.0;
+                }
+              }
+            }
+          }
         }
       }
 
@@ -1102,7 +1215,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       inputSystem.destroy();
       soundSystem.destroy();
     };
-  }, [width, height, state.gameState, pauseGame, resumeGame, gameOver]);
+  }, [width, height, state.gameState, pauseGame, resumeGame, gameOver, completeLevel, setLevel, activeDialog]);
 
   // Handle resize
   useEffect(() => {
@@ -1228,6 +1341,19 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               }}
             />
           </>
+        )}
+        
+        {/* Dialog overlay */}
+        {activeDialog && (
+          <DialogOverlay
+            dialog={activeDialog}
+            onComplete={(): void => {
+              setActiveDialog(null);
+            }}
+            onSkip={(): void => {
+              setActiveDialog(null);
+            }}
+          />
         )}
       </div>
     </div>

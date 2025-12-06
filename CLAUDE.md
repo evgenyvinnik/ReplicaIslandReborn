@@ -431,7 +431,7 @@ Original/
 ├── README.TXT               # Original project documentation
 ├── default.properties       # Android build properties
 ├── res/                     # Android resources
-│   ├── anim/                # Animation XML definitions (fades, slides, etc.)
+│   ├── anim/                # Android View Animation XMLs (UI transitions, NOT game sprites)
 │   ├── drawable/            # XML drawables (borders, configs)
 │   ├── drawable-ja/         # Japanese-specific drawables
 │   ├── drawable-normal-mdpi/# Medium-density screen drawables
@@ -452,6 +452,91 @@ Original/
 └── tools/
     └── ExtractPoints.js     # Photoshop script for collision extraction
 ```
+
+### Android View Animation XMLs (`Original/res/anim/`)
+
+**⚠️ Important Clarification**: The `anim/` folder contains **Android View Animation XMLs** - these are NOT game sprite animations! These files define UI transition effects for the Android framework, used for screen transitions, menu animations, and cutscene sequences.
+
+#### What These Files Are
+
+Android View Animations are XML-defined transformations (alpha/fade, translate/slide, scale, rotate) applied to Android UI Views (Activities, Buttons, ImageViews). They are loaded via `AnimationUtils.loadAnimation()` and applied to views with `view.startAnimation()`.
+
+#### Animation Categories
+
+| Category | Files | Purpose | Used By |
+|----------|-------|---------|---------|
+| **Activity Transitions** | `activity_fade_in.xml`, `activity_fade_out.xml` | Fade effects between Android Activities/screens | All Activity transitions via `overridePendingTransition()` |
+| **Button Effects** | `button_flicker.xml`, `button_slide.xml`, `ui_button.xml` | Button press feedback and selection highlights | `MainMenuActivity`, `LevelSelectActivity`, `DifficultyMenuActivity` |
+| **Menu Slides** | `menu_show_left.xml`, `menu_show_right.xml`, `menu_hide_left.xml`, `menu_hide_right.xml` | Sliding menu panel animations | Menu UI transitions |
+| **Fade Effects** | `fade.xml`, `fade_in.xml`, `fade_out.xml`, `fade_in_out.xml` | Alpha transitions for UI elements | `DiaryActivity`, `ExtrasMenuActivity` |
+| **Wait/Loading** | `wait_message_fade.xml` | Pulsing fade for loading messages | `AndouKun.java` (main game activity) |
+| **Cutscene: Kyle Death** | `kyle_fall.xml` | Frame-by-frame death animation (16 frames) | `AnimationPlayerActivity` (KYLE_DEATH) |
+| **Cutscene: Endings** | `wanda_game_over.xml`, `kabocha_game_over.xml`, `rokudou_game_over.xml` | Game over text slide-in animations | `AnimationPlayerActivity` |
+| **Cutscene: Parallax** | `horizontal_layer1_slide.xml`, `horizontal_layer2_slide.xml`, `rokudou_slide_*.xml` | Multi-layer parallax scrolling for endings | `AnimationPlayerActivity` |
+
+#### Animation Types in Detail
+
+**Alpha (Fade) Animations:**
+```xml
+<!-- activity_fade_in.xml: Fade from transparent to opaque -->
+<alpha android:fromAlpha="0.0" android:toAlpha="1.0" android:duration="500" />
+
+<!-- button_flicker.xml: Flicker 7 times for button feedback -->
+<alpha android:fromAlpha="1.0" android:toAlpha="0.0" 
+       android:duration="100" android:repeatCount="7" android:repeatMode="reverse" />
+```
+
+**Translate (Slide) Animations:**
+```xml
+<!-- menu_show_left.xml: Slide in from off-screen -->
+<translate android:fromXDelta="960" android:toXDelta="0" android:duration="700" />
+
+<!-- horizontal_layer1_slide.xml: Slow parallax scroll for cutscene -->
+<translate android:fromXDelta="0" android:toXDelta="-170" 
+           android:duration="6000" android:startOffset="2000" />
+```
+
+**Frame-by-Frame Animations:**
+```xml
+<!-- kyle_fall.xml: 16-frame death sequence -->
+<animation-list android:oneshot="true">
+    <item android:drawable="@drawable/anime_kyle_fall01" android:duration="83" />
+    <item android:drawable="@drawable/anime_kyle_fall02" android:duration="83" />
+    <!-- ... 14 more frames -->
+</animation-list>
+```
+
+#### Web Port Equivalents
+
+| Original Android | Web Port Equivalent | Status |
+|------------------|---------------------|--------|
+| `activity_fade_in/out.xml` | `FadeTransition.tsx` component | ✅ Implemented |
+| `button_flicker.xml` | CSS animations or React state | ✅ CSS hover/active states |
+| `fade.xml`, `fade_in/out.xml` | `FadeTransition.tsx` | ✅ Implemented |
+| `menu_show/hide_*.xml` | React transitions/Framer Motion | ✅ React state transitions |
+| `kyle_fall.xml` (cutscene) | Canvas animation or React component | ❌ Not implemented |
+| `*_game_over.xml` (cutscene) | React animation components | ❌ Not implemented |
+| `horizontal_layer*_slide.xml` | CSS keyframes or Canvas parallax | ❌ Not implemented |
+| `rokudou_slide_*.xml` | Multi-layer parallax animation | ❌ Not implemented |
+
+#### Key Differences: Android vs Web
+
+1. **Android**: Animations are declarative XML, applied to View objects via the Android animation framework
+2. **Web Port**: Uses React state/CSS transitions for UI, Canvas API for game rendering
+3. **Game Sprite Animations**: Are NOT in `anim/` folder - they're defined programmatically in `GameObjectFactory.java` and `SpriteAnimation.java` using texture coordinates
+
+#### Implementation Notes for Web Port
+
+**Implemented (via `FadeTransition.tsx`):**
+- Screen fade in/out for level transitions
+- Black screen for loading states
+- Customizable duration and color
+
+**Not Yet Implemented:**
+- Cutscene player for death/ending sequences
+- Frame-by-frame animation playback (kyle_fall)
+- Multi-layer parallax cutscene animations
+- Button flicker/slide effects (low priority, CSS can handle)
 
 ### Key Architecture Concepts (Original)
 

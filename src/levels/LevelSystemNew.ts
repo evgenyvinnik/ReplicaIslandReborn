@@ -654,6 +654,14 @@ export class LevelSystem {
   }
 
   /**
+   * Get the ID of the next level (without unlocking)
+   */
+  getNextLevelId(): number | null {
+    const current = this.levels.get(this.currentLevelId);
+    return current?.next ?? null;
+  }
+
+  /**
    * Complete current level and unlock next
    */
   completeCurrentLevel(): number | null {
