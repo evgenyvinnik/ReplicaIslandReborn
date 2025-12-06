@@ -223,7 +223,7 @@ function PauseMenuButton({ children, onClick, primary = false }: PauseMenuButton
   const baseStyle: React.CSSProperties = {
     padding: '10px 32px',
     fontSize: 16,
-    fontFamily: 'monospace',
+    fontFamily: 'sans-serif',
     fontWeight: 'bold',
     border: '2px solid',
     borderRadius: 4,
@@ -492,7 +492,7 @@ export function HUD({
           <p style={{ 
             fontSize: 12, 
             color: '#666', 
-            fontFamily: 'monospace',
+            fontFamily: 'sans-serif',
             marginTop: 24,
           }}>
             Press ESC or P to resume
@@ -511,7 +511,10 @@ export function HUD({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: '#FFFFFF',
+            backgroundImage: 'url(/assets/sprites/title_background.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
@@ -519,27 +522,38 @@ export function HUD({
             pointerEvents: 'auto',
           }}
         >
-          <h2 style={{ 
-            fontSize: 32, 
-            color: '#ff4444', 
-            marginBottom: 16,
-            fontFamily: 'monospace',
-            textShadow: '2px 2px 0 #000',
-          }}>
-            GAME OVER
-          </h2>
-          <p style={{ fontSize: 14, color: '#aaa', fontFamily: 'monospace', marginBottom: 24 }}>
-            Deaths: {state.saveData.totalDeaths}
-          </p>
+          {/* White tint overlay like original game_over.xml: tint="#88FFFFFF" */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(255, 255, 255, 0.53)',
+          }} />
+          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+            <h2 style={{ 
+              fontSize: 40, 
+              color: '#000000', 
+              marginBottom: 16,
+              fontFamily: 'serif',
+              fontWeight: 'bold',
+            }}>
+              GAME OVER
+            </h2>
+            <p style={{ fontSize: 20, color: '#000000', fontFamily: 'serif', fontWeight: 'bold', marginBottom: 24 }}>
+              Deaths: {state.saveData.totalDeaths}
+            </p>
           
-          {/* Game Over Menu Buttons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
-            <PauseMenuButton onClick={retryLevel} primary>
-              Retry Level
-            </PauseMenuButton>
-            <PauseMenuButton onClick={goToMainMenu}>
-              Main Menu
-            </PauseMenuButton>
+            {/* Game Over Menu Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', marginTop: 16 }}>
+              <PauseMenuButton onClick={retryLevel} primary>
+                Retry Level
+              </PauseMenuButton>
+              <PauseMenuButton onClick={goToMainMenu}>
+                Main Menu
+              </PauseMenuButton>
+            </div>
           </div>
         </div>
       )}
@@ -555,7 +569,10 @@ export function HUD({
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            backgroundColor: '#FFFFFF',
+            backgroundImage: 'url(/assets/sprites/title_background.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
@@ -563,48 +580,59 @@ export function HUD({
             pointerEvents: 'auto',
           }}
         >
-          <h2 style={{ 
-            fontSize: 32, 
-            color: '#44ff44', 
-            marginBottom: 16,
-            fontFamily: 'monospace',
-            textShadow: '2px 2px 0 #000',
-          }}>
-            LEVEL COMPLETE!
-          </h2>
+          {/* White tint overlay */}
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(255, 255, 255, 0.53)',
+          }} />
+          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+            <h2 style={{ 
+              fontSize: 40, 
+              color: '#000000', 
+              marginBottom: 16,
+              fontFamily: 'serif',
+              fontWeight: 'bold',
+            }}>
+              LEVEL COMPLETE!
+            </h2>
           
-          {/* Collectables Summary */}
-          <div style={{ display: 'flex', gap: 32, marginTop: 16, marginBottom: 24 }}>
-            <div style={{ textAlign: 'center', color: '#fff', fontFamily: 'monospace' }}>
-              <img 
-                src="/assets/sprites/object_coin01.png" 
-                alt="coins" 
-                style={{ width: 32, imageRendering: 'pixelated' }} 
-              />
-              <div style={{ marginTop: 8 }}>
-                <DigitDisplay value={inventory.coinCount} />
+            {/* Collectables Summary */}
+            <div style={{ display: 'flex', gap: 32, marginTop: 16, marginBottom: 24 }}>
+              <div style={{ textAlign: 'center', color: '#000000', fontFamily: 'serif' }}>
+                <img 
+                  src="/assets/sprites/object_coin01.png" 
+                  alt="coins" 
+                  style={{ width: 32, imageRendering: 'pixelated' }} 
+                />
+                <div style={{ marginTop: 8 }}>
+                  <DigitDisplay value={inventory.coinCount} />
+                </div>
+              </div>
+              <div style={{ textAlign: 'center', color: '#000000', fontFamily: 'serif' }}>
+                <img 
+                  src="/assets/sprites/object_ruby01.png" 
+                  alt="rubies" 
+                  style={{ width: 32, imageRendering: 'pixelated' }} 
+                />
+                <div style={{ marginTop: 8 }}>
+                  <DigitDisplay value={inventory.rubyCount} />
+                </div>
               </div>
             </div>
-            <div style={{ textAlign: 'center', color: '#fff', fontFamily: 'monospace' }}>
-              <img 
-                src="/assets/sprites/object_ruby01.png" 
-                alt="rubies" 
-                style={{ width: 32, imageRendering: 'pixelated' }} 
-              />
-              <div style={{ marginTop: 8 }}>
-                <DigitDisplay value={inventory.rubyCount} />
-              </div>
-            </div>
-          </div>
           
-          {/* Level Complete Menu Buttons */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
-            <PauseMenuButton onClick={continueToNextLevel} primary>
-              Continue
-            </PauseMenuButton>
-            <PauseMenuButton onClick={goToMainMenu}>
-              Main Menu
-            </PauseMenuButton>
+            {/* Level Complete Menu Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+              <PauseMenuButton onClick={continueToNextLevel} primary>
+                Continue
+              </PauseMenuButton>
+              <PauseMenuButton onClick={goToMainMenu}>
+                Main Menu
+              </PauseMenuButton>
+            </div>
           </div>
         </div>
       )}

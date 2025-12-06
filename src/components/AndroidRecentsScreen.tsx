@@ -14,16 +14,23 @@ interface AndroidRecentsScreenProps {
 export function AndroidRecentsScreen({ onResume }: AndroidRecentsScreenProps): React.JSX.Element {
   return (
     <div
+      onClick={onResume}
       style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         width: '100%',
         height: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        position: 'relative',
+        backgroundColor: '#000',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '20px',
+        cursor: 'pointer',
+        zIndex: 100,
       }}
     >
       {/* Recents Card */}
@@ -80,6 +87,9 @@ export function AndroidRecentsScreen({ onResume }: AndroidRecentsScreenProps): R
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
         >
           {/* Overlay to make it look "inactive" */}
@@ -91,6 +101,18 @@ export function AndroidRecentsScreen({ onResume }: AndroidRecentsScreenProps): R
               width: '100%',
               height: '100%',
               backgroundColor: 'rgba(0,0,0,0.3)',
+            }}
+          />
+          {/* Replica Island Logo */}
+          <img
+            src="/assets/sprites/title.png"
+            alt="Replica Island"
+            style={{
+              position: 'relative',
+              zIndex: 1,
+              maxWidth: '80%',
+              maxHeight: '60%',
+              objectFit: 'contain',
             }}
           />
         </div>

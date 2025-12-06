@@ -380,24 +380,30 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     // Load assets and level
     const initializeGame = async (): Promise<void> => {
+      console.warn('[InitializeGame] Starting...');
       setLevelLoading(true);
       
       // Reset inventory for new game
       resetInventory();
       
       try {
+        console.warn('[InitializeGame] Loading tilesets...');
         // Load tilesets
         await renderSystem.loadAllTilesets();
         
+        console.warn('[InitializeGame] Loading player sprites...');
         // Load player sprites
         await loadPlayerSprites();
         
+        console.warn('[InitializeGame] Loading collectible sprites...');
         // Load collectible sprites
         await loadCollectibleSprites();
         
+        console.warn('[InitializeGame] Loading enemy sprites...');
         // Load enemy sprites
         await loadEnemySprites();
         
+        console.warn('[InitializeGame] Initializing sound system...');
         // Initialize sound system
         await soundSystem.initialize();
         await soundSystem.preloadAllSounds();
@@ -413,9 +419,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Get the current level from ref (or default to 1)
         const levelToLoad = currentLevelRef.current || 1;
+        console.warn('[InitializeGame] Loading level:', levelToLoad);
         
         // Try to load the level (binary format)
         const levelLoaded = await levelSystem.loadLevel(levelToLoad);
+        console.warn('[InitializeGame] Level loaded:', levelLoaded);
         
         if (levelLoaded) {
           // Store player spawn position from level system
@@ -450,11 +458,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           createTestLevel(factory, gameObjectManager, collisionSystem);
         }
       } catch (error) {
-        console.error('Failed to load level:', error);
+        console.error('[InitializeGame] Failed to load level:', error);
         // Create test level as fallback
         createTestLevel(factory, gameObjectManager, collisionSystem);
       }
       
+      console.warn('[InitializeGame] Complete! Setting levelLoading to false');
       setLevelLoading(false);
     };
 
@@ -498,7 +507,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     };
 
     // Start initialization
-    initializeGame();
+    initializeGame().catch((error) => {
+      console.error('[InitializeGame] Unhandled error:', error);
+      setLevelLoading(false);
+    });
 
     // Game loop
     const gameLoop = new GameLoop();

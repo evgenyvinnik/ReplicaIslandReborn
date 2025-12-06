@@ -145,6 +145,7 @@ function byteArrayToFloat(bytes: Uint8Array, offset: number): number {
  */
 function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldData; bytesRead: number } | null {
   const signature = data[offset];
+  console.warn(`[parseTiledWorld] Signature at offset ${offset}: ${signature}`);
   if (signature !== 42) {
     console.error(`Invalid TiledWorld signature: ${signature}, expected 42`);
     return null;
@@ -157,6 +158,14 @@ function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldD
   currentOffset += 4;
   const height = byteArrayToInt(data, currentOffset);
   currentOffset += 4;
+  
+  console.warn(`[parseTiledWorld] Dimensions: ${width}x${height}`);
+  
+  // Sanity check to avoid memory issues
+  if (width <= 0 || height <= 0 || width > 10000 || height > 10000) {
+    console.error(`Invalid TiledWorld dimensions: ${width}x${height}`);
+    return null;
+  }
 
   // Initialize column-major tiles array: tiles[x][y]
   const tiles: number[][] = [];
@@ -179,6 +188,7 @@ function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldD
   }
 
   const bytesRead = currentOffset - offset;
+  console.warn(`[parseTiledWorld] Successfully parsed, bytesRead: ${bytesRead}`);
 
   return {
     world: { width, height, tiles },
@@ -214,16 +224,21 @@ export class LevelParser {
    */
   async parseLevel(url: string): Promise<ParsedLevel | null> {
     try {
+      console.warn(`[LevelParser] Fetching: ${url}`);
       const response = await fetch(url);
+      console.warn(`[LevelParser] Response status: ${response.status}`);
       if (!response.ok) {
         console.error(`Failed to fetch level: ${response.status} ${response.statusText}`);
         return null;
       }
 
       const arrayBuffer = await response.arrayBuffer();
+      console.warn(`[LevelParser] Buffer size: ${arrayBuffer.byteLength}`);
       const data = new Uint8Array(arrayBuffer);
 
-      return this.parseLevelData(data);
+      const result = this.parseLevelData(data);
+      console.warn(`[LevelParser] Parse complete:`, result ? 'success' : 'null');
+      return result;
     } catch (error) {
       console.error('Error parsing level:', error);
       return null;
@@ -238,6 +253,7 @@ export class LevelParser {
 
     // Check signature
     const signature = data[offset++];
+    console.warn(`[LevelParser] Signature: ${signature}`);
     if (signature !== 96) {
       console.error(`Invalid level signature: ${signature}, expected 96`);
       return null;
@@ -246,6 +262,7 @@ export class LevelParser {
     // Read header
     const layerCount = data[offset++];
     const backgroundIndex = data[offset++];
+    console.warn(`[LevelParser] Layer count: ${layerCount}, background index: ${backgroundIndex}`);
 
     // Default tile size (as in original)
     const tileWidth = 32;
@@ -261,19 +278,23 @@ export class LevelParser {
 
     // Parse each layer
     for (let i = 0; i < layerCount; i++) {
+      console.warn(`[LevelParser] Parsing layer ${i}/${layerCount}, offset: ${offset}`);
       const layerType = data[offset++];
       const themeIndex = data[offset++];
 
       // Read scroll speed (4 bytes float)
       const scrollSpeed = byteArrayToFloat(data, offset);
       offset += 4;
+      console.warn(`[LevelParser] Layer ${i}: type=${layerType}, theme=${themeIndex}, scrollSpeed=${scrollSpeed}`);
 
       // Parse the TiledWorld for this layer
+      console.warn(`[LevelParser] Parsing TiledWorld at offset ${offset}...`);
       const result = parseTiledWorld(data, offset);
       if (!result) {
         console.error(`Failed to parse TiledWorld for layer ${i}`);
         return null;
       }
+      console.warn(`[LevelParser] TiledWorld parsed: ${result.world.width}x${result.world.height}, bytesRead: ${result.bytesRead}`);
 
       offset += result.bytesRead;
 

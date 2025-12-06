@@ -160,6 +160,8 @@ button:focus {
   align-items: center;
   width: 60px;
   background: linear-gradient(145deg, #1a1a1a 0%, #0a0a0a 100%);
+  position: relative;
+  z-index: 2000;
 }
 
 .phone-bezel-left {
@@ -533,33 +535,9 @@ button:focus {
   font-size: 24px;
 }
 
-/* Recents / Shrunk App Effect */
+/* App Container */
 .app-container {
   width: 100%;
   height: 100%;
-  transition: transform 0.3s ease;
-  transform-origin: center center;
 }
 
-.app-container.shrunk {
-  transform: scale(0.7);
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 0 20px rgba(0,0,0,0.5);
-  cursor: pointer;
-  pointer-events: auto;
-}
-
-.app-container.shrunk > * {
-  pointer-events: none;
-}
-
-.recents-background {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  z-index: 0;
-}

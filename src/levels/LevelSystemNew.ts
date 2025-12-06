@@ -165,7 +165,9 @@ export class LevelSystem {
    */
   private async loadBinaryLevel(levelId: number, levelInfo: LevelInfo): Promise<boolean> {
     const url = `/assets/levels/${levelInfo.file}.bin`;
+    console.warn(`[LevelSystem] Loading binary level from: ${url}`);
     const parsed = await this.levelParser.parseLevel(url);
+    console.warn(`[LevelSystem] Parse result:`, parsed ? 'success' : 'null');
     
     if (!parsed) {
       console.error(`Failed to parse binary level: ${levelInfo.file}`);

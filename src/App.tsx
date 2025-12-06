@@ -21,7 +21,6 @@ const GAME_HEIGHT = 320;
 
 function AppContent(): React.JSX.Element {
   const { state, dispatch, goToMainMenu, pauseGame, resumeGame } = useGameContext();
-  const [loadingProgress, setLoadingProgress] = useState(0);
   const [osMode, setOsMode] = useState<'app' | 'home' | 'recents'>('app');
 
   // Handle back button press
@@ -79,11 +78,9 @@ function AppContent(): React.JSX.Element {
   // Simulate initial loading
   useEffect(() => {
     const loadGame = async (): Promise<void> => {
-      // Simulate loading progress
-      for (let i = 0; i <= 100; i += 10) {
-        setLoadingProgress(i);
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
+      // Brief delay to show "PLEASE WAIT" like the original game
+      // Original only shows this for specific levels, but we show it on initial load
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       dispatch({ type: 'SET_LOADING', payload: false });
       dispatch({ type: 'SET_GAME_STATE', payload: GameState.MAIN_MENU });
@@ -95,7 +92,8 @@ function AppContent(): React.JSX.Element {
   // Determine which screen to show
   const renderScreen = (): React.JSX.Element => {
     if (state.isLoading) {
-      return <LoadingScreen progress={loadingProgress} message="Loading assets..." />;
+      // Original game shows "PLEASE WAIT" (from strings.xml: please_wait)
+      return <LoadingScreen />;
     }
 
     switch (state.gameState) {
@@ -114,7 +112,7 @@ function AppContent(): React.JSX.Element {
       case GameState.DIALOG:
         return <Game width={GAME_WIDTH} height={GAME_HEIGHT} />;
       default:
-        return <LoadingScreen progress={0} />;
+        return <LoadingScreen />;
     }
   };
 
@@ -127,10 +125,8 @@ function AppContent(): React.JSX.Element {
       onRecents={handleRecents}
     >
       <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
-        {osMode === 'recents' && <div className="recents-background" />}
-        
         <div 
-           className={`app-container ${osMode === 'recents' ? 'shrunk' : ''}`}
+           className="app-container"
            style={{ display: osMode === 'home' ? 'none' : 'block' }}
         >
            {renderScreen()}

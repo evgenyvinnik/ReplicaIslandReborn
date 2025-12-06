@@ -69,9 +69,9 @@ export function MainMenu(): React.JSX.Element {
           <div
             style={{
               textAlign: 'center',
-              color: '#aaffaa',
+              color: '#FFFFFF',
               fontSize: '14px',
-              fontFamily: 'monospace',
+              fontFamily: 'sans-serif',
               textShadow: '1px 1px 2px rgba(0, 0, 0, 0.8)',
               marginTop: '4px',
               letterSpacing: '4px',
@@ -123,7 +123,7 @@ export function MainMenu(): React.JSX.Element {
             fontSize: '8px',
             color: 'rgba(255, 255, 255, 0.5)',
             textAlign: 'center',
-            fontFamily: 'monospace',
+            fontFamily: 'sans-serif',
           }}
         >
           <p>Original game by Chris Pruett & Genki Mine</p>

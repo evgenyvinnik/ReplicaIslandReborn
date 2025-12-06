@@ -157,8 +157,8 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
         <div
           style={{
             fontSize: '24px',
-            color: '#ffcc00',
-            fontFamily: 'monospace',
+            color: '#FFFFFF',
+            fontFamily: 'sans-serif',
             fontWeight: 'bold',
             textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)',
             marginBottom: '30px',
@@ -201,8 +201,8 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
         >
           <p
             style={{
-              color: '#aaffaa',
-              fontFamily: 'monospace',
+              color: '#FFFFFF',
+              fontFamily: 'sans-serif',
               fontSize: '11px',
               margin: 0,
               lineHeight: '1.4',
