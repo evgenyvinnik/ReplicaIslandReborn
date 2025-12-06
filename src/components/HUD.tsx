@@ -360,18 +360,17 @@ export function HUD({
             imageRendering: 'pixelated',
           }}
         />
-        {/* Fuel bar fill - uses 8x8 tile stretched/tiled */}
+        {/* Fuel bar fill - stretch the 8x8 ui_bar.png sprite to fill (matching original) */}
         {fuelBarWidth >= 1 && (
-          <div
+          <img
+            src="/assets/sprites/ui_bar.png"
+            alt="fuel"
             style={{
               position: 'absolute',
               left: FUEL_BAR_INNER_OFFSET,
               top: FUEL_BAR_INNER_OFFSET,
               width: fuelBarWidth,
               height: FUEL_BAR_BG_HEIGHT - (FUEL_BAR_INNER_OFFSET * 2),
-              backgroundImage: 'url(/assets/sprites/ui_bar.png)',
-              backgroundRepeat: 'repeat',
-              backgroundSize: '8px 12px',
               imageRendering: 'pixelated',
             }}
           />

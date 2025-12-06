@@ -84,21 +84,24 @@ function LevelRow({
       onClick={onClick}
       disabled={!enabled}
       style={{
-        width: '100%',
+        width: '480px',
         height: `${ROW_HEIGHT}px`,
+        minHeight: `${ROW_HEIGHT}px`,  // Prevent shrinking
+        flexShrink: 0,  // Prevent flex shrinking
         position: 'relative',
         border: 'none',
         padding: 0,
         margin: 0,
         cursor: enabled ? 'pointer' : 'default',
-        background: 'transparent',
+        background: '#000000',
         display: 'block',
         outline: isSelected ? '2px solid #65ff99' : 'none',
         outlineOffset: '-2px',
+        overflow: 'hidden',
       }}
       className={flickerOpacity}
     >
-      {/* Rack background image */}
+      {/* Rack background image - 480x70 pixels, contains the button graphic on right */}
       <img
         src={getRackImage()}
         alt=""
@@ -106,50 +109,50 @@ function LevelRow({
           position: 'absolute',
           top: 0,
           left: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'fill',
+          width: '480px',
+          height: '70px',
           imageRendering: 'pixelated',
         }}
       />
 
-      {/* Level title - original: x=20dp, y=5dp, width=265dp, 24sp bold */}
+      {/* Level title - original: x=20dp, y=5dp, width=265dp, height=36dp, 24sp bold
+           Android gravity="top" means text aligns to top of container */}
       <div
         style={{
           position: 'absolute',
           left: '20px',
-          top: '8px',
-          width: '260px',
+          top: '12px',
+          width: '350px',
           height: '36px',
           fontSize: '22px',
           fontWeight: 'bold',
           color: getTextColor(),
           fontFamily: '"Courier New", Courier, monospace',
           textAlign: 'left',
-          lineHeight: '36px',
+          lineHeight: '1',
           overflow: 'hidden',
           whiteSpace: 'nowrap',
           textOverflow: 'ellipsis',
-          textShadow: '1px 1px 1px rgba(0,0,0,0.8)',
-          letterSpacing: '-0.5px',
+          textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
         }}
       >
         {level.name}
       </div>
 
-      {/* Timestamp - original: x=290dp, y=25dp, width=60dp, 12sp */}
+      {/* Timestamp - positioned at bottom right of the text panel area
+           Format is "+ HH:MM:SS" (e.g., "+ 07:12:03") */}
       <div
         style={{
           position: 'absolute',
-          left: '295px',
-          top: '28px',
-          width: '170px',
-          height: '18px',
-          fontSize: '14px',
+          right: '120px',
+          bottom: '10px',
+          fontSize: '11px',
           color: getTextColor(),
           fontFamily: '"Courier New", Courier, monospace',
-          textAlign: 'left',
-          textShadow: '1px 1px 1px rgba(0,0,0,0.8)',
+          textAlign: 'right',
+          lineHeight: '1',
+          textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
+          opacity: 0.8,
         }}
       >
         {level.timeStamp}

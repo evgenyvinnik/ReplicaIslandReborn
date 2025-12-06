@@ -103,7 +103,19 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 | Sound effects (22 .ogg files) | ✅ Copied to public/assets/sounds/ |
 | Sound system preloading | ✅ Implemented |
 | Sound playback (SFX) | ✅ Working |
-| Music playback (MIDI) | ❌ Not implemented (MIDI not supported in browser) |
+| Sound controls UI | ✅ Implemented (upper-left of phone frame) |
+| Music playback system | ✅ Implemented (infrastructure ready) |
+| Background music (MIDI→OGG) | ⚠️ Needs MIDI conversion (see notes below) |
+
+#### Music Implementation Notes
+The original game included `bwv_115.mid` (Bach's BWV 115 cantata) for background music, but the playback code was actually **commented out** in the source (`MainMenuActivity.java` line 167). For the web port:
+
+1. The `SoundSystem.ts` is ready to play background music
+2. Convert `Original/res/raw/bwv_115.mid` to OGG format using tools like:
+   - Timidity: `timidity bwv_115.mid -Ov -o music_background.ogg`
+   - Online converters
+3. Place the converted file at: `public/assets/sounds/music_background.ogg`
+4. Call `soundSystem.startBackgroundMusic()` to play
 
 ### Game Integration (NEW)
 | Feature | Status |

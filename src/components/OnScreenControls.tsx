@@ -236,7 +236,11 @@ export function OnScreenControls({
         </div>
       </div>
 
-      {/* Right side - Action buttons (Fly above Stomp) */}
+      {/* Right side - Action buttons
+          Original layout from HudSystem.java:
+          - In slider mode: Fly at (gameWidth - 128 - (-12), -5) = (364, 5) from bottom-right
+          - Stomp at (gameWidth - 83.2 - 85, -10) = above and left of fly
+          Using column-reverse to put Fly at bottom, Stomp above */}
       <div 
         className="controls-right"
         style={{
@@ -244,11 +248,37 @@ export function OnScreenControls({
           right: 12,
           bottom: 5,
           display: 'flex',
-          flexDirection: 'column',
+          flexDirection: 'column-reverse',
           gap: 5,
           alignItems: 'flex-end',
         }}
       >
+        {/* Fly button (at bottom, larger) - rendered first due to column-reverse */}
+        <div 
+          className={`action-button ${flyPressed ? 'pressed' : ''}`}
+          onMouseDown={handleFlyDown}
+          onMouseUp={handleFlyUp}
+          onMouseLeave={handleFlyUp}
+          onTouchStart={handleFlyDown}
+          onTouchEnd={handleFlyUp}
+          style={{
+            cursor: 'pointer',
+            opacity: flyPressed ? 1 : 0.8,
+            transform: flyPressed ? 'scale(0.95)' : 'scale(1)',
+            transition: 'all 0.1s ease',
+          }}
+        >
+          <img 
+            src={flyPressed ? '/assets/sprites/ui_button_fly_on.png' : '/assets/sprites/ui_button_fly_off.png'}
+            alt="Fly"
+            style={{ 
+              width: FLY_BUTTON_DISPLAY_SIZE, 
+              height: FLY_BUTTON_DISPLAY_SIZE,
+              imageRendering: 'pixelated',
+            }}
+            draggable={false}
+          />
+        </div>
         {/* Stomp button (above fly, smaller) */}
         <div 
           className={`action-button ${stompPressed ? 'pressed' : ''}`}
@@ -270,32 +300,6 @@ export function OnScreenControls({
             style={{ 
               width: STOMP_BUTTON_DISPLAY_SIZE, 
               height: STOMP_BUTTON_DISPLAY_SIZE,
-              imageRendering: 'pixelated',
-            }}
-            draggable={false}
-          />
-        </div>
-        {/* Fly button (below stomp, larger) */}
-        <div 
-          className={`action-button ${flyPressed ? 'pressed' : ''}`}
-          onMouseDown={handleFlyDown}
-          onMouseUp={handleFlyUp}
-          onMouseLeave={handleFlyUp}
-          onTouchStart={handleFlyDown}
-          onTouchEnd={handleFlyUp}
-          style={{
-            cursor: 'pointer',
-            opacity: flyPressed ? 1 : 0.8,
-            transform: flyPressed ? 'scale(0.95)' : 'scale(1)',
-            transition: 'all 0.1s ease',
-          }}
-        >
-          <img 
-            src={flyPressed ? '/assets/sprites/ui_button_fly_on.png' : '/assets/sprites/ui_button_fly_off.png'}
-            alt="Fly"
-            style={{ 
-              width: FLY_BUTTON_DISPLAY_SIZE, 
-              height: FLY_BUTTON_DISPLAY_SIZE,
               imageRendering: 'pixelated',
             }}
             draggable={false}

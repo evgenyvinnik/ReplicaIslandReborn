@@ -119,8 +119,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const soundSystem = systemRegistryRef.current?.soundSystem;
       if (soundSystem) {
         soundSystem.setEnabled(settings.soundEnabled);
-        soundSystem.setSfxVolume(settings.soundVolume);
-        soundSystem.setMusicVolume(settings.musicVolume);
+        // Convert 0-100 to 0-1
+        soundSystem.setSfxVolume(settings.soundVolume / 100);
+        soundSystem.setMusicVolume(settings.musicVolume / 100);
       }
     });
     return unsubscribe;
@@ -359,8 +360,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Apply sound settings
         const settings = gameSettings.getAll();
         soundSystem.setEnabled(settings.soundEnabled);
-        soundSystem.setSfxVolume(settings.soundVolume);
-        soundSystem.setMusicVolume(settings.musicVolume);
+        // Convert 0-100 to 0-1
+        soundSystem.setSfxVolume(settings.soundVolume / 100);
+        soundSystem.setMusicVolume(settings.musicVolume / 100);
         
         // Load level progress
         levelSystem.loadLevelProgress();

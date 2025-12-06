@@ -325,12 +325,20 @@ button:focus {
   pointer-events: none;
 }
 
-/* Phone frame wrapper for positioning hint below */
-.phone-frame-wrapper {
+/* Outer wrapper for phone + hint (vertical stack) */
+.phone-frame-outer-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 15px;
+}
+
+/* Row containing phone frame and sound controls */
+.phone-frame-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0;
 }
 
 /* Keyboard hint below phone frame */
@@ -342,19 +350,17 @@ button:focus {
   letter-spacing: 0.5px;
 }
 
-/* Sound Controls - positioned upper left of phone frame */
+/* Sound Controls - positioned to the right of phone frame, vertical layout */
 .sound-controls {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   gap: 8px;
   align-items: center;
 }
 
 .phone-sound-controls {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  z-index: 100;
+  margin-left: 15px;
+  align-self: flex-start;
 }
 
 .sound-control-btn {

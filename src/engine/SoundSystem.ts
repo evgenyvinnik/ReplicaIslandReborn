@@ -1,6 +1,11 @@
 /**
  * Sound System - Web Audio API wrapper for game audio
  * Ported from: Original/src/com/replica/replicaisland/SoundSystem.java
+ * 
+ * Note: The original game included bwv_115.mid (Bach's BWV 115 cantata) for background
+ * music, but the playback was commented out in the source code. For the web port,
+ * we need to convert the MIDI to OGG/MP3 format. Place the converted file at:
+ * public/assets/sounds/music_background.ogg
  */
 
 /**
@@ -40,6 +45,15 @@ export const SoundEffects = {
   HARD_THUMP: 'hard_thump',
   THUMP: 'thump',
   ROCKETS: 'rockets',
+} as const;
+
+/**
+ * Music track names
+ */
+export const MusicTracks = {
+  // Background music - originally bwv_115.mid (Bach's BWV 115 cantata)
+  // Convert the MIDI file to OGG/MP3 and place at public/assets/sounds/music_background.ogg
+  BACKGROUND: 'music_background',
 } as const;
 
 export type SoundEffectName = typeof SoundEffects[keyof typeof SoundEffects];
@@ -194,6 +208,13 @@ export class SoundSystem {
     isMusic: boolean
   ): number {
     if (!this.audioContext || !this.config.enabled) return -1;
+    
+    // Ensure gain nodes are initialized
+    const targetGain = isMusic ? this.musicGain : this.sfxGain;
+    if (!targetGain) {
+      console.warn('Sound system not properly initialized - gain nodes missing');
+      return -1;
+    }
 
     const sound = this.sounds.get(name);
     if (!sound) {
@@ -201,34 +222,39 @@ export class SoundSystem {
       return -1;
     }
 
-    const source = this.audioContext.createBufferSource();
-    source.buffer = sound.buffer;
-    source.loop = loop;
+    try {
+      const source = this.audioContext.createBufferSource();
+      source.buffer = sound.buffer;
+      source.loop = loop;
 
-    const gainNode = this.audioContext.createGain();
-    gainNode.gain.value = volume;
+      const gainNode = this.audioContext.createGain();
+      gainNode.gain.value = volume;
 
-    source.connect(gainNode);
-    gainNode.connect(isMusic ? this.musicGain! : this.sfxGain!);
+      source.connect(gainNode);
+      gainNode.connect(targetGain);
 
-    const id = this.nextSoundId++;
-    this.playingSounds.set(id, {
-      source,
-      gainNode,
-      name,
-      isMusic,
-      loop,
-    });
+      const id = this.nextSoundId++;
+      this.playingSounds.set(id, {
+        source,
+        gainNode,
+        name,
+        isMusic,
+        loop,
+      });
 
-    source.onended = (): void => {
-      this.playingSounds.delete(id);
-      if (isMusic && id === this.currentMusicId) {
-        this.currentMusicId = -1;
-      }
-    };
+      source.onended = (): void => {
+        this.playingSounds.delete(id);
+        if (isMusic && id === this.currentMusicId) {
+          this.currentMusicId = -1;
+        }
+      };
 
-    source.start(0);
-    return id;
+      source.start(0);
+      return id;
+    } catch (error) {
+      console.error('Failed to play sound:', name, error);
+      return -1;
+    }
   }
 
   /**
@@ -397,6 +423,59 @@ export class SoundSystem {
     );
 
     await Promise.all(loadPromises);
+    
+    // Try to load background music (optional - may not exist)
+    await this.loadBackgroundMusic();
+  }
+
+  /**
+   * Load background music (optional - fails gracefully if file doesn't exist)
+   * 
+   * The original game included bwv_115.mid (Bach's BWV 115 cantata).
+   * To add background music:
+   * 1. Convert the MIDI file to OGG format using a tool like Timidity
+   * 2. Place the file at: public/assets/sounds/music_background.ogg
+   */
+  async loadBackgroundMusic(): Promise<void> {
+    try {
+      await this.loadSound('music_background', '/assets/sounds/music_background.ogg');
+    } catch {
+      // Music file is optional - game works fine without it
+    }
+  }
+
+  /**
+   * Start playing background music
+   * @returns The music sound ID, or -1 if music couldn't be started
+   */
+  startBackgroundMusic(): number {
+    if (!this.config.enabled) return -1;
+    
+    // Check if music is already playing
+    if (this.currentMusicId >= 0) {
+      return this.currentMusicId;
+    }
+    
+    // Only play if the music file was loaded
+    if (!this.isLoaded('music_background')) {
+      return -1;
+    }
+    
+    return this.playMusic('music_background', 0.6);
+  }
+
+  /**
+   * Check if music is currently playing
+   */
+  isMusicPlaying(): boolean {
+    return this.currentMusicId >= 0 && this.playingSounds.has(this.currentMusicId);
+  }
+
+  /**
+   * Get music enabled setting
+   */
+  getMusicEnabled(): boolean {
+    return this.config.enabled && this.config.musicVolume > 0;
   }
 
   /**
