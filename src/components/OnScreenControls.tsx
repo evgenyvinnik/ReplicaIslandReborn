@@ -16,6 +16,11 @@ interface OnScreenControlsProps {
   onFlyReleased: () => void;
   onStompPressed: () => void;
   onStompReleased: () => void;
+  // Keyboard/gamepad state for syncing visual feedback
+  keyboardFlyActive?: boolean;
+  keyboardStompActive?: boolean;
+  keyboardLeftActive?: boolean;
+  keyboardRightActive?: boolean;
 }
 
 // Original game button dimensions (from ButtonConstants.java)
@@ -28,12 +33,29 @@ export function OnScreenControls({
   onFlyReleased,
   onStompPressed,
   onStompReleased,
+  keyboardFlyActive = false,
+  keyboardStompActive = false,
+  keyboardLeftActive = false,
+  keyboardRightActive = false,
 }: OnScreenControlsProps): React.JSX.Element {
   const [sliderPosition, setSliderPosition] = useState(0.5); // 0-1, 0.5 is center
-  const [flyPressed, setFlyPressed] = useState(false);
-  const [stompPressed, setStompPressed] = useState(false);
+  const [touchFlyPressed, setTouchFlyPressed] = useState(false);
+  const [touchStompPressed, setTouchStompPressed] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
+
+  // Combined button states (touch OR keyboard)
+  const flyPressed = touchFlyPressed || keyboardFlyActive;
+  const stompPressed = touchStompPressed || keyboardStompActive;
+
+  // Calculate slider position based on keyboard input when not dragging
+  const effectiveSliderPosition = isDraggingRef.current 
+    ? sliderPosition 
+    : keyboardLeftActive 
+      ? 0.1  // Show button on left when left key pressed
+      : keyboardRightActive 
+        ? 0.9  // Show button on right when right key pressed
+        : 0.5; // Center when no input
 
   // Handle slider drag
   const updateSliderPosition = useCallback((clientX: number): void => {
@@ -113,28 +135,31 @@ export function OnScreenControls({
 
   // Fly button handlers
   const handleFlyDown = useCallback(() => {
-    setFlyPressed(true);
+    setTouchFlyPressed(true);
     onFlyPressed();
   }, [onFlyPressed]);
 
   const handleFlyUp = useCallback(() => {
-    setFlyPressed(false);
+    setTouchFlyPressed(false);
     onFlyReleased();
   }, [onFlyReleased]);
 
   // Stomp button handlers
   const handleStompDown = useCallback(() => {
-    setStompPressed(true);
+    setTouchStompPressed(true);
     onStompPressed();
   }, [onStompPressed]);
 
   const handleStompUp = useCallback(() => {
-    setStompPressed(false);
+    setTouchStompPressed(false);
     onStompReleased();
   }, [onStompReleased]);
 
-  // Calculate slider button position
-  const sliderButtonX = sliderPosition * (MOVEMENT_SLIDER_WIDTH - SLIDER_BUTTON_WIDTH);
+  // Calculate slider button position - use effective position that accounts for keyboard input
+  const sliderButtonX = effectiveSliderPosition * (MOVEMENT_SLIDER_WIDTH - SLIDER_BUTTON_WIDTH);
+
+  // Show active state when dragging OR keyboard is active
+  const isSliderActive = isDraggingRef.current || keyboardLeftActive || keyboardRightActive;
 
   return (
     <div className="game-controls-overlay">
@@ -154,7 +179,7 @@ export function OnScreenControls({
             draggable={false}
           />
           <img 
-            src={isDraggingRef.current 
+            src={isSliderActive
               ? '/assets/sprites/ui_movement_slider_button_on.png'
               : '/assets/sprites/ui_movement_slider_button_off.png'
             }

@@ -96,6 +96,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const [levelLoading, setLevelLoading] = useState(true);
   const [playerFuel, setPlayerFuel] = useState(PLAYER.FUEL_AMOUNT);
   
+  // Input state for on-screen controls sync (keyboard/gamepad -> UI)
+  const [inputUIState, setInputUIState] = useState({
+    flyActive: false,
+    stompActive: false,
+    leftActive: false,
+    rightActive: false,
+  });
+  
   // Dialog state
   const [activeDialog, setActiveDialog] = useState<Dialog | null>(null);
   const dialogTriggerCooldownRef = useRef(0);
@@ -441,6 +449,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Get player and input state
       const player = gameObjectManager.getPlayer();
       const input = inputSystem.getInputState();
+      
+      // Update input UI state for on-screen controls synchronization
+      setInputUIState({
+        flyActive: inputSystem.isJumpActive(),
+        stompActive: inputSystem.isAttackActive(),
+        leftActive: inputSystem.isMovingLeft(),
+        rightActive: inputSystem.isMovingRight(),
+      });
       
       if (player) {
         // Player physics update (based on original PlayerComponent.java)
@@ -1339,6 +1355,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   inputSystem.setVirtualButton('stomp', false);
                 }
               }}
+              keyboardFlyActive={inputUIState.flyActive}
+              keyboardStompActive={inputUIState.stompActive}
+              keyboardLeftActive={inputUIState.leftActive}
+              keyboardRightActive={inputUIState.rightActive}
             />
           </>
         )}

@@ -128,13 +128,12 @@ export class InputSystem {
       pause: this.isActionPressed('pause'),
     };
 
-    // Apply virtual joystick
-    if (this.touchActive) {
-      if (this.virtualJoystickX < -0.3) state.left = true;
-      if (this.virtualJoystickX > 0.3) state.right = true;
-      if (this.virtualJoystickY < -0.3) state.up = true;
-      if (this.virtualJoystickY > 0.3) state.down = true;
-    }
+    // Apply virtual joystick (always check, not just when touchActive)
+    // This allows the on-screen slider to work
+    if (this.virtualJoystickX < -0.3) state.left = true;
+    if (this.virtualJoystickX > 0.3) state.right = true;
+    if (this.virtualJoystickY < -0.3) state.up = true;
+    if (this.virtualJoystickY > 0.3) state.down = true;
 
     return state;
   }
@@ -391,5 +390,45 @@ export class InputSystem {
    */
   setKeyBindings(bindings: Partial<InputConfig['keyBindings']>): void {
     this.keyBindings = { ...this.keyBindings, ...bindings };
+  }
+
+  /**
+   * Get whether the jump/fly action is active (for UI animation)
+   * This includes keyboard, gamepad, and virtual button state
+   */
+  isJumpActive(): boolean {
+    return this.isActionActive('jump') || this.touchJump;
+  }
+
+  /**
+   * Get whether the attack/stomp action is active (for UI animation)
+   * This includes keyboard, gamepad, and virtual button state
+   */
+  isAttackActive(): boolean {
+    return this.isActionActive('attack') || this.keys.has('VirtualAttack');
+  }
+
+  /**
+   * Get the current virtual joystick X position (-1 to 1)
+   * Used by on-screen controls to show movement state
+   */
+  getVirtualJoystickX(): number {
+    return this.virtualJoystickX;
+  }
+
+  /**
+   * Get whether any left movement input is active (keyboard/gamepad)
+   * Used by on-screen controls to sync visual state
+   */
+  isMovingLeft(): boolean {
+    return this.isActionActive('left');
+  }
+
+  /**
+   * Get whether any right movement input is active (keyboard/gamepad)
+   * Used by on-screen controls to sync visual state
+   */
+  isMovingRight(): boolean {
+    return this.isActionActive('right');
   }
 }

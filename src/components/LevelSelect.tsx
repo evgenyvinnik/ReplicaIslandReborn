@@ -1,23 +1,281 @@
 /**
  * Level Select Component
- * Styled to fit within the phone frame at 480x320 resolution
+ * Styled to match the original Replica Island Android UI exactly
+ * 
+ * Original UI uses:
+ * - ListView with custom row layouts
+ * - ui_rack_green.png for enabled levels (green rack background)
+ * - ui_rack_gray.png for completed levels (gray rack background)
+ * - ui_rack_red.png for disabled/locked levels (red rack background)
+ * - Each row is 70dp tall with level name and timestamp
+ * - Text color: #65ff99 for enabled, #066659 for disabled/completed
  */
 
-import React from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useGameContext } from '../context/GameContext';
+import {
+  generateLevelList,
+  sortLevelsByTime,
+  resourceToLevelId,
+  type LevelMetaData,
+} from '../data/levelTree';
+
+// Row height in pixels (original: 70dp, scaled for 320px height)
+const ROW_HEIGHT = 52;
+
+// Text colors from original
+const TEXT_COLOR_ENABLED = '#65ff99';
+const TEXT_COLOR_DISABLED = '#066659';
+
+// Level row state types
+type RowState = 'enabled' | 'disabled' | 'completed';
+
+interface LevelRowProps {
+  levelData: LevelMetaData;
+  onClick: () => void;
+  isSelected: boolean;
+  isFlickering: boolean;
+}
+
+/**
+ * Single level row matching the original Android layout
+ */
+function LevelRow({
+  levelData,
+  onClick,
+  isSelected,
+  isFlickering,
+}: LevelRowProps): React.JSX.Element {
+  const { level, enabled } = levelData;
+
+  // Determine row state
+  let state: RowState = 'disabled';
+  if (enabled) {
+    state = 'enabled';
+  } else if (level.completed) {
+    state = 'completed';
+  }
+
+  // Get appropriate rack background
+  const getRackImage = (): string => {
+    switch (state) {
+      case 'enabled':
+        return '/assets/sprites/ui_rack_green.png';
+      case 'completed':
+        return '/assets/sprites/ui_rack_gray.png';
+      case 'disabled':
+      default:
+        return '/assets/sprites/ui_rack_red.png';
+    }
+  };
+
+  // Get text color based on state
+  const getTextColor = (): string => {
+    return state === 'enabled' ? TEXT_COLOR_ENABLED : TEXT_COLOR_DISABLED;
+  };
+
+  // Flickering animation for selection
+  const flickerOpacity = isFlickering ? 'animate-flicker' : '';
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={!enabled}
+      style={{
+        width: '100%',
+        height: `${ROW_HEIGHT}px`,
+        position: 'relative',
+        border: 'none',
+        padding: 0,
+        margin: 0,
+        cursor: enabled ? 'pointer' : 'default',
+        background: 'transparent',
+        display: 'block',
+        outline: isSelected ? '2px solid #65ff99' : 'none',
+        outlineOffset: '-2px',
+      }}
+      className={flickerOpacity}
+    >
+      {/* Rack background image */}
+      <img
+        src={getRackImage()}
+        alt=""
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'fill',
+          imageRendering: 'pixelated',
+        }}
+      />
+
+      {/* Level title - positioned like original (x=20dp, y=5dp, scaled) */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '15px',
+          top: '4px',
+          width: '200px',
+          height: '28px',
+          fontSize: '18px',
+          fontWeight: 'bold',
+          color: getTextColor(),
+          fontFamily: 'monospace',
+          textAlign: 'left',
+          lineHeight: '28px',
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {level.name}
+      </div>
+
+      {/* Timestamp - positioned like original (x=290dp, y=25dp, scaled) */}
+      <div
+        style={{
+          position: 'absolute',
+          right: '15px',
+          top: '18px',
+          width: 'auto',
+          height: '12px',
+          fontSize: '10px',
+          color: getTextColor(),
+          fontFamily: 'monospace',
+          textAlign: 'right',
+        }}
+      >
+        {level.timeStamp}
+      </div>
+    </button>
+  );
+}
 
 export function LevelSelect(): React.JSX.Element {
   const { startGame, goToMainMenu, state } = useGameContext();
+  const [selectedIndex, setSelectedIndex] = useState<number>(-1);
+  const [flickeringIndex, setFlickeringIndex] = useState<number>(-1);
+  const [levelList, setLevelList] = useState<LevelMetaData[]>([]);
+  const listRef = useRef<HTMLDivElement>(null);
 
-  // Demo levels
-  const levels = [
-    { id: 1, name: 'Tutorial 1', unlocked: true },
-    { id: 2, name: 'Tutorial 2', unlocked: state.saveData.completedLevels.includes(1) },
-    { id: 3, name: 'Tutorial 3', unlocked: state.saveData.completedLevels.includes(2) },
-    { id: 4, name: 'Forest 1', unlocked: state.saveData.completedLevels.includes(3) },
-    { id: 5, name: 'Forest 2', unlocked: state.saveData.completedLevels.includes(4) },
-    { id: 6, name: 'Forest 3', unlocked: state.saveData.completedLevels.includes(5) },
-  ];
+  // Generate level list based on completed levels
+  useEffect(() => {
+    const completedSet = new Set(
+      state.saveData.completedLevels.map((id) => {
+        // Convert numeric IDs to resource names if needed
+        // For now, assume completedLevels contains resource strings
+        return typeof id === 'number' ? `level_${id}` : String(id);
+      })
+    );
+
+    // Generate and sort the level list
+    const list = generateLevelList(completedSet, true);
+    const sorted = sortLevelsByTime(list);
+    setLevelList(sorted);
+
+    // Auto-select first enabled level
+    const firstEnabledIndex = sorted.findIndex((l) => l.enabled);
+    if (firstEnabledIndex >= 0) {
+      setSelectedIndex(firstEnabledIndex);
+    }
+  }, [state.saveData.completedLevels]);
+
+  // Handle level selection with flicker animation
+  const handleLevelClick = useCallback(
+    (index: number, levelData: LevelMetaData) => {
+      if (!levelData.enabled) return;
+
+      setSelectedIndex(index);
+      setFlickeringIndex(index);
+
+      // Start flicker animation, then start game
+      setTimeout(() => {
+        setFlickeringIndex(-1);
+        // Get the numeric level ID from the resource mapping
+        const levelId = resourceToLevelId[levelData.level.resource] || 1;
+        startGame(levelId);
+      }, 500);
+    },
+    [startGame]
+  );
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      if (flickeringIndex !== -1) return; // Don't navigate during animation
+
+      const enabledIndices = levelList
+        .map((l, i) => (l.enabled ? i : -1))
+        .filter((i) => i !== -1);
+
+      if (enabledIndices.length === 0) return;
+
+      let currentEnabledIndex = enabledIndices.indexOf(selectedIndex);
+      if (currentEnabledIndex === -1) {
+        currentEnabledIndex = 0;
+      }
+
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          if (currentEnabledIndex > 0) {
+            const newIndex = enabledIndices[currentEnabledIndex - 1];
+            setSelectedIndex(newIndex);
+            scrollToIndex(newIndex);
+          }
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          if (currentEnabledIndex < enabledIndices.length - 1) {
+            const newIndex = enabledIndices[currentEnabledIndex + 1];
+            setSelectedIndex(newIndex);
+            scrollToIndex(newIndex);
+          }
+          break;
+        case 'Enter':
+        case ' ':
+          e.preventDefault();
+          if (selectedIndex >= 0 && levelList[selectedIndex]?.enabled) {
+            handleLevelClick(selectedIndex, levelList[selectedIndex]);
+          } else if (enabledIndices.length > 0) {
+            const firstEnabled = enabledIndices[0];
+            setSelectedIndex(firstEnabled);
+            handleLevelClick(firstEnabled, levelList[firstEnabled]);
+          }
+          break;
+        case 'Escape':
+        case 'Backspace':
+          e.preventDefault();
+          goToMainMenu();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return (): void => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    levelList,
+    selectedIndex,
+    flickeringIndex,
+    handleLevelClick,
+    goToMainMenu,
+  ]);
+
+  // Scroll to a specific index
+  const scrollToIndex = (index: number): void => {
+    if (listRef.current) {
+      const scrollTop = index * ROW_HEIGHT;
+      listRef.current.scrollTo({ top: scrollTop, behavior: 'smooth' });
+    }
+  };
+
+  // Count completed and total levels
+  const completedCount = levelList.filter((l) => l.level.completed).length;
+  const totalCount = levelList.length;
 
   return (
     <div
@@ -26,125 +284,95 @@ export function LevelSelect(): React.JSX.Element {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
-        background: 'linear-gradient(180deg, #1a1a3e 0%, #0a0a1e 100%)',
-        color: '#ffffff',
-        fontFamily: 'monospace',
-        padding: '12px',
+        backgroundColor: '#000000',
+        overflow: 'hidden',
       }}
     >
-      {/* Header */}
+      {/* CSS for flicker animation */}
+      <style>
+        {`
+          @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            25% { opacity: 0.3; }
+            50% { opacity: 1; }
+            75% { opacity: 0.3; }
+          }
+          .animate-flicker {
+            animation: flicker 0.5s ease-in-out;
+          }
+        `}
+      </style>
+
+      {/* Header with back button - minimal to maximize list space */}
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '12px',
+          justifyContent: 'flex-end',
+          padding: '2px 8px',
+          backgroundColor: '#000000',
+          flexShrink: 0,
         }}
       >
-        <h1 style={{ fontSize: '14px', color: '#4caf50', letterSpacing: '2px' }}>SELECT LEVEL</h1>
         <button
           onClick={goToMainMenu}
           style={{
-            padding: '4px 12px',
+            padding: '2px 10px',
             fontSize: '10px',
             fontFamily: 'monospace',
-            backgroundColor: 'rgba(0,0,0,0.3)',
-            border: '1px solid #666',
-            borderRadius: '4px',
+            backgroundColor: 'transparent',
+            border: '1px solid #444',
+            borderRadius: '3px',
             color: '#888',
             cursor: 'pointer',
           }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = TEXT_COLOR_ENABLED)}
+          onMouseLeave={(e) => (e.currentTarget.style.color = '#888')}
         >
-          BACK
+          ← BACK
         </button>
       </div>
 
-      {/* Level Grid */}
+      {/* Level list - scrollable ListView style */}
       <div
+        ref={listRef}
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '8px',
           flex: 1,
           overflowY: 'auto',
+          overflowX: 'hidden',
+          backgroundColor: '#000000',
         }}
       >
-        {levels.map((level) => (
-          <LevelCard
-            key={level.id}
-            level={level}
-            completed={state.saveData.completedLevels.includes(level.id)}
-            onClick={(): void => {
-              if (level.unlocked) {
-                startGame(level.id);
-              }
-            }}
+        {levelList.map((levelData, index) => (
+          <LevelRow
+            key={`${levelData.row}-${levelData.index}`}
+            levelData={levelData}
+            onClick={() => handleLevelClick(index, levelData)}
+            isSelected={selectedIndex === index}
+            isFlickering={flickeringIndex === index}
           />
         ))}
       </div>
 
-      {/* Stats */}
+      {/* Footer with stats - minimal */}
       <div
         style={{
-          marginTop: '8px',
-          paddingTop: '8px',
-          borderTop: '1px solid #333',
+          padding: '2px 8px',
+          backgroundColor: '#000000',
+          borderTop: '1px solid #222',
           display: 'flex',
-          justifyContent: 'center',
-          gap: '16px',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           fontSize: '9px',
-          color: '#666',
+          fontFamily: 'monospace',
+          color: '#555',
+          flexShrink: 0,
         }}
       >
-        <span>Completed: {state.saveData.completedLevels.length}/{levels.length}</span>
-        <span>Pearls: {state.saveData.totalPearls}</span>
-        <span>Deaths: {state.saveData.totalDeaths}</span>
+        <span>
+          {completedCount}/{totalCount}
+        </span>
+        <span>↑↓ Enter Esc</span>
       </div>
     </div>
-  );
-}
-
-interface LevelCardProps {
-  level: { id: number; name: string; unlocked: boolean };
-  completed: boolean;
-  onClick: () => void;
-}
-
-function LevelCard({ level, completed, onClick }: LevelCardProps): React.JSX.Element {
-  return (
-    <button
-      onClick={onClick}
-      disabled={!level.unlocked}
-      style={{
-        padding: '8px',
-        backgroundColor: level.unlocked ? 'rgba(42, 42, 78, 0.8)' : 'rgba(26, 26, 46, 0.5)',
-        border: completed
-          ? '2px solid #4caf50'
-          : level.unlocked
-            ? '1px solid #444'
-            : '1px solid #333',
-        borderRadius: '4px',
-        color: level.unlocked ? '#fff' : '#555',
-        cursor: level.unlocked ? 'pointer' : 'not-allowed',
-        textAlign: 'center',
-        transition: 'all 0.2s ease',
-        fontFamily: 'monospace',
-      }}
-    >
-      <div style={{ fontSize: '8px', color: '#888', marginBottom: '2px' }}>
-        {level.id}
-      </div>
-      <div style={{ fontSize: '10px', fontWeight: 'bold' }}>{level.name}</div>
-      {completed && (
-        <div style={{ fontSize: '8px', color: '#4caf50', marginTop: '4px' }}>
-          ✓
-        </div>
-      )}
-      {!level.unlocked && (
-        <div style={{ fontSize: '8px', color: '#666', marginTop: '4px' }}>
-          🔒
-        </div>
-      )}
-    </button>
   );
 }

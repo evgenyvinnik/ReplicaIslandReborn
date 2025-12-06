@@ -629,6 +629,18 @@ export class LevelSystem {
   }
 
   /**
+   * Find a level by its file name (resource string)
+   */
+  getLevelByFile(fileName: string): LevelInfo | undefined {
+    for (const level of this.levels.values()) {
+      if (level.file === fileName) {
+        return level;
+      }
+    }
+    return undefined;
+  }
+
+  /**
    * Get all level info
    */
   getAllLevels(): LevelInfo[] {

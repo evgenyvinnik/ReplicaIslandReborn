@@ -32,8 +32,8 @@ import { getInventory, addInventoryListener, type InventoryRecord } from '../ent
 // HUD Layout Constants (from original HudSystem.java)
 // ============================================================================
 
-// Fuel bar positioning
-const FUEL_BAR_EDGE_PADDING = 15;
+// Fuel bar positioning - reduced padding to keep bar in bounds
+const FUEL_BAR_EDGE_PADDING = 8;
 
 // Fuel bar animation speeds (per second)
 const FUEL_DECREASE_BAR_SPEED = 0.75;
