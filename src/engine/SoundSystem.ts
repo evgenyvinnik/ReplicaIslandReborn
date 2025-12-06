@@ -148,7 +148,7 @@ export class SoundSystem {
   /**
    * Load a sound file
    */
-  async loadSound(name: string, url: string): Promise<void> {
+  async loadSound(name: string, url: string, optional: boolean = false): Promise<void> {
     if (!this.audioContext) {
       await this.initialize();
     }
@@ -157,7 +157,34 @@ export class SoundSystem {
 
     try {
       const response = await fetch(url);
+      if (!response.ok) {
+        if (optional) {
+          // Silently skip optional sounds that don't exist
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      // Check content type to avoid trying to decode HTML error pages
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.includes('audio') && !contentType.includes('octet-stream')) {
+        if (optional) {
+          // Silently skip - likely got an HTML error page
+          return;
+        }
+        throw new Error(`Invalid content type: ${contentType}`);
+      }
+      
       const arrayBuffer = await response.arrayBuffer();
+      
+      // Check if we got actual audio data (at least a few bytes)
+      if (arrayBuffer.byteLength < 100) {
+        if (optional) {
+          return;
+        }
+        throw new Error('Audio file too small or empty');
+      }
+      
       const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
       this.sounds.set(name, {
@@ -165,7 +192,11 @@ export class SoundSystem {
         name,
       });
     } catch (error) {
-      console.error(`Failed to load sound: ${name}`, error);
+      // Only log errors for required sounds, not optional ones
+      if (!optional) {
+        console.error(`Failed to load sound: ${name}`, error);
+      }
+      // Optional sounds fail silently - no console spam
     }
   }
 
@@ -208,6 +239,12 @@ export class SoundSystem {
     isMusic: boolean
   ): number {
     if (!this.audioContext || !this.config.enabled) return -1;
+    if (this.audioContext.state === 'closed') return -1;
+
+    // Limit concurrent sounds to prevent browser crash
+    if (!isMusic && this.playingSounds.size > 32) {
+      return -1;
+    }
     
     // Ensure gain nodes are initialized
     const targetGain = isMusic ? this.musicGain : this.sfxGain;
@@ -438,7 +475,7 @@ export class SoundSystem {
    */
   async loadBackgroundMusic(): Promise<void> {
     try {
-      await this.loadSound('music_background', '/assets/sounds/music_background.ogg');
+      await this.loadSound('music_background', '/assets/sounds/music_background.ogg', true);
     } catch {
       // Music file is optional - game works fine without it
     }

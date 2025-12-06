@@ -23,6 +23,9 @@ import { TileMapRenderer } from '../levels/TileMapRenderer';
 import { HUD } from './HUD';
 import { OnScreenControls } from './OnScreenControls';
 import { DialogOverlay } from './DialogOverlay';
+import { PauseMenu } from './PauseMenu';
+import { GameOverScreen } from './GameOverScreen';
+import { LevelCompleteScreen } from './LevelCompleteScreen';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 import { gameSettings } from '../utils/GameSettings';
 import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
@@ -109,7 +112,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   
   // Dialog state
   const [activeDialog, setActiveDialog] = useState<Dialog | null>(null);
+  const activeDialogRef = useRef<Dialog | null>(null);
   const dialogTriggerCooldownRef = useRef(0);
+
+  // Sync ref with state
+  useEffect(() => {
+    activeDialogRef.current = activeDialog;
+  }, [activeDialog]);
+
+  const gameStateRef = useRef(state.gameState);
+  useEffect(() => {
+    gameStateRef.current = state.gameState;
+  }, [state.gameState]);
 
   // Subscribe to settings changes
   useEffect(() => {
@@ -395,6 +409,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             maxX: Math.max(0, levelSystem.getLevelWidth() - width),
             maxY: Math.max(0, levelSystem.getLevelHeight() - height),
           });
+          
+          // Show intro dialog for this level (if any)
+          const levelInfo = levelSystem.getLevelInfo(1);
+          if (levelInfo) {
+            const dialogs = getDialogsForLevel(levelInfo.file);
+            if (dialogs.length > 0) {
+              // Show the first dialog (intro)
+              setActiveDialog(dialogs[0]);
+            }
+          }
         } else {
           // Fallback: create test level
           createTestLevel(factory, gameObjectManager, collisionSystem);
@@ -457,7 +481,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     // Update callback - Full game physics
     gameLoop.setUpdateCallback((deltaTime: number) => {
-      if (state.gameState !== GameState.PLAYING) return;
+      if (gameStateRef.current !== GameState.PLAYING) return;
 
       // Update input
       inputSystem.update();
@@ -486,8 +510,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Update all game objects
       gameObjectManager.update(deltaTime, gameTime);
 
-      // Simple enemy AI - patrol back and forth
-      const ENEMY_SPEED = 50; // pixels per second
+      // Enemy AI - Different behaviors based on subType
       gameObjectManager.forEach((obj) => {
         if (obj.type !== 'enemy' || !obj.isVisible() || obj.life <= 0) return;
         
@@ -496,47 +519,130 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           obj.facingDirection.x = 1;
         }
         
-        // Move enemy
         const velocity = obj.getVelocity();
         const position = obj.getPosition();
         
-        // Set velocity based on facing direction
-        velocity.x = obj.facingDirection.x * ENEMY_SPEED;
+        // Get player position for tracking enemies
+        const playerPos = player?.getPosition();
         
-        // Check for walls and reverse direction
-        const nextX = position.x + velocity.x * deltaTime;
-        const collision = collisionSystem.checkTileCollision(
-          nextX, position.y, obj.width, obj.height, velocity.x, velocity.y
-        );
-        
-        if (collision.leftWall || collision.rightWall) {
-          // Reverse direction
-          obj.facingDirection.x *= -1;
-          velocity.x = obj.facingDirection.x * ENEMY_SPEED;
+        // Behavior based on enemy type
+        switch (obj.subType) {
+          case 'bat':
+          case 'sting': {
+            // Flying enemies - swoop towards player when close
+            const FLYING_SPEED = 60;
+            const SWOOP_DISTANCE = 150;
+            
+            if (playerPos) {
+              const dx = playerPos.x - position.x;
+              const dy = playerPos.y - position.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              
+              if (dist < SWOOP_DISTANCE && dist > 10) {
+                // Swoop towards player
+                velocity.x = (dx / dist) * FLYING_SPEED * 1.5;
+                velocity.y = (dy / dist) * FLYING_SPEED;
+              } else {
+                // Normal patrol with bobbing
+                velocity.x = obj.facingDirection.x * FLYING_SPEED;
+                velocity.y = Math.sin(gameTime * 3 + obj.id) * 30;
+                
+                // Check bounds and reverse
+                if (position.x < 50 || position.x > levelSystemRef.current!.getLevelWidth() - 50) {
+                  obj.facingDirection.x *= -1;
+                }
+              }
+            } else {
+              velocity.x = obj.facingDirection.x * FLYING_SPEED;
+              velocity.y = Math.sin(gameTime * 3 + obj.id) * 30;
+            }
+            break;
+          }
+          
+          case 'turret': {
+            // Turrets don't move but track player
+            velocity.x = 0;
+            velocity.y = 0;
+            
+            if (playerPos) {
+              // Face the player
+              if (playerPos.x < position.x) {
+                obj.facingDirection.x = -1;
+              } else {
+                obj.facingDirection.x = 1;
+              }
+            }
+            break;
+          }
+          
+          case 'skeleton':
+          case 'brobot': {
+            // Ground patrol - medium speed
+            const GROUND_SPEED = 40;
+            velocity.x = obj.facingDirection.x * GROUND_SPEED;
+            velocity.y += 500 * deltaTime; // Gravity
+            break;
+          }
+          
+          case 'karaguin': {
+            // Fish - horizontal swimming
+            const SWIM_SPEED = 70;
+            velocity.x = obj.facingDirection.x * SWIM_SPEED;
+            velocity.y = Math.sin(gameTime * 2 + obj.id) * 15;
+            break;
+          }
+          
+          case 'shadowslime':
+          case 'mudman': {
+            // Slower ground enemies
+            const SLOW_SPEED = 25;
+            velocity.x = obj.facingDirection.x * SLOW_SPEED;
+            velocity.y += 400 * deltaTime; // Gravity
+            break;
+          }
+          
+          default: {
+            // Default patrol behavior
+            const DEFAULT_SPEED = 50;
+            velocity.x = obj.facingDirection.x * DEFAULT_SPEED;
+            velocity.y += 400 * deltaTime; // Gravity
+          }
         }
         
-        // Apply gravity for non-flying enemies
-        if (obj.subType !== 'bat' && obj.subType !== 'sting') {
-          velocity.y += 400 * deltaTime; // Gravity
+        // Wall collision check (skip for flying enemies)
+        if (obj.subType !== 'bat' && obj.subType !== 'sting' && obj.subType !== 'karaguin') {
+          const nextX = position.x + velocity.x * deltaTime;
+          const collision = collisionSystem.checkTileCollision(
+            nextX, position.y, obj.width, obj.height, velocity.x, velocity.y
+          );
+          
+          if (collision.leftWall || collision.rightWall) {
+            obj.facingDirection.x *= -1;
+            velocity.x = -velocity.x;
+          }
         } else {
-          // Flying enemies bob up and down slightly
-          velocity.y = Math.sin(gameTime * 3 + obj.id) * 20;
+          // Flying enemies reverse at level bounds
+          if (position.x < 20 || position.x > (levelSystemRef.current?.getLevelWidth() ?? 960) - 50) {
+            obj.facingDirection.x *= -1;
+          }
         }
         
         // Update position
         position.x += velocity.x * deltaTime;
         position.y += velocity.y * deltaTime;
         
-        // Check ground collision
-        const groundCheck = collisionSystem.checkTileCollision(
-          position.x, position.y, obj.width, obj.height, velocity.x, velocity.y
-        );
-        
-        if (groundCheck.grounded) {
-          const tileSize = 32;
-          const groundY = Math.floor((position.y + obj.height) / tileSize) * tileSize - obj.height;
-          position.y = groundY;
-          velocity.y = 0;
+        // Ground collision for non-flying enemies
+        if (obj.subType !== 'bat' && obj.subType !== 'sting' && obj.subType !== 'karaguin' && obj.subType !== 'turret') {
+          const groundCheck = collisionSystem.checkTileCollision(
+            position.x, position.y, obj.width, obj.height, velocity.x, velocity.y
+          );
+          
+          if (groundCheck.grounded) {
+            const tileSize = 32;
+            const groundY = Math.floor((position.y + obj.height) / tileSize) * tileSize - obj.height;
+            position.y = groundY;
+            velocity.y = 0;
+          }
         }
       });
 
@@ -552,6 +658,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           pState.isDying = true;
           pState.deathTime = 1.0; // 1 second death animation
           soundSystem.playSfx(SoundEffects.EXPLODE);
+          
+          // Screen shake for death
+          cameraSystem.shake(15, 0.5);
           
           // Decrement lives
           const inv = getInventory();
@@ -626,7 +735,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       }
       
       // Check for TALK hot spots (NPC dialogs)
-      if (player && hotSpotSystem && activeDialog === null && dialogTriggerCooldownRef.current <= 0) {
+      if (player && hotSpotSystem && activeDialogRef.current === null && dialogTriggerCooldownRef.current <= 0) {
         const px = player.getPosition().x + player.width / 2;
         const py = player.getPosition().y + player.height / 2;
         const hotSpot = hotSpotSystem.getHotSpot(px, py);
@@ -755,6 +864,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   const newLives = inv.lives - 1;
                   setInventory({ lives: newLives });
                   soundSystem.playSfx(SoundEffects.THUMP);
+                  
+                  // Screen shake for damage feedback
+                  cameraSystem.shake(8, 0.3);
                   
                   if (newLives <= 0) {
                     // Game over
@@ -1251,7 +1363,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       inputSystem.destroy();
       soundSystem.destroy();
     };
-  }, [width, height, state.gameState, pauseGame, resumeGame, gameOver, completeLevel, setLevel, activeDialog]);
+  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel]);
 
   // Handle resize
   useEffect(() => {
@@ -1394,6 +1506,86 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }}
             onSkip={(): void => {
               setActiveDialog(null);
+            }}
+          />
+        )}
+        
+        {/* Pause menu overlay */}
+        {state.gameState === GameState.PAUSED && (
+          <PauseMenu
+            onResume={resumeGame}
+            onRestart={(): void => {
+              resetInventory();
+              // Reload current level
+              const levelSys = levelSystemRef.current;
+              if (levelSys) {
+                levelSys.loadLevel(state.currentLevel).then(() => {
+                  const spawn = levelSys.playerSpawnPosition;
+                  playerSpawnRef.current = { ...spawn };
+                  const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+                  const player = gameObjectMgr?.getPlayer();
+                  if (player) {
+                    player.setPosition(spawn.x, spawn.y);
+                    player.getVelocity().x = 0;
+                    player.getVelocity().y = 0;
+                  }
+                });
+              }
+              resumeGame();
+            }}
+          />
+        )}
+        
+        {/* Game over overlay */}
+        {state.gameState === GameState.GAME_OVER && (
+          <GameOverScreen
+            onRetry={(): void => {
+              resetInventory();
+              // Reload current level
+              const levelSys = levelSystemRef.current;
+              if (levelSys) {
+                levelSys.loadLevel(state.currentLevel).then(() => {
+                  const spawn = levelSys.playerSpawnPosition;
+                  playerSpawnRef.current = { ...spawn };
+                  const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+                  const player = gameObjectMgr?.getPlayer();
+                  if (player) {
+                    player.setPosition(spawn.x, spawn.y);
+                    player.getVelocity().x = 0;
+                    player.getVelocity().y = 0;
+                  }
+                });
+              }
+              resumeGame();
+            }}
+          />
+        )}
+        
+        {/* Level complete overlay */}
+        {state.gameState === GameState.LEVEL_COMPLETE && (
+          <LevelCompleteScreen
+            levelName={levelSystemRef.current?.getLevelInfo(state.currentLevel)?.name}
+            onContinue={(): void => {
+              const levelSys = levelSystemRef.current;
+              if (levelSys) {
+                const nextLevelId = levelSys.getNextLevelId();
+                if (nextLevelId !== null) {
+                  levelSys.unlockLevel(nextLevelId);
+                  setLevel(nextLevelId);
+                  levelSys.loadLevel(nextLevelId).then(() => {
+                    const spawn = levelSys.playerSpawnPosition;
+                    playerSpawnRef.current = { ...spawn };
+                    const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+                    const player = gameObjectMgr?.getPlayer();
+                    if (player) {
+                      player.setPosition(spawn.x, spawn.y);
+                      player.getVelocity().x = 0;
+                      player.getVelocity().y = 0;
+                    }
+                  });
+                  resumeGame();
+                }
+              }
             }}
           />
         )}

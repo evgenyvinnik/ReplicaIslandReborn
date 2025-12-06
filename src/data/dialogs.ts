@@ -549,10 +549,18 @@ export function getCharacterName(character: Character): string {
 // Get all dialogs for a level (may have multiple characters)
 export function getDialogsForLevel(levelId: string): Dialog[] {
   const dialogs: Dialog[] = [];
-  const prefix = levelId.replace('.bin', '').replace('level_', 'level_');
+  // Extract the level prefix like "level_0_1" from "level_0_1_sewer.bin" or "level_0_1_sewer"
+  const cleanId = levelId.replace('.bin', '');
+  // Match pattern: level_X_Y_type -> level_X_Y
+  const match = cleanId.match(/^(level_\d+_\d+)/);
+  if (!match) return dialogs;
   
+  const prefix = match[1];
+  
+  // Find all dialogs that start with this level prefix
   for (const key of Object.keys(LevelDialogs)) {
-    if (key.startsWith(prefix.replace(/_(island|grass|sewer|underground|lab)$/, ''))) {
+    // Dialog keys are like "level_0_1_dialog_wanda"
+    if (key.startsWith(prefix + '_dialog')) {
       dialogs.push(LevelDialogs[key]);
     }
   }

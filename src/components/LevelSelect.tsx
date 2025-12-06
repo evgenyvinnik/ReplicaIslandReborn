@@ -17,6 +17,7 @@ import {
   generateLevelList,
   sortLevelsByTime,
   resourceToLevelId,
+  completedLevelIdsToResourceSet,
   type LevelMetaData,
 } from '../data/levelTree';
 
@@ -26,8 +27,7 @@ const ROW_HEIGHT = 70;
 
 // Text colors from original
 const TEXT_COLOR_ENABLED = '#65ff99';
-// Original disabled color #066659 is too dark - using a brighter version for readability
-const TEXT_COLOR_DISABLED = '#4a9980';
+const TEXT_COLOR_DISABLED = '#066659';
 
 // Level row state types
 type RowState = 'enabled' | 'disabled' | 'completed';
@@ -77,14 +77,14 @@ function LevelRow({
   };
 
   // Flickering animation for selection
-  const flickerOpacity = isFlickering ? 'animate-flicker' : '';
+  const flickerClass = isFlickering ? 'animate-flicker' : '';
 
   return (
     <button
       onClick={onClick}
       disabled={!enabled}
       style={{
-        width: '480px',
+        width: '100%',
         height: `${ROW_HEIGHT}px`,
         minHeight: `${ROW_HEIGHT}px`,  // Prevent shrinking
         flexShrink: 0,  // Prevent flex shrinking
@@ -96,10 +96,9 @@ function LevelRow({
         background: '#000000',
         display: 'block',
         outline: isSelected ? '2px solid #65ff99' : 'none',
-        outlineOffset: '-2px',
+        outlineOffset: '-1px',
         overflow: 'hidden',
       }}
-      className={flickerOpacity}
     >
       {/* Rack background image - 480x70 pixels, contains the button graphic on right */}
       <img
@@ -109,7 +108,7 @@ function LevelRow({
           position: 'absolute',
           top: 0,
           left: 0,
-          width: '480px',
+          width: '100%',
           height: '70px',
           imageRendering: 'pixelated',
         }}
@@ -118,13 +117,14 @@ function LevelRow({
       {/* Level title - original: x=20dp, y=5dp, width=265dp, height=36dp, 24sp bold
            Android gravity="top" means text aligns to top of container */}
       <div
+        className={flickerClass}
         style={{
           position: 'absolute',
           left: '20px',
-          top: '12px',
-          width: '350px',
+          top: '5px',
+          width: '265px',
           height: '36px',
-          fontSize: '22px',
+          fontSize: '24px',
           fontWeight: 'bold',
           color: getTextColor(),
           fontFamily: '"Courier New", Courier, monospace',
@@ -133,7 +133,6 @@ function LevelRow({
           overflow: 'hidden',
           whiteSpace: 'nowrap',
           textOverflow: 'ellipsis',
-          textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
         }}
       >
         {level.name}
@@ -142,18 +141,20 @@ function LevelRow({
       {/* Timestamp - positioned at bottom right of the text panel area
            Format is "+ HH:MM:SS" (e.g., "+ 07:12:03") */}
       <div
+        className={flickerClass}
         style={{
           position: 'absolute',
-          right: '120px',
-          bottom: '10px',
-          fontSize: '11px',
+          left: '260px',
+          top: '20px',
+          width: '120px', // Increased from 60px to prevent wrapping with monospace font
+          height: '15px',
+          fontSize: '12px',
           color: getTextColor(),
           fontFamily: '"Courier New", Courier, monospace',
-          textAlign: 'right',
+          textAlign: 'left',
           lineHeight: '1',
-          textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
-          opacity: 0.8,
-        }}
+          whiteSpace: 'nowrap',
+      }}
       >
         {level.timeStamp}
       </div>
@@ -170,13 +171,7 @@ export function LevelSelect(): React.JSX.Element {
 
   // Generate level list based on completed levels
   useEffect(() => {
-    const completedSet = new Set(
-      state.saveData.completedLevels.map((id) => {
-        // Convert numeric IDs to resource names if needed
-        // For now, assume completedLevels contains resource strings
-        return typeof id === 'number' ? `level_${id}` : String(id);
-      })
-    );
+    const completedSet = completedLevelIdsToResourceSet(state.saveData.completedLevels);
 
     // Generate and sort the level list
     const list = generateLevelList(completedSet, true);

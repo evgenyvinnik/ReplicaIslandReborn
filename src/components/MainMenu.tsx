@@ -11,8 +11,11 @@ import React, { useState } from 'react';
 import { useGameContext } from '../context/GameContext';
 
 export function MainMenu(): React.JSX.Element {
-  const { startGame, goToLevelSelect, goToOptions, state } = useGameContext();
+  const { startNewGame, startGame, goToLevelSelect, goToOptions, state } = useGameContext();
   const [imagesLoaded, setImagesLoaded] = useState(false);
+
+  // Determine if there's a saved game to continue
+  const hasSavedProgress = state.saveData.completedLevels.length > 0 || state.currentLevel > 1;
 
   return (
     <div
@@ -88,11 +91,20 @@ export function MainMenu(): React.JSX.Element {
             alignItems: 'center',
           }}
         >
-          <ImageButton 
-            src="/assets/sprites/ui_button_start.png" 
-            alt="Start Game"
-            onClick={(): void => startGame(state.currentLevel)} 
-          />
+          {/* Show Continue if there's saved progress, otherwise Start */}
+          {hasSavedProgress ? (
+            <ImageButton 
+              src="/assets/sprites/ui_button_continue.png" 
+              alt="Continue Game"
+              onClick={(): void => startGame(state.currentLevel)} 
+            />
+          ) : (
+            <ImageButton 
+              src="/assets/sprites/ui_button_start.png" 
+              alt="Start Game"
+              onClick={startNewGame} 
+            />
+          )}
           <ImageButton 
             src="/assets/sprites/ui_button_level_select.png" 
             alt="Level Select"

@@ -95,10 +95,12 @@ interface GameContextValue {
   dispatch: React.Dispatch<GameAction>;
   // Helper functions
   startGame: (level?: number) => void;
+  startNewGame: () => void;
   pauseGame: () => void;
   resumeGame: () => void;
   goToMainMenu: () => void;
   goToLevelSelect: () => void;
+  goToDifficultySelect: () => void;
   goToOptions: () => void;
   setLevel: (level: number) => void;
   completeLevel: () => void;
@@ -123,6 +125,14 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     dispatch({ type: 'SET_PAUSED', payload: false });
   };
 
+  const startNewGame = (): void => {
+    // Reset save data for a new game
+    dispatch({ type: 'SET_SAVE_DATA', payload: { ...defaultSaveData } });
+    dispatch({ type: 'SET_CURRENT_LEVEL', payload: 1 });
+    // Go to difficulty select first (like the original game)
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.DIFFICULTY_SELECT });
+  };
+
   const pauseGame = (): void => {
     dispatch({ type: 'SET_PAUSED', payload: true });
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.PAUSED });
@@ -140,6 +150,10 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
 
   const goToLevelSelect = (): void => {
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.LEVEL_SELECT });
+  };
+
+  const goToDifficultySelect = (): void => {
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.DIFFICULTY_SELECT });
   };
 
   const goToOptions = (): void => {
@@ -171,10 +185,12 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     state,
     dispatch,
     startGame,
+    startNewGame,
     pauseGame,
     resumeGame,
     goToMainMenu,
     goToLevelSelect,
+    goToDifficultySelect,
     goToOptions,
     setLevel,
     completeLevel,

@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { useGameContext, GameProvider } from './context/GameContext';
 import { GameState } from './types';
 import { MainMenu } from './components/MainMenu';
+import { DifficultyMenu } from './components/DifficultyMenu';
 import { LevelSelect } from './components/LevelSelect';
 import { OptionsMenu } from './components/OptionsMenu';
 import { Game } from './components/Game';
@@ -45,6 +46,8 @@ function AppContent(): React.JSX.Element {
     switch (state.gameState) {
       case GameState.MAIN_MENU:
         return <MainMenu />;
+      case GameState.DIFFICULTY_SELECT:
+        return <DifficultyMenu />;
       case GameState.LEVEL_SELECT:
         return <LevelSelect />;
       case GameState.OPTIONS:

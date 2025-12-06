@@ -23,13 +23,16 @@ This document tracks what has been implemented and what still needs to be done t
   - Fly button
   - Stomp button
 - [x] Keyboard support (WASD/Arrows, Space, X)
+- [x] Pause menu overlay - **NEW**
+- [x] Game over screen - **NEW**
+- [x] Level complete screen - **NEW**
 
 ### Core Engine
 - [x] GameLoop.ts - Basic game loop with fixed timestep
 - [x] SystemRegistry.ts - Central system hub (updated with new systems)
 - [x] TimeSystem.ts - Time management
 - [x] InputSystem.ts - Keyboard and virtual button input
-- [x] CameraSystem.ts - Basic camera following
+- [x] CameraSystem.ts - Camera following with screen shake - **UPDATED**
 - [x] RenderSystem.ts - Canvas 2D rendering with tileset support
 - [x] CollisionSystem.ts - Basic collision detection
 - [x] SoundSystem.ts - Web Audio API implementation with sound loading
@@ -716,7 +719,7 @@ The hot spot layer defines special tile behaviors:
 
 | Category | Original | Ported | Percentage |
 |----------|----------|--------|------------|
-| Java Classes | 118 | ~45 | 38% |
+| Java Classes | 118 | ~50 | 42% |
 | Sound Effects | 22 | 22 | 100% |
 | Level Files (.bin) | 47 | 47 | 100% |
 | Dialog Files (.xml) | 38 | 38 | 100% |
@@ -729,8 +732,9 @@ The hot spot layer defines special tile behaviors:
 | Core Game Loop | 1 | 1 | 100% |
 | Level Progression | 1 | 1 | 100% |
 | Dialog Triggers | 1 | 1 | 100% |
+| Game UI Screens | 5 | 5 | 100% |
 
-**Overall Completion: ~70%**
+**Overall Completion: ~75%**
 
 The game is now playable with:
 - ✅ **Level loading** - Binary .bin level files fully parsed
@@ -744,7 +748,7 @@ The game is now playable with:
 - ✅ **Object spawning** - Game objects spawned from level data
 - ✅ **Collectible sprites** - Coins, rubies, diaries with animated sprites
 - ✅ **Enemy sprites** - Bat, sting, brobot, skeleton, karaguin, mudman, etc.
-- ✅ **Enemy AI (basic)** - Simple patrol movement back and forth
+- ✅ **Enemy AI (type-based)** - Different behaviors for flying, ground, and stationary enemies
 - ✅ **Collectible pickup** - Player collision with coins/rubies/diaries
 - ✅ **Inventory system** - Track coins, rubies, pearls, diaries, lives
 - ✅ **Player damage** - Invincibility frames, knockback, life system
@@ -753,10 +757,14 @@ The game is now playable with:
 - ✅ **Player death/respawn** - Respawn at level start with invincibility
 - ✅ **Level completion** - Detect END_LEVEL hotspot, advance to next level
 - ✅ **NPC dialog triggers** - TALK hotspots trigger dialog overlay
+- ✅ **Camera shake** - Screen shake on player damage and death
+- ✅ **Pause menu** - In-game pause with settings
+- ✅ **Game over screen** - Shows when player runs out of lives
+- ✅ **Level complete screen** - Shows score and bonus when completing levels
 
 Still needs:
-- **Advanced enemy AI** - More complex patrol patterns, attacks
 - **Music** - MIDI not supported, need MP3/OGG conversion
 - **Boss battles** - The Source, Evil Kabocha
+- **Particle effects** - Dust, explosions, etc.
 - **Game over screen** - Show when lives reach 0
 

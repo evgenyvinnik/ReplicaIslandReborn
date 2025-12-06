@@ -76,6 +76,20 @@ export const resourceToLevelId: Record<string, number> = {
   'level_0_1_sewer_wanda': 1,
 };
 
+/**
+ * Reverse lookup to convert saved numeric level ids back into canonical resource names.
+ * If multiple resources share an id (e.g. Kyle/Wanda variants), the first mapping wins.
+ */
+export const levelIdToResource: Record<number, string> = Object.entries(resourceToLevelId).reduce(
+  (acc, [resource, id]) => {
+    if (acc[id] === undefined) {
+      acc[id] = resource;
+    }
+    return acc;
+  },
+  {} as Record<number, string>
+);
+
 export interface LevelGroup {
   levels: Level[];
 }
@@ -706,6 +720,29 @@ export interface LevelMetaData {
   row: number;
   index: number;
   enabled: boolean;
+}
+
+/**
+ * Convert saved completed level ids (or resource strings) into the resource set
+ * expected by generateLevelList.
+ */
+export function completedLevelIdsToResourceSet(
+  completedLevels: Array<number | string>
+): Set<string> {
+  const completed = new Set<string>();
+
+  for (const entry of completedLevels) {
+    if (typeof entry === 'number') {
+      const resource = levelIdToResource[entry];
+      if (resource) {
+        completed.add(resource);
+      }
+    } else if (entry) {
+      completed.add(entry);
+    }
+  }
+
+  return completed;
 }
 
 /**
