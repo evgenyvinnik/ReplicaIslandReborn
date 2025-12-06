@@ -16,7 +16,8 @@ interface PhoneFrameProps {
 export function PhoneFrame({ children, gameWidth, gameHeight }: PhoneFrameProps): React.JSX.Element {
   return (
     <div className="phone-frame-container">
-      <div className="phone-frame">
+      <div className="phone-frame-wrapper">
+        <div className="phone-frame">
         {/* Left bezel with speaker grille */}
         <div className="phone-bezel phone-bezel-left">
           <div className="speaker-grille">
@@ -62,6 +63,12 @@ export function PhoneFrame({ children, gameWidth, gameHeight }: PhoneFrameProps)
         
         {/* Power button on side */}
         <div className="power-button"></div>
+      </div>
+      
+      {/* Keyboard hint below phone frame */}
+      <div className="keyboard-hint-below">
+        WASD/Arrows to move | Space to fly | X to stomp
+      </div>
       </div>
     </div>
   );

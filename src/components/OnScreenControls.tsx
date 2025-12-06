@@ -199,11 +199,6 @@ export function OnScreenControls({
           />
         </div>
       </div>
-
-      {/* Keyboard hint */}
-      <div className="keyboard-hint">
-        WASD/Arrows to move | Space to fly | X to stomp
-      </div>
     </div>
   );
 }

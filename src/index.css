@@ -313,7 +313,7 @@ button:focus {
   display: block;
 }
 
-/* Keyboard hint */
+/* Keyboard hint (legacy - inside game screen) */
 .keyboard-hint {
   position: absolute;
   bottom: 5px;
@@ -323,5 +323,22 @@ button:focus {
   color: rgba(255, 255, 255, 0.3);
   text-align: center;
   pointer-events: none;
+}
+
+/* Phone frame wrapper for positioning hint below */
+.phone-frame-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+/* Keyboard hint below phone frame */
+.keyboard-hint-below {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  pointer-events: none;
+  letter-spacing: 0.5px;
 }
 

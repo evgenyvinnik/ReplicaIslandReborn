@@ -23,7 +23,7 @@
  * Note: Lives and pearls are NOT part of original HudSystem.
  */
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useGameContext } from '../context/GameContext';
 import { GameState } from '../types';
 import { getInventory, addInventoryListener, type InventoryRecord } from '../entities/components/InventoryComponent';
@@ -206,6 +206,62 @@ function useFuelAnimation(targetFuel: number): number {
   return displayFuel;
 }
 
+/**
+ * Pause menu button component with consistent styling
+ */
+interface PauseMenuButtonProps {
+  children: React.ReactNode;
+  onClick: () => void;
+  primary?: boolean;
+}
+
+function PauseMenuButton({ children, onClick, primary = false }: PauseMenuButtonProps): React.JSX.Element {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
+
+  const baseStyle: React.CSSProperties = {
+    padding: '10px 32px',
+    fontSize: 16,
+    fontFamily: 'monospace',
+    fontWeight: 'bold',
+    border: '2px solid',
+    borderRadius: 4,
+    cursor: 'pointer',
+    transition: 'all 0.1s ease',
+    minWidth: 140,
+    textAlign: 'center',
+    letterSpacing: 1,
+  };
+
+  const primaryStyle: React.CSSProperties = {
+    ...baseStyle,
+    backgroundColor: isPressed ? '#339933' : isHovered ? '#55bb55' : '#44aa44',
+    color: '#fff',
+    borderColor: '#66cc66',
+    textShadow: '1px 1px 0 #228822',
+  };
+
+  const secondaryStyle: React.CSSProperties = {
+    ...baseStyle,
+    backgroundColor: isPressed ? '#333' : isHovered ? '#555' : '#444',
+    color: '#ccc',
+    borderColor: '#666',
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={(): void => setIsHovered(true)}
+      onMouseLeave={(): void => { setIsHovered(false); setIsPressed(false); }}
+      onMouseDown={(): void => setIsPressed(true)}
+      onMouseUp={(): void => setIsPressed(false)}
+      style={primary ? primaryStyle : secondaryStyle}
+    >
+      {children}
+    </button>
+  );
+}
+
 // ============================================================================
 // Main HUD Component
 // ============================================================================
@@ -217,8 +273,18 @@ export function HUD({
   gameWidth = 480,
   gameHeight = 320,
 }: HUDProps): React.JSX.Element {
-  const { state, goToMainMenu } = useGameContext();
+  const { state, goToMainMenu, resumeGame, startGame } = useGameContext();
   const [inventory, setInventory] = useState<InventoryRecord>(getInventory());
+
+  // Callback to retry the current level
+  const retryLevel = useCallback((): void => {
+    startGame(state.currentLevel);
+  }, [startGame, state.currentLevel]);
+
+  // Callback to continue to next level
+  const continueToNextLevel = useCallback((): void => {
+    startGame(state.currentLevel + 1);
+  }, [startGame, state.currentLevel]);
   
   // Animated fuel display (matching original HudSystem behavior)
   const displayFuel = useFuelAnimation(fuel);
@@ -416,10 +482,26 @@ export function HUD({
             style={{
               width: 200,
               imageRendering: 'pixelated',
-              marginBottom: 16,
+              marginBottom: 24,
             }}
           />
-          <p style={{ fontSize: 14, color: '#aaa', fontFamily: 'monospace' }}>
+          
+          {/* Pause Menu Buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+            <PauseMenuButton onClick={resumeGame} primary>
+              Resume
+            </PauseMenuButton>
+            <PauseMenuButton onClick={goToMainMenu}>
+              Main Menu
+            </PauseMenuButton>
+          </div>
+          
+          <p style={{ 
+            fontSize: 12, 
+            color: '#666', 
+            fontFamily: 'monospace',
+            marginTop: 24,
+          }}>
             Press ESC or P to resume
           </p>
         </div>
@@ -453,25 +535,19 @@ export function HUD({
           }}>
             GAME OVER
           </h2>
-          <p style={{ fontSize: 14, color: '#aaa', fontFamily: 'monospace' }}>
+          <p style={{ fontSize: 14, color: '#aaa', fontFamily: 'monospace', marginBottom: 24 }}>
             Deaths: {state.saveData.totalDeaths}
           </p>
-          <button
-            onClick={goToMainMenu}
-            style={{
-              marginTop: 24,
-              padding: '12px 24px',
-              fontSize: 16,
-              fontFamily: 'monospace',
-              backgroundColor: '#444',
-              color: '#fff',
-              border: '2px solid #888',
-              borderRadius: 4,
-              cursor: 'pointer',
-            }}
-          >
-            Return to Menu
-          </button>
+          
+          {/* Game Over Menu Buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+            <PauseMenuButton onClick={retryLevel} primary>
+              Retry Level
+            </PauseMenuButton>
+            <PauseMenuButton onClick={goToMainMenu}>
+              Main Menu
+            </PauseMenuButton>
+          </div>
         </div>
       )}
 
@@ -503,7 +579,9 @@ export function HUD({
           }}>
             LEVEL COMPLETE!
           </h2>
-          <div style={{ display: 'flex', gap: 32, marginTop: 16 }}>
+          
+          {/* Collectables Summary */}
+          <div style={{ display: 'flex', gap: 32, marginTop: 16, marginBottom: 24 }}>
             <div style={{ textAlign: 'center', color: '#fff', fontFamily: 'monospace' }}>
               <img 
                 src="/assets/sprites/object_coin01.png" 
@@ -524,6 +602,16 @@ export function HUD({
                 <DigitDisplay value={inventory.rubyCount} />
               </div>
             </div>
+          </div>
+          
+          {/* Level Complete Menu Buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+            <PauseMenuButton onClick={continueToNextLevel} primary>
+              Continue
+            </PauseMenuButton>
+            <PauseMenuButton onClick={goToMainMenu}>
+              Main Menu
+            </PauseMenuButton>
           </div>
         </div>
       )}
