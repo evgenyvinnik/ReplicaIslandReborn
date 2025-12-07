@@ -193,9 +193,10 @@ export class NPCComponent extends GameComponent {
       if (hotSpotSystem) {
         const centerX = parentObject.getCenteredPositionX();
         const hitTileX = hotSpotSystem.getHitTileX(centerX);
-        // Check hot spot just above the feet (position.y + height gives feet, subtract offset to get row above)
-        const feetY = parentObject.getPosition().y + parentObject.height;
-        const hitTileY = hotSpotSystem.getHitTileY(feetY - 16); // Sample one half-tile above feet
+        // Check hot spot near bottom of sprite (matches original: position.y + 10 in Y-up coords)
+        // In Y-down coords: position.y + height - 10 (10 pixels above feet)
+        const checkY = parentObject.getPosition().y + parentObject.height - 10;
+        const hitTileY = hotSpotSystem.getHitTileY(checkY);
         let accepted = true;
         
         // Only process if we've moved to a new tile

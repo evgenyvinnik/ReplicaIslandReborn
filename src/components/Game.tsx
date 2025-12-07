@@ -19,6 +19,7 @@ import { AnimationSystem } from '../engine/AnimationSystem';
 import { EffectsSystem } from '../engine/EffectsSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
+import { GameObject } from '../entities/GameObject';
 import { LevelSystem } from '../levels/LevelSystemNew';
 import { TileMapRenderer } from '../levels/TileMapRenderer';
 import { HUD } from './HUD';
@@ -447,6 +448,32 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             maxX: levelSystem.getLevelWidth(),
             maxY: levelSystem.getLevelHeight(),
           });
+          
+          // Handle cutscene levels (no player spawn)
+          // If there's no player but there is an NPC, focus camera on the NPC
+          const player = gameObjectManager.getPlayer();
+          
+          if (!player) {
+            // Find an NPC to focus on (Wanda, Kyle, Kabocha, or Rokudou)
+            let npcTarget: GameObject | null = null;
+            gameObjectManager.forEach((obj) => {
+              if (obj.type === 'npc' && npcTarget === null) {
+                npcTarget = obj;
+              }
+            });
+            
+            if (npcTarget !== null) {
+              // Set camera to initially focus on the NPC
+              const npc = npcTarget as GameObject;
+              cameraSystem.setNPCTarget(npcTarget);
+              // Also set camera position directly to NPC location
+              const npcPos = npc.getPosition();
+              cameraSystem.setPosition(
+                npcPos.x - width / 2,
+                npcPos.y - height / 2
+              );
+            }
+          }
           
           // Note: Intro dialog is now shown via a separate useEffect after levelLoading becomes false
         } else {
