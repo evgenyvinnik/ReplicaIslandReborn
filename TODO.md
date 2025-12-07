@@ -87,6 +87,24 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 - [x] FadeTransition component for screen effects
 - [x] Effects/particle system (EffectsSystem.ts)
 
+**Not Implemented (Canvas Render Features):**
+
+The original used **OpenGL ES 1.x** with Android's GL surface. The web port uses **Canvas 2D API**. Some features are N/A, others are not yet ported:
+
+| Original Feature | Java File | Web Port Status | Notes |
+|-----------------|-----------|-----------------|-------|
+| Motion Blur Effect | `MotionBlurComponent.java` | ❌ Not implemented | Draws sprite trail with decreasing opacity (4 steps @ 0.1s delay) |
+| Per-Object Fade | `FadeDrawableComponent.java` | ❌ Not implemented | Per-drawable opacity animation with easing (linear/ease), looping modes (none/loop/ping-pong) |
+| Scrollable Bitmap | `ScrollableBitmap.java` | ⚠️ Partial | Basic parallax works; original had more complex UV scrolling |
+| Drawable Factory | `DrawableFactory.java` | ⚠️ Simplified | Original had object pooling for DrawableBitmap; web uses simpler allocation |
+| Texture Library | `TextureLibrary.java` | ⚠️ Simplified | Original had proper GL texture loading/unloading; web caches Image objects |
+| OpenGL VBOs | `GameRenderer.java` | N/A | Vertex Buffer Objects - not applicable to Canvas 2D |
+| Draw Texture Extension | `GameRenderer.java` | N/A | Android GL extension for fast texture drawing - not applicable |
+| Texture Cropping | `DrawableBitmap.java` | ✅ Implemented | Sprite sheet frame selection via `drawImage()` source rect |
+| Alpha Blending | `GameRenderer.java` | ✅ Implemented | `globalAlpha` for opacity |
+| Transform (Scale/Rotate) | `DrawableBitmap.java` | ✅ Implemented | `ctx.scale()`, `ctx.rotate()`, `ctx.translate()` |
+| Render Priority/Z-Sort | `RenderSystem.java` | ✅ Implemented | Render queue sorted by z-index |
+
 ### Level System
 - [x] LevelParser.ts - Binary .bin level file parser
 - [x] LevelSystemNew.ts - Complete level management with binary support
@@ -134,8 +152,34 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 | SphereCollisionVolume.ts | ✅ Done |
 
 ### Assets
-- [x] Copied sprite assets from Original/res/drawable/ (261 files)
+- [x] Copied sprite assets from Original/res/drawable/ (342 of 420 files = 81%)
 - [x] Effect sprites (45 files: effect_*.png)
+
+#### Missing Sprite Assets (78 files) - Detailed Breakdown
+
+The 78 missing sprites map directly to **unimplemented game features**:
+
+| Category | Count | Files | Required For |
+|----------|-------|-------|-------------|
+| **Kyle Death Cutscene** | 16 | `anime_kyle_fall01.png` - `anime_kyle_fall16.png` | Cutscene player (16-frame death animation @ 83ms/frame = 1.33s) |
+| **Rokudou Boss Battle** | 13 | `rokudou_fight_stand.png`, `rokudou_fight_fly01-02.png`, `rokudou_fight_hit01-03.png`, `rokudou_fight_shoot01-02.png`, `rokudou_fight_die01-04.png`, `rokudou_fight_surprise.png` | Rokudou boss fight (not implemented) |
+| **Game Endings UI** | 8 | `ui_good_ending_background.png`, `ui_good_ending_foreground.png`, `ui_ending_bad_kabocha_background.png`, `ui_ending_bad_kabocha_foreground.png`, `ui_bad_ending_rokudou_bg.png`, `ui_bad_ending_rokudou_cliffs.png`, `ui_bad_ending_rokudou_rokudou.png`, `ui_bad_ending_rokudou_sphere.png` | End-game cutscene parallax layers |
+| **Particle Effects** | 8 | `dust01.png` - `dust05.png`, `spark01.png` - `spark03.png` | Additional particle effects (basic effects exist in EffectsSystem) |
+| **Snailbomb Enemy** | 7 | `snailbomb.png`, `snail_bomb.png`, `snailbomb_stand.png`, `snailbomb_walk01-02.png`, `snailbomb_shoot01-02.png` | Snailbomb enemy type (not implemented) |
+| **Debug Rendering** | 6 | `debug_box_blue.png`, `debug_box_red.png`, `debug_box_outline.png`, `debug_circle_blue.png`, `debug_circle_red.png`, `debug_circle_outline.png` | Debug collision visualization (low priority) |
+| **UI Miscellaneous** | 5 | `ui_arrow_dark.png`, `ui_arrow_light.png`, `ui_locked.png`, `ui_new.png`, `ui_pearl.png` | Level select UI enhancements |
+| **Boss Attack Effects** | 4 | `energy_ball01.png` - `energy_ball04.png` | Boss projectile attacks |
+| **Jetpack Fire** | 2 | `jetfire01.png`, `jetfire02.png` | Jetpack flame visual effect |
+| **Dialog Box** | 2 | `dialog_box.9.png`, `dialogue.png` | Dialog box background (React CSS used instead) |
+| **Ghost Mechanic** | 1 | `ghost.png` | Ghost possession mechanic (GhostComponent not implemented) |
+| **Other/Utility** | 6 | `black.png`, `robot.png`, `lighting.png`, `sky_background.png`, `collision_map.png`, `framerate_warning.png` | Various utility sprites |
+
+**Summary:** The missing sprites are NOT random gaps - they correspond to these **unimplemented features**:
+1. ❌ **Cutscene System** - Kyle death animation, game endings
+2. ❌ **Rokudou Boss Fight** - Full boss battle with Rokudou
+3. ❌ **Ghost/Possession Mechanic** - `GhostComponent.ts` not implemented
+4. ❌ **Snailbomb Enemy** - Enemy type not coded
+5. ⚠️ **Enhanced Effects** - Some particle sprites (basic effects work)
 
 ### Sound Assets
 | Category | Status |
@@ -314,29 +358,6 @@ Can be implemented using the Gamepad Haptic API or Vibration API for supported b
 - [ ] Create level time tracking
 
 ---
-
-## Summary Statistics
-
-| Category | Original | Ported | Percentage |
-|----------|----------|--------|------------|
-| Java Classes | 130 | ~56 | 43% |
-| Components | 35 | 24 | 69% |
-| Sound Effects | 22 | 22 | 100% |
-| Level Files (.bin) | 47 | 47 | 100% |
-| Dialog Files (.xml) | 38 | 38 | 100% |
-| Tileset Images | 7 | 7 | 100% |
-| Background Images | 9 | 9 | 100% |
-| Sprite Assets | 423 | 306 | 72% |
-| UI Screens | 8 | 7 | 88% |
-
-**Overall Completion: ~82%**
-
-The game is fully playable with all levels, enemies, NPCs, and dialog. The main gaps are:
-1. **Evil Kabocha boss** - Need dedicated component
-2. **Ghost/possession mechanic** - Unique gameplay feature
-3. **Background music** - Just needs MIDI→OGG conversion
-4. **Cutscenes** - End-game animations
-5. **Diary UI** - Popup when collecting diary items
 
 #### 5.5. NPC Intro Cutscene System (IMPLEMENTED)
 
@@ -882,26 +903,43 @@ The hot spot layer defines special tile behaviors:
 
 ## Summary Statistics
 
-| Category | Original | Ported | Percentage |
-|----------|----------|--------|------------|
-| Java Classes | 118 | ~50 | 42% |
-| Sound Effects | 22 | 22 | 100% |
-| Level Files (.bin) | 47 | 47 | 100% |
-| Dialog Files (.xml) | 38 | 38 | 100% |
-| Tileset Images | 7 | 7 | 100% |
-| Background Images | 9 | 9 | 100% |
-| Sprite Assets | 423 | 261 | 62% |
-| Canvas Render Features | ~10 | 9 | 90% |
-| Options/Settings | 10 | 10 | 100% |
-| Player Physics | 1 | 1 | 100% |
-| Core Game Loop | 1 | 1 | 100% |
-| Level Progression | 1 | 1 | 100% |
-| Dialog Triggers | 1 | 1 | 100% |
-| Game UI Screens | 5 | 5 | 100% |
+| Category | Original | Ported | Percentage | Notes |
+|----------|----------|--------|------------|-------|
+| Java Classes | 118 | ~50 | 42% | Core gameplay classes ported |
+| Sound Effects | 22 | 22 | 100% | All OGG files copied and working |
+| Level Files (.bin) | 47 | 47 | 100% | All levels parsed to JSON |
+| Dialog Files (.xml) | 38 | 38 | 100% | All dialogs ported to TypeScript |
+| Tileset Images | 7 | 7 | 100% | grass, island, sewage, cave, lab, tutorial, titletileset |
+| Background Images | 9 | 9 | 100% | All parallax backgrounds |
+| Sprite Assets | 420 | 342 | 81% | 78 missing (see breakdown below) |
+| Canvas Render Features | 12 | 10 | 83% | MotionBlur, FadeDrawable not ported |
+| Options/Settings | 10 | 10 | 100% | Full settings persistence |
+| Player Physics | 1 | 1 | 100% | Ground/air/jetpack/stomp |
+| Core Game Loop | 1 | 1 | 100% | Fixed timestep loop |
+| Level Progression | 1 | 1 | 100% | Level tree navigation |
+| Dialog Triggers | 1 | 1 | 100% | Hot spot triggered dialogs |
+| Game UI Screens | 5 | 5 | 100% | Main menu, level select, pause, game over, level complete |
 
-**Overall Completion: ~75%**
+### Missing Sprites by Feature (78 total)
 
-The game is now playable with:
+| Feature | Sprites | Status |
+|---------|---------|--------|
+| Kyle Death Cutscene | 16 | ❌ Cutscene player not implemented |
+| Rokudou Boss Battle | 13 | ❌ Boss fight not implemented |
+| Game Endings | 8 | ❌ Ending animations not implemented |
+| Particle Effects | 8 | ⚠️ Basic effects work, enhanced sprites missing |
+| Snailbomb Enemy | 7 | ❌ Enemy type not implemented |
+| Debug Rendering | 6 | ⚠️ Low priority, debug mode uses colored rects |
+| UI Misc | 5 | ⚠️ Level select enhancements |
+| Boss Effects | 4 | ❌ Boss projectiles not implemented |
+| Jetpack Fire | 2 | ⚠️ Visual polish |
+| Dialog Box | 2 | ✅ Using React/CSS instead |
+| Ghost Mechanic | 1 | ❌ GhostComponent not implemented |
+| Other | 6 | ⚠️ Utility sprites |
+
+**Overall Completion: ~82%**
+
+The game is **fully playable through all 47 levels** with:
 - ✅ **Level loading** - Binary .bin level files fully parsed
 - ✅ **Sound playback** - 22 OGG sound effects loaded and playing
 - ✅ **Dialog system** - All 38 dialog files ported with typewriter effect
@@ -918,6 +956,22 @@ The game is now playable with:
 - ✅ **Inventory system** - Track coins, rubies, pearls, diaries, lives
 - ✅ **Player damage** - Invincibility frames, knockback, life system
 - ✅ **Enemy stomp** - Kill enemies by stomping on them
+
+### What's Blocking 100% Completion
+
+The remaining **~18%** consists of these major unimplemented features:
+
+| Feature | Sprites Needed | Components Needed | Priority |
+|---------|---------------|-------------------|----------|
+| **Rokudou Boss Fight** | 13 (`rokudou_fight_*.png`) | Boss AI, attack patterns | HIGH |
+| **Cutscene Player** | 16 (`anime_kyle_fall*.png`) + 8 (endings) | AnimationPlayerActivity equivalent | MEDIUM |
+| **Ghost Mechanic** | 1 (`ghost.png`) | `GhostComponent.ts` | MEDIUM |
+| **Snailbomb Enemy** | 7 (`snailbomb_*.png`) | Enemy factory spawn | LOW |
+| **Motion Blur Effect** | 0 | `MotionBlurComponent.ts` | LOW |
+| **Per-Object Fade** | 0 | `FadeDrawableComponent.ts` | LOW |
+| **Background Music** | 0 | MIDI→OGG conversion | LOW |
+
+### Additional Working Features
 - ✅ **Screen transitions** - FadeTransition component for level changes
 - ✅ **Player death/respawn** - Respawn at level start with invincibility
 - ✅ **Level completion** - Detect END_LEVEL hotspot, advance to next level
@@ -927,7 +981,3 @@ The game is now playable with:
 - ✅ **Game over screen** - Shows when player runs out of lives
 - ✅ **Level complete screen** - Shows score and bonus when completing levels
 - ✅ **Effects system** - Explosions, smoke, dust, crush flash effects
-
-Still needs:
-- **Music** - MIDI not supported, need MP3/OGG conversion
-- **Boss battles** - Evil Kabocha (TheSourceComponent done)

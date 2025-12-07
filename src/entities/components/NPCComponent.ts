@@ -146,7 +146,7 @@ export class NPCComponent extends GameComponent {
     this.deathFadeDelay = DEATH_FADE_DELAY;
     this.pauseOnAttack = true;
   }
-
+  
   override update(timeDelta: number, parent: object): void {
     const parentObject = parent as GameObject;
     
@@ -193,7 +193,9 @@ export class NPCComponent extends GameComponent {
       if (hotSpotSystem) {
         const centerX = parentObject.getCenteredPositionX();
         const hitTileX = hotSpotSystem.getHitTileX(centerX);
-        const hitTileY = hotSpotSystem.getHitTileY(parentObject.getPosition().y + 10);
+        // Check hot spot just above the feet (position.y + height gives feet, subtract offset to get row above)
+        const feetY = parentObject.getPosition().y + parentObject.height;
+        const hitTileY = hotSpotSystem.getHitTileY(feetY - 16); // Sample one half-tile above feet
         let accepted = true;
         
         // Only process if we've moved to a new tile
