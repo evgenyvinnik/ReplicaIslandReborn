@@ -70,7 +70,9 @@ export class LevelSystem {
   private initializeLevelTree(): void {
     const levelTree: LevelInfo[] = [
       // Tutorial (World 0)
-      { id: 1, name: 'Tutorial 1', file: 'level_0_1_sewer', binary: true, next: 2, unlocked: true, world: 0, stage: 1 },
+      // Note: level_0_1_sewer is a cutscene-only level with no player spawn
+      // Using level_0_1_sewer_kyle which has the player spawn for now
+      { id: 1, name: 'Tutorial 1', file: 'level_0_1_sewer_kyle', binary: true, next: 2, unlocked: true, world: 0, stage: 1 },
       { id: 2, name: 'Tutorial 2', file: 'level_0_2_lab', binary: true, next: 3, unlocked: false, world: 0, stage: 2 },
       { id: 3, name: 'Tutorial 3', file: 'level_0_3_lab', binary: true, next: 4, unlocked: false, world: 0, stage: 3 },
       
