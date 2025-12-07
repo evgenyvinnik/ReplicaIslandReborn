@@ -4,17 +4,115 @@
 
 This project is a web port of **Replica Island**, one of the earliest and most popular open-source Android games. The original game was written in Java for Android by Chris Pruett and Genki Mine, released under the Apache 2.0 license.
 
-### User Request
-
-> In the folder `Original` lies the source code for one of very popular Android games called "Replica Island"
->
-> It was one of the earliest open-source games for Android, written in Java
->
-> I want to port "Replica Island" as a web game, probably combination of React + Canvas - this would lie in the root directly of the repository
-
 ### About Replica Island
 
 Replica Island is a side-scrolling platformer starring the Android robot as its protagonist on a dangerous mission to find a mysterious power source. The game includes all art, dialog, level layouts, and other data along with the code.
+
+---
+
+## 🎮 Web Port Status (Current Implementation)
+
+### Technology Stack
+- **Framework**: React 19 + TypeScript with Vite
+- **Rendering**: HTML5 Canvas 2D API
+- **Audio**: Web Audio API
+- **State Management**: Zustand (persistent) + React Context (runtime)
+- **Build Tool**: Vite with Bun runtime
+
+### Implementation Progress Summary
+
+| Category | Status | Details |
+|----------|--------|---------|
+| **Core Engine** | ✅ 95% | 15 systems implemented |
+| **Components** | ✅ 85% | 23 of ~27 components ported |
+| **UI/Screens** | ✅ 90% | 17 React components |
+| **Levels** | ✅ 100% | 40+ levels working |
+| **Sound** | ✅ 100% | All SFX loaded and playing |
+| **Music** | ❌ 0% | MIDI needs conversion |
+| **Cutscenes** | ❌ 0% | AnimationPlayer not implemented |
+| **Ghost Mechanic** | ❌ 0% | GhostComponent not ported |
+
+### Implemented Engine Systems (15 total)
+
+| System | File | Status | Notes |
+|--------|------|--------|-------|
+| SystemRegistry | `SystemRegistry.ts` | ✅ | Global system access (matches ObjectRegistry.java) |
+| GameLoop | `GameLoop.ts` | ✅ | requestAnimationFrame with fixed timestep |
+| TimeSystem | `TimeSystem.ts` | ✅ | Game time, freeze, time scale |
+| InputSystem | `InputSystem.ts` | ✅ | Keyboard, touch, gamepad support |
+| CameraSystem | `CameraSystem.ts` | ✅ | Following, shake, NPC focus, bounds |
+| CollisionSystem | `CollisionSystem.ts` | ✅ | Tile-based background collision |
+| GameObjectCollisionSystem | `GameObjectCollisionSystem.ts` | ✅ | Object-to-object sweep-and-prune |
+| RenderSystem | `RenderSystem.ts` | ✅ | Canvas 2D with render queue, z-sorting |
+| AnimationSystem | `AnimationSystem.ts` | ✅ | Frame timing, binary search lookup |
+| SoundSystem | `SoundSystem.ts` | ✅ | Web Audio API, 32 concurrent sounds |
+| HotSpotSystem | `HotSpotSystem.ts` | ✅ | 50+ hot spot types for AI/triggers |
+| ChannelSystem | `ChannelSystem.ts` | ✅ | Event pub/sub (buttons → doors) |
+| DialogSystem | `DialogSystem.ts` | ✅ | Conversation state machine |
+| EffectsSystem | `EffectsSystem.ts` | ✅ | Explosions, smoke, dust particles |
+| GameFlowEvent | `GameFlowEvent.ts` | ✅ | Level transitions, dialog triggers |
+
+### Implemented Components (23 total)
+
+| Component | Phase | Original | Status |
+|-----------|-------|----------|--------|
+| PlayerComponent | THINK | PlayerComponent.java | ✅ |
+| PhysicsComponent | PHYSICS | PhysicsComponent.java | ✅ |
+| MovementComponent | MOVEMENT | MovementComponent.java | ✅ |
+| SpriteComponent | DRAW | SpriteComponent.java | ✅ |
+| BackgroundCollisionComponent | COLLISION_RESPONSE | BackgroundCollisionComponent.java | ✅ |
+| DynamicCollisionComponent | FRAME_END | DynamicCollisionComponent.java | ✅ |
+| HitReactionComponent | PRE_DRAW | HitReactionComponent.java | ✅ |
+| HitPlayerComponent | COLLISION_DETECTION | HitPlayerComponent.java | ✅ |
+| InventoryComponent | THINK | InventoryComponent.java | ✅ |
+| PatrolComponent | THINK | PatrolComponent.java | ✅ |
+| EnemyAnimationComponent | ANIMATION | EnemyAnimationComponent.java | ✅ |
+| NPCComponent | THINK | NPCComponent.java | ✅ |
+| NPCAnimationComponent | ANIMATION | NPCAnimationComponent.java | ✅ |
+| GenericAnimationComponent | ANIMATION | GenericAnimationComponent.java | ✅ |
+| ButtonAnimationComponent | ANIMATION | ButtonAnimationComponent.java | ✅ |
+| DoorAnimationComponent | ANIMATION | DoorAnimationComponent.java | ✅ |
+| LauncherComponent | THINK | LauncherComponent.java | ✅ |
+| LaunchProjectileComponent | POST_COLLISION | LaunchProjectileComponent.java | ✅ |
+| SleeperComponent | THINK | SleeperComponent.java | ✅ |
+| PopOutComponent | THINK | PopOutComponent.java | ✅ |
+| AttackAtDistanceComponent | THINK | AttackAtDistanceComponent.java | ✅ |
+| LifetimeComponent | THINK | LifetimeComponent.java | ✅ |
+| TheSourceComponent | THINK | TheSourceComponent.java | ✅ |
+
+### NOT Yet Implemented Components
+
+| Component | Original | Priority | Notes |
+|-----------|----------|----------|-------|
+| GhostComponent | GhostComponent.java | HIGH | Possession mechanic |
+| GravityComponent | GravityComponent.java | MEDIUM | Custom gravity zones |
+| CameraBiasComponent | CameraBiasComponent.java | MEDIUM | Camera look-ahead |
+| ChangeComponentsComponent | ChangeComponentsComponent.java | LOW | Dynamic component swapping |
+| OrbitalMagnetComponent | OrbitalMagnetComponent.java | LOW | Collectible attraction |
+| MotionBlurComponent | MotionBlurComponent.java | LOW | Visual effect |
+| FadeDrawableComponent | FadeDrawableComponent.java | LOW | Per-object fade |
+
+### React UI Components (17 total)
+
+| Component | Purpose |
+|-----------|---------|
+| `Game.tsx` | Main game canvas, system orchestration (~1700 lines) |
+| `MainMenu.tsx` | Title screen with original assets |
+| `LevelSelect.tsx` | Level grid with unlock states |
+| `DifficultyMenu.tsx` | Baby/Kids/Adults selection |
+| `OptionsMenu.tsx` | Settings and key bindings |
+| `PauseMenu.tsx` | In-game pause overlay |
+| `HUD.tsx` | Fuel bar, coin/ruby counters, FPS |
+| `GameOverScreen.tsx` | Death screen with retry |
+| `LevelCompleteScreen.tsx` | Victory stats and next level |
+| `DialogOverlay.tsx` | NPC conversation display |
+| `LoadingScreen.tsx` | Level loading progress |
+| `OnScreenControls.tsx` | Mobile virtual joystick |
+| `FadeTransition.tsx` | Screen transitions |
+| `PhoneFrame.tsx` | Android phone bezel aesthetic |
+| `AndroidHomeScreen.tsx` | Fake home screen for immersion |
+| `AndroidRecentsScreen.tsx` | Fake recents view |
+| `SoundControls.tsx` | Volume controls |
 
 ---
 
@@ -27,6 +125,43 @@ The original Replica Island uses a sophisticated **multi-threaded dual-buffered 
 ---
 
 ## Original Architecture Deep Dive
+
+### Object Pooling System (Critical for Performance)
+
+The original game uses extensive object pooling to avoid garbage collection pauses:
+
+#### Base Pool Architecture (`ObjectPool.java`, `TObjectPool.java`)
+```java
+public abstract class ObjectPool extends BaseObject {
+    private FixedSizeArray<Object> mAvailable;
+    private static final int DEFAULT_SIZE = 32;
+    
+    protected Object allocate() {
+        return mAvailable.removeLast();  // Assert if exhausted!
+    }
+    
+    public void release(Object entry) {
+        mAvailable.add(entry);
+    }
+}
+```
+
+#### Pool Sizes in GameObjectFactory
+```java
+MAX_GAME_OBJECTS = 384;
+COLLISION_RECORD_POOL_SIZE = 256;
+
+// Component pools:
+RenderComponent: 384
+SpriteComponent: 384
+LifetimeComponent: 384
+BackgroundCollisionComponent: 192
+EnemyAnimationComponent: 256
+PatrolComponent: 256
+HitReactionComponent: 256
+DoorAnimationComponent: 256
+GhostComponent: 256
+```
 
 ### Core Threading Model
 
@@ -108,6 +243,274 @@ Components are sorted and executed in **strict phase order**:
 ```java
 public enum ComponentPhases {
     THINK,                  // 0: AI decisions
+    PHYSICS,                // 1: Impulse velocities summed
+    POST_PHYSICS,           // 2: Inertia, friction, bounce
+    MOVEMENT,               // 3: Position updated
+    COLLISION_DETECTION,    // 4: Intersections detected
+    COLLISION_RESPONSE,     // 5: Intersections resolved
+    POST_COLLISION,         // 6: Position final for frame
+    ANIMATION,              // 7: Animation selection
+    PRE_DRAW,               // 8: Drawing state init
+    DRAW,                   // 9: Drawing commands scheduled
+    FRAME_END,              // 10: Cleanup
+}
+```
+
+**This phase ordering is CRITICAL. Components MUST execute in this order!**
+
+---
+
+## Player Constants (from PlayerComponent.java)
+
+```java
+// Movement
+GROUND_IMPULSE_SPEED = 5000.0f;
+AIR_HORIZONTAL_IMPULSE_SPEED = 4000.0f;
+AIR_VERTICAL_IMPULSE_SPEED = 1200.0f;
+AIR_VERTICAL_IMPULSE_SPEED_FROM_GROUND = 250.0f;
+AIR_DRAG_SPEED = 4000.0f;
+MAX_GROUND_HORIZONTAL_SPEED = 500.0f;
+MAX_AIR_HORIZONTAL_SPEED = 150.0f;
+MAX_UPWARD_SPEED = 250.0f;
+VERTICAL_IMPULSE_TOLERANCE = 50.0f;
+
+// Fuel/Jetpack
+FUEL_AMOUNT = 1.0f;
+JUMP_TO_JETS_DELAY = 0.5f;
+
+// Stomp Attack
+STOMP_VELOCITY = -1000.0f;
+STOMP_DELAY_TIME = 0.15f;
+STOMP_AIR_HANG_TIME = 0.0f;
+STOMP_SHAKE_MAGNITUDE = 15.0f;
+STOMP_VIBRATE_TIME = 0.05f;
+HIT_REACT_TIME = 0.5f;
+
+// Ghost/Possession
+GHOST_REACTIVATION_DELAY = 0.3f;
+GHOST_CHARGE_TIME = 0.75f;
+MAX_GEMS_PER_LEVEL = 3;
+NO_GEMS_GHOST_TIME = 3.0f;
+ONE_GEM_GHOST_TIME = 8.0f;
+TWO_GEMS_GHOST_TIME = 0.0f;  // Unlimited with 2 gems
+```
+
+---
+
+## Sound System (SoundSystem.java)
+
+```java
+MAX_STREAMS = 8;      // Max concurrent sounds
+MAX_SOUNDS = 32;      // Max loaded sounds
+PRIORITY_LOW = 0;
+PRIORITY_NORMAL = 1;
+PRIORITY_HIGH = 2;
+PRIORITY_MUSIC = 3;
+```
+
+The sound system wraps Android's `SoundPool`, maintains a `FixedSizeArray<Sound>` for lookup via binary search.
+
+---
+
+## Channel System (ChannelSystem.java)
+
+Simple pub/sub for game events using named channels:
+```java
+CHANNEL_COUNT = 8;
+
+// Channel names used:
+"RED BUTTON"
+"BLUE BUTTON"
+"GREEN BUTTON"
+"SURPRISED"
+```
+
+Components register channels by name, then read/write values (boolean or float).
+
+---
+
+## Collision System Details
+
+### Hit Types (CollisionParameters.java)
+```java
+public final class HitType {
+    public static final int INVALID = 0;
+    public static final int HIT = 1;       // Standard hit, reduces life by 1
+    public static final int DEATH = 2;     // Instant death
+    public static final int COLLECT = 3;   // Collectibles
+    public static final int POSSESS = 4;   // Possession (ghost mechanic)
+    public static final int DEPRESS = 5;   // Pressing (buttons)
+    public static final int LAUNCH = 6;    // Launch victim (cannons)
+}
+```
+
+### HitReactionComponent Constants
+```java
+ATTACK_PAUSE_DELAY = (1.0f / 60) * 4;  // Hitstop frames
+DEFAULT_BOUNCE_MAGNITUDE = 200.0f;
+EVENT_SEND_DELAY = 5.0f;
+
+// Configurable behaviors:
+- mPauseOnAttack (hitstop)
+- mBounceOnHit (knockback)
+- mInvincibleAfterHitTime
+- mDieOnCollect
+- mDieOnAttack
+- mSpawnOnDealHit
+```
+
+---
+
+## AI Component Details
+
+### PatrolComponent
+```java
+// Movement config
+mMaxSpeed, mAcceleration
+
+// Attack config
+mAttack (enabled)
+mAttackAtDistance (range)
+mAttackStopsMovement
+mAttackDuration
+mAttackDelay
+
+// Behavior flags
+mTurnToFacePlayer
+mFlying (allows vertical movement)
+```
+
+### SleeperComponent States
+```java
+STATE_SLEEPING = 0;
+STATE_WAKING = 1;
+STATE_ATTACKING = 2;
+STATE_SLAM = 3;
+
+DEFAULT_WAKE_UP_DURATION = 3.0f;
+mSlamDuration, mSlamMagnitude
+mAttackImpulseX, mAttackImpulseY
+```
+
+### PopOutComponent States
+```java
+DEFAULT_APPEAR_DISTANCE = 120;
+DEFAULT_HIDE_DISTANCE = 190;
+DEFAULT_ATTACK_DISTANCE = 0;
+
+STATE_HIDDEN = 0;
+STATE_VISIBLE = 1;
+STATE_ATTACKING = 2;
+```
+
+### GhostComponent (Possession - NOT YET PORTED)
+```java
+mMovementSpeed, mJumpImpulse, mAcceleration
+mDelayOnRelease (time before player regains control)
+mKillOnRelease (kill possessed enemy on release)
+mLifeTime (ghost duration limit)
+mChangeActionOnButton
+mAmbientSound (looping possession sound)
+```
+
+### LaunchProjectileComponent
+```java
+mObjectTypeToSpawn
+mOffsetX, mOffsetY (spawn offset)
+mVelocityX, mVelocityY
+mThetaError (random angle variation)
+mRequiredAction (only fire during specific action)
+mDelayBetweenShots, mDelayBetweenSets, mDelayBeforeFirstSet
+mProjectilesInSet, mSetsPerActivation
+mTrackProjectiles, mMaxTrackedProjectiles
+```
+
+---
+
+## Difficulty System (DifficultyConstants.java)
+
+### Kids Difficulty
+```java
+FUEL_AIR_REFILL_SPEED = 0.15f;
+FUEL_GROUND_REFILL_SPEED = 2.0f;
+MAX_PLAYER_LIFE = 3;
+COINS_PER_POWERUP = 20;
+GLOW_DURATION = 15.0f;
+DDA_STAGE_1_ATTEMPTS = 3;
+DDA_STAGE_2_ATTEMPTS = 8;
+```
+
+### Adults Difficulty
+```java
+MAX_PLAYER_LIFE = 2;
+COINS_PER_POWERUP = 30;
+GLOW_DURATION = 10.0f;
+DDA_STAGE_1_ATTEMPTS = 4;
+DDA_STAGE_2_ATTEMPTS = 8;
+```
+
+### Dynamic Difficulty Adjustment (DDA)
+After `DDA_STAGE_1_ATTEMPTS` deaths: +1 life boost, faster fuel refill
+After `DDA_STAGE_2_ATTEMPTS` deaths: +2 life boost, even faster fuel
+
+---
+
+## Render Sort Constants (SortConstants.java)
+
+```java
+BACKGROUND_START = -100;
+THE_SOURCE_START = -5;
+FOREGROUND = 0;
+EFFECT = 5;
+GENERAL_OBJECT = 10;
+GENERAL_ENEMY = 15;
+NPC = 15;
+PLAYER = 20;
+FOREGROUND_EFFECT = 30;
+PROJECTILE = 40;
+FOREGROUND_OBJECT = 50;
+OVERLAY = 70;
+HUD = 100;
+FADE = 200;
+```
+
+---
+
+## Game Flow Events (GameFlowEvent.java)
+
+```java
+EVENT_INVALID = -1;
+EVENT_RESTART_LEVEL = 0;
+EVENT_END_GAME = 1;
+EVENT_GO_TO_NEXT_LEVEL = 2;
+EVENT_SHOW_DIARY = 3;
+EVENT_SHOW_DIALOG_CHARACTER1 = 4;
+EVENT_SHOW_DIALOG_CHARACTER2 = 5;
+EVENT_SHOW_ANIMATION = 6;
+```
+
+---
+
+## Object Activation Radii
+
+```java
+mTightActivationRadius = screenSizeRadius + 128.0f;
+mNormalActivationRadius = screenSizeRadius * 1.25f;
+mWideActivationRadius = screenSizeRadius * 2.0f;
+mAlwaysActive = -1.0f;  // Player, critical objects
+```
+
+---
+        }
+    }
+}
+```
+
+#### 3. PhasedObject and Phase-Based Execution
+Components are sorted and executed in **strict phase order**:
+```java
+public enum ComponentPhases {
+    THINK,                  // 0: AI decisions
     PHYSICS,                // 1: Apply forces (gravity, impulses)
     POST_PHYSICS,           // 2: Friction, inertia, bounce
     MOVEMENT,               // 3: Update position from velocity
@@ -150,8 +553,6 @@ public enum ComponentPhases {
 | `GameObjectManager.java` | Manages all GameObjects, activation by distance | Activates/deactivates based on camera distance |
 | `GameObjectFactory.java` | Spawns configured GameObjects (~6700 lines!) | Creates player, enemies, effects, etc. |
 | `ObjectRegistry.java` | Global singleton registry for all systems | Accessed via `BaseObject.sSystemRegistry` |
-
-### Rendering System Files
 
 | File | Purpose | Key Connections |
 |------|---------|-----------------|
@@ -545,82 +946,136 @@ Android View Animations are XML-defined transformations (alpha/fade, translate/s
 3. **Fire-and-Forget Drawables**: `SpriteComponent` allocates a fresh `DrawableBitmap` each frame from a pool
 4. **Object Activation by Distance**: `GameObjectManager` only updates objects within activation radius of camera
 5. **Global System Registry**: All systems accessible via `BaseObject.sSystemRegistry`
+6. **Object Pooling**: Extensive pooling for GameObjects, Components, Drawables, HitPoints to avoid GC
+7. **Channel-Based Communication**: Buttons/doors communicate via named channels
+8. **Hot Spot System**: Tiles encode AI hints and triggers (50+ types)
 
-### Web Port (`/` - Root Directory)
+---
 
-The React + Canvas web port will live in the repository root:
+## Web Port Directory Structure
+
+The actual implemented structure:
 
 ```
 /
-├── CLAUDE.md                # This file
-├── LICENSE                  # Project license
+├── CLAUDE.md                # This file - project documentation
+├── TODO.md                  # Detailed implementation tracking
+├── LICENSE                  # Apache 2.0 license
 ├── README.md                # Project overview
-├── Original/                # Original Android source (reference)
-├── package.json             # Project dependencies
+├── Original/                # Original Android source (reference only)
+├── package.json             # Dependencies
 ├── tsconfig.json            # TypeScript configuration
 ├── eslint.config.js         # ESLint configuration
 ├── vite.config.ts           # Vite build configuration
 ├── index.html               # HTML entry point
 ├── public/                  # Static assets
-│   ├── assets/              # Game assets (sprites, sounds, levels)
-│   │   ├── sprites/         # Converted sprite sheets
-│   │   ├── sounds/          # Converted audio files (MP3/WebAudio)
-│   │   └── levels/          # Converted level data (JSON)
-│   └── favicon.ico
-└── src/                     # React + TypeScript source
+│   └── assets/
+│       ├── manifest.json    # Asset manifest
+│       ├── sprites/         # All game sprites (PNG)
+│       ├── sounds/          # Sound effects (OGG)
+│       └── levels/          # Level data (JSON, converted from .bin)
+├── scripts/                 # Build/conversion scripts
+│   ├── convert-levels-to-json.ts
+│   ├── test-level-load.ts
+│   ├── calc-sloc.mjs
+│   └── check-hotspots.py
+└── src/                     # Main source code
     ├── main.tsx             # React entry point
     ├── App.tsx              # Main app component
-    ├── components/          # React UI components
-    │   ├── Game.tsx         # Main game canvas component
-    │   ├── MainMenu.tsx     # Menu screens
-    │   ├── LevelSelect.tsx  # Level selection
-    │   └── HUD.tsx          # Heads-up display overlay
-    ├── engine/              # Game engine (ported from Java)
-    │   ├── GameLoop.ts      # Main game loop
-    │   ├── RenderSystem.ts  # Render queue management
-    │   ├── InputSystem.ts   # Keyboard/touch input handling
-    │   ├── CollisionSystem.ts
-    │   ├── CameraSystem.ts
+    ├── index.css            # Global styles
+    ├── components/          # React UI components (17 files)
+    │   ├── Game.tsx         # Main game canvas (~1700 lines)
+    │   ├── MainMenu.tsx
+    │   ├── LevelSelect.tsx
+    │   ├── HUD.tsx
+    │   ├── DialogOverlay.tsx
+    │   ├── OnScreenControls.tsx
+    │   └── ... (11 more)
+    ├── engine/              # Game engine (15 systems)
+    │   ├── SystemRegistry.ts
+    │   ├── GameLoop.ts
     │   ├── TimeSystem.ts
-    │   ├── HotSpotSystem.ts
+    │   ├── InputSystem.ts
+    │   ├── CameraSystem.ts
+    │   ├── CollisionSystem.ts
+    │   ├── GameObjectCollisionSystem.ts
+    │   ├── RenderSystem.ts
     │   ├── AnimationSystem.ts
-    │   └── SoundSystem.ts   # Web Audio API
-    ├── entities/            # Game objects and components
+    │   ├── SoundSystem.ts
+    │   ├── HotSpotSystem.ts
+    │   ├── ChannelSystem.ts
+    │   ├── DialogSystem.ts
+    │   ├── EffectsSystem.ts
+    │   ├── GameFlowEvent.ts
+    │   └── collision/       # Collision volumes
+    │       ├── CollisionVolume.ts
+    │       ├── AABoxCollisionVolume.ts
+    │       └── SphereCollisionVolume.ts
+    ├── entities/            # Entity/component system
     │   ├── GameObject.ts
     │   ├── GameComponent.ts
     │   ├── GameObjectManager.ts
     │   ├── GameObjectFactory.ts
-    │   └── components/      # Component implementations
-    │       ├── GravityComponent.ts
+    │   └── components/      # 23 component implementations
+    │       ├── PlayerComponent.ts
+    │       ├── PhysicsComponent.ts
     │       ├── MovementComponent.ts
     │       ├── SpriteComponent.ts
-    │       ├── RenderComponent.ts
-    │       ├── AnimationComponent.ts
-    │       └── BackgroundCollisionComponent.ts
-    ├── levels/              # Level loading and management
-    │   ├── LevelParser.ts
+    │       ├── BackgroundCollisionComponent.ts
+    │       ├── DynamicCollisionComponent.ts
+    │       ├── HitReactionComponent.ts
+    │       ├── HitPlayerComponent.ts
+    │       ├── InventoryComponent.ts
+    │       ├── PatrolComponent.ts
+    │       ├── EnemyAnimationComponent.ts
+    │       ├── NPCComponent.ts
+    │       ├── NPCAnimationComponent.ts
+    │       ├── GenericAnimationComponent.ts
+    │       ├── ButtonAnimationComponent.ts
+    │       ├── DoorAnimationComponent.ts
+    │       ├── LauncherComponent.ts
+    │       ├── LaunchProjectileComponent.ts
+    │       ├── SleeperComponent.ts
+    │       ├── PopOutComponent.ts
+    │       ├── AttackAtDistanceComponent.ts
+    │       ├── LifetimeComponent.ts
+    │       ├── TheSourceComponent.ts
+    │       └── index.ts
+    ├── levels/              # Level loading
+    │   ├── LevelParser.ts   # Binary .bin parser
     │   ├── LevelSystem.ts
+    │   ├── LevelSystemNew.ts
     │   ├── TileMap.ts
-    │   └── LevelTree.ts
-    ├── utils/               # Utility functions
-    │   ├── Vector2.ts
-    │   ├── ObjectPool.ts
-    │   └── AssetLoader.ts
+    │   └── TileMapRenderer.ts
+    ├── stores/              # State management
+    │   └── useGameStore.ts  # Zustand persistent store
+    ├── context/             # React context
+    │   └── GameContext.tsx  # Runtime game state
+    ├── data/                # Static data
+    │   ├── dialogs.ts       # NPC dialog scripts
+    │   ├── levelTree.ts     # Level progression
+    │   └── strings.ts       # UI strings
     ├── hooks/               # Custom React hooks
     │   └── useGameLoop.ts
-    ├── context/             # React context providers
-    │   └── GameContext.tsx
-    └── types/               # TypeScript type definitions
-        └── index.ts
+    ├── utils/               # Utilities
+    │   ├── Vector2.ts
+    │   ├── ObjectPool.ts
+    │   ├── AssetLoader.ts
+    │   ├── GameSettings.ts
+    │   ├── PlaceholderSprites.ts
+    │   └── helpers.ts
+    └── types/               # TypeScript types
+        ├── index.ts
+        └── GameObjectTypes.ts
 ```
 
 ---
 
 ## ⚠️ Critical Porting Requirements
 
-### 1. Component Phase Ordering
+### 1. Component Phase Ordering (✅ IMPLEMENTED)
 
-**The web port MUST execute components in the correct phase order:**
+The web port executes components in the correct phase order:
 
 ```typescript
 enum ComponentPhase {
@@ -638,11 +1093,11 @@ enum ComponentPhase {
 }
 ```
 
-Each component must set its phase in the constructor and the `GameObject` must sort components by phase before updating.
+Each component sets its phase in the constructor and `GameObject` sorts components by phase before updating.
 
-### 2. Fire-and-Forget Drawable Pattern
+### 2. Fire-and-Forget Drawable Pattern (✅ IMPLEMENTED via RenderSystem)
 
-**Original Pattern (MUST replicate):**
+**Original Pattern:**
 ```java
 // SpriteComponent.update() - PRE_DRAW phase
 DrawableBitmap bitmap = factory.allocateDrawableBitmap();  // Get from pool
@@ -659,152 +1114,91 @@ renderSystem.scheduleForDraw(mDrawable, position, priority, cameraRelative);
 // After rendering, drawable is released back to pool
 ```
 
-**Why this matters:** The original creates a NEW drawable configuration each frame. The drawable object is pooled, but its state (texture, flip, opacity) is set fresh each frame. This allows different animation frames, flip states, and opacity values without any state management complexity.
+**Web port uses RenderSystem.scheduleForDraw() with immediate configuration.**
 
-### 3. Render Queue (Not Immediate Drawing)
+### 3. Render Queue (✅ IMPLEMENTED)
 
-**The web port should NOT draw immediately!** Instead:
+The web port correctly queues draw commands instead of immediate drawing:
 1. Components call `scheduleForDraw()` during DRAW phase
-2. Queue is sorted by priority (for proper layering)
+2. Queue is sorted by priority (z-ordering)
 3. After all updates, queue is rendered to canvas
 4. Queue is cleared
 
-This pattern allows:
-- Proper z-ordering (priority-based sorting)
-- Camera offset applied during rendering
-- Potential batching optimizations
-- Culling of off-screen objects
+### 4. Camera-Relative vs Absolute Positioning (✅ IMPLEMENTED)
 
-### 4. Camera-Relative vs Absolute Positioning
+Some objects are camera-relative (move with world), others are absolute (HUD).
+The CameraSystem handles this transformation during rendering.
 
-Some objects are camera-relative (move with the world), others are absolute (HUD elements). The original tracks this per-drawable:
+### 5. TimeSystem Integration (✅ IMPLEMENTED)
 
-```java
-// RenderElement has cameraRelative flag
-if (element.cameraRelative) {
-    x = (element.x - cameraX) + halfWidth;
-    y = (element.y - cameraY) + halfHeight;
-}
-```
-
-### 5. TimeSystem Integration
-
-**Always use TimeSystem's frame delta, not raw delta:**
+The web port uses TimeSystem's frame delta, respecting freeze and time scale:
 ```typescript
-// BAD - doesn't handle freeze, time scale
-update(rawDelta: number) {
-    this.position.x += this.velocity.x * rawDelta;
-}
-
-// GOOD - respects TimeSystem
-update(rawDelta: number) {
-    const gameDelta = timeSystem.getFrameDelta();  // May be 0 if frozen!
-    this.position.x += this.velocity.x * gameDelta;
-}
+const gameDelta = timeSystem.getFrameDelta();  // May be 0 if frozen
 ```
 
-### 6. Object Activation by Distance
+### 6. Object Activation by Distance (✅ IMPLEMENTED)
 
-`GameObjectManager` only updates objects within their `activationRadius` of the camera:
-```java
-final float distance2 = cameraFocus.distance2(gameObject.getPosition());
-if (distance2 < (gameObject.activationRadius * gameObject.activationRadius)) {
-    gameObject.update(timeDelta, this);
-} else {
-    // Move to inactive list
-    mInactiveObjects.add(gameObject);
-}
-```
-
-Objects far from the camera are NOT updated, saving CPU. They're re-activated when the camera approaches.
+`GameObjectManager` only updates objects within their `activationRadius` of the camera.
+Objects far from the camera are NOT updated, saving CPU.
 
 ---
 
-## UI/UX Design Requirements
+## UI/UX Design (✅ IMPLEMENTED)
 
 ### Phone Frame Navigation
 
-The game UI is designed to look like an Android phone with a physical frame around the game canvas. The phone frame includes physical-style buttons that must be functional:
+The game UI is designed to look like an Android phone with a physical frame:
+- **PhoneFrame.tsx**: Renders Android phone bezel aesthetic
+- **Back button**: Functions as navigation control (returns to previous screen)
+- **Navigation stack**: Implemented via React Context state machine
 
-#### Back Button Implementation
-- The **back "physical button"** on the phone frame UI must function as a navigation control
-- Pressing the back button should **return the user to the previous screen**:
-  - From gameplay → Main Menu
-  - From Level Select → Main Menu
-  - From Options Menu → Main Menu (or previous screen)
-  - From Pause Menu → Resume Game or Main Menu
-- Implement a **navigation stack** to properly track screen history
-- The back button should respect game state (e.g., may prompt to save/confirm during gameplay)
+### User Data Persistence (✅ IMPLEMENTED via Zustand)
 
-### User Data Persistence
+Persistent storage using **Zustand** with **localStorage** persistence:
 
-Implement persistent storage for user data using **Zustand** with **local storage** persistence:
-
-#### Zustand Store Requirements
-- Create a Zustand store for user/game state that persists across sessions
-- Use the `persist` middleware to automatically sync with `localStorage`
-
-#### Data to Persist
-- **Game Progress**: Completed levels, unlocked content, current level
-- **Player Stats**: High scores, total play time, achievements
-- **User Preferences**: Sound volume, music volume, control preferences, difficulty settings
-- **Inventory**: Collected items, pearls, unlockables
-
-#### Implementation Pattern
 ```typescript
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-
-interface UserDataState {
-  // Progress
-  completedLevels: string[];
-  currentLevel: string;
-  
-  // Stats
-  highScores: Record<string, number>;
-  totalPlayTime: number;
-  
-  // Preferences
-  soundVolume: number;
-  musicVolume: number;
-  
-  // Actions
-  completeLevel: (levelId: string, score: number) => void;
-  updatePreferences: (prefs: Partial<UserPreferences>) => void;
-  resetProgress: () => void;
-}
-
-export const useUserDataStore = create<UserDataState>()(
+// src/stores/useGameStore.ts
+export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
-      // Initial state and actions
+      // Progress
+      completedLevels: [],
+      unlockedLevels: [],
+      
+      // Settings
+      soundVolume: 0.7,
+      musicVolume: 0.5,
+      difficulty: 'kids',
+      
+      // Actions
+      completeLevel: (levelId, score) => { ... },
+      // ...
     }),
-    {
-      name: 'replica-island-user-data', // localStorage key
-    }
+    { name: 'replica-island-user-data' }
   )
 );
 ```
 
-#### Storage Key Convention
-- Use the prefix `replica-island-` for all localStorage keys
-- Primary store key: `replica-island-user-data`
+#### Data Persisted
+- **Game Progress**: Completed levels, unlocked content
+- **Player Stats**: High scores, play time
+- **User Preferences**: Sound/music volume, controls, difficulty
 
 ---
 
 ## Coding Conventions
 
-### Technology Stack
+### Technology Stack (Current)
 
-- **Framework**: React 19 with TypeScript and React Compiler
+- **Framework**: React 19 with TypeScript
 - **Build Tool**: Vite
 - **Runtime**: Bun
 - **Rendering**: HTML5 Canvas 2D API
 - **Audio**: Web Audio API
-- **Styling**: CSS Modules or Tailwind CSS
+- **Styling**: CSS (inline and modules)
 - **State Management**: 
-  - React Context for game runtime state
-  - **Zustand with persist middleware** for user data persistence (progress, settings, high scores)
+  - React Context for game runtime state (`GameContext.tsx`)
+  - Zustand with persist middleware for user data (`useGameStore.ts`)
 - **Storage**: localStorage via Zustand persist middleware
 
 ### ESLint Configuration
@@ -895,7 +1289,7 @@ export default [
 
 ---
 
-## How to Execute the Port
+## How to Run the Project
 
 ### Prerequisites
 
@@ -922,12 +1316,10 @@ bun run dev
 
 ```bash
 bun run dev        # Start Vite dev server with hot reload
-bun run build      # Build for production
+bun run build      # Build for production (typecheck + bundle)
 bun run preview    # Preview production build locally
 bun run lint       # Run ESLint
-bun run lint:fix   # Run ESLint with auto-fix
 bun run typecheck  # Run TypeScript type checking
-bun test           # Run tests
 ```
 
 ### Building for Production
@@ -940,182 +1332,95 @@ bun run build
 
 ---
 
-## Important Gotchas and Things to Know
+## Important Implementation Notes
 
-### Porting Challenges
+### Level Loading (✅ IMPLEMENTED)
 
-1. **Binary Level Data**: The original game uses `.bin` files for levels. These need to be:
-   - Reverse-engineered or converted to JSON format
-   - The `LevelBuilder.java` file shows how levels are loaded
-   - Format: signature(1) + layerCount(1) + bgIndex(1) + [layer data...]
-   - Each layer: type(1) + tileIndex(1) + scrollSpeed(4 float) + TiledWorld data
+Levels are loaded from JSON (converted from original `.bin` files):
+- **LevelParser.ts**: Parses binary `.bin` format (signature 96)
+- **LevelSystemNew.ts**: Manages level loading and spawning
+- Levels stored in `public/assets/levels/` as JSON
+- Format: layers (background, collision, objects, hot spots)
 
-2. **Collision System**: The collision data (`collision.bin`) contains line segments and normals.
-   - Reference `ExtractPoints.js` in tools for format understanding
-   - `CollisionSystem.java` uses Bresenham line algorithm for ray casting
-   - Collision tiles contain arrays of `LineSegment` with normals
+### Collision System (✅ IMPLEMENTED)
 
-3. **OpenGL to Canvas**: Original uses OpenGL ES for rendering.
-   - Canvas 2D is sufficient for this 2D platformer
-   - Original uses `glDrawTexfOES` extension for fast bitmap drawing
-   - `TiledVertexGrid` uses vertex buffers - convert to simple tile-by-tile drawing
+- **CollisionSystem.ts**: Tile-based background collision
+- **GameObjectCollisionSystem.ts**: Object-to-object (sweep-and-prune)
+- **BackgroundCollisionComponent.ts**: Per-object collision response
+- Collision volumes: AABox (rectangle) and Sphere (circle)
 
-4. **Object Pooling**: The original heavily uses object pools to avoid GC pauses.
-   - `DrawableFactory` pools `DrawableBitmap` objects
-   - `RenderElementPool` pools render queue entries  
-   - `GameComponentPool` pools component instances
-   - `HitPointPool` pools collision hit results
+### Animation System (✅ IMPLEMENTED)
 
-5. **Input System**: Original handles Android touch, D-pad, trackball.
-   - Web version needs: keyboard, mouse/touch, gamepad API
-   - Mobile web needs virtual joystick overlay
-   - `InputGameInterface` converts raw input to game-level controls
+Key flow:
+1. **ANIMATION phase**: AnimationComponent selects animation based on state
+2. **PRE_DRAW phase**: SpriteComponent advances frame timer, gets current frame
+3. **DRAW phase**: SpriteComponent schedules sprite for rendering
 
-### ⚠️ Animation System - Critical Details
+Animation frames can include attack/vulnerability collision volumes.
 
-**The original animation system is MORE than just playing frames!**
+### Sound System (✅ IMPLEMENTED)
 
-1. **Animation Frame = Texture + Collision Volumes**
-   ```java
-   public class AnimationFrame {
-       public Texture texture;
-       public float holdTime;
-       FixedSizeArray<CollisionVolume> attackVolumes;      // Hitboxes!
-       FixedSizeArray<CollisionVolume> vulnerabilityVolumes; // Hurtboxes!
-   }
-   ```
-   
-2. **Animation Selection is State-Based**
-   - `AnimationComponent` (player) checks velocity, action, touching ground
+- Web Audio API with AudioContext
+- 22 sound effects loaded from OGG files
+- Concurrent sound limit (32 streams)
+- Volume control per category
+
+### ❌ NOT YET IMPLEMENTED
+
+1. **Music System**: MIDI file needs conversion to MP3/OGG
+2. **Ghost/Possession Mechanic**: GhostComponent not ported
+3. **Cutscene Player**: AnimationPlayerActivity for endings
+4. **Evil Kabocha Boss**: Separate boss component needed
+5. **Diary System**: DiaryActivity modal overlay
+
+### ⚠️ Animation System - Implementation Notes
+
+**The animation system is fully implemented in the web port:**
+
+1. **Animation Frame = Texture + Collision Volumes** (✅)
+   - Frames include texture, hold time, attack/vulnerability volumes
+   - `SpriteComponent` manages frame progression
+
+2. **Animation Selection is State-Based** (✅)
+   - `EnemyAnimationComponent`, `NPCAnimationComponent`, etc. select animations
    - `GenericAnimationComponent` maps `ActionType` to animation index
-   - Animation doesn't just "play" - it's constantly re-evaluated each frame
 
-3. **SpriteComponent Flow (PRE_DRAW phase)**
-   ```java
-   mAnimationTime += timeDelta;  // Accumulate time
-   AnimationFrame frame = currentAnimation.getFrame(mAnimationTime);
-   
-   DrawableBitmap bitmap = factory.allocateDrawableBitmap();  // POOL!
-   bitmap.setTexture(frame.texture);
-   bitmap.setFlip(facingDirection.x < 0, facingDirection.y < 0);
-   renderComponent.setDrawable(bitmap);
-   
-   // Also update collision volumes!
-   collisionComponent.setCollisionVolumes(frame.attackVolumes, frame.vulnerabilityVolumes);
-   ```
+### ⚠️ Rendering System - Implementation Notes
 
-4. **Animation Frame Selection**
-   ```java
-   public AnimationFrame getFrame(float animationTime) {
-       float cycleTime = mLoop ? (animationTime % mLength) : animationTime;
-       // Binary search or linear search through frame start times
-       // Return frame where cycleTime falls within holdTime
-   }
-   ```
+**The web port uses render queue pattern correctly:**
 
-### ⚠️ Rendering System - Critical Details
+1. **RenderComponent queues, doesn't draw immediately** (✅)
+2. **RenderSystem sorts by priority for layering** (✅)
+3. **Camera offset applied during render, not during update** (✅)
 
-**The original does NOT draw during update! It queues draw commands.**
-
-1. **RenderComponent (DRAW phase) queues, doesn't draw:**
-   ```java
-   mPositionWorkspace.set(parent.getPosition());
-   mPositionWorkspace.add(mDrawOffset);
-   
-   if (mDrawable.visibleAtPosition(screenLocation)) {
-       system.scheduleForDraw(mDrawable, mPositionWorkspace, mPriority, mCameraRelative);
-   } else {
-       // Release back to pool immediately if culled!
-       drawableFactory.release(mDrawable);
-       mDrawable = null;
-   }
-   ```
-
-2. **RenderSystem sorts by priority for layering:**
-   ```java
-   public class RenderElement {
-       DrawableObject mDrawable;
-       float x, y;
-       boolean cameraRelative;
-       int phase;  // Based on priority + texture sorting
-   }
-   ```
-
-3. **Priority determines layer order (from `SortConstants`):**
-   - `BACKGROUND_START = -100`
-   - `FOREGROUND = 0` (normal objects)
-   - `OVERLAY = 50` (HUD, effects)
-   
-4. **Camera offset applied during render, not during update:**
-   ```java
-   // In GameRenderer.onDrawFrame():
-   if (element.cameraRelative) {
-       x = (element.x - mCameraX) + mHalfWidth;
-       y = (element.y - mCameraY) + mHalfHeight;
-   }
-   element.mDrawable.draw(x, y, scaleX, scaleY);
-   ```
+#### Priority Constants (implemented in RenderSystem):
+- `BACKGROUND_START = -100`
+- `FOREGROUND = 0`
+- `PLAYER = 20`
+- `HUD = 100`
 
 ### ⚠️ Coordinate System
 
-**Original uses OpenGL coordinates: origin at BOTTOM-LEFT, Y increases UP!**
+**Original uses OpenGL coordinates: origin at BOTTOM-LEFT, Y increases UP.**
 
-```
-(0, height) ─────────────────── (width, height)
-     │                              │
-     │           Screen             │
-     │                              │
-     │                              │
-  (0, 0) ──────────────────────── (width, 0)
-```
+The web port uses Canvas coordinates (TOP-LEFT, Y increases DOWN) but handles the transformation in the rendering layer so game logic uses the same coordinate system as the original.
 
-Web Canvas is TOP-LEFT origin with Y increasing DOWN. You must:
-- Flip Y when rendering: `canvasY = canvasHeight - worldY`
-- Or use `ctx.scale(1, -1)` and `ctx.translate(0, -height)`
+### Asset Status
 
-### Asset Conversion
+1. **Sprites** (✅ 81% complete): 342 of 420 files copied
+   - Missing sprites are for unimplemented features (cutscenes, ghost, Rokudou boss)
+   
+2. **Audio** (✅ 100% SFX): 22 OGG sound effects loaded
+   - Music not implemented (MIDI needs conversion)
+   
+3. **Levels** (✅ 100%): 40+ levels converted to JSON
 
-1. **Sprites**: Original likely uses texture atlases with OpenGL.
-   - Extract and convert to PNG sprite sheets
-   - Consider using a sprite sheet packing tool
-   - Individual textures per animation frame (not sprite sheets!)
+### Performance Notes
 
-2. **Audio**: OGG files need conversion for broader browser support.
-   - Convert to MP3 or use multiple formats
-   - Web Audio API for sound effects
-   - Handle audio autoplay restrictions
-
-3. **Levels**: Binary `.bin` files need parsing.
-   - Study `LevelBuilder.java` and `TiledWorld.java`
-   - Convert to JSON for easier web consumption
-   - Format documented in Level System Files section above
-
-### Performance Considerations
-
-1. **Game Loop**: Use `requestAnimationFrame` with delta time.
-   - Original uses fixed timestep; consider similar approach
-   - Reference `GameThread.java` for timing logic
-   - Cap delta at 100ms to prevent physics explosions
-   - Target 60fps (16.67ms per frame)
-
-2. **Canvas Optimization**:
-   - Minimize canvas state changes
-   - Use offscreen canvases for complex backgrounds
-   - Consider layer separation (background, game, UI)
-   - Batch draw calls where possible (e.g., tiles)
-
-3. **Mobile Performance**:
-   - Test on low-end mobile devices
-   - Implement quality settings if needed
-   - Watch memory usage on mobile Safari
-   - Object pooling is critical for mobile
-
-### Browser Compatibility
-
-- Target modern browsers (Chrome, Firefox, Safari, Edge)
-- Test touch input on iOS Safari and Android Chrome
-- Handle visibility change (pause when tab hidden)
-- Implement proper fullscreen support
+1. **Game Loop**: Uses `requestAnimationFrame` with fixed timestep (60 FPS target)
+2. **Canvas Optimization**: Pixel art mode (`imageSmoothingEnabled = false`)
+3. **Object Pooling**: Implemented for performance-critical objects
+4. **Activation Radius**: Objects only updated when near camera
 
 ### Original Game Loop Reference (Detailed)
 
@@ -1209,160 +1514,77 @@ Web Canvas is TOP-LEFT origin with Y increasing DOWN. You must:
 
 ---
 
-## Complete Original File List with Purposes
+## Complete Original File Reference
 
-### Core Systems (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `AndouKun.java` | 769 | Android Activity, main entry point |
-| `Game.java` | 571 | Bootstrap, system creation |
-| `GameThread.java` | 148 | Game loop timing |
-| `MainLoop.java` | 42 | Game graph root, TimeSystem integration |
-| `GameRenderer.java` | 303 | OpenGL rendering |
-| `BaseObject.java` | 48 | Abstract base class |
-| `ObjectManager.java` | 145 | Object container |
-| `PhasedObject.java` | 42 | Phase-based object |
-| `PhasedObjectManager.java` | 102 | Sorted object manager |
-| `ObjectRegistry.java` | 83 | Global system registry |
+### Core Systems (all ported)
+| File | Lines | Web Port |
+|------|-------|----------|
+| `Game.java` | 571 | `Game.tsx` |
+| `GameThread.java` | 148 | `GameLoop.ts` |
+| `MainLoop.java` | 42 | Integrated in Game.tsx |
+| `GameRenderer.java` | 303 | `RenderSystem.ts` |
+| `ObjectRegistry.java` | 83 | `SystemRegistry.ts` |
 
-### Entity/Component System (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `GameObject.java` | 232 | Game entity |
-| `GameComponent.java` | 51 | Component base class |
-| `GameObjectManager.java` | 201 | Entity activation by distance |
-| `GameObjectFactory.java` | 6773 | Entity spawning (HUGE!) |
-| `GameComponentPool.java` | 55 | Component pooling |
-| `GameObjectPool.java` | 44 | Entity pooling |
+### Entity System (all ported)
+| File | Lines | Web Port |
+|------|-------|----------|
+| `GameObject.java` | 232 | `GameObject.ts` |
+| `GameComponent.java` | 51 | `GameComponent.ts` |
+| `GameObjectManager.java` | 201 | `GameObjectManager.ts` |
+| `GameObjectFactory.java` | 6773 | `GameObjectFactory.ts` |
 
-### Rendering (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `RenderSystem.java` | 143 | Double-buffered queue |
-| `RenderComponent.java` | 109 | Schedules drawing |
-| `DrawableObject.java` | 58 | Drawable base class |
-| `DrawableBitmap.java` | 229 | Bitmap drawing |
-| `DrawableFactory.java` | 149 | Drawable pooling |
-| `ScrollableBitmap.java` | ~100 | Parallax background |
-| `TiledVertexGrid.java` | 217 | Tile map rendering |
-| `TiledBackgroundVertexGrid.java` | ~50 | Background tiles |
-| `ScrollerComponent.java` | 119 | Parallax scrolling |
-| `SortConstants.java` | ~20 | Priority constants |
+### Systems (all ported)
+| File | Web Port | Status |
+|------|----------|--------|
+| `RenderSystem.java` | `RenderSystem.ts` | ✅ |
+| `CollisionSystem.java` | `CollisionSystem.ts` | ✅ |
+| `CameraSystem.java` | `CameraSystem.ts` | ✅ |
+| `SoundSystem.java` | `SoundSystem.ts` | ✅ |
+| `TimeSystem.java` | `TimeSystem.ts` | ✅ |
+| `HotSpotSystem.java` | `HotSpotSystem.ts` | ✅ |
+| `InputSystem.java` | `InputSystem.ts` | ✅ |
+| `ChannelSystem.java` | `ChannelSystem.ts` | ✅ |
 
-### Animation (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `SpriteComponent.java` | 222 | Sprite management |
-| `SpriteAnimation.java` | 99 | Animation definition |
-| `AnimationFrame.java` | 49 | Frame data |
-| `AnimationComponent.java` | 387 | Player animation |
-| `GenericAnimationComponent.java` | 83 | Generic animation |
-| `EnemyAnimationComponent.java` | ~300 | Enemy animation |
-| `ButtonAnimationComponent.java` | ~100 | Button animation |
-| `DoorAnimationComponent.java` | ~100 | Door animation |
-| `FixedAnimationComponent.java` | ~50 | Static animation |
-| `FadeDrawableComponent.java` | ~80 | Fade effects |
+### Components Porting Status
 
-### Physics/Movement (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `GravityComponent.java` | 60 | Gravity |
-| `MovementComponent.java` | 64 | Position update |
-| `PhysicsComponent.java` | ~200 | Friction, bounce |
-| `SimplePhysicsComponent.java` | ~100 | Simple physics |
-| `Interpolator.java` | ~80 | Velocity interpolation |
-| `Lerp.java` | ~50 | Linear interpolation |
-
-### Collision (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `CollisionSystem.java` | 859 | Background collision |
-| `CollisionVolume.java` | ~50 | Collision shape base |
-| `AABoxCollisionVolume.java` | ~100 | Axis-aligned box |
-| `SphereCollisionVolume.java` | ~100 | Circle collision |
-| `BackgroundCollisionComponent.java` | 424 | Object vs world |
-| `DynamicCollisionComponent.java` | ~150 | Object vs object |
-| `GameObjectCollisionSystem.java` | ~300 | Broad phase |
-| `HitReactionComponent.java` | ~300 | Hit responses |
-| `HitPlayerComponent.java` | ~100 | Player hit |
-| `CollisionParameters.java` | ~50 | Collision constants |
-| `HitPoint.java` | ~30 | Hit result |
-| `HitPointPool.java` | ~40 | Hit pooling |
-| `LineSegment.java` | ~50 | Collision segment |
-
-### Level System (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `LevelSystem.java` | 224 | Level management |
-| `LevelBuilder.java` | 190 | Level construction |
-| `TiledWorld.java` | 136 | Tile data |
-| `HotSpotSystem.java` | 165 | AI hot spots |
-| `LevelTree.java` | ~300 | Level progression |
-
-### Camera (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `CameraSystem.java` | 226 | Camera following |
-| `CameraBiasComponent.java` | ~50 | Camera bias |
-
-### Input (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `InputSystem.java` | 142 | Raw input |
-| `InputGameInterface.java` | ~300 | Game controls |
-| `InputTouchScreen.java` | ~150 | Touch handling |
-| `InputKeyboard.java` | ~100 | Keyboard handling |
-| `InputXY.java` | ~50 | 2D input |
-| `InputButton.java` | ~50 | Button state |
-
-### Time (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `TimeSystem.java` | 112 | Game time |
-
-### Sound (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `SoundSystem.java` | ~300 | Audio playback |
-
-### Player (must port)
-| File | Lines | Purpose |
-|------|-------|---------|
-| `PlayerComponent.java` | ~500 | Player logic |
-| `InventoryComponent.java` | ~100 | Inventory |
-| `MotionBlurComponent.java` | ~80 | Motion blur |
-
-### AI Components (port as needed)
-| File | Purpose |
-|------|---------|
-| `PatrolComponent.java` | Walk back and forth |
-| `AttackAtDistanceComponent.java` | Ranged attack |
-| `LaunchProjectileComponent.java` | Shoot bullets |
-| `LifetimeComponent.java` | Self-destruct timer |
-| `GhostComponent.java` | Ghost behavior |
-| `NPCComponent.java` | NPC dialog |
-| `PopOutComponent.java` | Pop-out enemies |
-| `SleeperComponent.java` | Wake on proximity |
-| `LauncherComponent.java` | Launch objects |
-| `SolidSurfaceComponent.java` | Moving platforms |
-| `TheSourceComponent.java` | Final boss |
-
-### Utility (must port)
-| File | Purpose |
-|------|---------|
-| `Vector2.java` | 2D vector |
-| `FixedSizeArray.java` | Custom array |
-| `TObjectPool.java` | Generic pool |
-| `Utils.java` | Math utilities |
-| `DebugLog.java` | Logging |
-| `AllocationGuard.java` | Debug allocation |
-| `ContextParameters.java` | Screen/game params |
+| Original | Web Port | Status |
+|----------|----------|--------|
+| `PlayerComponent.java` | `PlayerComponent.ts` | ✅ |
+| `PhysicsComponent.java` | `PhysicsComponent.ts` | ✅ |
+| `MovementComponent.java` | `MovementComponent.ts` | ✅ |
+| `SpriteComponent.java` | `SpriteComponent.ts` | ✅ |
+| `BackgroundCollisionComponent.java` | `BackgroundCollisionComponent.ts` | ✅ |
+| `DynamicCollisionComponent.java` | `DynamicCollisionComponent.ts` | ✅ |
+| `HitReactionComponent.java` | `HitReactionComponent.ts` | ✅ |
+| `HitPlayerComponent.java` | `HitPlayerComponent.ts` | ✅ |
+| `InventoryComponent.java` | `InventoryComponent.ts` | ✅ |
+| `PatrolComponent.java` | `PatrolComponent.ts` | ✅ |
+| `EnemyAnimationComponent.java` | `EnemyAnimationComponent.ts` | ✅ |
+| `NPCComponent.java` | `NPCComponent.ts` | ✅ |
+| `NPCAnimationComponent.java` | `NPCAnimationComponent.ts` | ✅ |
+| `GenericAnimationComponent.java` | `GenericAnimationComponent.ts` | ✅ |
+| `ButtonAnimationComponent.java` | `ButtonAnimationComponent.ts` | ✅ |
+| `DoorAnimationComponent.java` | `DoorAnimationComponent.ts` | ✅ |
+| `LauncherComponent.java` | `LauncherComponent.ts` | ✅ |
+| `LaunchProjectileComponent.java` | `LaunchProjectileComponent.ts` | ✅ |
+| `SleeperComponent.java` | `SleeperComponent.ts` | ✅ |
+| `PopOutComponent.java` | `PopOutComponent.ts` | ✅ |
+| `AttackAtDistanceComponent.java` | `AttackAtDistanceComponent.ts` | ✅ |
+| `LifetimeComponent.java` | `LifetimeComponent.ts` | ✅ |
+| `TheSourceComponent.java` | `TheSourceComponent.ts` | ✅ |
+| `GhostComponent.java` | - | ❌ Not ported |
+| `GravityComponent.java` | - | ❌ Not ported |
+| `CameraBiasComponent.java` | - | ❌ Not ported |
+| `ChangeComponentsComponent.java` | - | ❌ Not ported |
+| `OrbitalMagnetComponent.java` | - | ❌ Not ported |
+| `MotionBlurComponent.java` | - | ❌ Not ported |
+| `FadeDrawableComponent.java` | - | ❌ Not ported |
 
 ---
 
 ## Resources
 
 - [Original Replica Island Source](https://code.google.com/archive/p/replicaisland/)
-- [Game Programming Patterns](https://gameprogrammingpatterns.com/) - For architecture reference
+- [Game Programming Patterns](https://gameprogrammingpatterns.com/)
 - [MDN Canvas Tutorial](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial)
 - [Web Audio API Guide](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
