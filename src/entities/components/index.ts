@@ -94,3 +94,13 @@ export { SimplePhysicsComponent } from './SimplePhysicsComponent';
 export type { SimplePhysicsConfig } from './SimplePhysicsComponent';
 
 export { FixedAnimationComponent } from './FixedAnimationComponent';
+
+export { ChangeComponentsComponent } from './ChangeComponentsComponent';
+export type { ChangeComponentsConfig } from './ChangeComponentsComponent';
+
+export { CrusherAndouComponent, setCrusherAndouSystemRegistry } from './CrusherAndouComponent';
+
+export { SelectDialogComponent, setSelectDialogSystemRegistry } from './SelectDialogComponent';
+
+export { FrameRateWatcherComponent } from './FrameRateWatcherComponent';
+export type { FrameRateWatcherConfig } from './FrameRateWatcherComponent';

@@ -128,6 +128,7 @@ interface GameContextValue {
   goToLevelSelect: () => void;
   goToDifficultySelect: () => void;
   goToOptions: () => void;
+  goToExtras: () => void;
   setLevel: (level: number) => void;
   completeLevel: () => void;
   gameOver: () => void;
@@ -192,6 +193,10 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.OPTIONS });
   }, []);
 
+  const goToExtras = useCallback((): void => {
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.EXTRAS });
+  }, []);
+
   const setLevel = useCallback((level: number): void => {
     dispatch({ type: 'SET_CURRENT_LEVEL', payload: level });
   }, []);
@@ -226,6 +231,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     goToLevelSelect,
     goToDifficultySelect,
     goToOptions,
+    goToExtras,
     setLevel,
     completeLevel,
     gameOver,
@@ -241,6 +247,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     goToLevelSelect,
     goToDifficultySelect,
     goToOptions,
+    goToExtras,
     setLevel,
     completeLevel,
     gameOver,

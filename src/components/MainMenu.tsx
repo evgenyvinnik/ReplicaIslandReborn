@@ -12,7 +12,7 @@ import { useGameContext } from '../context/GameContext';
 import { assetPath } from '../utils/helpers';
 
 export function MainMenu(): React.JSX.Element {
-  const { startNewGame, startGame, goToLevelSelect, goToOptions, state } = useGameContext();
+  const { startNewGame, startGame, goToLevelSelect, goToOptions, goToExtras, state } = useGameContext();
   const [imagesLoaded, setImagesLoaded] = useState(false);
 
   // Determine if there's a saved game to continue
@@ -115,6 +115,11 @@ export function MainMenu(): React.JSX.Element {
             src={assetPath('/assets/sprites/ui_button_options.png')} 
             alt="Options"
             onClick={goToOptions} 
+          />
+          <ImageButton 
+            src={assetPath('/assets/sprites/ui_button_extras.png')} 
+            alt="Extras"
+            onClick={goToExtras} 
           />
         </div>
 

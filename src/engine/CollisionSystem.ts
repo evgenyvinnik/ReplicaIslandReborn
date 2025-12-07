@@ -134,8 +134,8 @@ export class CollisionSystem {
     y: number,
     width: number,
     height: number,
-    velocityX: number,
-    velocityY: number
+    _velocityX: number,
+    _velocityY: number
   ): TileCollisionResult {
     const result: TileCollisionResult = {
       grounded: false,
@@ -151,50 +151,55 @@ export class CollisionSystem {
 
     // Calculate tile ranges to check
     const left = Math.floor(x / this.tileWidth);
-    const right = Math.floor((x + width) / this.tileWidth);
+    const right = Math.floor((x + width - 0.001) / this.tileWidth); // -0.001 to avoid edge cases
     const top = Math.floor(y / this.tileHeight);
-    const bottom = Math.floor((y + height) / this.tileHeight);
+    const bottom = Math.floor((y + height - 0.001) / this.tileHeight);
 
     // Check each tile in range
     for (let ty = top; ty <= bottom; ty++) {
       for (let tx = left; tx <= right; tx++) {
         if (this.isTileSolid(tx, ty)) {
-          const tileRect: Rect = {
-            x: tx * this.tileWidth,
-            y: ty * this.tileHeight,
-            width: this.tileWidth,
-            height: this.tileHeight,
-          };
+          const tileLeft = tx * this.tileWidth;
+          const tileRight = tileLeft + this.tileWidth;
+          const tileTop = ty * this.tileHeight;
+          const tileBottom = tileTop + this.tileHeight;
 
-          const objectRect: Rect = { x, y, width, height };
+          const objectRight = x + width;
+          const objectBottom = y + height;
 
-          if (this.rectIntersects(objectRect, tileRect)) {
-            // Determine collision direction based on velocity and overlap
-            const overlapLeft = x + width - tileRect.x;
-            const overlapRight = tileRect.x + tileRect.width - x;
-            const overlapTop = y + height - tileRect.y;
-            const overlapBottom = tileRect.y + tileRect.height - y;
+          // Check actual overlap
+          const overlapLeft = objectRight - tileLeft;   // Object's right overlapping tile's left
+          const overlapRight = tileRight - x;            // Tile's right overlapping object's left
+          const overlapTop = objectBottom - tileTop;     // Object's bottom overlapping tile's top
+          const overlapBottom = tileBottom - y;          // Tile's bottom overlapping object's top
 
-            // Find minimum overlap
+          // Only process if there's actual overlap
+          if (overlapLeft > 0 && overlapRight > 0 && overlapTop > 0 && overlapBottom > 0) {
+            // Find minimum overlap to determine collision direction
             const minOverlapX = Math.min(overlapLeft, overlapRight);
             const minOverlapY = Math.min(overlapTop, overlapBottom);
 
+            // Use velocity direction to help resolve ambiguous cases
+            // Primarily use the smaller overlap axis
             if (minOverlapX < minOverlapY) {
               // Horizontal collision
-              if (overlapLeft < overlapRight && velocityX > 0) {
+              if (overlapLeft <= overlapRight) {
+                // Object hit tile from the left (object moving right)
                 result.rightWall = true;
                 result.normal.x = -1;
-              } else if (velocityX < 0) {
+              } else {
+                // Object hit tile from the right (object moving left)
                 result.leftWall = true;
                 result.normal.x = 1;
               }
             } else {
               // Vertical collision
-              // Use >= 0 for grounded check so standing still also counts as grounded
-              if (overlapTop < overlapBottom && velocityY >= 0) {
+              if (overlapTop <= overlapBottom) {
+                // Object hit tile from above (object moving down - grounded)
                 result.grounded = true;
                 result.normal.y = -1;
-              } else if (velocityY < 0) {
+              } else {
+                // Object hit tile from below (object moving up - ceiling)
                 result.ceiling = true;
                 result.normal.y = 1;
               }

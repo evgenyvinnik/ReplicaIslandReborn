@@ -175,7 +175,7 @@ The original used **OpenGL ES 1.x** with Android's GL surface. The web port uses
 | Original Feature | Java File | Web Port Status | Notes |
 |-----------------|-----------|-----------------|-------|
 | Motion Blur Effect | `MotionBlurComponent.java` | ✅ Implemented | Draws sprite trail with decreasing opacity (4 steps @ 0.1s delay) |
-| Per-Object Fade | `FadeDrawableComponent.java` | ❌ Not implemented | Per-drawable opacity animation with easing (linear/ease), looping modes (none/loop/ping-pong) |
+| Per-Object Fade | `FadeDrawableComponent.java` | ✅ Implemented | Per-drawable opacity animation with easing (linear/ease), looping modes (none/loop/ping-pong) |
 | Scrollable Bitmap | `ScrollableBitmap.java` | ⚠️ Partial | Basic parallax works; original had more complex UV scrolling |
 | Drawable Factory | `DrawableFactory.java` | ⚠️ Simplified | Original had object pooling for DrawableBitmap; web uses simpler allocation |
 | Texture Library | `TextureLibrary.java` | ⚠️ Simplified | Original had proper GL texture loading/unloading; web caches Image objects |
@@ -370,16 +370,16 @@ Diary system now fully implemented:
 - `CanvasDiaryOverlay.ts` displays scrollable diary text
 - Collection triggers overlay display in Game.tsx
 
-#### 6. Extras Menu
+#### 6. Extras Menu ✅ IMPLEMENTED
 | Component | Original File | Description |
 |-----------|---------------|-------------|
-| ExtrasMenuActivity | ExtrasMenuActivity.java | Unlockable extras menu |
-| extras_menu.xml | res/layout/extras_menu.xml | Layout with locked/unlocked states |
+| ExtrasMenu | ExtrasMenu.tsx | ✅ Unlockable extras menu |
+| extras_menu.xml | res/layout/extras_menu.xml | ✅ Layout with locked/unlocked states |
 
 Unlocks after completing the game. Contains:
-- Linear Mode (play all levels in order)
-- Level Select (jump to any completed level)
-- Controls configuration
+- ✅ Linear Mode (play all levels in order)
+- ✅ Level Select (jump to any completed level)
+- ✅ Controls configuration
 
 #### 7. Missing Components
 | Component | Original File | Priority | Description |
@@ -387,18 +387,18 @@ Unlocks after completing the game. Contains:
 | GravityComponent | GravityComponent.java | ✅ Done | Custom gravity zones |
 | CameraBiasComponent | CameraBiasComponent.java | ✅ Done | Shifts camera focus |
 | OrbitalMagnetComponent | OrbitalMagnetComponent.java | ✅ Done | Magnetic attraction for collectibles |
-| ChangeComponentsComponent | ChangeComponentsComponent.java | LOW | Dynamic component swapping |
+| ChangeComponentsComponent | ChangeComponentsComponent.java | ✅ Done | Dynamic component swapping |
 | SimpleCollisionComponent | SimpleCollisionComponent.java | ✅ Done | Simplified collision for effects |
 | SimplePhysicsComponent | SimplePhysicsComponent.java | ✅ Done | Simplified physics for projectiles |
 | SolidSurfaceComponent | SolidSurfaceComponent.java | ✅ Done | Solid collision surfaces |
-| SelectDialogComponent | SelectDialogComponent.java | LOW | Dialog selection UI |
+| SelectDialogComponent | SelectDialogComponent.java | ✅ Done | Dialog selection UI |
 | FixedAnimationComponent | FixedAnimationComponent.java | ✅ Done | Static looping animations |
 | FadeDrawableComponent | FadeDrawableComponent.java | ✅ Done | Fade in/out effects |
 | MotionBlurComponent | MotionBlurComponent.java | ✅ Done | Motion blur visual effect |
 | ScrollerComponent | ScrollerComponent.java | N/A | Handled by TileMapRenderer |
-| FrameRateWatcherComponent | FrameRateWatcherComponent.java | LOW | Performance monitoring |
+| FrameRateWatcherComponent | FrameRateWatcherComponent.java | ✅ Done | Performance monitoring |
 | PlaySingleSoundComponent | PlaySingleSoundComponent.java | ✅ Done | One-shot sound on spawn |
-| CrusherAndouComponent | CrusherAndouComponent.java | MEDIUM | Full stomp attack logic |
+| CrusherAndouComponent | CrusherAndouComponent.java | ✅ Done | Full stomp attack logic |
 
 #### 8. Camera System Enhancements
 | Feature | Original | Status |
@@ -442,17 +442,17 @@ Implemented using the Web Vibration API for mobile browsers and Gamepad haptic A
 
 ### Phase 2: Story & Polish (MEDIUM)
 - [x] Create CanvasDiaryOverlay.ts for diary collection UI ✅
-- [ ] Add cutscene player for game endings
+- [x] Add cutscene player for game endings ✅
 - [x] Implement GravityComponent.ts for gravity zones ✅
 - [x] Add SolidSurfaceComponent.ts for moving platforms ✅
-- [ ] Create CrusherAndouComponent.ts for advanced stomp
+- [x] Create CrusherAndouComponent.ts for advanced stomp ✅
 
 ### Phase 3: Extras & Completion (LOW)
-- [ ] Create ExtrasMenu.tsx with unlock system
-- [ ] Add vibration/haptic feedback
-- [ ] Implement high score tracking
+- [x] Create ExtrasMenu.tsx with unlock system ✅
+- [x] Add vibration/haptic feedback ✅
+- [x] Implement high score tracking ✅
 - [ ] Add Japanese language support
-- [ ] Create level time tracking
+- [x] Create level time tracking ✅
 
 ---
 
@@ -541,7 +541,7 @@ The first level (level_0_1_sewer) has an intro cutscene where Wanda walks toward
 | `DiaryActivity.java` | Diary/story entries | LOW |
 | `ConversationDialogActivity.java` | Dialog system | ✅ Done |
 | `ConversationUtils.java` | Dialog XML parser | ✅ Done |
-| `ExtrasMenuActivity.java` | Extras menu | LOW |
+| `ExtrasMenuActivity.java` | Extras menu | ✅ Done |
 | `DifficultyMenuActivity.java` | Difficulty selection | ✅ Done |
 | `SetPreferencesActivity.java` | Settings/Options menu | ✅ Done |
 | `AnimationPlayerActivity.java` | Cutscene player (uses res/anim/*.xml) | LOW |

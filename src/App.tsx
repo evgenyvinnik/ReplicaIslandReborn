@@ -9,6 +9,7 @@ import { MainMenu } from './components/MainMenu';
 import { DifficultyMenu } from './components/DifficultyMenu';
 import { LevelSelect } from './components/LevelSelect';
 import { OptionsMenu } from './components/OptionsMenu';
+import { ExtrasMenu } from './components/ExtrasMenu';
 import { Game } from './components/Game';
 import { LoadingScreen } from './components/LoadingScreen';
 import { PhoneFrame } from './components/PhoneFrame';
@@ -20,7 +21,7 @@ const GAME_WIDTH = 480;
 const GAME_HEIGHT = 320;
 
 function AppContent(): React.JSX.Element {
-  const { state, dispatch, goToMainMenu, pauseGame, resumeGame } = useGameContext();
+  const { state, dispatch, goToMainMenu, goToLevelSelect, goToOptions, startNewGame, pauseGame, resumeGame } = useGameContext();
   const [osMode, setOsMode] = useState<'app' | 'home' | 'recents'>('app');
   // Track if we paused the game due to going to recents/home (vs user manually pausing)
   const pausedByOsRef = useRef(false);
@@ -114,6 +115,15 @@ function AppContent(): React.JSX.Element {
         return <LevelSelect />;
       case GameState.OPTIONS:
         return <OptionsMenu onClose={goToMainMenu} />;
+      case GameState.EXTRAS:
+        return (
+          <ExtrasMenu
+            onBack={goToMainMenu}
+            onStartLinearMode={startNewGame}
+            onGoToLevelSelect={goToLevelSelect}
+            onGoToOptions={goToOptions}
+          />
+        );
       case GameState.PLAYING:
       case GameState.PAUSED:
       case GameState.GAME_OVER:

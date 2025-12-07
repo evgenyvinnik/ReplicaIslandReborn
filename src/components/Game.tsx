@@ -1894,45 +1894,77 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         if (Math.abs(velocity.x) < 1) velocity.x = 0;
       }
 
-      // Move player (simple integration)
+      // Move player (simple integration with separate X/Y collision handling)
+      const tileSize = 32;
+      
+      // First, try horizontal movement
       const newX = position.x + velocity.x * deltaTime;
+      const hCollision = collisionSys.checkTileCollision(
+        newX, position.y, player.width, player.height, velocity.x, 0
+      );
+      
+      if (hCollision.leftWall) {
+        // Snap to right edge of tile
+        const tileX = Math.floor(position.x / tileSize);
+        position.x = (tileX + 1) * tileSize;
+        velocity.x = 0;
+        player.setLastTouchedLeftWallTime(gameTime);
+      } else if (hCollision.rightWall) {
+        // Snap to left edge of tile
+        const tileX = Math.floor((newX + player.width) / tileSize);
+        position.x = tileX * tileSize - player.width;
+        velocity.x = 0;
+        player.setLastTouchedRightWallTime(gameTime);
+      } else {
+        position.x = newX;
+      }
+      
+      // Then, try vertical movement
       const newY = position.y + velocity.y * deltaTime;
-
-      // Check collision
-      const collision = collisionSys.checkTileCollision(
-        newX, newY, player.width, player.height, velocity.x, velocity.y
+      const vCollision = collisionSys.checkTileCollision(
+        position.x, newY, player.width, player.height, 0, velocity.y
       );
 
-      // Apply collision response
-      if (collision.grounded) {
-        // Snap to ground
-        const tileSize = 32;
-        const groundY = Math.floor((newY + player.height) / tileSize) * tileSize - player.height;
-        position.y = groundY;
+      // Apply vertical collision response
+      if (vCollision.grounded) {
+        // Snap to top of the solid tile (player bottom aligns with tile top)
+        const bottomTileY = Math.floor((newY + player.height) / tileSize);
+        position.y = bottomTileY * tileSize - player.height;
         velocity.y = 0;
         player.setLastTouchedFloorTime(gameTime);
+      } else if (vCollision.ceiling) {
+        // Snap to bottom of the solid tile (player top aligns with tile bottom)
+        const topTileY = Math.floor(newY / tileSize);
+        position.y = (topTileY + 1) * tileSize;
+        velocity.y = 0;
+        player.setLastTouchedCeilingTime(gameTime);
       } else {
         position.y = newY;
       }
-
-      if (collision.ceiling) {
-        velocity.y = Math.max(0, velocity.y);
-        player.setLastTouchedCeilingTime(gameTime);
+      
+      // Clamp to world bounds
+      const levelSystem = levelSystemRef.current;
+      if (levelSystem) {
+        const levelWidth = levelSystem.getLevelWidth();
+        
+        // Horizontal bounds
+        if (position.x < 0) {
+          position.x = 0;
+          velocity.x = 0;
+        } else if (position.x + player.width > levelWidth) {
+          position.x = levelWidth - player.width;
+          velocity.x = 0;
+        }
+        
+        // Vertical bounds - top
+        if (position.y < 0) {
+          position.y = 0;
+          velocity.y = 0;
+        }
+        // Note: Bottom bound is handled by death zones, not clamping
       }
 
-      if (collision.leftWall) {
-        velocity.x = Math.max(0, velocity.x);
-        player.setLastTouchedLeftWallTime(gameTime);
-      } else if (collision.rightWall) {
-        velocity.x = Math.min(0, velocity.x);
-        player.setLastTouchedRightWallTime(gameTime);
-      }
-
-      if (!collision.leftWall && !collision.rightWall) {
-        position.x = newX;
-      }
-
-      player.setBackgroundCollisionNormal(collision.normal);
+      player.setBackgroundCollisionNormal(vCollision.normal.y !== 0 ? vCollision.normal : hCollision.normal);
     };
 
     // Render callback
