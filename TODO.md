@@ -14,14 +14,14 @@ This document tracks what has been implemented and what still needs to be done t
 |--------|------------------|------------------|----------|
 | **Architecture** | Dual-threaded (Game + Render) | Single-threaded | ⚠️ Different approach |
 | **State Machine** | Full enum (MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY) | ✅ Full enum implemented | ✅ YES |
-| **Object Pooling** | Extensive (384 objects, 256 collision records) | None | ❌ NO |
+| **Object Pooling** | Extensive (384 objects, 256 collision records) | ✅ ObjectPool implemented | ✅ YES |
 | **Component Phases** | Phased execution (THINK, PHYSICS, ANIMATION, etc.) | Inline code | ⚠️ Different approach |
-| **Ghost Mechanic** | Integrated (hold attack to spawn ghost) | ✅ Charging implemented | ⚠️ PARTIAL |
+| **Ghost Mechanic** | Integrated (hold attack to spawn ghost) | ✅ Full GhostComponent + spawning | ✅ YES |
 | **Stomp Hang Time** | STOMP_AIR_HANG_TIME + position locking | ✅ Implemented | ✅ YES |
 | **Stomp Camera Shake** | shake(STOMP_DELAY_TIME, 15) on landing | ✅ Implemented | ✅ YES |
 | **Hit Reaction State** | HIT_REACT with timer | ✅ Implemented (0.5s) | ✅ YES |
 | **Win Condition** | Collect 3 rubies → WIN state | ✅ Implemented | ✅ YES |
-| **Invincibility Powerup** | Coins → glow mode | Missing | ❌ NO |
+| **Invincibility Powerup** | Coins → glow mode | ✅ Glow mode with visual effect | ✅ YES |
 | **Enemy AI** | PatrolComponent + AttackAtDistanceComponent | Simplified inline switch | ⚠️ SIMPLIFIED |
 
 ### What Has Been Implemented
@@ -36,9 +36,12 @@ This document tracks what has been implemented and what still needs to be done t
    - Camera shake on landing (STOMP_DELAY_TIME = 0.15s, STOMP_SHAKE_MAGNITUDE = 15)
    - Dust effects on stomp landing
 
-3. ⚠️ **Ghost mechanic** (partial):
+3. ✅ **Ghost mechanic** (fully implemented):
    - Hold attack button on ground → charge ghost (GHOST_CHARGE_TIME = 0.75s)
-   - Ghost entity spawning NOT yet integrated (TODO)
+   - Ghost entity spawning with GhostComponent
+   - Camera follows ghost during possession
+   - Player frozen in FROZEN state during possession
+   - Ghost duration based on gems collected (3s/8s/unlimited)
 
 4. ✅ **Hit reaction state** with HIT_REACT_TIME = 0.5s
    - Player enters HIT_REACT state when damaged
@@ -48,14 +51,18 @@ This document tracks what has been implemented and what still needs to be done t
 
 6. ✅ **Player state reset**: Proper state reset when loading/restarting levels
 
+7. ✅ **Invincibility powerup** (glow mode):
+   - Collect 20 coins (Kids) or 30 coins (Adults) for powerup
+   - GLOW_DURATION: 15s (Kids) / 10s (Adults)
+   - Pulsating golden glow visual effect
+   - Full invincibility during glow mode
+
 ### Still TODO
 
-- [ ] Ghost entity spawning and camera following
-- [ ] Invincibility powerup (coins → glow mode)
-- [ ] Object pooling for performance
 - [ ] Component-based architecture refactor
+- [ ] Background music (MIDI conversion needed)
 
-### Current State: ~50% Faithful
+### Current State: ~65% Faithful
 
 The state machine and core mechanics are now implemented. **This is a working port with most player mechanics.**
 

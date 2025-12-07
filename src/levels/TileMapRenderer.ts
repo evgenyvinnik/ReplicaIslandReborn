@@ -113,6 +113,9 @@ export class TileMapRenderer {
     this.layers.sort((a, b) => a.priority - b.priority);
   }
 
+  // Debug counter
+  private renderCallCount = 0;
+  
   /**
    * Clear all layers
    */
@@ -125,6 +128,7 @@ export class TileMapRenderer {
    * Renders directly to canvas to handle parallax correctly
    */
   render(renderSystem: RenderSystem, camera: CameraSystem): void {
+    this.renderCallCount++;
     const cameraX = camera.getFocusPositionX() - this.viewWidth / 2;
     const cameraY = camera.getFocusPositionY() - this.viewHeight / 2;
 
@@ -132,8 +136,23 @@ export class TileMapRenderer {
     const ctx = (renderSystem as unknown as { ctx: CanvasRenderingContext2D }).ctx;
     
     if (!ctx || this.layers.length === 0) {
-      console.warn('[TileMapRenderer.render] Early exit - ctx:', !!ctx, 'layers:', this.layers.length);
+      if (this.renderCallCount <= 3) {
+        console.warn('[TileMapRenderer.render] Early exit - ctx:', !!ctx, 'layers:', this.layers.length);
+      }
       return;
+    }
+    
+    if (this.renderCallCount === 1) {
+      console.warn('[TileMapRenderer.render] First render - camera:', cameraX.toFixed(0), cameraY.toFixed(0), 'layers:', this.layers.length);
+      // Debug: log first layer info
+      const layer = this.layers[0];
+      console.warn('[TileMapRenderer.render] Layer 0:', {
+        tileset: layer.tileset,
+        worldSize: `${layer.world.width}x${layer.world.height}`,
+        tilesArrayShape: `${layer.world.tiles?.length}x${layer.world.tiles?.[0]?.length}`,
+        scrollSpeed: `${layer.scrollSpeedX},${layer.scrollSpeedY}`,
+        sampleTiles: layer.world.tiles?.slice(0, 3).map(col => col?.slice(0, 3))
+      });
     }
 
     for (const layer of this.layers) {
@@ -183,6 +202,7 @@ export class TileMapRenderer {
     
     // Debug: count rendered tiles
     let tilesRendered = 0;
+    const isFirstRender = this.renderCallCount === 1;
 
     // Render visible tiles - tiles[x][y] is column-major
     for (let tileY = startTileY; tileY < endTileY; tileY++) {
@@ -215,6 +235,17 @@ export class TileMapRenderer {
         // Calculate source rectangle in tileset
         const srcX = (tileValue % tilesPerRow) * this.tileWidth;
         const srcY = Math.floor(tileValue / tilesPerRow) * this.tileHeight;
+        
+        // Debug: log first few tiles
+        if (isFirstRender && tilesRendered < 3) {
+          console.warn('[TileMapRenderer] Drawing tile', {
+            tileX, tileY, tileValue,
+            screenX: Math.floor(screenX), screenY: Math.floor(screenY),
+            srcX, srcY,
+            tilesPerRow,
+            tilesetSize: `${tilesetImage.width}x${tilesetImage.height}`
+          });
+        }
 
         // Draw the tile directly to canvas
         ctx.drawImage(
