@@ -95,8 +95,11 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
     }, 300);
     
     // After fade out, start the game
+    // Use level 1 (intro cutscene) for new games - state.currentLevel should be 1
+    // after startNewGame was called, but capture it here to be safe
+    const levelToStart = state.currentLevel || 1;
     setTimeout(() => {
-      startGame(state.currentLevel);
+      startGame(levelToStart);
     }, 800);
   }, [dispatch, onSelect, startGame, state.currentLevel, fadeOut, flickeringButton]);
 

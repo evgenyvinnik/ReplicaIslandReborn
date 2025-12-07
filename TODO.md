@@ -1034,10 +1034,10 @@ The hot spot layer defines special tile behaviors:
 | Boss Effects | 4 | ❌ Boss projectiles not implemented |
 | Jetpack Fire | 2 | ⚠️ Visual polish |
 | Dialog Box | 2 | ✅ Using React/CSS instead |
-| Ghost Mechanic | 1 | ❌ GhostComponent not implemented |
+| Ghost Mechanic | 1 | ✅ GhostComponent implemented |
 | Other | 6 | ⚠️ Utility sprites |
 
-**Overall Completion: ~82%**
+**Overall Completion: ~85%**
 
 The game is **fully playable through all 47 levels** with:
 - ✅ **Level loading** - Binary .bin level files fully parsed
@@ -1066,12 +1066,14 @@ The remaining **~18%** consists of these major unimplemented features:
 | **NPC Cutscene System** | 0 | `NPCComponent.ts` | CRITICAL | ✅ Done |
 | **Rokudou Boss Fight** | 13 (`rokudou_fight_*.png`) | Boss AI, attack patterns | HIGH | ❌ |
 | **Cutscene Player** | 16 (`anime_kyle_fall*.png`) + 8 (endings) | AnimationPlayerActivity equivalent | MEDIUM | ❌ |
-| **Ghost Mechanic** | 1 (`ghost.png`) | `GhostComponent.ts` | MEDIUM | ❌ |
-| **Evil Kabocha Boss** | 0 | `EvilKabochaComponent.ts` | HIGH | ❌ |
+| **Ghost Mechanic** | 1 (`ghost.png`) | `GhostComponent.ts` | MEDIUM | ✅ Done |
+| **Evil Kabocha Boss** | 0 | `EvilKabochaComponent.ts` | HIGH | ✅ Done |
 | **Snailbomb Enemy** | 7 (`snailbomb_*.png`) | Enemy factory spawn | LOW | ❌ |
 | **Motion Blur Effect** | 0 | `MotionBlurComponent.ts` | LOW | ❌ |
 | **Per-Object Fade** | 0 | `FadeDrawableComponent.ts` | LOW | ❌ |
-| **Background Music** | 0 | MIDI→OGG conversion | LOW | ❌ |
+| **Background Music** | 0 | MIDI→OGG conversion | LOW | ⚠️ SoundSystem ready |
+| **Diary System** | 0 | `CanvasDiaryOverlay.ts` | MEDIUM | ✅ Done |
+| **Glow Mode Powerup** | 0 | Game.tsx integration | MEDIUM | ✅ Done |
 
 ### Additional Working Features
 - ✅ **Screen transitions** - FadeTransition component for level changes
