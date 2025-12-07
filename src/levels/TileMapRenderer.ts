@@ -246,17 +246,6 @@ export class TileMapRenderer {
         // Calculate source rectangle in tileset
         const srcX = (tileValue % tilesPerRow) * this.tileWidth;
         const srcY = Math.floor(tileValue / tilesPerRow) * this.tileHeight;
-        
-        // Debug: log first few tiles
-        if (isFirstRender && tilesRendered < 3) {
-          console.warn('[TileMapRenderer] Drawing tile', {
-            tileX, tileY, tileValue,
-            screenX: Math.floor(screenX), screenY: Math.floor(screenY),
-            srcX, srcY,
-            tilesPerRow,
-            tilesetSize: `${tilesetImage.width}x${tilesetImage.height}`
-          });
-        }
 
         // Draw the tile directly to canvas
         ctx.drawImage(
@@ -274,13 +263,6 @@ export class TileMapRenderer {
         tilesRendered++;
         tileX++;
       }
-    }
-    
-    // Debug: Draw a visible marker to confirm rendering is working
-    if (this.renderCallCount === 1) {
-      ctx.fillStyle = 'red';
-      ctx.fillRect(100, 100, 50, 50);
-      console.warn('[TileMapRenderer] Drew debug red square at 100,100 - tilesRendered:', tilesRendered);
     }
     
     // Log once per layer to see if tiles are being rendered

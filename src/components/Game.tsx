@@ -931,11 +931,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               const npc = npcTarget as GameObject;
               cameraSystem.setNPCTarget(npcTarget);
               // Also set camera position directly to NPC location
+              // setPosition expects the center focus point, not the top-left corner
               const npcPos = npc.getPosition();
               cameraSystem.setPosition(
-                npcPos.x - width / 2,
-                npcPos.y - height / 2
+                npcPos.x,
+                npcPos.y
               );
+              console.warn('[Game] Camera set to NPC position:', npcPos.x, npcPos.y);
             }
           }
           
