@@ -268,11 +268,13 @@ export class CameraSystem {
   }
 
   /**
-   * Set camera position directly
+   * Set camera position directly (immediately, no lerping)
    */
   setPosition(x: number, y: number): void {
     this.position.set(x, y);
     this.targetPosition.set(x, y);
+    // Also set focusPosition immediately so the camera doesn't lerp from (0,0)
+    this.focusPosition.set(x, y);
   }
 
   /**

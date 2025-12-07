@@ -57,14 +57,19 @@ This document tracks what has been implemented and what still needs to be done t
    - Pulsating golden glow visual effect
    - Full invincibility during glow mode
 
+8. ✅ **Diary system** (fully implemented):
+   - All 15 diary entries in `/src/data/diaries.ts`
+   - `CanvasDiaryOverlay.ts` displays scrollable diary text with title
+   - Collection triggers overlay display with click-to-dismiss
+
 ### Still TODO
 
 - [ ] Component-based architecture refactor
 - [ ] Background music (MIDI conversion needed)
 
-### Current State: ~65% Faithful
+### Current State: ~75% Faithful
 
-The state machine and core mechanics are now implemented. **This is a working port with most player mechanics.**
+The state machine, core mechanics, and diary system are now implemented. **This is a working port with most player mechanics.**
 
 ---
 
@@ -354,13 +359,16 @@ The Ghost mechanic allows the player to control a floating ghost entity. This is
 
 ### MEDIUM PRIORITY - Gameplay Polish
 
-#### 5. Diary System
+#### 5. Diary System ✅ IMPLEMENTED
 | Component | Original File | Description |
 |-----------|---------------|-------------|
-| DiaryActivity | DiaryActivity.java | Shows diary entry popup when collecting diary items |
-| diary.xml layout | res/layout/diary.xml | UI layout for diary display |
+| CanvasDiaryOverlay.ts | DiaryActivity.java | Shows diary entry popup when collecting diary items |
+| diaries.ts | res/values/strings.xml | All 15 diary entries extracted |
 
-When player collects a diary item, should show a modal with the diary text and animated background.
+Diary system now fully implemented:
+- All 15 diary entries in `/src/data/diaries.ts`
+- `CanvasDiaryOverlay.ts` displays scrollable diary text
+- Collection triggers overlay display in Game.tsx
 
 #### 6. Extras Menu
 | Component | Original File | Description |
@@ -411,7 +419,7 @@ Can be implemented using the Gamepad Haptic API or Vibration API for supported b
 | Feature | Status |
 |---------|--------|
 | Basic level progress | ✅ LocalStorage |
-| Diary collection tracking | ⚠️ Partial |
+| Diary collection tracking | ✅ Implemented |
 | High scores | ❌ Not implemented |
 | Time stamps per level | ❌ Not implemented |
 
@@ -432,7 +440,7 @@ Can be implemented using the Gamepad Haptic API or Vibration API for supported b
 - [x] Add CameraBiasComponent.ts for camera focus points ✅
 
 ### Phase 2: Story & Polish (MEDIUM)
-- [ ] Create DiaryOverlay.tsx for diary collection UI
+- [x] Create CanvasDiaryOverlay.ts for diary collection UI ✅
 - [ ] Add cutscene player for game endings
 - [x] Implement GravityComponent.ts for gravity zones ✅
 - [x] Add SolidSurfaceComponent.ts for moving platforms ✅

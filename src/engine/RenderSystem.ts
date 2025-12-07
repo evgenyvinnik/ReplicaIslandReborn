@@ -317,10 +317,12 @@ export class RenderSystem {
 
   /**
    * Render all queued commands
+   * Note: Does NOT clear - caller should clear before frame starts
+   * to allow direct canvas drawing (like tiles) before queued rendering
    */
   render(): void {
-    // Clear canvas
-    this.clear();
+    // Don't clear here - we clear at the start of the frame in Game.tsx
+    // This allows TileMapRenderer to draw directly before we render queued commands
 
     // Combine and sort queues by z-index
     const allCommands = [...this.backgroundQueue, ...this.renderQueue];

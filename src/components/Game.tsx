@@ -24,6 +24,7 @@ import { CanvasCutscene } from '../engine/CanvasCutscene';
 import { CanvasPauseMenu } from '../engine/CanvasPauseMenu';
 import { CanvasGameOverScreen } from '../engine/CanvasGameOverScreen';
 import { CanvasLevelCompleteScreen } from '../engine/CanvasLevelCompleteScreen';
+import { CanvasDiaryOverlay } from '../engine/CanvasDiaryOverlay';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { GameObject } from '../entities/GameObject';
@@ -33,6 +34,7 @@ import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 import { gameSettings } from '../utils/GameSettings';
 import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
 import { getDialogsForLevel, type Dialog } from '../data/dialogs';
+import { getDiaryByCollectionOrder } from '../data/diaries';
 import { assetPath } from '../utils/helpers';
 import { CutsceneType, getCutscene } from '../data/cutscenes';
 
@@ -126,6 +128,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const canvasPauseMenuRef = useRef<CanvasPauseMenu | null>(null);
   const canvasGameOverRef = useRef<CanvasGameOverScreen | null>(null);
   const canvasLevelCompleteRef = useRef<CanvasLevelCompleteScreen | null>(null);
+  const canvasDiaryRef = useRef<CanvasDiaryOverlay | null>(null);
   
   // Player spawn point (set when level loads)
   const playerSpawnRef = useRef({ x: 100, y: 320 });
@@ -656,6 +659,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const canvasLevelComplete = new CanvasLevelCompleteScreen(ctx, canvas, width, height);
       canvasLevelCompleteRef.current = canvasLevelComplete;
       
+      // Canvas Diary Overlay
+      const canvasDiary = new CanvasDiaryOverlay(ctx, canvas, width, height);
+      canvasDiaryRef.current = canvasDiary;
+      
       // Setup controls callbacks
       canvasControls.setCallbacks(
         (direction: number): void => {
@@ -898,7 +905,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           const player = gameObjectManager.getPlayer();
           console.warn('[Game] Player found:', !!player, 'position:', player?.getPosition());
           
-          if (!player) {
+          if (player) {
+            // Set camera to initially focus on the player
+            const playerPos = player.getPosition();
+            cameraSystem.setTarget(player);
+            // Also set camera position directly to player location immediately
+            // This prevents the camera from "lerping" from (0,0) to the player
+            cameraSystem.setPosition(
+              playerPos.x,
+              playerPos.y
+            );
+            console.warn('[Game] Camera set to player position:', playerPos.x, playerPos.y);
+          } else {
             // Find an NPC to focus on (Wanda, Kyle, Kabocha, or Rokudou)
             let npcTarget: GameObject | null = null;
             gameObjectManager.forEach((obj) => {
@@ -1421,8 +1439,25 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 setInventory({ pearls: inv.pearls + 1, score: inv.score + 5 });
                 soundSystem.playSfx(SoundEffects.GEM2, 0.5);
               } else if (obj.type === 'diary') {
-                setInventory({ diaryCount: inv.diaryCount + 1, score: inv.score + 50 });
+                const newDiaryCount = inv.diaryCount + 1;
+                setInventory({ diaryCount: newDiaryCount, score: inv.score + 50 });
                 soundSystem.playSfx(SoundEffects.DING, 0.5);
+                
+                // Show diary overlay with entry content
+                const canvasDiary = canvasDiaryRef.current;
+                const diaryEntry = getDiaryByCollectionOrder(newDiaryCount);
+                if (canvasDiary && diaryEntry) {
+                  // Pause the game while showing diary
+                  const pState = playerStateRef.current;
+                  pState.currentState = PlayerState.FROZEN;
+                  
+                  canvasDiary.show(diaryEntry, () => {
+                    // Resume when diary is closed
+                    if (pState.currentState === PlayerState.FROZEN) {
+                      pState.currentState = PlayerState.MOVE;
+                    }
+                  });
+                }
               }
             }
           }
@@ -2213,6 +2248,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (canvasLevelComplete && canvasLevelComplete.isShowing()) {
         canvasLevelComplete.update(1 / 60);
         canvasLevelComplete.render();
+      }
+      
+      // Update and render Canvas Diary Overlay (if active)
+      const canvasDiary = canvasDiaryRef.current;
+      if (canvasDiary && canvasDiary.isVisible()) {
+        canvasDiary.update(1 / 60);
+        canvasDiary.render();
       }
     });
 

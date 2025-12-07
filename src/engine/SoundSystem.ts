@@ -77,10 +77,17 @@ export class SoundSystem {
   private audioContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
+  private musicGain: GainNode | null = null;
 
   private sounds: Map<string, LoadedSound> = new Map();
   private playingSounds: Map<number, PlayingSound> = new Map();
   private nextSoundId: number = 0;
+
+  // Background music
+  private musicSource: AudioBufferSourceNode | null = null;
+  private musicBuffer: AudioBuffer | null = null;
+  private musicPlaying: boolean = false;
+  private musicVolume: number = 0.5;
 
   private config: SoundConfig = {
     masterVolume: 1.0,
@@ -107,9 +114,11 @@ export class SoundSystem {
       // Create gain nodes
       this.masterGain = this.audioContext.createGain();
       this.sfxGain = this.audioContext.createGain();
+      this.musicGain = this.audioContext.createGain();
 
-      // Connect: source -> sfx gain -> master gain -> destination
+      // Connect: source -> sfx/music gain -> master gain -> destination
       this.sfxGain.connect(this.masterGain);
+      this.musicGain.connect(this.masterGain);
       this.masterGain.connect(this.audioContext.destination);
 
       // Apply initial volumes
@@ -308,8 +317,138 @@ export class SoundSystem {
     this.config.enabled = enabled;
     if (!enabled) {
       this.stopAll();
+      this.stopBackgroundMusic();
     }
   }
+
+  // ==========================================
+  // Background Music Methods
+  // ==========================================
+
+  /**
+   * Load background music
+   */
+  async loadBackgroundMusic(url: string): Promise<boolean> {
+    if (!this.audioContext) {
+      await this.initialize();
+    }
+
+    if (!this.audioContext) return false;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.warn(`Background music not found: ${url}`);
+        return false;
+      }
+      
+      const contentType = response.headers.get('content-type');
+      if (contentType && !contentType.includes('audio') && !contentType.includes('octet-stream')) {
+        console.warn(`Invalid content type for music: ${contentType}`);
+        return false;
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength < 100) {
+        console.warn('Music file too small or empty');
+        return false;
+      }
+      
+      this.musicBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      return true;
+    } catch (error) {
+      console.warn('Failed to load background music:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Start playing background music (loops)
+   */
+  startBackgroundMusic(): void {
+    if (!this.audioContext || !this.musicBuffer || !this.musicGain || !this.config.enabled) {
+      return;
+    }
+
+    // Stop existing music if playing
+    this.stopBackgroundMusic();
+
+    this.musicSource = this.audioContext.createBufferSource();
+    this.musicSource.buffer = this.musicBuffer;
+    this.musicSource.loop = true;
+    this.musicSource.connect(this.musicGain);
+    this.musicSource.start();
+    this.musicPlaying = true;
+  }
+
+  /**
+   * Stop background music
+   */
+  stopBackgroundMusic(): void {
+    if (this.musicSource) {
+      try {
+        this.musicSource.stop();
+      } catch {
+        // Ignore if already stopped
+      }
+      this.musicSource.disconnect();
+      this.musicSource = null;
+    }
+    this.musicPlaying = false;
+  }
+
+  /**
+   * Pause background music (with fade)
+   */
+  pauseBackgroundMusic(): void {
+    if (this.musicGain && this.audioContext && this.musicPlaying) {
+      this.musicGain.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.3);
+    }
+  }
+
+  /**
+   * Resume background music (with fade)
+   */
+  resumeBackgroundMusic(): void {
+    if (this.musicGain && this.audioContext && this.musicPlaying) {
+      this.musicGain.gain.linearRampToValueAtTime(this.musicVolume, this.audioContext.currentTime + 0.3);
+    }
+  }
+
+  /**
+   * Set background music volume (0.0 to 1.0)
+   */
+  setMusicVolume(volume: number): void {
+    this.musicVolume = Math.max(0, Math.min(1, volume));
+    if (this.musicGain) {
+      this.musicGain.gain.value = this.musicVolume;
+    }
+  }
+
+  /**
+   * Get music volume
+   */
+  getMusicVolume(): number {
+    return this.musicVolume;
+  }
+
+  /**
+   * Check if music is playing
+   */
+  isMusicPlaying(): boolean {
+    return this.musicPlaying;
+  }
+
+  /**
+   * Check if background music is loaded
+   */
+  isMusicLoaded(): boolean {
+    return this.musicBuffer !== null;
+  }
+
+  // ==========================================
+  // End Background Music Methods
+  // ==========================================
 
   /**
    * Get current config
@@ -346,6 +485,8 @@ export class SoundSystem {
    */
   destroy(): void {
     this.stopAll();
+    this.stopBackgroundMusic();
+    this.musicBuffer = null;
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;

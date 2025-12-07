@@ -197,6 +197,17 @@ export class TileMapRenderer {
       return;
     }
     
+    // Debug: log tileset on first render
+    if (this.renderCallCount === 1) {
+      console.warn('[TileMapRenderer] Tileset image:', {
+        tileset: layer.tileset,
+        width: tilesetImage.width,
+        height: tilesetImage.height,
+        complete: (tilesetImage as HTMLImageElement).complete,
+        naturalWidth: (tilesetImage as HTMLImageElement).naturalWidth
+      });
+    }
+    
     // Calculate tileset grid dimensions
     const tilesPerRow = Math.floor(tilesetImage.width / this.tileWidth);
     
@@ -263,6 +274,13 @@ export class TileMapRenderer {
         tilesRendered++;
         tileX++;
       }
+    }
+    
+    // Debug: Draw a visible marker to confirm rendering is working
+    if (this.renderCallCount === 1) {
+      ctx.fillStyle = 'red';
+      ctx.fillRect(100, 100, 50, 50);
+      console.warn('[TileMapRenderer] Drew debug red square at 100,100 - tilesRendered:', tilesRendered);
     }
     
     // Log once per layer to see if tiles are being rendered

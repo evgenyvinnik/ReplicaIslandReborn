@@ -40,7 +40,7 @@ export class CanvasDiaryOverlay {
   
   // Bound handlers
   private boundClickHandler: (e: MouseEvent | TouchEvent) => void;
-  private boundWheelHandler: (e: Event) => void;
+  private boundWheelHandler: (e: globalThis.Event) => void;
   private boundTouchMoveHandler: (e: TouchEvent) => void;
   
   constructor(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, width: number, height: number) {
@@ -115,7 +115,7 @@ export class CanvasDiaryOverlay {
     }
   }
   
-  private handleWheel(e: Event): void {
+  private handleWheel(e: globalThis.Event): void {
     e.preventDefault();
     const wheelEvent = e as unknown as { deltaY: number };
     this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY + wheelEvent.deltaY * 0.5));
