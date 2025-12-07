@@ -12,6 +12,8 @@ import { PhysicsComponent } from './components/PhysicsComponent';
 import { MovementComponent } from './components/MovementComponent';
 import { PlayerComponent } from './components/PlayerComponent';
 import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
+import { SnailbombComponent } from './components/SnailbombComponent';
+import { RokudouBossComponent } from './components/RokudouBossComponent';
 import type { RenderSystem } from '../engine/RenderSystem';
 import type { CollisionSystem } from '../engine/CollisionSystem';
 import type { InputSystem } from '../engine/InputSystem';
@@ -27,6 +29,8 @@ export enum GameObjectType {
   ENEMY_WANDA = 'enemy_wanda',
   ENEMY_KYLE = 'enemy_kyle',
   ENEMY_KABOCHA = 'enemy_kabocha',
+  ENEMY_SNAILBOMB = 'enemy_snailbomb',
+  ENEMY_ROKUDOU = 'enemy_rokudou',
   COIN = 'coin',
   PEARL = 'pearl',
   DIARY = 'diary',
@@ -41,6 +45,9 @@ export enum GameObjectType {
   GHOST = 'ghost',
   MOVING_PLATFORM = 'moving_platform',
   BUTTON = 'button',
+  CANNON_BALL = 'cannon_ball',
+  ENERGY_BALL = 'energy_ball',
+  TURRET_BULLET = 'turret_bullet',
 }
 
 // Component pools
@@ -132,6 +139,21 @@ export class GameObjectFactory {
         break;
       case GameObjectType.ENEMY_BROBOT:
         this.configureEnemyBrobot(obj);
+        break;
+      case GameObjectType.ENEMY_SNAILBOMB:
+        this.configureEnemySnailbomb(obj);
+        break;
+      case GameObjectType.ENEMY_ROKUDOU:
+        this.configureEnemyRokudou(obj);
+        break;
+      case GameObjectType.CANNON_BALL:
+        this.configureCannonBall(obj);
+        break;
+      case GameObjectType.ENERGY_BALL:
+        this.configureEnergyBall(obj);
+        break;
+      case GameObjectType.TURRET_BULLET:
+        this.configureTurretBullet(obj);
         break;
       case GameObjectType.COIN:
         this.configureCoin(obj);
@@ -385,6 +407,317 @@ export class GameObjectFactory {
   }
 
   /**
+   * Configure Snailbomb enemy
+   * A ground-based enemy that patrols and shoots cannon balls
+   */
+  private configureEnemySnailbomb(obj: GameObject): void {
+    obj.team = Team.ENEMY;
+    obj.type = 'snailbomb';
+    obj.width = 64;
+    obj.height = 64;
+    obj.life = 1;
+    obj.maxLife = 1;
+
+    // Add sprite
+    const sprite = this.componentPools.sprite.allocate();
+    if (sprite && this.renderSystem) {
+      sprite.setSprite('snailbomb');
+      sprite.setRenderSystem(this.renderSystem);
+      
+      // Idle animation (single frame)
+      sprite.addAnimation('idle', {
+        frames: [
+          { x: 0, y: 0, width: 64, height: 64, duration: 1.0 },
+        ],
+        loop: true,
+      });
+      
+      // Walk animation (5 frames)
+      sprite.addAnimation('walk', {
+        frames: [
+          { x: 0, y: 0, width: 64, height: 64, duration: 0.15 },
+          { x: 64, y: 0, width: 64, height: 64, duration: 0.15 },
+          { x: 128, y: 0, width: 64, height: 64, duration: 0.15 },
+          { x: 192, y: 0, width: 64, height: 64, duration: 0.15 },
+          { x: 256, y: 0, width: 64, height: 64, duration: 0.15 },
+        ],
+        loop: true,
+      });
+      
+      // Attack animation (2 frames)
+      sprite.addAnimation('attack', {
+        frames: [
+          { x: 0, y: 64, width: 64, height: 64, duration: 0.2 },
+          { x: 64, y: 64, width: 64, height: 64, duration: 0.2 },
+        ],
+        loop: true,
+      });
+      
+      sprite.playAnimation('walk');
+      obj.addComponent(sprite);
+    }
+
+    // Add physics
+    const physics = this.componentPools.physics.allocate();
+    if (physics) {
+      physics.setGravity(1200);
+      physics.setMaxVelocity(50, 600);
+      obj.addComponent(physics);
+    }
+
+    // Add movement
+    const movement = this.componentPools.movement.allocate();
+    if (movement && this.collisionSystem) {
+      movement.setCollisionSystem(this.collisionSystem);
+      obj.addComponent(movement);
+    }
+
+    // Add snailbomb AI component
+    const snailbomb = new SnailbombComponent({
+      patrolSpeed: 20,
+      attackRange: 300,
+      shotCount: 3,
+    });
+    
+    // Set up projectile spawner callback
+    snailbomb.setProjectileSpawner((x, y, vx, vy) => {
+      const projectile = this.spawn(GameObjectType.CANNON_BALL, x, y);
+      if (projectile) {
+        projectile.setVelocity(vx, vy);
+      }
+    });
+    
+    obj.addComponent(snailbomb);
+  }
+
+  /**
+   * Configure Rokudou boss enemy
+   * A flying boss that shoots energy balls and bullets
+   */
+  private configureEnemyRokudou(obj: GameObject): void {
+    obj.team = Team.ENEMY;
+    obj.type = 'rokudou';
+    obj.width = 128;
+    obj.height = 128;
+    obj.life = 3;
+    obj.maxLife = 3;
+
+    // Add sprite
+    const sprite = this.componentPools.sprite.allocate();
+    if (sprite && this.renderSystem) {
+      sprite.setSprite('rokudou');
+      sprite.setRenderSystem(this.renderSystem);
+      
+      // Idle animation
+      sprite.addAnimation('idle', {
+        frames: [
+          { x: 0, y: 0, width: 128, height: 128, duration: 0.2 },
+        ],
+        loop: true,
+      });
+      
+      // Fly animation (6 frames)
+      sprite.addAnimation('fly', {
+        frames: [
+          { x: 0, y: 0, width: 128, height: 128, duration: 0.1 },
+          { x: 128, y: 0, width: 128, height: 128, duration: 0.1 },
+          { x: 256, y: 0, width: 128, height: 128, duration: 0.1 },
+          { x: 384, y: 0, width: 128, height: 128, duration: 0.1 },
+          { x: 512, y: 0, width: 128, height: 128, duration: 0.1 },
+          { x: 640, y: 0, width: 128, height: 128, duration: 0.1 },
+        ],
+        loop: true,
+      });
+      
+      // Shoot animation
+      sprite.addAnimation('shoot', {
+        frames: [
+          { x: 0, y: 128, width: 128, height: 128, duration: 0.15 },
+          { x: 128, y: 128, width: 128, height: 128, duration: 0.15 },
+        ],
+        loop: true,
+      });
+      
+      // Surprised animation
+      sprite.addAnimation('surprised', {
+        frames: [
+          { x: 256, y: 128, width: 128, height: 128, duration: 0.2 },
+        ],
+        loop: true,
+      });
+      
+      // Hit reaction animation (7 frames from original)
+      sprite.addAnimation('hit', {
+        frames: [
+          { x: 0, y: 256, width: 128, height: 128, duration: 0.08 },
+          { x: 128, y: 256, width: 128, height: 128, duration: 0.08 },
+          { x: 256, y: 256, width: 128, height: 128, duration: 0.08 },
+          { x: 384, y: 256, width: 128, height: 128, duration: 0.08 },
+          { x: 512, y: 256, width: 128, height: 128, duration: 0.08 },
+          { x: 640, y: 256, width: 128, height: 128, duration: 0.08 },
+          { x: 768, y: 256, width: 128, height: 128, duration: 0.08 },
+        ],
+        loop: false,
+      });
+      
+      // Death animation (5 frames)
+      sprite.addAnimation('death', {
+        frames: [
+          { x: 0, y: 384, width: 128, height: 128, duration: 0.12 },
+          { x: 128, y: 384, width: 128, height: 128, duration: 0.12 },
+          { x: 256, y: 384, width: 128, height: 128, duration: 0.12 },
+          { x: 384, y: 384, width: 128, height: 128, duration: 0.12 },
+          { x: 512, y: 384, width: 128, height: 128, duration: 0.12 },
+        ],
+        loop: false,
+      });
+      
+      sprite.playAnimation('idle');
+      obj.addComponent(sprite);
+    }
+
+    // Add physics (no gravity - Rokudou flies)
+    const physics = this.componentPools.physics.allocate();
+    if (physics) {
+      physics.setUseGravity(false);
+      physics.setMaxVelocity(200, 200);
+      obj.addComponent(physics);
+    }
+
+    // Add movement
+    const movement = this.componentPools.movement.allocate();
+    if (movement && this.collisionSystem) {
+      movement.setCollisionSystem(this.collisionSystem);
+      obj.addComponent(movement);
+    }
+
+    // Add Rokudou boss AI component
+    const rokudou = new RokudouBossComponent({
+      life: 3,
+      attackRange: 300,
+      movementSpeed: 100,
+    });
+    
+    // Set up projectile spawner callback
+    rokudou.setProjectileSpawner((type, x, y, vx, vy) => {
+      const projectileType = type === 'energy_ball' 
+        ? GameObjectType.ENERGY_BALL 
+        : GameObjectType.TURRET_BULLET;
+      const projectile = this.spawn(projectileType, x, y);
+      if (projectile) {
+        projectile.setVelocity(vx, vy);
+      }
+    });
+    
+    obj.addComponent(rokudou);
+  }
+
+  /**
+   * Configure a cannon ball projectile (used by Snailbomb)
+   */
+  private configureCannonBall(obj: GameObject): void {
+    obj.team = Team.ENEMY;
+    obj.type = 'projectile';
+    obj.width = 16;
+    obj.height = 16;
+    obj.life = 1;
+
+    // Add sprite
+    const sprite = this.componentPools.sprite.allocate();
+    if (sprite && this.renderSystem) {
+      sprite.setSprite('snail_bomb');
+      sprite.setRenderSystem(this.renderSystem);
+      sprite.addAnimation('fly', {
+        frames: [
+          { x: 0, y: 0, width: 16, height: 16, duration: 0.1 },
+          { x: 16, y: 0, width: 16, height: 16, duration: 0.1 },
+        ],
+        loop: true,
+      });
+      sprite.playAnimation('fly');
+      obj.addComponent(sprite);
+    }
+
+    // Add physics (no gravity for horizontal travel)
+    const physics = this.componentPools.physics.allocate();
+    if (physics) {
+      physics.setUseGravity(false);
+      physics.setMaxVelocity(300, 300);
+      obj.addComponent(physics);
+    }
+  }
+
+  /**
+   * Configure an energy ball projectile (used by Rokudou)
+   */
+  private configureEnergyBall(obj: GameObject): void {
+    obj.team = Team.ENEMY;
+    obj.type = 'projectile';
+    obj.width = 32;
+    obj.height = 32;
+    obj.life = 1;
+
+    // Add sprite
+    const sprite = this.componentPools.sprite.allocate();
+    if (sprite && this.renderSystem) {
+      sprite.setSprite('energy_ball');
+      sprite.setRenderSystem(this.renderSystem);
+      sprite.addAnimation('fly', {
+        frames: [
+          { x: 0, y: 0, width: 32, height: 32, duration: 0.08 },
+          { x: 32, y: 0, width: 32, height: 32, duration: 0.08 },
+          { x: 64, y: 0, width: 32, height: 32, duration: 0.08 },
+        ],
+        loop: true,
+      });
+      sprite.playAnimation('fly');
+      obj.addComponent(sprite);
+    }
+
+    // Add physics (with some gravity for arc)
+    const physics = this.componentPools.physics.allocate();
+    if (physics) {
+      physics.setGravity(200);
+      physics.setMaxVelocity(500, 500);
+      obj.addComponent(physics);
+    }
+  }
+
+  /**
+   * Configure a turret bullet projectile (used by Rokudou)
+   */
+  private configureTurretBullet(obj: GameObject): void {
+    obj.team = Team.ENEMY;
+    obj.type = 'projectile';
+    obj.width = 8;
+    obj.height = 8;
+    obj.life = 1;
+
+    // Add sprite
+    const sprite = this.componentPools.sprite.allocate();
+    if (sprite && this.renderSystem) {
+      sprite.setSprite('bullet');
+      sprite.setRenderSystem(this.renderSystem);
+      sprite.addAnimation('fly', {
+        frames: [
+          { x: 0, y: 0, width: 8, height: 8, duration: 0.1 },
+        ],
+        loop: true,
+      });
+      sprite.playAnimation('fly');
+      obj.addComponent(sprite);
+    }
+
+    // Add physics (no gravity)
+    const physics = this.componentPools.physics.allocate();
+    if (physics) {
+      physics.setUseGravity(false);
+      physics.setMaxVelocity(500, 500);
+      obj.addComponent(physics);
+    }
+  }
+
+  /**
    * Configure ghost entity for possession mechanic
    * The ghost is controlled by the player and floats freely
    */
@@ -530,6 +863,8 @@ export class GameObjectFactory {
       wanda: GameObjectType.ENEMY_WANDA,
       kyle: GameObjectType.ENEMY_KYLE,
       kabocha: GameObjectType.ENEMY_KABOCHA,
+      snailbomb: GameObjectType.ENEMY_SNAILBOMB,
+      rokudou: GameObjectType.ENEMY_ROKUDOU,
       coin: GameObjectType.COIN,
       pearl: GameObjectType.PEARL,
       diary: GameObjectType.DIARY,

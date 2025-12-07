@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useGameContext } from '../context/GameContext';
-import { GameState } from '../types';
+import { GameState, ActionType } from '../types';
 import { GameLoop } from '../engine/GameLoop';
 import { SystemRegistry } from '../engine/SystemRegistry';
 import { RenderSystem } from '../engine/RenderSystem';
@@ -833,52 +833,73 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Load enemy sprites
     const loadEnemySprites = async (): Promise<void> => {
       const sprites = [
-        // Bat enemy - 4 frames
-        { name: 'bat01', file: 'enemy_bat01', w: 64, h: 64 },
-        { name: 'bat02', file: 'enemy_bat02', w: 64, h: 64 },
-        { name: 'bat03', file: 'enemy_bat03', w: 64, h: 64 },
-        { name: 'bat04', file: 'enemy_bat04', w: 64, h: 64 },
-        // Sting enemy - 3 frames
+        // Bat enemy - 4 frames (64x32 actual size)
+        { name: 'bat01', file: 'enemy_bat01', w: 64, h: 32 },
+        { name: 'bat02', file: 'enemy_bat02', w: 64, h: 32 },
+        { name: 'bat03', file: 'enemy_bat03', w: 64, h: 32 },
+        { name: 'bat04', file: 'enemy_bat04', w: 64, h: 32 },
+        // Sting enemy - 3 frames (64x64 actual size)
         { name: 'sting01', file: 'enemy_sting01', w: 64, h: 64 },
         { name: 'sting02', file: 'enemy_sting02', w: 64, h: 64 },
         { name: 'sting03', file: 'enemy_sting03', w: 64, h: 64 },
-        // Onion enemy - 3 frames
+        // Onion enemy - 3 frames (64x64 actual size)
         { name: 'onion01', file: 'enemy_onion01', w: 64, h: 64 },
         { name: 'onion02', file: 'enemy_onion02', w: 64, h: 64 },
         { name: 'onion03', file: 'enemy_onion03', w: 64, h: 64 },
-        // Brobot enemy - idle & walk
+        // Brobot enemy - idle & walk (64x64 actual size)
         { name: 'brobot_idle01', file: 'enemy_brobot_idle01', w: 64, h: 64 },
         { name: 'brobot_idle02', file: 'enemy_brobot_idle02', w: 64, h: 64 },
         { name: 'brobot_idle03', file: 'enemy_brobot_idle03', w: 64, h: 64 },
         { name: 'brobot_walk01', file: 'enemy_brobot_walk01', w: 64, h: 64 },
         { name: 'brobot_walk02', file: 'enemy_brobot_walk02', w: 64, h: 64 },
         { name: 'brobot_walk03', file: 'enemy_brobot_walk03', w: 64, h: 64 },
-        // Skeleton enemy
+        // Skeleton enemy (64x64 actual size)
         { name: 'skeleton_stand', file: 'enemy_skeleton_stand', w: 64, h: 64 },
         { name: 'skeleton_walk01', file: 'enemy_skeleton_walk01', w: 64, h: 64 },
         { name: 'skeleton_walk02', file: 'enemy_skeleton_walk02', w: 64, h: 64 },
         { name: 'skeleton_walk03', file: 'enemy_skeleton_walk03', w: 64, h: 64 },
         { name: 'skeleton_walk04', file: 'enemy_skeleton_walk04', w: 64, h: 64 },
         { name: 'skeleton_walk05', file: 'enemy_skeleton_walk05', w: 64, h: 64 },
-        // Karaguin enemy - 3 frames
-        { name: 'karaguin01', file: 'enemy_karaguin01', w: 64, h: 64 },
-        { name: 'karaguin02', file: 'enemy_karaguin02', w: 64, h: 64 },
-        { name: 'karaguin03', file: 'enemy_karaguin03', w: 64, h: 64 },
-        // Mud/Mudman enemy
-        { name: 'mudman_stand', file: 'enemy_mud_stand', w: 64, h: 64 },
-        { name: 'mudman_idle01', file: 'enemy_mud_idle01', w: 64, h: 64 },
-        { name: 'mudman_idle02', file: 'enemy_mud_idle02', w: 64, h: 64 },
-        { name: 'mudman_walk01', file: 'enemy_mud_walk01', w: 64, h: 64 },
-        { name: 'mudman_walk02', file: 'enemy_mud_walk02', w: 64, h: 64 },
-        { name: 'mudman_walk03', file: 'enemy_mud_walk03', w: 64, h: 64 },
-        // Shadow Slime enemy
+        // Karaguin enemy - 3 frames (32x32 actual size)
+        { name: 'karaguin01', file: 'enemy_karaguin01', w: 32, h: 32 },
+        { name: 'karaguin02', file: 'enemy_karaguin02', w: 32, h: 32 },
+        { name: 'karaguin03', file: 'enemy_karaguin03', w: 32, h: 32 },
+        // Mud/Mudman enemy (128x128 actual size)
+        { name: 'mudman_stand', file: 'enemy_mud_stand', w: 128, h: 128 },
+        { name: 'mudman_idle01', file: 'enemy_mud_idle01', w: 128, h: 128 },
+        { name: 'mudman_idle02', file: 'enemy_mud_idle02', w: 128, h: 128 },
+        { name: 'mudman_walk01', file: 'enemy_mud_walk01', w: 128, h: 128 },
+        { name: 'mudman_walk02', file: 'enemy_mud_walk02', w: 128, h: 128 },
+        { name: 'mudman_walk03', file: 'enemy_mud_walk03', w: 128, h: 128 },
+        // Shadow Slime enemy (64x64 actual size)
         { name: 'shadowslime_stand', file: 'enemy_shadowslime_stand', w: 64, h: 64 },
         { name: 'shadowslime_idle01', file: 'enemy_shadowslime_idle01', w: 64, h: 64 },
         { name: 'shadowslime_idle02', file: 'enemy_shadowslime_idle02', w: 64, h: 64 },
-        // NPC sprites
-        { name: 'wanda_stand', file: 'enemy_wanda_stand', w: 64, h: 64 },
-        { name: 'kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 64 },
-        { name: 'kabocha_stand', file: 'enemy_kabocha_stand', w: 64, h: 64 },
+        // NPC sprites (64x128 actual size for wanda/kyle, 64x128 for kabocha)
+        { name: 'wanda_stand', file: 'enemy_wanda_stand', w: 64, h: 128 },
+        { name: 'kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 128 },
+        { name: 'kabocha_stand', file: 'enemy_kabocha_stand', w: 64, h: 128 },
+        // Snailbomb enemy (64x64 actual size)
+        { name: 'snailbomb_stand', file: 'snailbomb_stand', w: 64, h: 64 },
+        { name: 'snailbomb_walk01', file: 'snailbomb_walk01', w: 64, h: 64 },
+        { name: 'snailbomb_walk02', file: 'snailbomb_walk02', w: 64, h: 64 },
+        { name: 'snailbomb_shoot01', file: 'snailbomb_shoot01', w: 64, h: 64 },
+        { name: 'snailbomb_shoot02', file: 'snailbomb_shoot02', w: 64, h: 64 },
+        { name: 'snail_bomb', file: 'snail_bomb', w: 16, h: 16 },
+        // Rokudou boss enemy (128x128 actual size based on sprites)
+        { name: 'rokudou_stand', file: 'enemy_rokudou_fight_stand', w: 128, h: 128 },
+        { name: 'rokudou_fly01', file: 'enemy_rokudou_fight_fly01', w: 128, h: 128 },
+        { name: 'rokudou_fly02', file: 'enemy_rokudou_fight_fly02', w: 128, h: 128 },
+        { name: 'rokudou_shoot01', file: 'enemy_rokudou_fight_shoot01', w: 128, h: 128 },
+        { name: 'rokudou_shoot02', file: 'enemy_rokudou_fight_shoot02', w: 128, h: 128 },
+        { name: 'rokudou_surprise', file: 'enemy_rokudou_fight_surprise', w: 128, h: 128 },
+        { name: 'rokudou_hit01', file: 'enemy_rokudou_fight_hit01', w: 128, h: 128 },
+        { name: 'rokudou_hit02', file: 'enemy_rokudou_fight_hit02', w: 128, h: 128 },
+        { name: 'rokudou_hit03', file: 'enemy_rokudou_fight_hit03', w: 128, h: 128 },
+        { name: 'rokudou_die01', file: 'enemy_rokudou_fight_die01', w: 128, h: 128 },
+        { name: 'rokudou_die02', file: 'enemy_rokudou_fight_die02', w: 128, h: 128 },
+        { name: 'rokudou_die03', file: 'enemy_rokudou_fight_die03', w: 128, h: 128 },
+        { name: 'rokudou_die04', file: 'enemy_rokudou_fight_die04', w: 128, h: 128 },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -2207,15 +2228,24 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             case 'enemy': {
               // Determine enemy type by subtype or default to bat
               const enemyType = obj.subType || 'bat';
+              let spriteWidth = 64;
+              let spriteHeight = 64;
+              
               switch (enemyType) {
                 case 'bat':
                   spriteFrames = ['bat01', 'bat02', 'bat03', 'bat04'];
+                  spriteWidth = 64;
+                  spriteHeight = 32;
                   break;
                 case 'sting':
                   spriteFrames = ['sting01', 'sting02', 'sting03'];
+                  spriteWidth = 64;
+                  spriteHeight = 64;
                   break;
                 case 'onion':
                   spriteFrames = ['onion01', 'onion02', 'onion03'];
+                  spriteWidth = 64;
+                  spriteHeight = 64;
                   break;
                 case 'brobot':
                   // Animate based on velocity
@@ -2224,6 +2254,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   } else {
                     spriteFrames = ['brobot_idle01', 'brobot_idle02', 'brobot_idle03'];
                   }
+                  spriteWidth = 64;
+                  spriteHeight = 64;
                   break;
                 case 'skeleton':
                   if (Math.abs(obj.getVelocity().x) > 10) {
@@ -2231,9 +2263,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   } else {
                     spriteFrames = ['skeleton_stand'];
                   }
+                  spriteWidth = 64;
+                  spriteHeight = 64;
                   break;
                 case 'karaguin':
                   spriteFrames = ['karaguin01', 'karaguin02', 'karaguin03'];
+                  spriteWidth = 32;
+                  spriteHeight = 32;
                   break;
                 case 'mudman':
                   if (Math.abs(obj.getVelocity().x) > 10) {
@@ -2241,26 +2277,64 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   } else {
                     spriteFrames = ['mudman_idle01', 'mudman_idle02'];
                   }
+                  spriteWidth = 128;
+                  spriteHeight = 128;
                   break;
                 case 'shadowslime':
                   spriteFrames = ['shadowslime_idle01', 'shadowslime_idle02'];
+                  spriteWidth = 64;
+                  spriteHeight = 64;
+                  break;
+                case 'snailbomb':
+                  // Snailbomb has stand, walk, and shoot animations
+                  if (obj.getCurrentAction() === ActionType.ATTACK) {
+                    spriteFrames = ['snailbomb_shoot01', 'snailbomb_shoot02'];
+                  } else if (Math.abs(obj.getVelocity().x) > 5) {
+                    spriteFrames = ['snailbomb_walk01', 'snailbomb_walk02'];
+                  } else {
+                    spriteFrames = ['snailbomb_stand'];
+                  }
+                  spriteWidth = 64;
+                  spriteHeight = 64;
+                  break;
+                case 'rokudou':
+                  // Rokudou boss has fly, shoot, surprise, hit, and death animations
+                  if (obj.life <= 0) {
+                    spriteFrames = ['rokudou_die01', 'rokudou_die02', 'rokudou_die03', 'rokudou_die04'];
+                  } else if (obj.getCurrentAction() === ActionType.HIT_REACT) {
+                    spriteFrames = ['rokudou_hit01', 'rokudou_hit02', 'rokudou_hit03'];
+                  } else if (obj.getCurrentAction() === ActionType.ATTACK) {
+                    spriteFrames = ['rokudou_shoot01', 'rokudou_shoot02'];
+                  } else if (Math.abs(obj.getVelocity().x) > 10 || Math.abs(obj.getVelocity().y) > 10) {
+                    spriteFrames = ['rokudou_fly01', 'rokudou_fly02'];
+                  } else {
+                    spriteFrames = ['rokudou_stand'];
+                  }
+                  spriteWidth = 128;
+                  spriteHeight = 128;
                   break;
                 default:
                   // Default to bat animation for unhandled enemy types
                   spriteFrames = ['bat01', 'bat02', 'bat03', 'bat04'];
+                  spriteWidth = 64;
+                  spriteHeight = 32;
               }
               obj.animFrame = obj.animFrame % spriteFrames.length;
               spriteName = spriteFrames[obj.animFrame];
-              spriteOffset.x = -8;
-              spriteOffset.y = -8;
+              // Center sprite on object - sprite draws from top-left, so offset by half difference
+              spriteOffset.x = (obj.width - spriteWidth) / 2;
+              spriteOffset.y = (obj.height - spriteHeight) / 2;
               break;
             }
             case 'npc': {
               // NPCs use their subtype to determine sprite
               const npcType = obj.subType || 'wanda';
               spriteName = `${npcType}_stand`;
-              spriteOffset.x = -8;
-              spriteOffset.y = -8;
+              // NPCs are 64x128 sprites
+              const npcSpriteWidth = 64;
+              const npcSpriteHeight = 128;
+              spriteOffset.x = (obj.width - npcSpriteWidth) / 2;
+              spriteOffset.y = (obj.height - npcSpriteHeight) / 2;
               break;
             }
             case 'door':

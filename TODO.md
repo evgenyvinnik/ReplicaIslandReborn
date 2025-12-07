@@ -65,7 +65,6 @@ This document tracks what has been implemented and what still needs to be done t
 ### Still TODO
 
 - [ ] Component-based architecture refactor
-- [ ] Background music (MIDI conversion needed)
 
 ### Current State: ~75% Faithful
 
@@ -249,10 +248,10 @@ The 78 missing sprites map directly to **unimplemented game features**:
 | Category | Count | Files | Required For |
 |----------|-------|-------|-------------|
 | **Kyle Death Cutscene** | 16 | `anime_kyle_fall01.png` - `anime_kyle_fall16.png` | Cutscene player (16-frame death animation @ 83ms/frame = 1.33s) |
-| **Rokudou Boss Battle** | 13 | `rokudou_fight_stand.png`, `rokudou_fight_fly01-02.png`, `rokudou_fight_hit01-03.png`, `rokudou_fight_shoot01-02.png`, `rokudou_fight_die01-04.png`, `rokudou_fight_surprise.png` | Rokudou boss fight (not implemented) |
+| **Rokudou Boss Battle** | 13 | `rokudou_fight_stand.png`, `rokudou_fight_fly01-02.png`, `rokudou_fight_hit01-03.png`, `rokudou_fight_shoot01-02.png`, `rokudou_fight_die01-04.png`, `rokudou_fight_surprise.png` | ✅ RokudouBossComponent implemented |
 | **Game Endings UI** | 8 | `ui_good_ending_background.png`, `ui_good_ending_foreground.png`, `ui_ending_bad_kabocha_background.png`, `ui_ending_bad_kabocha_foreground.png`, `ui_bad_ending_rokudou_bg.png`, `ui_bad_ending_rokudou_cliffs.png`, `ui_bad_ending_rokudou_rokudou.png`, `ui_bad_ending_rokudou_sphere.png` | End-game cutscene parallax layers |
 | **Particle Effects** | 8 | `dust01.png` - `dust05.png`, `spark01.png` - `spark03.png` | Additional particle effects (basic effects exist in EffectsSystem) |
-| **Snailbomb Enemy** | 7 | `snailbomb.png`, `snail_bomb.png`, `snailbomb_stand.png`, `snailbomb_walk01-02.png`, `snailbomb_shoot01-02.png` | Snailbomb enemy type (not implemented) |
+| **Snailbomb Enemy** | 7 | `snailbomb.png`, `snail_bomb.png`, `snailbomb_stand.png`, `snailbomb_walk01-02.png`, `snailbomb_shoot01-02.png` | ✅ SnailbombComponent implemented |
 | **Debug Rendering** | 6 | `debug_box_blue.png`, `debug_box_red.png`, `debug_box_outline.png`, `debug_circle_blue.png`, `debug_circle_red.png`, `debug_circle_outline.png` | Debug collision visualization (low priority) |
 | **UI Miscellaneous** | 5 | `ui_arrow_dark.png`, `ui_arrow_light.png`, `ui_locked.png`, `ui_new.png`, `ui_pearl.png` | Level select UI enhancements |
 | **Boss Attack Effects** | 4 | `energy_ball01.png` - `energy_ball04.png` | Boss projectile attacks |
@@ -263,9 +262,9 @@ The 78 missing sprites map directly to **unimplemented game features**:
 
 **Summary:** The missing sprites are NOT random gaps - they correspond to these **unimplemented features**:
 1. ✅ **Cutscene System** - Kyle death animation, game endings (CutscenePlayer.tsx)
-2. ❌ **Rokudou Boss Fight** - Full boss battle with Rokudou
+2. ✅ **Rokudou Boss Fight** - RokudouBossComponent implemented with AI and projectiles
 3. ✅ **Ghost/Possession Mechanic** - `GhostComponent.ts` implemented
-4. ❌ **Snailbomb Enemy** - Enemy type not coded
+4. ✅ **Snailbomb Enemy** - SnailbombComponent implemented with patrol and shooting
 5. ⚠️ **Enhanced Effects** - Some particle sprites (basic effects work)
 
 ### Sound Assets
@@ -325,19 +324,7 @@ The Ghost mechanic allows the player to control a floating ghost entity. This is
 - ✅ Ambient sound loop
 - ✅ Action type switching
 
-#### 3. Music System
-| Issue | Solution |
-|-------|----------|
-| Original uses MIDI (`bwv_115.mid`) | Convert to MP3/OGG format |
-| MIDI not supported in browsers | Use Timidity or online converter |
-| SoundSystem ready for music | Just needs converted file |
-
-**Steps to add music:**
-1. Convert `Original/res/raw/bwv_115.mid` to OGG
-2. Place at `public/assets/sounds/music_background.ogg`
-3. Call `soundSystem.startBackgroundMusic()`
-
-#### 4. Cutscene/Animation Player
+#### 3. Cutscene/Animation Player
 | Files | Purpose | Status |
 |-------|---------|--------|
 | CutscenePlayer.tsx | React component for playing cutscenes | ✅ Implemented |
@@ -424,12 +411,6 @@ Implemented using the Web Vibration API for mobile browsers and Gamepad haptic A
 | Best time per level | ✅ Implemented |
 | Time stamps per level | ✅ Implemented |
 
-#### 11. Localization
-| Language | Original Files | Status |
-|----------|----------------|--------|
-| English | res/values-en/ | ✅ Using English strings |
-| Japanese | res/values-ja/ | ❌ Not implemented |
-
 ---
 
 ## 📋 Implementation Checklist by Priority
@@ -437,7 +418,6 @@ Implemented using the Web Vibration API for mobile browsers and Gamepad haptic A
 ### Phase 1: Complete Core Gameplay (HIGH)
 - [x] Create EvilKabochaComponent.ts for Evil Kabocha boss ✅
 - [x] Implement GhostComponent.ts for possession mechanic ✅
-- [ ] Convert MIDI music to OGG and enable playback
 - [x] Add CameraBiasComponent.ts for camera focus points ✅
 
 ### Phase 2: Story & Polish (MEDIUM)
@@ -451,7 +431,6 @@ Implemented using the Web Vibration API for mobile browsers and Gamepad haptic A
 - [x] Create ExtrasMenu.tsx with unlock system ✅
 - [x] Add vibration/haptic feedback ✅
 - [x] Implement high score tracking ✅
-- [ ] Add Japanese language support
 - [x] Create level time tracking ✅
 
 ---

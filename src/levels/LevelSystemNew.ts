@@ -386,72 +386,72 @@ export class LevelSystem {
       case GameObjectTypeIndex.BAT:
         obj.type = 'enemy';
         obj.subType = 'bat';
-        objWidth = 48;
-        objHeight = 48;
+        objWidth = 64;   // Sprite is 64x32
+        objHeight = 32;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.STING:
         obj.type = 'enemy';
         obj.subType = 'sting';
-        objWidth = 48;
-        objHeight = 48;
+        objWidth = 64;   // Sprite is 64x64
+        objHeight = 64;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.ONION:
         obj.type = 'enemy';
         obj.subType = 'onion';
-        objWidth = 48;
-        objHeight = 48;
+        objWidth = 64;   // Sprite is 64x64
+        objHeight = 64;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.BROBOT:
         obj.type = 'enemy';
         obj.subType = 'brobot';
-        objWidth = 48;
-        objHeight = 48;
+        objWidth = 64;   // Sprite is 64x64
+        objHeight = 64;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.SKELETON:
         obj.type = 'enemy';
         obj.subType = 'skeleton';
-        objWidth = 48;
-        objHeight = 48;
+        objWidth = 64;   // Sprite is 64x64
+        objHeight = 64;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.SNAILBOMB:
         obj.type = 'enemy';
         obj.subType = 'snailbomb';
-        objWidth = 48;
-        objHeight = 48;
+        objWidth = 64;   // Assumed 64x64
+        objHeight = 64;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.SHADOWSLIME:
         obj.type = 'enemy';
         obj.subType = 'shadowslime';
-        objWidth = 48;
-        objHeight = 48;
+        objWidth = 64;   // Sprite is 64x64
+        objHeight = 64;
         obj.activationRadius = 200;
         break;
         
       case GameObjectTypeIndex.MUDMAN:
         obj.type = 'enemy';
         obj.subType = 'mudman';
-        objWidth = 48;
-        objHeight = 48;
-        obj.activationRadius = 200;
+        objWidth = 128;  // Sprite is 128x128
+        objHeight = 128;
+        obj.activationRadius = 300;
         break;
         
       case GameObjectTypeIndex.KARAGUIN:
         obj.type = 'enemy';
         obj.subType = 'karaguin';
-        objWidth = 48;
-        objHeight = 48;
+        objWidth = 32;   // Sprite is 32x32
+        objHeight = 32;
         obj.activationRadius = 200;
         break;
         
@@ -491,8 +491,8 @@ export class LevelSystem {
       case GameObjectTypeIndex.WANDA: {
         obj.type = 'npc';
         obj.subType = 'wanda';
-        objWidth = 48;
-        objHeight = 64;
+        objWidth = 64;   // Sprite is 64x128
+        objHeight = 128;
         obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
         // Add NPC movement component
         const npcComponent = new NPCComponent();
@@ -503,36 +503,33 @@ export class LevelSystem {
       case GameObjectTypeIndex.KYLE: {
         obj.type = 'npc';
         obj.subType = 'kyle';
-        objWidth = 48;
-        objHeight = 64;
+        objWidth = 64;   // Sprite is 64x128
+        objHeight = 128;
         obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
-        // Add NPC movement component
-        const npcComponent = new NPCComponent();
-        obj.addComponent(npcComponent);
+        const npcComponent2 = new NPCComponent();
+        obj.addComponent(npcComponent2);
         break;
       }
         
       case GameObjectTypeIndex.KABOCHA: {
         obj.type = 'npc';
         obj.subType = 'kabocha';
-        objWidth = 48;
-        objHeight = 64;
+        objWidth = 64;   // Sprite is 64x128
+        objHeight = 128;
         obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
-        // Add NPC movement component
-        const npcComponent = new NPCComponent();
-        obj.addComponent(npcComponent);
+        const npcComponent3 = new NPCComponent();
+        obj.addComponent(npcComponent3);
         break;
       }
         
       case GameObjectTypeIndex.ROKUDOU: {
-        obj.type = 'npc';
+        // Rokudou boss enemy (type 30 - distinct from ROKUDOU_TERMINAL which is NPC)
+        obj.type = 'enemy';
         obj.subType = 'rokudou';
-        objWidth = 48;
-        objHeight = 64;
-        obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
-        // Add NPC movement component
-        const npcComponent = new NPCComponent();
-        obj.addComponent(npcComponent);
+        objWidth = 128;  // Large boss sprite is 128x128
+        objHeight = 128;
+        obj.activationRadius = 400; // Boss has larger activation radius
+        obj.life = 3; // Boss has 3 hit points
         break;
       }
 
