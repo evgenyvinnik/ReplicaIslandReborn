@@ -405,7 +405,7 @@ export class LevelParser {
       for (let x = 0; x < width; x++) {
         columnMajor[x] = [];
         for (let y = 0; y < height; y++) {
-          columnMajor[x][y] = rowMajorTiles[y][x];
+          columnMajor[x][y] = rowMajorTiles[y]?.[x] ?? -1;
         }
       }
       return columnMajor;

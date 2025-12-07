@@ -172,6 +172,7 @@ export class LevelSystem {
   private async loadConvertedJsonLevel(levelId: number, levelInfo: LevelInfo): Promise<boolean> {
     // Use .json extension (levels were converted from .bin to .json)
     const url = assetPath(`/assets/levels/${levelInfo.file}.json`);
+    
     const parsed = await this.levelParser.parseJsonLevel(url);
     
     if (!parsed) {
@@ -299,10 +300,10 @@ export class LevelSystem {
     // tiles[x][y] is column-major where y=0 is top of level
     for (let y = 0; y < objectLayer.height; y++) {
       for (let x = 0; x < objectLayer.width; x++) {
-        const tileValue = objectLayer.tiles[x][y];
+        const tileValue = objectLayer.tiles[x]?.[y];
         
         // Skip empty tiles (-1) and skip markers (negative values)
-        if (tileValue < 0) continue;
+        if (tileValue === undefined || tileValue < 0) continue;
 
         // Calculate world position (pixel coords)
         // Direct conversion: tile coords to pixel coords

@@ -119,8 +119,9 @@ export class GameObjectManager {
 
   /**
    * Commit pending additions and removals
+   * Made public so it can be called immediately after level load
    */
-  private commitUpdates(): void {
+  commitUpdates(): void {
     // Add pending objects
     for (const object of this.pendingAdditions) {
       this.objects.add(object);

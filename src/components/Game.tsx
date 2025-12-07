@@ -425,6 +425,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const levelLoaded = await levelSystem.loadLevel(levelToLoad);
         
         if (levelLoaded) {
+          // Commit pending object additions immediately so they're available for rendering
+          gameObjectManager.commitUpdates();
+          
           // Store player spawn position from level system
           playerSpawnRef.current = { ...levelSystem.playerSpawnPosition };
           
@@ -465,6 +468,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             });
             
             if (npcTarget !== null) {
+              console.warn(`[Game] Found NPC target: ${(npcTarget as GameObject).subType}`);
               // Set camera to initially focus on the NPC
               const npc = npcTarget as GameObject;
               cameraSystem.setNPCTarget(npcTarget);

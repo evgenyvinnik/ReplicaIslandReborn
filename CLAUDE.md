@@ -1,5 +1,23 @@
 # CLAUDE.md - Project Guide for ReplicaIslandReborn
 
+---
+
+## ⚠️ IMPORTANT: Package Manager
+
+**NEVER use npm in this project!** Always use **Bun** instead.
+
+| ❌ DON'T USE | ✅ USE INSTEAD |
+|--------------|----------------|
+| `npm install` | `bun install` |
+| `npm run dev` | `bun run dev` |
+| `npm run build` | `bun run build` |
+| `npm test` | `bun test` |
+| `npx <command>` | `bunx <command>` |
+
+Bun is the designated runtime and package manager for this project. It provides faster installs and execution.
+
+---
+
 ## Project Overview
 
 This project is a web port of **Replica Island**, one of the earliest and most popular open-source Android games. The original game was written in Java for Android by Chris Pruett and Genki Mine, released under the Apache 2.0 license.
