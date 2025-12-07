@@ -40,6 +40,10 @@ export class CameraSystem {
   private biasY: number = 0;
   private readonly _biasSpeed: number = 2.0;
 
+  // NPC focus mode - when true, camera is following an NPC for cutscene
+  private npcFocusMode: boolean = false;
+  private npcTarget: { getPosition: () => Vector2 } | null = null;
+
   constructor(viewportWidth: number, viewportHeight: number) {
     this.viewportWidth = viewportWidth;
     this.viewportHeight = viewportHeight;
@@ -67,13 +71,55 @@ export class CameraSystem {
     this.shakeOffset.zero();
     this.biasX = 0;
     this.biasY = 0;
+    this.npcFocusMode = false;
+    this.npcTarget = null;
   }
 
   /**
    * Set the camera target to follow
+   * If npcFocusMode is active, this won't override the NPC target
    */
   setTarget(target: { getPosition: () => Vector2 } | null): void {
-    this.target = target;
+    // Don't override if in NPC focus mode - NPCComponent will release this
+    if (!this.npcFocusMode) {
+      this.target = target;
+    }
+  }
+
+  /**
+   * Set the NPC target (takes camera focus from player)
+   */
+  setNPCTarget(target: { getPosition: () => Vector2 } | null): void {
+    if (target) {
+      this.npcFocusMode = true;
+      this.npcTarget = target;
+      this.target = target;
+    }
+  }
+
+  /**
+   * Release NPC focus and return to player
+   */
+  releaseNPCFocus(player: { getPosition: () => Vector2 } | null): void {
+    this.npcFocusMode = false;
+    this.npcTarget = null;
+    if (player) {
+      this.target = player;
+    }
+  }
+
+  /**
+   * Check if camera is in NPC focus mode
+   */
+  isNPCFocusMode(): boolean {
+    return this.npcFocusMode;
+  }
+
+  /**
+   * Get the NPC target (if in NPC focus mode)
+   */
+  getNPCTarget(): { getPosition: () => Vector2 } | null {
+    return this.npcTarget;
   }
 
   /**

@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { gameSettings, type GameSettings } from '../utils/GameSettings';
+import { useGameStore, type GameSettings, type KeyBindings } from '../stores/useGameStore';
 import { UIStrings } from '../data/strings';
 
 interface OptionsMenuProps {
@@ -44,18 +44,18 @@ const COLORS = {
 };
 
 export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
-  const [settings, setSettings] = useState<GameSettings>(gameSettings.getAll());
+  // Use Zustand store directly for settings
+  const settings = useGameStore((state) => state.settings);
+  const setSetting = useGameStore((state) => state.setSetting);
+  const setKeyBinding = useGameStore((state) => state.setKeyBinding);
+  const resetKeyBindings = useGameStore((state) => state.resetKeyBindings);
+  const resetEverything = useGameStore((state) => state.resetEverything);
+  
   const [currentScreen, setCurrentScreen] = useState<Screen>('main');
   const [showEraseConfirm, setShowEraseConfirm] = useState(false);
   const [showKeyboardConfig, setShowKeyboardConfig] = useState(false);
   const [showEraseToast, setShowEraseToast] = useState(false);
-  const [keyBindingMode, setKeyBindingMode] = useState<keyof GameSettings['keyBindings'] | null>(null);
-
-  // Subscribe to settings changes
-  useEffect(() => {
-    const unsubscribe = gameSettings.subscribe(setSettings);
-    return unsubscribe;
-  }, []);
+  const [keyBindingMode, setKeyBindingMode] = useState<keyof KeyBindings | null>(null);
 
   // Handle key binding capture
   useEffect(() => {
@@ -70,13 +70,13 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
         return;
       }
 
-      gameSettings.setKeyBinding(keyBindingMode, [e.code]);
+      setKeyBinding(keyBindingMode, [e.code]);
       setKeyBindingMode(null);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return (): void => window.removeEventListener('keydown', handleKeyDown);
-  }, [keyBindingMode]);
+  }, [keyBindingMode, setKeyBinding]);
 
   // Hide toast after 2 seconds
   useEffect(() => {
@@ -87,18 +87,12 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
   }, [showEraseToast]);
 
   const updateSetting = <K extends keyof GameSettings>(key: K, value: GameSettings[K]): void => {
-    gameSettings.set(key, value);
+    setSetting(key, value);
   };
 
   const handleEraseSaveData = (): void => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.removeItem('replica_island_save');
-        window.localStorage.removeItem('replica_island_progress');
-      }
-    } catch {
-      // Ignore errors
-    }
+    // Use Zustand's resetEverything to clear all data
+    resetEverything();
     setShowEraseConfirm(false);
     setShowEraseToast(true);
   };
@@ -481,7 +475,7 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
           >
             <button
               onClick={(): void => {
-                gameSettings.resetKeyBindings();
+                resetKeyBindings();
               }}
               style={{
                 padding: '8px 16px',

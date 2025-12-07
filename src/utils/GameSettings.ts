@@ -1,248 +1,121 @@
 /**
- * Game Settings Manager
- * Handles persistent settings storage using localStorage
- * Ported from: Original/res/xml/preferences.xml
+ * Game Settings Manager - Compatibility Layer
+ * 
+ * This file provides backward compatibility for existing code that uses
+ * the old gameSettings singleton. It wraps the new Zustand store.
+ * 
+ * NEW CODE SHOULD USE:
+ *   import { useGameStore, useSettings, useSetting } from '../stores/useGameStore';
+ * 
+ * LEGACY CODE CAN CONTINUE USING:
+ *   import { gameSettings } from '../utils/GameSettings';
  */
 
-// Settings interface
-export interface GameSettings {
-  // Sound settings
-  soundEnabled: boolean;
-  soundVolume: number;
-  
-  // Control settings
-  clickAttackEnabled: boolean;
-  onScreenControlsEnabled: boolean;
-  tiltControlsEnabled: boolean;
-  movementSensitivity: number;
-  tiltSensitivity: number;
-  
-  // Keyboard bindings
-  keyBindings: KeyBindings;
-  
-  // Display settings
-  showFPS: boolean;
-  pixelPerfect: boolean;
-  
-  // Game settings
-  difficulty: 'baby' | 'kids' | 'adults';
-  
-  // Debug settings
-  debugMode: boolean;
-}
+import {
+  useGameStore,
+  getSettings,
+  getSetting,
+  type GameSettings,
+  type KeyBindings,
+  DEFAULT_SETTINGS,
+  DEFAULT_KEY_BINDINGS,
+  DifficultySettings,
+  type DifficultyConstants,
+} from '../stores/useGameStore';
 
-// Key binding configuration
-export interface KeyBindings {
-  left: string[];
-  right: string[];
-  up: string[];
-  down: string[];
-  jump: string[];
-  attack: string[];
-  pause: string[];
-}
+// Re-export types for backward compatibility
+export type { GameSettings, KeyBindings, DifficultyConstants };
+export { DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS, DifficultySettings };
 
-// Default key bindings
-const DEFAULT_KEY_BINDINGS: KeyBindings = {
-  left: ['ArrowLeft', 'KeyA'],
-  right: ['ArrowRight', 'KeyD'],
-  up: ['ArrowUp', 'KeyW'],
-  down: ['ArrowDown', 'KeyS'],
-  jump: ['Space'],
-  attack: ['KeyX', 'KeyZ'],
-  pause: ['Escape', 'KeyP'],
-};
-
-// Default settings
-const DEFAULT_SETTINGS: GameSettings = {
-  // Sound
-  soundEnabled: true,
-  soundVolume: 80,
-  
-  // Controls
-  clickAttackEnabled: true,
-  onScreenControlsEnabled: true,
-  tiltControlsEnabled: false,
-  movementSensitivity: 100,
-  tiltSensitivity: 50,
-  
-  // Keyboard
-  keyBindings: DEFAULT_KEY_BINDINGS,
-  
-  // Display
-  showFPS: false,
-  pixelPerfect: true,
-  
-  // Game
-  difficulty: 'kids',
-  
-  // Debug
-  debugMode: false,
-};
-
-// Storage key
-const STORAGE_KEY = 'replica_island_settings';
-
-// Helper to safely access localStorage
-function getStorage(): typeof globalThis.localStorage | null {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      return window.localStorage;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-// Settings singleton class
+/**
+ * Settings manager singleton - wraps Zustand store for backward compatibility
+ */
 class SettingsManager {
-  private settings: GameSettings;
   private listeners: Set<(settings: GameSettings) => void> = new Set();
-  
+  private unsubscribeStore: (() => void) | null = null;
+
   constructor() {
-    this.settings = this.load();
-  }
-  
-  // Load settings from localStorage
-  private load(): GameSettings {
-    try {
-      const storage = getStorage();
-      if (storage) {
-        const stored = storage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored) as Partial<GameSettings>;
-          // Merge with defaults to ensure all properties exist
-          return { ...DEFAULT_SETTINGS, ...parsed };
-        }
+    // Subscribe to Zustand store changes and forward to legacy listeners
+    this.unsubscribeStore = useGameStore.subscribe((state, prevState) => {
+      if (state.settings !== prevState.settings) {
+        this.notifyListeners();
       }
-    } catch (error) {
-      console.warn('Failed to load settings:', error);
-    }
-    return { ...DEFAULT_SETTINGS };
+    });
   }
-  
-  // Save settings to localStorage
-  private save(): void {
-    try {
-      const storage = getStorage();
-      if (storage) {
-        storage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
-      }
-    } catch (error) {
-      console.warn('Failed to save settings:', error);
-    }
-    // Notify listeners
-    this.notifyListeners();
-  }
-  
-  // Get all settings
+
+  /** Get all settings */
   getAll(): GameSettings {
-    return { ...this.settings };
+    return getSettings();
   }
-  
-  // Get a specific setting
+
+  /** Get a specific setting */
   get<K extends keyof GameSettings>(key: K): GameSettings[K] {
-    return this.settings[key];
+    return getSetting(key);
   }
-  
-  // Set a specific setting
+
+  /** Set a specific setting */
   set<K extends keyof GameSettings>(key: K, value: GameSettings[K]): void {
-    this.settings[key] = value;
-    this.save();
+    useGameStore.getState().setSetting(key, value);
   }
-  
-  // Update multiple settings at once
+
+  /** Update multiple settings at once */
   update(updates: Partial<GameSettings>): void {
-    this.settings = { ...this.settings, ...updates };
-    this.save();
+    useGameStore.getState().updateSettings(updates);
   }
-  
-  // Reset to defaults
+
+  /** Reset to defaults */
   reset(): void {
-    this.settings = { ...DEFAULT_SETTINGS };
-    this.save();
+    useGameStore.getState().resetSettings();
   }
-  
-  // Reset key bindings to defaults
+
+  /** Reset key bindings to defaults */
   resetKeyBindings(): void {
-    this.settings.keyBindings = { ...DEFAULT_KEY_BINDINGS };
-    this.save();
+    useGameStore.getState().resetKeyBindings();
   }
-  
-  // Set a key binding
+
+  /** Set a key binding */
   setKeyBinding(action: keyof KeyBindings, keys: string[]): void {
-    this.settings.keyBindings[action] = keys;
-    this.save();
+    useGameStore.getState().setKeyBinding(action, keys);
   }
-  
-  // Check if a key is bound to an action
+
+  /** Check if a key is bound to an action */
   isKeyBound(action: keyof KeyBindings, key: string): boolean {
-    return this.settings.keyBindings[action].includes(key);
+    return this.get('keyBindings')[action].includes(key);
   }
-  
-  // Get the key bound to an action (first one)
+
+  /** Get the key bound to an action (first one) */
   getKeyForAction(action: keyof KeyBindings): string {
-    return this.settings.keyBindings[action][0] || '';
+    return this.get('keyBindings')[action][0] || '';
   }
-  
-  // Subscribe to settings changes
+
+  /** Subscribe to settings changes */
   subscribe(listener: (settings: GameSettings) => void): () => void {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return (): void => {
+      this.listeners.delete(listener);
+    };
   }
-  
-  // Notify all listeners
+
+  /** Notify all legacy listeners */
   private notifyListeners(): void {
     const settings = this.getAll();
     this.listeners.forEach(listener => listener(settings));
   }
+
+  /** Cleanup */
+  destroy(): void {
+    if (this.unsubscribeStore) {
+      this.unsubscribeStore();
+      this.unsubscribeStore = null;
+    }
+    this.listeners.clear();
+  }
 }
 
-// Export singleton instance
+/** Export singleton instance for backward compatibility */
 export const gameSettings = new SettingsManager();
 
-// Export default settings for reference
-export { DEFAULT_SETTINGS, DEFAULT_KEY_BINDINGS };
-
-// Difficulty constants (ported from DifficultyConstants.java)
-export interface DifficultyConstants {
-  playerMaxLife: number;
-  playerHitPoints: number;
-  coinValue: number;
-  rubyValue: number;
-  playerInvincibleTime: number;
-  enemyDamage: number;
-}
-
-export const DifficultySettings: Record<GameSettings['difficulty'], DifficultyConstants> = {
-  baby: {
-    playerMaxLife: 5,
-    playerHitPoints: 3,
-    coinValue: 2,
-    rubyValue: 5,
-    playerInvincibleTime: 3.0,
-    enemyDamage: 1,
-  },
-  kids: {
-    playerMaxLife: 3,
-    playerHitPoints: 2,
-    coinValue: 1,
-    rubyValue: 3,
-    playerInvincibleTime: 2.0,
-    enemyDamage: 1,
-  },
-  adults: {
-    playerMaxLife: 2,
-    playerHitPoints: 1,
-    coinValue: 1,
-    rubyValue: 2,
-    playerInvincibleTime: 1.5,
-    enemyDamage: 2,
-  },
-};
-
-// Get current difficulty settings
+/** Get current difficulty settings */
 export function getDifficultySettings(): DifficultyConstants {
   return DifficultySettings[gameSettings.get('difficulty')];
 }

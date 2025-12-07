@@ -11,6 +11,7 @@ import { HotSpotSystem } from '../engine/HotSpotSystem';
 import { GameObjectTypeIndex, getObjectTypeName } from '../types/GameObjectTypes';
 import { NPCComponent } from '../entities/components/NPCComponent';
 import { assetPath } from '../utils/helpers';
+import { useGameStore, isLevelUnlocked } from '../stores/useGameStore';
 
 export interface LevelInfo {
   id: number;
@@ -487,7 +488,7 @@ export class LevelSystem {
         obj.subType = 'wanda';
         objWidth = 48;
         objHeight = 64;
-        obj.activationRadius = 150;
+        obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
         // Add NPC movement component
         const npcComponent = new NPCComponent();
         obj.addComponent(npcComponent);
@@ -499,7 +500,7 @@ export class LevelSystem {
         obj.subType = 'kyle';
         objWidth = 48;
         objHeight = 64;
-        obj.activationRadius = 150;
+        obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
         // Add NPC movement component
         const npcComponent = new NPCComponent();
         obj.addComponent(npcComponent);
@@ -511,7 +512,7 @@ export class LevelSystem {
         obj.subType = 'kabocha';
         objWidth = 48;
         objHeight = 64;
-        obj.activationRadius = 150;
+        obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
         // Add NPC movement component
         const npcComponent = new NPCComponent();
         obj.addComponent(npcComponent);
@@ -523,7 +524,7 @@ export class LevelSystem {
         obj.subType = 'rokudou';
         objWidth = 48;
         objHeight = 64;
-        obj.activationRadius = 150;
+        obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
         // Add NPC movement component
         const npcComponent = new NPCComponent();
         obj.addComponent(npcComponent);
@@ -721,7 +722,8 @@ export class LevelSystem {
     const level = this.levels.get(levelId);
     if (level) {
       level.unlocked = true;
-      this.saveLevelProgress();
+      // Also update Zustand store
+      useGameStore.getState().unlockLevel(levelId);
     }
   }
 
@@ -806,37 +808,12 @@ export class LevelSystem {
   }
 
   /**
-   * Save level progress to localStorage
-   */
-  private saveLevelProgress(): void {
-    const unlocked = Array.from(this.levels.values())
-      .filter(l => l.unlocked)
-      .map(l => l.id);
-    
-    try {
-      window.localStorage.setItem('replicaIsland_unlockedLevels', JSON.stringify(unlocked));
-    } catch {
-      // Ignore storage errors
-    }
-  }
-
-  /**
-   * Load level progress from localStorage
+   * Load level progress from Zustand store
    */
   loadLevelProgress(): void {
-    try {
-      const saved = window.localStorage.getItem('replicaIsland_unlockedLevels');
-      if (saved) {
-        const unlocked = JSON.parse(saved) as number[];
-        for (const id of unlocked) {
-          const level = this.levels.get(id);
-          if (level) {
-            level.unlocked = true;
-          }
-        }
-      }
-    } catch {
-      // Ignore storage errors
+    // Sync internal levels map with Zustand store
+    for (const [id, levelInfo] of this.levels) {
+      levelInfo.unlocked = isLevelUnlocked(id);
     }
   }
 

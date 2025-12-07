@@ -46,6 +46,7 @@ export default [
         FileReader: 'readonly',
         performance: 'readonly',
         navigator: 'readonly',
+        localStorage: 'readonly',
       },
     },
     plugins: {
