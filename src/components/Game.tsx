@@ -238,6 +238,72 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     }
   }, [levelLoading, isInitialized, state.currentLevel]);
 
+  // Track previous level to detect level changes
+  const prevLevelRef = useRef(state.currentLevel);
+  
+  // Reload level when currentLevel changes (e.g., from LevelSelect)
+  useEffect(() => {
+    // Skip if not initialized yet
+    if (!isInitialized) return;
+    
+    // Skip if level hasn't actually changed
+    if (prevLevelRef.current === state.currentLevel) return;
+    
+    // Update previous level
+    prevLevelRef.current = state.currentLevel;
+    
+    // Load the new level
+    const levelSystem = levelSystemRef.current;
+    const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
+    if (!levelSystem || !gameObjectManager) return;
+    
+    setLevelLoading(true);
+    hasShownIntroDialogRef.current = false;
+    
+    levelSystem.loadLevel(state.currentLevel).then(() => {
+      gameObjectManager.commitUpdates();
+      
+      // Initialize tile map renderer for new level
+      const parsedLevel = levelSystem.getParsedLevel();
+      if (parsedLevel && tileMapRendererRef.current) {
+        tileMapRendererRef.current.initializeFromLevel(parsedLevel);
+        
+        // Load background image
+        const backgroundImage = parsedLevel.backgroundImage;
+        const bgPath = `/assets/sprites/${backgroundImage}.png`;
+        const bgImg = new Image();
+        bgImg.onload = (): void => {
+          backgroundImageRef.current = bgImg;
+        };
+        bgImg.src = bgPath;
+      }
+      
+      // Update camera bounds
+      const cameraSystem = systemRegistryRef.current?.cameraSystem;
+      if (cameraSystem) {
+        cameraSystem.setBounds({
+          minX: 0,
+          minY: 0,
+          maxX: levelSystem.getLevelWidth(),
+          maxY: levelSystem.getLevelHeight(),
+        });
+      }
+      
+      const spawn = levelSystem.playerSpawnPosition;
+      playerSpawnRef.current = { ...spawn };
+      resetPlayerState();
+      
+      const player = gameObjectManager.getPlayer();
+      if (player) {
+        player.setPosition(spawn.x, spawn.y);
+        player.getVelocity().x = 0;
+        player.getVelocity().y = 0;
+      }
+      
+      setLevelLoading(false);
+    });
+  }, [isInitialized, state.currentLevel, resetPlayerState]);
+
   // Handle Canvas Dialog when activeDialog changes
   useEffect(() => {
     const canvasDialog = canvasDialogRef.current;
@@ -528,10 +594,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     systemRegistry.register(levelSystem, 'level');
     levelSystemRef.current = levelSystem;
 
-    // Tile map renderer
-    const tileMapRenderer = new TileMapRenderer();
+    // Tile map renderer - reuse existing instance if available (prevents Strict Mode issues)
+    let tileMapRenderer = tileMapRendererRef.current;
+    if (!tileMapRenderer) {
+      tileMapRenderer = new TileMapRenderer();
+      tileMapRendererRef.current = tileMapRenderer;
+    }
     tileMapRenderer.setViewport(width, height);
-    tileMapRendererRef.current = tileMapRenderer;
 
     // Placeholder tileset for fallback
     const placeholderTileset = generatePlaceholderTileset(32);
