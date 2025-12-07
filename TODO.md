@@ -804,23 +804,23 @@ The hot spot layer defines special tile behaviors:
 
 ## 🔄 Implementation Priority Roadmap
 
-### Phase 1: Core Gameplay (CRITICAL)
-1. **Level Loading**
-   - [ ] Create `LevelParser.ts` to parse `.bin` files
-   - [ ] Port `LevelBuilder.java` logic
-   - [ ] Port `TiledWorld.java` for tile collision
-   - [ ] Load actual level data instead of test level
+### Phase 1: Core Gameplay (CRITICAL) ✅ COMPLETE
+1. **Level Loading** ✅
+   - [x] Create `LevelParser.ts` to parse `.bin` files
+   - [x] Port `LevelBuilder.java` logic
+   - [x] Port `TiledWorld.java` for tile collision
+   - [x] Load actual level data instead of test level
 
-2. **Animation System**
-   - [ ] Port `SpriteAnimation.java`
-   - [ ] Port `AnimationComponent.java`
-   - [ ] Define sprite sheet coordinates from original assets
-   - [ ] Implement animation state machine
+2. **Animation System** ✅
+   - [x] Port `SpriteAnimation.java`
+   - [x] Port `AnimationComponent.java` → `EnemyAnimationComponent.ts`
+   - [x] Define sprite sheet coordinates from original assets
+   - [x] Implement animation state machine
 
-3. **Sound System**
-   - [ ] Copy OGG files to `public/assets/sounds/`
-   - [ ] Implement proper `SoundSystem.ts` with Web Audio API
-   - [ ] Add sound effect triggers for game events
+3. **Sound System** ✅
+   - [x] Copy OGG files to `public/assets/sounds/`
+   - [x] Implement proper `SoundSystem.ts` with Web Audio API
+   - [x] Add sound effect triggers for game events
    - [ ] Add background music support (MIDI or convert to MP3/OGG)
 
 ### Phase 2: Player & Combat (HIGH) ✅ COMPLETE
@@ -845,6 +845,8 @@ The hot spot layer defines special tile behaviors:
    - [x] Dialog system with typewriter effect
    - [x] TALK hotspot triggers
    - [x] NPC dialog triggers from levels
+   - [x] NPCComponent for cutscene movement
+   - [x] Camera focus switching (TAKE_CAMERA_FOCUS/RELEASE_CAMERA_FOCUS)
 
 ### Phase 4: Polish (LOW) - PARTIAL
 8. **Visual Polish** ✅ PARTIAL
@@ -854,7 +856,7 @@ The hot spot layer defines special tile behaviors:
 
 9. **UI/UX** ✅ MOSTLY COMPLETE
    - [x] Level select with world/stage progression
-   - [ ] Game over screen (shows when lives = 0)
+   - [x] Game over screen (shows when lives = 0)
    - [x] Pause menu
    - [x] Settings/options
 
@@ -905,7 +907,8 @@ The hot spot layer defines special tile behaviors:
 
 | Category | Original | Ported | Percentage | Notes |
 |----------|----------|--------|------------|-------|
-| Java Classes | 118 | ~50 | 42% | Core gameplay classes ported |
+| Java Classes | 118 | ~56 | 47% | Core gameplay classes ported |
+| Components | 35 | 24 | 69% | All core components including NPCComponent |
 | Sound Effects | 22 | 22 | 100% | All OGG files copied and working |
 | Level Files (.bin) | 47 | 47 | 100% | All levels parsed to JSON |
 | Dialog Files (.xml) | 38 | 38 | 100% | All dialogs ported to TypeScript |
@@ -919,6 +922,7 @@ The hot spot layer defines special tile behaviors:
 | Level Progression | 1 | 1 | 100% | Level tree navigation |
 | Dialog Triggers | 1 | 1 | 100% | Hot spot triggered dialogs |
 | Game UI Screens | 5 | 5 | 100% | Main menu, level select, pause, game over, level complete |
+| NPC Cutscene System | 1 | 1 | 100% | Camera focus switching, NPC movement via hot spots |
 
 ### Missing Sprites by Feature (78 total)
 
@@ -961,21 +965,25 @@ The game is **fully playable through all 47 levels** with:
 
 The remaining **~18%** consists of these major unimplemented features:
 
-| Feature | Sprites Needed | Components Needed | Priority |
-|---------|---------------|-------------------|----------|
-| **Rokudou Boss Fight** | 13 (`rokudou_fight_*.png`) | Boss AI, attack patterns | HIGH |
-| **Cutscene Player** | 16 (`anime_kyle_fall*.png`) + 8 (endings) | AnimationPlayerActivity equivalent | MEDIUM |
-| **Ghost Mechanic** | 1 (`ghost.png`) | `GhostComponent.ts` | MEDIUM |
-| **Snailbomb Enemy** | 7 (`snailbomb_*.png`) | Enemy factory spawn | LOW |
-| **Motion Blur Effect** | 0 | `MotionBlurComponent.ts` | LOW |
-| **Per-Object Fade** | 0 | `FadeDrawableComponent.ts` | LOW |
-| **Background Music** | 0 | MIDI→OGG conversion | LOW |
+| Feature | Sprites Needed | Components Needed | Priority | Status |
+|---------|---------------|-------------------|----------|--------|
+| **NPC Cutscene System** | 0 | `NPCComponent.ts` | CRITICAL | ✅ Done |
+| **Rokudou Boss Fight** | 13 (`rokudou_fight_*.png`) | Boss AI, attack patterns | HIGH | ❌ |
+| **Cutscene Player** | 16 (`anime_kyle_fall*.png`) + 8 (endings) | AnimationPlayerActivity equivalent | MEDIUM | ❌ |
+| **Ghost Mechanic** | 1 (`ghost.png`) | `GhostComponent.ts` | MEDIUM | ❌ |
+| **Evil Kabocha Boss** | 0 | `EvilKabochaComponent.ts` | HIGH | ❌ |
+| **Snailbomb Enemy** | 7 (`snailbomb_*.png`) | Enemy factory spawn | LOW | ❌ |
+| **Motion Blur Effect** | 0 | `MotionBlurComponent.ts` | LOW | ❌ |
+| **Per-Object Fade** | 0 | `FadeDrawableComponent.ts` | LOW | ❌ |
+| **Background Music** | 0 | MIDI→OGG conversion | LOW | ❌ |
 
 ### Additional Working Features
 - ✅ **Screen transitions** - FadeTransition component for level changes
 - ✅ **Player death/respawn** - Respawn at level start with invincibility
 - ✅ **Level completion** - Detect END_LEVEL hotspot, advance to next level
 - ✅ **NPC dialog triggers** - TALK hotspots trigger dialog overlay
+- ✅ **NPC cutscene system** - TAKE_CAMERA_FOCUS, NPC_GO_RIGHT/LEFT, queued commands via NPCComponent
+- ✅ **Camera focus switching** - Camera can follow NPCs during cutscenes
 - ✅ **Camera shake** - Screen shake on player damage and death
 - ✅ **Pause menu** - In-game pause with settings
 - ✅ **Game over screen** - Shows when player runs out of lives
