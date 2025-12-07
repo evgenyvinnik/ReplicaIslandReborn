@@ -177,11 +177,11 @@ The 78 missing sprites map directly to **unimplemented game features**:
 | **Boss Attack Effects** | 4 | `energy_ball01.png` - `energy_ball04.png` | Boss projectile attacks |
 | **Jetpack Fire** | 2 | `jetfire01.png`, `jetfire02.png` | Jetpack flame visual effect |
 | **Dialog Box** | 2 | `dialog_box.9.png`, `dialogue.png` | Dialog box background (React CSS used instead) |
-| **Ghost Mechanic** | 1 | `ghost.png` | Ghost possession mechanic (GhostComponent not implemented) |
+| **Ghost Mechanic** | 1 | `ghost.png` | Ghost possession mechanic (GhostComponent implemented) |
 | **Other/Utility** | 6 | `black.png`, `robot.png`, `lighting.png`, `sky_background.png`, `collision_map.png`, `framerate_warning.png` | Various utility sprites |
 
 **Summary:** The missing sprites are NOT random gaps - they correspond to these **unimplemented features**:
-1. ❌ **Cutscene System** - Kyle death animation, game endings
+1. ✅ **Cutscene System** - Kyle death animation, game endings (CutscenePlayer.tsx)
 2. ❌ **Rokudou Boss Fight** - Full boss battle with Rokudou
 3. ✅ **Ghost/Possession Mechanic** - `GhostComponent.ts` implemented
 4. ❌ **Snailbomb Enemy** - Enemy type not coded
@@ -259,14 +259,22 @@ The Ghost mechanic allows the player to control a floating ghost entity. This is
 #### 4. Cutscene/Animation Player
 | Files | Purpose | Status |
 |-------|---------|--------|
-| AnimationPlayerActivity.java | Plays ending cutscenes | ❌ Not implemented |
-| kyle_fall.xml | Kyle death animation (16 frames) | ❌ Not implemented |
-| wanda_game_over.xml | Wanda ending | ❌ Not implemented |
-| kabocha_game_over.xml | Kabocha ending | ❌ Not implemented |
-| rokudou_game_over.xml | Rokudou ending | ❌ Not implemented |
-| good_ending_animation.xml | Good ending parallax | ❌ Not implemented |
-| kabocha_ending_animation.xml | Kabocha ending parallax | ❌ Not implemented |
-| rokudou_ending_animation.xml | Rokudou ending parallax | ❌ Not implemented |
+| CutscenePlayer.tsx | React component for playing cutscenes | ✅ Implemented |
+| cutscenes.ts | Cutscene definitions (types, layers, frames) | ✅ Implemented |
+| AnimationPlayerActivity.java | Original Android activity | ✅ Ported to CutscenePlayer.tsx |
+| kyle_fall.xml | Kyle death animation (16 frames @ 83ms) | ✅ Implemented |
+| wanda_game_over.xml | Wanda ending | ✅ Implemented (WANDA_ENDING) |
+| kabocha_game_over.xml | Kabocha ending | ✅ Implemented (KABOCHA_ENDING) |
+| rokudou_game_over.xml | Rokudou ending | ✅ Implemented (ROKUDOU_ENDING) |
+| good_ending_animation.xml | Good ending parallax | ✅ Implemented |
+| kabocha_ending_animation.xml | Kabocha ending parallax | ✅ Implemented |
+| rokudou_ending_animation.xml | Rokudou ending parallax | ✅ Implemented |
+
+**Cutscene Types Supported:**
+- `KYLE_DEATH` (0): 16-frame death animation at 83ms/frame
+- `WANDA_ENDING` (1): Good ending - horizontal parallax
+- `KABOCHA_ENDING` (2): Bad ending (Kabocha) - horizontal parallax with game over text
+- `ROKUDOU_ENDING` (3): Bad ending (Rokudou) - vertical parallax with multiple layers
 
 ### MEDIUM PRIORITY - Gameplay Polish
 

@@ -28,11 +28,13 @@ import { DialogOverlay } from './DialogOverlay';
 import { PauseMenu } from './PauseMenu';
 import { GameOverScreen } from './GameOverScreen';
 import { LevelCompleteScreen } from './LevelCompleteScreen';
+import { CutscenePlayer } from './CutscenePlayer';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 import { gameSettings } from '../utils/GameSettings';
 import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
 import { getDialogsForLevel, type Dialog } from '../data/dialogs';
 import { assetPath } from '../utils/helpers';
+import { CutsceneType, getCutscene } from '../data/cutscenes';
 
 interface GameProps {
   width?: number;
@@ -62,7 +64,7 @@ const PLAYER = {
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel } = useGameContext();
+  const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, endCutscene } = useGameContext();
   
   // Systems refs
   const gameLoopRef = useRef<GameLoop | null>(null);
@@ -783,8 +785,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           setInventory({ lives: newLives });
           
           if (newLives <= 0) {
-            // Game over - no more lives
-            gameOver();
+            // Game over - play death cutscene then show game over
+            playCutscene(CutsceneType.KYLE_DEATH);
           }
         } else if (hotSpot === HotSpotType.END_LEVEL && !pState.isDying) {
           // Level complete
@@ -990,8 +992,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   cameraSystem.shake(8, 0.3);
                   
                   if (newLives <= 0) {
-                    // Game over
-                    gameOver();
+                    // Game over - play death cutscene
+                    playCutscene(CutsceneType.KYLE_DEATH);
                     return;
                   }
                   
@@ -1505,7 +1507,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       inputSystem.destroy();
       soundSystem.destroy();
     };
-  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel]);
+  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene]);
 
   // Handle resize
   useEffect(() => {
@@ -1655,6 +1657,29 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         {/* Pause menu overlay */}
         {state.gameState === GameState.PAUSED && (
           <PauseMenu />
+        )}
+        
+        {/* Cutscene overlay */}
+        {state.gameState === GameState.CUTSCENE && state.activeCutscene !== null && (
+          <CutscenePlayer
+            cutsceneType={state.activeCutscene}
+            width={width}
+            height={height}
+            onComplete={(): void => {
+              // Check if this cutscene leads to game over
+              const cutscene = getCutscene(state.activeCutscene!);
+              if (cutscene.isGameOver) {
+                endCutscene();
+                gameOver();
+              } else if (cutscene.isEnding) {
+                // Ending cutscenes return to main menu
+                endCutscene();
+                // TODO: Show ending stats screen before main menu
+              } else {
+                endCutscene();
+              }
+            }}
+          />
         )}
         
         {/* Game over overlay */}

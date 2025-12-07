@@ -4,6 +4,7 @@
 
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 import { GameState, type GameConfig, type SaveData } from '../types';
+import { CutsceneType } from '../data/cutscenes';
 
 // Game context state
 interface GameContextState {
@@ -15,6 +16,8 @@ interface GameContextState {
   isLoading: boolean;
   loadingProgress: number;
   error: string | null;
+  /** Active cutscene type (when in CUTSCENE state) */
+  activeCutscene: CutsceneType | null;
 }
 
 // Actions
@@ -27,6 +30,7 @@ type GameAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_LOADING_PROGRESS'; payload: number }
   | { type: 'SET_ERROR'; payload: string | null }
+  | { type: 'SET_ACTIVE_CUTSCENE'; payload: CutsceneType | null }
   | { type: 'RESET' };
 
 // Default config
@@ -61,6 +65,7 @@ const initialState: GameContextState = {
   isLoading: true,
   loadingProgress: 0,
   error: null,
+  activeCutscene: null,
 };
 
 // Reducer
@@ -82,6 +87,8 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       return { ...state, loadingProgress: action.payload };
     case 'SET_ERROR':
       return { ...state, error: action.payload };
+    case 'SET_ACTIVE_CUTSCENE':
+      return { ...state, activeCutscene: action.payload };
     case 'RESET':
       return initialState;
     default:
@@ -105,6 +112,10 @@ interface GameContextValue {
   setLevel: (level: number) => void;
   completeLevel: () => void;
   gameOver: () => void;
+  /** Start a cutscene */
+  playCutscene: (cutsceneType: CutsceneType) => void;
+  /** End the current cutscene */
+  endCutscene: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -181,6 +192,17 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.GAME_OVER });
   };
 
+  const playCutscene = (cutsceneType: CutsceneType): void => {
+    dispatch({ type: 'SET_ACTIVE_CUTSCENE', payload: cutsceneType });
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.CUTSCENE });
+  };
+
+  const endCutscene = (): void => {
+    dispatch({ type: 'SET_ACTIVE_CUTSCENE', payload: null });
+    // Return to playing state after cutscene
+    dispatch({ type: 'SET_GAME_STATE', payload: GameState.PLAYING });
+  };
+
   const value: GameContextValue = {
     state,
     dispatch,
@@ -195,6 +217,8 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     setLevel,
     completeLevel,
     gameOver,
+    playCutscene,
+    endCutscene,
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;

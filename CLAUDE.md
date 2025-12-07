@@ -24,13 +24,13 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 | Category | Status | Details |
 |----------|--------|---------|
 | **Core Engine** | ✅ 95% | 15 systems implemented |
-| **Components** | ✅ 85% | 23 of ~27 components ported |
-| **UI/Screens** | ✅ 90% | 17 React components |
+| **Components** | ✅ 90% | 30 of ~33 components ported |
+| **UI/Screens** | ✅ 95% | 18 React components |
 | **Levels** | ✅ 100% | 40+ levels working |
 | **Sound** | ✅ 100% | All SFX loaded and playing |
 | **Music** | ❌ 0% | MIDI needs conversion |
-| **Cutscenes** | ❌ 0% | AnimationPlayer not implemented |
-| **Ghost Mechanic** | ❌ 0% | GhostComponent not ported |
+| **Cutscenes** | ✅ 100% | CutscenePlayer with 4 cutscene types |
+| **Ghost Mechanic** | ✅ 100% | GhostComponent ported |
 
 ### Implemented Engine Systems (15 total)
 
@@ -79,14 +79,17 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 | AttackAtDistanceComponent | THINK | AttackAtDistanceComponent.java | ✅ |
 | LifetimeComponent | THINK | LifetimeComponent.java | ✅ |
 | TheSourceComponent | THINK | TheSourceComponent.java | ✅ |
+| GhostComponent | THINK | GhostComponent.java | ✅ |
+| EvilKabochaComponent | THINK | N/A (boss variant) | ✅ |
+| CameraBiasComponent | POST_COLLISION | CameraBiasComponent.java | ✅ |
+| GravityComponent | PHYSICS | GravityComponent.java | ✅ |
+| SimpleCollisionComponent | COLLISION_DETECTION | SimpleCollisionComponent.java | ✅ |
+| SolidSurfaceComponent | COLLISION_RESPONSE | SolidSurfaceComponent.java | ✅ |
 
 ### NOT Yet Implemented Components
 
 | Component | Original | Priority | Notes |
 |-----------|----------|----------|-------|
-| GhostComponent | GhostComponent.java | HIGH | Possession mechanic |
-| GravityComponent | GravityComponent.java | MEDIUM | Custom gravity zones |
-| CameraBiasComponent | CameraBiasComponent.java | MEDIUM | Camera look-ahead |
 | ChangeComponentsComponent | ChangeComponentsComponent.java | LOW | Dynamic component swapping |
 | OrbitalMagnetComponent | OrbitalMagnetComponent.java | LOW | Collectible attraction |
 | MotionBlurComponent | MotionBlurComponent.java | LOW | Visual effect |
@@ -97,6 +100,7 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 | Component | Purpose |
 |-----------|---------|
 | `Game.tsx` | Main game canvas, system orchestration (~1700 lines) |
+| `CutscenePlayer.tsx` | Cutscene/animation player (death, endings) |
 | `MainMenu.tsx` | Title screen with original assets |
 | `LevelSelect.tsx` | Level grid with unlock states |
 | `DifficultyMenu.tsx` | Baby/Kids/Adults selection |
@@ -915,10 +919,10 @@ Android View Animations are XML-defined transformations (alpha/fade, translate/s
 | `button_flicker.xml` | CSS animations or React state | ✅ CSS hover/active states |
 | `fade.xml`, `fade_in/out.xml` | `FadeTransition.tsx` | ✅ Implemented |
 | `menu_show/hide_*.xml` | React transitions/Framer Motion | ✅ React state transitions |
-| `kyle_fall.xml` (cutscene) | Canvas animation or React component | ❌ Not implemented |
-| `*_game_over.xml` (cutscene) | React animation components | ❌ Not implemented |
-| `horizontal_layer*_slide.xml` | CSS keyframes or Canvas parallax | ❌ Not implemented |
-| `rokudou_slide_*.xml` | Multi-layer parallax animation | ❌ Not implemented |
+| `kyle_fall.xml` (cutscene) | `CutscenePlayer.tsx` | ✅ Implemented (KYLE_DEATH) |
+| `*_game_over.xml` (cutscene) | `CutscenePlayer.tsx` | ✅ Implemented (WANDA/KABOCHA/ROKUDOU_ENDING) |
+| `horizontal_layer*_slide.xml` | `CutscenePlayer.tsx` parallax | ✅ Implemented |
+| `rokudou_slide_*.xml` | `CutscenePlayer.tsx` multi-layer parallax | ✅ Implemented |
 
 #### Key Differences: Android vs Web
 
@@ -933,11 +937,19 @@ Android View Animations are XML-defined transformations (alpha/fade, translate/s
 - Black screen for loading states
 - Customizable duration and color
 
-**Not Yet Implemented:**
-- Cutscene player for death/ending sequences
-- Frame-by-frame animation playback (kyle_fall)
-- Multi-layer parallax cutscene animations
-- Button flicker/slide effects (low priority, CSS can handle)
+**Implemented (via `CutscenePlayer.tsx`):**
+- Death cutscene (KYLE_DEATH): 16-frame animation at 83ms/frame
+- Wanda ending (WANDA_ENDING): Horizontal parallax, good ending
+- Kabocha ending (KABOCHA_ENDING): Horizontal parallax with game over text
+- Rokudou ending (ROKUDOU_ENDING): Vertical multi-layer parallax (bg, sphere, cliffs, rokudou)
+- Accelerate-decelerate interpolation (matching Android)
+- Touch/click to skip after animation completes
+
+**Cutscene Data Definitions (`src/data/cutscenes.ts`):**
+- `CutsceneType` enum: KYLE_DEATH, WANDA_ENDING, KABOCHA_ENDING, ROKUDOU_ENDING
+- `AnimationLayer` interface for parallax layers (sprite, fromX/Y, toX/Y, duration, startOffset, zOrder)
+- `FrameAnimation` interface for frame-by-frame animations
+- All timing values ported from original XML files
 
 ### Key Architecture Concepts (Original)
 
