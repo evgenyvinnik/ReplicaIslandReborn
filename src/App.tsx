@@ -118,6 +118,7 @@ function AppContent(): React.JSX.Element {
       case GameState.GAME_OVER:
       case GameState.LEVEL_COMPLETE:
       case GameState.DIALOG:
+      case GameState.CUTSCENE:
         return <Game width={GAME_WIDTH} height={GAME_HEIGHT} />;
       default:
         return <LoadingScreen />;

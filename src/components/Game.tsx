@@ -528,7 +528,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Create systems
+    // Create all systems fresh each time (Strict Mode will run this twice,
+    // but cleanup will stop the first game loop)
     const systemRegistry = new SystemRegistry();
     systemRegistryRef.current = systemRegistry;
 
