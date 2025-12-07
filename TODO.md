@@ -4,13 +4,27 @@ This document tracks what has been implemented and what still needs to be done t
 
 ---
 
-## 🔴 CRITICAL BUGS FIXED
+## 🔴 CRITICAL: Level Variants & Cutscene System
 
-### Player Spawn Missing (FIXED 2024)
-- **Issue:** First level `level_0_1_sewer.json` was missing the PLAYER spawn point (object type 0)
-- **Impact:** Game was completely unplayable - no player was ever created
-- **Fix:** Added player spawn at `tiles[2][7]` matching the Kyle variant
-- **Status:** ✅ Fixed for `level_0_1_sewer.json` and `level_0_1_sewer_wanda.json`
+### Level 0-1 Variants Explained
+The first level has **three variants** that serve different purposes:
+
+| Level File | Purpose | Has Player Spawn? |
+|------------|---------|-------------------|
+| `level_0_1_sewer.json` | Main/cutscene intro | ❌ NO (intentional) |
+| `level_0_1_sewer_wanda.json` | Wanda cutscene variant | ❌ NO (intentional) |
+| `level_0_1_sewer_kyle.json` | Playable Kyle variant | ✅ YES at `tiles[2][7]` |
+
+**Why no player spawn in cutscene levels?**
+- These are **cutscene-only levels** where camera follows Wanda (NPC)
+- Player is not spawned until after the cutscene completes
+- Requires **NPCComponent.ts** (not yet implemented) to work properly
+
+**Current Workaround Options:**
+1. Implement NPCComponent and cutscene system (proper fix)
+2. Skip directly to `level_0_1_sewer_kyle.json` (temporary workaround)
+
+See **Section 5.5. NPC Intro Cutscene System** for implementation details.
 
 ---
 
@@ -599,9 +613,9 @@ All levels are parsed via `LevelParser.ts` using the binary format defined in `L
 #### Tutorial/Intro Levels (World 0)
 | File | Description | Status |
 |------|-------------|--------|
-| `level_0_1_sewer.bin` | Tutorial level 1 | ✅ Parsed |
-| `level_0_1_sewer_kyle.bin` | Kyle variant | ✅ Parsed |
-| `level_0_1_sewer_wanda.bin` | Wanda variant | ❌ Not parsed |
+| `level_0_1_sewer.bin` | Tutorial level 1 (cutscene) | ✅ Parsed (no player spawn - intentional) |
+| `level_0_1_sewer_kyle.bin` | Kyle variant (playable) | ✅ Parsed |
+| `level_0_1_sewer_wanda.bin` | Wanda variant (cutscene) | ✅ Parsed (no player spawn - intentional) |
 | `level_0_2_lab.bin` | Tutorial level 2 | ❌ Not parsed |
 | `level_0_3_lab.bin` | Tutorial level 3 | ❌ Not parsed |
 
