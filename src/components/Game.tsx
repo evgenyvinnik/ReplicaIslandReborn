@@ -31,6 +31,7 @@ import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 import { gameSettings } from '../utils/GameSettings';
 import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
 import { getDialogsForLevel, type Dialog } from '../data/dialogs';
+import { assetPath } from '../utils/helpers';
 
 interface GameProps {
   width?: number;
@@ -251,7 +252,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const img = new Image();
         img.onload = (): void => resolve(img);
         img.onerror = (): void => reject(new Error(`Failed to load ${imageName}`));
-        img.src = `/assets/sprites/${imageName}.png`;
+        img.src = assetPath(`/assets/sprites/${imageName}.png`);
       });
     };
 
@@ -285,7 +286,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       ];
 
       const loadPromises = sprites.map(sprite =>
-        renderSystem.loadSprite(sprite.name, `/assets/sprites/${sprite.file}.png`, 64, 64)
+        renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), 64, 64)
           .catch(err => console.warn(`Failed to load sprite ${sprite.name}:`, err))
       );
 
@@ -312,7 +313,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       ];
 
       const loadPromises = sprites.map(sprite =>
-        renderSystem.loadSprite(sprite.name, `/assets/sprites/${sprite.file}.png`, sprite.w, sprite.h)
+        renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), sprite.w, sprite.h)
           .catch(err => console.warn(`Failed to load sprite ${sprite.name}:`, err))
       );
 
@@ -371,7 +372,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       ];
 
       const loadPromises = sprites.map(sprite =>
-        renderSystem.loadSprite(sprite.name, `/assets/sprites/${sprite.file}.png`, sprite.w, sprite.h)
+        renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), sprite.w, sprite.h)
           .catch(err => console.warn(`Failed to load sprite ${sprite.name}:`, err))
       );
 

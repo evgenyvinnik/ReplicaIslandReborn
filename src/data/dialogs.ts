@@ -4,6 +4,7 @@
  */
 
 import { getString, CharacterNames } from './strings';
+import { assetPath } from '../utils/helpers';
 
 // Character types
 export type Character = 'Wanda' | 'Kyle' | 'Kabocha' | 'Rokudou';
@@ -50,7 +51,7 @@ export const CharacterPortraits: Record<string, string> = {
 function getPortrait(character: Character, portraitKey?: string): string {
   // If a specific portrait key is provided, use it
   if (portraitKey && CharacterPortraits[portraitKey]) {
-    return CharacterPortraits[portraitKey];
+    return assetPath(CharacterPortraits[portraitKey]);
   }
   
   // Default portraits per character
@@ -62,7 +63,7 @@ function getPortrait(character: Character, portraitKey?: string): string {
   };
   
   const defaultKey = defaultPortraits[character];
-  return CharacterPortraits[defaultKey] || '/assets/sprites/enemy_wanda_stand.png';
+  return assetPath(CharacterPortraits[defaultKey] || '/assets/sprites/enemy_wanda_stand.png');
 }
 
 // Helper to create a dialog page

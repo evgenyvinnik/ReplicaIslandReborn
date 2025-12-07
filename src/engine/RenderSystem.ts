@@ -5,6 +5,7 @@
 
 import type { RenderCommand, CameraState } from '../types';
 import { placeholders } from '../utils/PlaceholderSprites';
+import { assetPath } from '../utils/helpers';
 
 export interface Sprite {
   image: HTMLImageElement | HTMLCanvasElement;
@@ -179,7 +180,7 @@ export class RenderSystem {
 
     const tileSize = 32;
     const loadPromises = tilesets.map(name =>
-      this.loadTileset(name, `/assets/sprites/${name}.png`, tileSize).catch(err => {
+      this.loadTileset(name, assetPath(`/assets/sprites/${name}.png`), tileSize).catch(err => {
         console.warn(`Failed to load tileset ${name}:`, err);
       })
     );

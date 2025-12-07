@@ -7,6 +7,7 @@
 
 import type { RenderSystem } from './RenderSystem';
 import type { SoundSystem } from './SoundSystem';
+import { assetPath } from '../utils/helpers';
 
 /**
  * Types of visual effects
@@ -234,7 +235,7 @@ export class EffectsSystem {
     await Promise.all(
       allFrames.map(async (frame) => {
         try {
-          await this.renderSystem!.loadSingleImage(frame, `/assets/sprites/${frame}`);
+          await this.renderSystem!.loadSingleImage(frame, assetPath(`/assets/sprites/${frame}`));
           this.loadedSprites.add(frame);
         } catch (e) {
           console.warn(`Failed to load effect sprite: ${frame}`, e);

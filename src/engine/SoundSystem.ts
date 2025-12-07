@@ -3,6 +3,8 @@
  * Ported from: Original/src/com/replica/replicaisland/SoundSystem.java
  */
 
+import { assetPath } from '../utils/helpers';
+
 /**
  * Sound effect names mapping
  */
@@ -382,7 +384,7 @@ export class SoundSystem {
     ];
 
     const loadPromises = soundFiles.map(name =>
-      this.loadSound(name, `/assets/sounds/${name}.ogg`).catch(err => {
+      this.loadSound(name, assetPath(`/assets/sounds/${name}.ogg`)).catch(err => {
         console.warn(`Failed to load sound ${name}:`, err);
       })
     );
