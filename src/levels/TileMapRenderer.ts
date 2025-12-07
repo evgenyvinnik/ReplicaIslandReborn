@@ -130,6 +130,10 @@ export class TileMapRenderer {
 
     // Get canvas context for direct rendering
     const ctx = (renderSystem as unknown as { ctx: CanvasRenderingContext2D }).ctx;
+    
+    if (!ctx || this.layers.length === 0) {
+      return;
+    }
 
     for (const layer of this.layers) {
       this.renderLayerDirect(renderSystem, ctx, layer, cameraX, cameraY);
@@ -168,7 +172,9 @@ export class TileMapRenderer {
 
     // Get tileset image
     const tilesetImage = renderSystem.getSpriteImage(layer.tileset);
-    if (!tilesetImage) return;
+    if (!tilesetImage) {
+      return;
+    }
     
     // Calculate tileset grid dimensions
     const tilesPerRow = Math.floor(tilesetImage.width / this.tileWidth);

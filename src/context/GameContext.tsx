@@ -47,22 +47,22 @@ const defaultConfig: GameConfig = {
   difficulty: 'normal',
 };
 
-// Default save data
+// Default save data - start at level 2 (playable tutorial, not intro cutscene)
 const defaultSaveData: SaveData = {
-  currentLevel: 1,
-  completedLevels: [],
+  currentLevel: 2, // Skip intro cutscene, start at playable tutorial
+  completedLevels: [1], // Mark intro as completed
   totalPearls: 0,
   totalDeaths: 0,
   playTime: 0,
   lastPlayed: new Date().toISOString(),
 };
 
-// Initial state
+// Initial state - start at level 2 (playable tutorial level)
 const initialState: GameContextState = {
   gameState: GameState.LOADING,
   config: defaultConfig,
   saveData: defaultSaveData,
-  currentLevel: 1,
+  currentLevel: 2, // level_0_1_sewer_kyle - playable tutorial level
   isPaused: false,
   isLoading: true,
   loadingProgress: 0,
