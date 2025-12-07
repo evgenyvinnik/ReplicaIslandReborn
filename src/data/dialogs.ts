@@ -25,35 +25,52 @@ export interface Dialog {
   conversations: Conversation[];
 }
 
-// Portrait image mappings
+// Portrait image mappings - using dedicated closeup images from original
 export const CharacterPortraits: Record<string, string> = {
-  // Wanda portraits
-  'wanda_surprised': '/assets/sprites/enemy_wanda_stand.png',
-  'wanda_sad': '/assets/sprites/enemy_wanda_stand.png',
-  'wanda_smile': '/assets/sprites/enemy_wanda_stand.png',
-  'wanda_stand': '/assets/sprites/enemy_wanda_stand.png',
-  // Kyle portraits
-  'kyle_stand': '/assets/sprites/enemy_kyle_stand.png',
-  'kyle_angry': '/assets/sprites/enemy_kyle_stand.png',
-  // Kabocha portraits
-  'kabocha_stand': '/assets/sprites/enemy_kabocha_stand.png',
-  'kabocha_smile': '/assets/sprites/enemy_kabocha_stand.png',
-  'kabocha_evil_stand': '/assets/sprites/enemy_kabocha_evil_stand.png',
-  // Rokudou portraits  
-  'rokudou_stand': '/assets/sprites/enemy_rokudou_fight_stand.png',
+  // Wanda portraits (original wanda_*.png files)
+  'wanda_surprised': '/assets/sprites/wanda_surprised.png',
+  'wanda_sad': '/assets/sprites/wanda_sad.png',
+  'wanda_smile': '/assets/sprites/wanda_smile.png',
+  'wanda_happy': '/assets/sprites/wanda_happy.png',
+  // Kyle portraits (original kyle_closeup_*.png files)
+  'kyle_closeup_neutral': '/assets/sprites/kyle_closeup_neutral.png',
+  'kyle_closeup_angry': '/assets/sprites/kyle_closeup_angry.png',
+  'kyle_closeup_noglasses': '/assets/sprites/kyle_closeup_noglasses.png',
+  // Kabocha portraits (original kabocha_closeup_*.png files)
+  'kabocha_closeup_normal': '/assets/sprites/kabocha_closeup_normal.png',
+  'kabocha_closeup_concern': '/assets/sprites/kabocha_closeup_concern.png',
+  'kabocha_closeup_lunatic': '/assets/sprites/kabocha_closeup_lunatic.png',
+  'kabocha_closeup_lunatic_02': '/assets/sprites/kabocha_closeup_lunatic_02.png',
+  // Rokudou portraits (original rokudou_closeup_*.png files)
+  'rokudou_closeup_normal': '/assets/sprites/rokudou_closeup_normal.png',
+  'rokudou_closeup_mask': '/assets/sprites/rokudou_closeup_mask.png',
 };
 
-// Get portrait image path
-function getPortrait(character: Character, _emotion?: string): string {
-  const key = `${character.toLowerCase()}_stand`;
-  return CharacterPortraits[key] || CharacterPortraits[`${character.toLowerCase()}_stand`];
+// Get portrait image path for a character with optional specific portrait key
+function getPortrait(character: Character, portraitKey?: string): string {
+  // If a specific portrait key is provided, use it
+  if (portraitKey && CharacterPortraits[portraitKey]) {
+    return CharacterPortraits[portraitKey];
+  }
+  
+  // Default portraits per character
+  const defaultPortraits: Record<Character, string> = {
+    Wanda: 'wanda_smile',
+    Kyle: 'kyle_closeup_neutral',
+    Kabocha: 'kabocha_closeup_normal',
+    Rokudou: 'rokudou_closeup_normal',
+  };
+  
+  const defaultKey = defaultPortraits[character];
+  return CharacterPortraits[defaultKey] || '/assets/sprites/enemy_wanda_stand.png';
 }
 
 // Helper to create a dialog page
-function page(character: Character, textKey: string, portrait?: string): DialogPage {
+// portraitKey should match keys in CharacterPortraits (e.g., 'wanda_surprised', 'kyle_closeup_angry')
+function page(character: Character, textKey: string, portraitKey?: string): DialogPage {
   return {
     character,
-    portrait: portrait || getPortrait(character),
+    portrait: getPortrait(character, portraitKey),
     text: getString(textKey),
   };
 }
@@ -65,13 +82,13 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_0_1_1_1'),
+          page('Wanda', 'Wanda_0_1_1_1', 'wanda_surprised'),
         ],
       },
       {
         pages: [
-          page('Wanda', 'Wanda_0_1_1_2'),
-          page('Wanda', 'Wanda_0_1_1_3'),
+          page('Wanda', 'Wanda_0_1_1_2', 'wanda_sad'),
+          page('Wanda', 'Wanda_0_1_1_3', 'wanda_smile'),
         ],
       },
     ],
@@ -82,43 +99,43 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kabocha', 'Kabocha_0_2_1_1'),
-          page('Kabocha', 'Kabocha_0_2_1_2'),
-          page('Kabocha', 'Kabocha_0_2_1_3'),
+          page('Kabocha', 'Kabocha_0_2_1_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_1_2', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_1_3', 'kabocha_closeup_normal'),
         ],
       },
       {
         pages: [
-          page('Kabocha', 'Kabocha_0_2_2_1'),
-          page('Kabocha', 'Kabocha_0_2_2_2'),
-          page('Kabocha', 'Kabocha_0_2_2_3'),
+          page('Kabocha', 'Kabocha_0_2_2_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_2_2', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_2_3', 'kabocha_closeup_normal'),
         ],
       },
       {
         pages: [
-          page('Kabocha', 'Kabocha_0_2_3_1'),
-          page('Kabocha', 'Kabocha_0_2_3_2'),
+          page('Kabocha', 'Kabocha_0_2_3_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_3_2', 'kabocha_closeup_normal'),
         ],
       },
       {
         pages: [
-          page('Kabocha', 'Kabocha_0_2_4_1'),
-          page('Kabocha', 'Kabocha_0_2_4_2'),
-          page('Kabocha', 'Kabocha_0_2_4_3'),
+          page('Kabocha', 'Kabocha_0_2_4_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_4_2', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_4_3', 'kabocha_closeup_normal'),
         ],
       },
       {
         pages: [
-          page('Kabocha', 'Kabocha_0_2_5_1'),
-          page('Kabocha', 'Kabocha_0_2_5_2'),
-          page('Kabocha', 'Kabocha_0_2_5_3'),
+          page('Kabocha', 'Kabocha_0_2_5_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_5_2', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_5_3', 'kabocha_closeup_normal'),
         ],
       },
       {
         pages: [
-          page('Kabocha', 'Kabocha_0_2_6_1'),
-          page('Kabocha', 'Kabocha_0_2_6_2'),
-          page('Kabocha', 'Kabocha_0_2_6_3'),
+          page('Kabocha', 'Kabocha_0_2_6_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_6_2', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_2_6_3', 'kabocha_closeup_normal'),
         ],
       },
     ],
@@ -129,21 +146,21 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kabocha', 'Kabocha_0_3_1_1'),
-          page('Kabocha', 'Kabocha_0_3_1_2'),
+          page('Kabocha', 'Kabocha_0_3_1_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_3_1_2', 'kabocha_closeup_normal'),
         ],
       },
       {
         pages: [
-          page('Kabocha', 'Kabocha_0_3_2_1'),
-          page('Kabocha', 'Kabocha_0_3_2_2'),
-          page('Kabocha', 'Kabocha_0_3_2_3'),
+          page('Kabocha', 'Kabocha_0_3_2_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_3_2_2', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_3_2_3', 'kabocha_closeup_normal'),
         ],
       },
       {
         pages: [
-          page('Kabocha', 'Kabocha_0_3_3_1'),
-          page('Kabocha', 'Kabocha_0_3_3_2'),
+          page('Kabocha', 'Kabocha_0_3_3_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_3_3_2', 'kabocha_closeup_normal'),
         ],
       },
     ],
@@ -154,9 +171,9 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_1_1_1_1'),
-          page('Wanda', 'Wanda_1_1_1_2'),
-          page('Wanda', 'Wanda_1_1_1_3'),
+          page('Wanda', 'Wanda_1_1_1_1', 'wanda_surprised'),
+          page('Wanda', 'Wanda_1_1_1_2', 'wanda_smile'),
+          page('Wanda', 'Wanda_1_1_1_3', 'wanda_smile'),
         ],
       },
     ],
@@ -167,10 +184,10 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_1_5_1_1'),
-          page('Wanda', 'Wanda_1_5_1_2'),
-          page('Wanda', 'Wanda_1_5_1_3'),
-          page('Wanda', 'Wanda_1_5_1_4'),
+          page('Wanda', 'Wanda_1_5_1_1', 'wanda_smile'),
+          page('Wanda', 'Wanda_1_5_1_2', 'wanda_smile'),
+          page('Wanda', 'Wanda_1_5_1_3', 'wanda_smile'),
+          page('Wanda', 'Wanda_1_5_1_4', 'wanda_happy'),
         ],
       },
     ],
@@ -181,8 +198,8 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_1_6_1_1'),
-          page('Wanda', 'Wanda_1_6_1_2'),
+          page('Wanda', 'Wanda_1_6_1_1', 'wanda_happy'),
+          page('Wanda', 'Wanda_1_6_1_2', 'wanda_happy'),
         ],
       },
     ],
@@ -193,7 +210,7 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_1_9_1_1'),
+          page('Wanda', 'Wanda_1_9_1_1', 'wanda_surprised'),
         ],
       },
     ],
@@ -204,9 +221,9 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_2_1_1_1'),
-          page('Kyle', 'Kyle_2_1_1_2'),
-          page('Kyle', 'Kyle_2_1_1_3'),
+          page('Kyle', 'Kyle_2_1_1_1', 'kyle_closeup_neutral'),
+          page('Kyle', 'Kyle_2_1_1_2', 'kyle_closeup_neutral'),
+          page('Kyle', 'Kyle_2_1_1_3', 'kyle_closeup_neutral'),
         ],
       },
     ],
@@ -217,9 +234,9 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_2_3_1_1'),
-          page('Kyle', 'Kyle_2_3_1_2'),
-          page('Kyle', 'Kyle_2_3_1_3'),
+          page('Kyle', 'Kyle_2_3_1_1', 'kyle_closeup_angry'),
+          page('Kyle', 'Kyle_2_3_1_2', 'kyle_closeup_neutral'),
+          page('Kyle', 'Kyle_2_3_1_3', 'kyle_closeup_neutral'),
         ],
       },
     ],
@@ -230,8 +247,8 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_2_4_1_1'),
-          page('Kyle', 'Kyle_2_4_1_2'),
+          page('Kyle', 'Kyle_2_4_1_1', 'kyle_closeup_neutral'),
+          page('Kyle', 'Kyle_2_4_1_2', 'kyle_closeup_neutral'),
         ],
       },
     ],
@@ -242,8 +259,8 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_2_5_1_1'),
-          page('Kyle', 'Kyle_2_5_1_2'),
+          page('Kyle', 'Kyle_2_5_1_1', 'kyle_closeup_noglasses'),
+          page('Kyle', 'Kyle_2_5_1_2', 'kyle_closeup_noglasses'),
         ],
       },
     ],
@@ -254,14 +271,14 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_2_6_1_1'),
+          page('Wanda', 'Wanda_2_6_1_1', 'wanda_smile'),
         ],
       },
       {
         pages: [
-          page('Wanda', 'Wanda_2_6_2_1'),
-          page('Wanda', 'Wanda_2_6_2_2'),
-          page('Wanda', 'Wanda_2_6_2_3'),
+          page('Wanda', 'Wanda_2_6_2_1', 'wanda_smile'),
+          page('Wanda', 'Wanda_2_6_2_2', 'wanda_smile'),
+          page('Wanda', 'Wanda_2_6_2_3', 'wanda_smile'),
         ],
       },
     ],
@@ -272,9 +289,9 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_2_7_1_1'),
-          page('Kyle', 'Kyle_2_7_1_2'),
-          page('Kyle', 'Kyle_2_7_1_3'),
+          page('Kyle', 'Kyle_2_7_1_1', 'kyle_closeup_neutral'),
+          page('Kyle', 'Kyle_2_7_1_2', 'kyle_closeup_neutral'),
+          page('Kyle', 'Kyle_2_7_1_3', 'kyle_closeup_neutral'),
         ],
       },
     ],
@@ -285,7 +302,7 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_2_8_1_1'),
+          page('Kyle', 'Kyle_2_8_1_1', 'kyle_closeup_noglasses'),
         ],
       },
     ],
@@ -296,8 +313,8 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_2_9_1_1'),
-          page('Wanda', 'Wanda_2_9_1_2'),
+          page('Wanda', 'Wanda_2_9_1_1', 'wanda_smile'),
+          page('Wanda', 'Wanda_2_9_1_2', 'wanda_happy'),
         ],
       },
     ],
@@ -308,9 +325,9 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_3_3_1_1'),
-          page('Wanda', 'Wanda_3_3_1_2'),
-          page('Wanda', 'Wanda_3_3_1_3'),
+          page('Wanda', 'Wanda_3_3_1_1', 'wanda_happy'),
+          page('Wanda', 'Wanda_3_3_1_2', 'wanda_smile'),
+          page('Wanda', 'Wanda_3_3_1_3', 'wanda_smile'),
         ],
       },
     ],
@@ -321,8 +338,8 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_3_4_1_1'),
-          page('Kyle', 'Kyle_3_4_1_2'),
+          page('Kyle', 'Kyle_3_4_1_1', 'kyle_closeup_angry'),
+          page('Kyle', 'Kyle_3_4_1_2', 'kyle_closeup_angry'),
         ],
       },
     ],
@@ -333,9 +350,9 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_3_5_1_1'),
-          page('Wanda', 'Wanda_3_5_1_2'),
-          page('Wanda', 'Wanda_3_5_1_3'),
+          page('Wanda', 'Wanda_3_5_1_1', 'wanda_smile'),
+          page('Wanda', 'Wanda_3_5_1_2', 'wanda_smile'),
+          page('Wanda', 'Wanda_3_5_1_3', 'wanda_smile'),
         ],
       },
     ],
@@ -346,9 +363,9 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_3_7_1_1'),
-          page('Wanda', 'Wanda_3_7_1_2'),
-          page('Wanda', 'Wanda_3_7_1_3'),
+          page('Wanda', 'Wanda_3_7_1_1', 'wanda_smile'),
+          page('Wanda', 'Wanda_3_7_1_2', 'wanda_smile'),
+          page('Wanda', 'Wanda_3_7_1_3', 'wanda_smile'),
         ],
       },
     ],
@@ -359,14 +376,14 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_3_8_1_1'),
-          page('Kyle', 'Kyle_3_8_1_2'),
-          page('Kyle', 'Kyle_3_8_1_3'),
+          page('Kyle', 'Kyle_3_8_1_1', 'kyle_closeup_neutral'),
+          page('Kyle', 'Kyle_3_8_1_2', 'kyle_closeup_neutral'),
+          page('Kyle', 'Kyle_3_8_1_3', 'kyle_closeup_neutral'),
         ],
       },
       {
         pages: [
-          page('Kyle', 'Kyle_3_8_2_1'),
+          page('Kyle', 'Kyle_3_8_2_1', 'kyle_closeup_neutral'),
         ],
       },
     ],
@@ -377,8 +394,8 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_3_9_1_1'),
-          page('Kyle', 'Kyle_3_9_1_2'),
+          page('Kyle', 'Kyle_3_9_1_1', 'kyle_closeup_neutral'),
+          page('Kyle', 'Kyle_3_9_1_2', 'kyle_closeup_angry'),
         ],
       },
     ],
@@ -388,11 +405,11 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Rokudou', 'Rokudou_3_9_1_1'),
-          page('Rokudou', 'Rokudou_3_9_1_2'),
-          page('Rokudou', 'Rokudou_3_9_1_3'),
-          page('Rokudou', 'Rokudou_3_9_1_4'),
-          page('Rokudou', 'Rokudou_3_9_1_5'),
+          page('Rokudou', 'Rokudou_3_9_1_1', 'rokudou_closeup_normal'),
+          page('Rokudou', 'Rokudou_3_9_1_2', 'rokudou_closeup_normal'),
+          page('Rokudou', 'Rokudou_3_9_1_3', 'rokudou_closeup_normal'),
+          page('Rokudou', 'Rokudou_3_9_1_4', 'rokudou_closeup_normal'),
+          page('Rokudou', 'Rokudou_3_9_1_5', 'rokudou_closeup_normal'),
         ],
       },
     ],
@@ -403,7 +420,7 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Kyle', 'Kyle_3_10_1_1'),
+          page('Kyle', 'Kyle_3_10_1_1', 'kyle_closeup_angry'),
         ],
       },
     ],
@@ -414,12 +431,12 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_3_11_1_1'),
+          page('Wanda', 'Wanda_3_11_1_1', 'wanda_surprised'),
         ],
       },
       {
         pages: [
-          page('Wanda', 'Wanda_3_11_2_1'),
+          page('Wanda', 'Wanda_3_11_2_1', 'wanda_surprised'),
         ],
       },
     ],
@@ -430,7 +447,7 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_4_1_1_1'),
+          page('Wanda', 'Wanda_4_1_1_1', 'wanda_sad'),
         ],
       },
     ],
@@ -440,9 +457,9 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Rokudou', 'Rokudou_4_1_1_1'),
-          page('Rokudou', 'Rokudou_4_1_1_2'),
-          page('Rokudou', 'Rokudou_4_1_1_3'),
+          page('Rokudou', 'Rokudou_4_1_1_1', 'rokudou_closeup_normal'),
+          page('Rokudou', 'Rokudou_4_1_1_2', 'rokudou_closeup_normal'),
+          page('Rokudou', 'Rokudou_4_1_1_3', 'rokudou_closeup_normal'),
         ],
       },
     ],
@@ -453,8 +470,22 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_4_2_1_1'),
-          page('Wanda', 'Wanda_4_2_1_2'),
+          page('Wanda', 'Wanda_4_2_1_1', 'wanda_sad'),
+          page('Wanda', 'Wanda_4_2_1_2', 'wanda_sad'),
+        ],
+      },
+    ],
+  },
+
+  // World 4 Level 3: Kabocha (reveals true intentions)
+  'level_4_3_dialog_kabocha': {
+    conversations: [
+      {
+        pages: [
+          page('Kabocha', 'Kabocha_4_3_1_1', 'kabocha_closeup_concern'),
+          page('Kabocha', 'Kabocha_4_3_1_2', 'kabocha_closeup_lunatic'),
+          page('Kabocha', 'Kabocha_4_3_1_3', 'kabocha_closeup_lunatic_02'),
+          page('Kabocha', 'Kabocha_4_3_1_4', 'kabocha_closeup_concern'),
         ],
       },
     ],
@@ -465,7 +496,7 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Rokudou', 'Rokudou_4_4_1_1'),
+          page('Rokudou', 'Rokudou_4_4_1_1', 'rokudou_closeup_normal'),
         ],
       },
     ],
@@ -476,9 +507,9 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_4_5_1_1'),
-          page('Wanda', 'Wanda_4_5_1_2'),
-          page('Wanda', 'Wanda_4_5_1_3'),
+          page('Wanda', 'Wanda_4_5_1_1', 'wanda_sad'),
+          page('Wanda', 'Wanda_4_5_1_2', 'wanda_sad'),
+          page('Wanda', 'Wanda_4_5_1_3', 'wanda_sad'),
         ],
       },
     ],
@@ -489,10 +520,10 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_4_7_1_1'),
-          page('Wanda', 'Wanda_4_7_1_2'),
-          page('Wanda', 'Wanda_4_7_1_3'),
-          page('Wanda', 'Wanda_4_7_1_4'),
+          page('Wanda', 'Wanda_4_7_1_1', 'wanda_sad'),
+          page('Wanda', 'Wanda_4_7_1_2', 'wanda_sad'),
+          page('Wanda', 'Wanda_4_7_1_3', 'wanda_sad'),
+          page('Wanda', 'Wanda_4_7_1_4', 'wanda_sad'),
         ],
       },
     ],
@@ -502,8 +533,8 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Rokudou', 'Rokudou_4_7_1_1'),
-          page('Rokudou', 'Rokudou_4_7_1_2'),
+          page('Rokudou', 'Rokudou_4_7_1_1', 'rokudou_closeup_normal'),
+          page('Rokudou', 'Rokudou_4_7_1_2', 'rokudou_closeup_normal'),
         ],
       },
     ],
@@ -514,22 +545,25 @@ export const LevelDialogs: Record<string, Dialog> = {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_4_9_1_1'),
-          page('Wanda', 'Wanda_4_9_1_2'),
-          page('Wanda', 'Wanda_4_9_1_3'),
+          page('Wanda', 'Wanda_4_9_1_1', 'wanda_sad'),
+          page('Wanda', 'Wanda_4_9_1_2', 'wanda_sad'),
+          page('Wanda', 'Wanda_4_9_1_3', 'wanda_sad'),
         ],
       },
     ],
   },
 
-  // Final Boss: Rokudou
+  // Final Boss: Rokudou and Kabocha
   'level_final_boss_dialog': {
     conversations: [
       {
         pages: [
-          page('Rokudou', 'Rokudou_final_boss_1_1'),
-          page('Rokudou', 'Rokudou_final_boss_1_2'),
-          page('Rokudou', 'Rokudou_final_boss_1_3'),
+          page('Rokudou', 'Rokudou_final_boss_1_1', 'rokudou_closeup_mask'),
+          page('Rokudou', 'Rokudou_final_boss_1_2', 'rokudou_closeup_mask'),
+          page('Kabocha', 'Kabocha_final_boss_1_1', 'kabocha_closeup_lunatic'),
+          page('Kabocha', 'Kabocha_final_boss_1_2', 'kabocha_closeup_concern'),
+          page('Kabocha', 'Kabocha_final_boss_1_3', 'kabocha_closeup_lunatic_02'),
+          page('Rokudou', 'Rokudou_final_boss_1_3', 'rokudou_closeup_mask'),
         ],
       },
     ],

@@ -15,7 +15,8 @@ interface DialogOverlayProps {
 }
 
 // Typewriter speed (characters per second)
-const TYPEWRITER_SPEED = 40;
+// Original uses 100ms per character = 10 chars/sec
+const TYPEWRITER_SPEED = 10;
 
 // Character name colors
 const CHARACTER_COLORS: Record<Character, string> = {

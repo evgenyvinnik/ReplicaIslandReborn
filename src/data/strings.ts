@@ -286,6 +286,17 @@ export const KabochaDialogs: Record<string, string> = {
   'Kabocha_0_3_2_3': "Try possessing that robot down there and using him to break through those blue blocks. Here's a hint: releasing a possessed robot causes it to explode.",
   'Kabocha_0_3_3_1': "Jolly good work! You're already asymptotically equal to my best neural net model.",
   'Kabocha_0_3_3_2': "One more thing about possession: those energy orbs require a lot of power to maintain, so you can only use them for a short time if you have not collected any gems. Collecting gems will extend the amount of time the orb can survive before dissipating.",
+
+  // Level 4-3 (Kabocha reveals his true intentions)
+  'Kabocha_4_3_1_1': "Jolly good work, my little friend! The Source is within my grasp after all these years!",
+  'Kabocha_4_3_1_2': "Ha ha ha ha ha ha ha ha ha ha ha ha ha ha! My time has finally come. Rokudou, you shall cower at my feet! If you lick my boots well enough I may find it in my heart to kill you quickly. I was thinking of slowly replacing your bone marrow with molten lead, but that might not be painful enough.",
+  'Kabocha_4_3_1_3': "Oh, jolly day! Finally, after all my research, my blood and sweat and tears, finally The Source is mine. Nobody shall stand in my way now! Ho ha ha ha ha ha he ha ha ha ho ha he ha ho he ha ha he he ho ho ha he ho ha ha!",
+  'Kabocha_4_3_1_4': "(Ahem) As for you, my little green friend, you've reached the end of your usefulness. As your creator, I thank you for your service. I really should shut you down properly, but right now The Source and I have more important matters to attend to back at the lab. Tell you what: your final command is to rot down here in this cave. See to it that you follow it to the letter. Ta-ta!",
+
+  // Final Boss (Kabocha vs Rokudou)
+  'Kabocha_final_boss_1_1': "Don't waste your breath, Rokudou. This little robot is MY creation, and he does MY bidding.",
+  'Kabocha_final_boss_1_2': "I underestimated you, my little friend. Your capabilities have far surpassed even my most optimistic projections. Still, you are hardwired to follow my command. And besides, Rokudou is a soulless monster. What makes you think you can trust him?",
+  'Kabocha_final_boss_1_3': "Now, do me a favor and go knock his head in. A few well-placed stomps should do the trick. Jolly ho!",
 };
 
 // Rokudou's dialog strings

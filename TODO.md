@@ -4,6 +4,16 @@ This document tracks what has been implemented and what still needs to be done t
 
 ---
 
+## 🔴 CRITICAL BUGS FIXED
+
+### Player Spawn Missing (FIXED 2024)
+- **Issue:** First level `level_0_1_sewer.json` was missing the PLAYER spawn point (object type 0)
+- **Impact:** Game was completely unplayable - no player was ever created
+- **Fix:** Added player spawn at `tiles[2][7]` matching the Kyle variant
+- **Status:** ✅ Fixed for `level_0_1_sewer.json` and `level_0_1_sewer_wanda.json`
+
+---
+
 ## ✅ Completed
 
 ### Project Setup
@@ -312,6 +322,38 @@ The game is fully playable with all levels, enemies, NPCs, and dialog. The main 
 3. **Background music** - Just needs MIDI→OGG conversion
 4. **Cutscenes** - End-game animations
 5. **Diary UI** - Popup when collecting diary items
+6. **NPC Intro Cutscenes** - NPCs walking/camera following (e.g., Wanda intro in level 0-1)
+
+#### 5.5. NPC Intro Cutscene System (NEEDED FOR LEVEL 0-1)
+
+The first level (level_0_1_sewer) has an intro cutscene where Wanda walks toward the player:
+
+**What the original does:**
+1. Level loads with camera NOT on player
+2. Wanda walks right using NPC hot spots (NPC_GO_RIGHT, etc.)
+3. Camera follows Wanda (via TAKE_CAMERA_FOCUS hot spot)
+4. When Wanda reaches player, RELEASE_CAMERA_FOCUS returns camera to player
+5. Dialog triggers, then gameplay begins
+
+**What's currently implemented:**
+- Dialog shows immediately on level start
+- Wanda is static (no movement)
+- Camera always follows player
+
+**Components needed:**
+- `NPCComponent.ts` - Handle NPC movement via hot spots
+- Camera focus switching in Game.tsx
+- NPC animation states (walking, running)
+
+| Hot Spot | Purpose | Status |
+|----------|---------|--------|
+| TAKE_CAMERA_FOCUS (11) | Make camera follow NPC | ❌ Not implemented |
+| RELEASE_CAMERA_FOCUS (12) | Return camera to player | ❌ Not implemented |
+| NPC_GO_RIGHT (16) | Move NPC right | ❌ Not implemented |
+| NPC_GO_LEFT (17) | Move NPC left | ❌ Not implemented |
+| NPC_STOP (28) | Stop NPC movement | ❌ Not implemented |
+| WALK_AND_TALK (10) | Walk while triggering dialog | ❌ Not implemented |
+
 | `PlayerComponent.java` | Player physics/controls | ✅ Done (in Game.tsx) |
 | `HitReactionComponent.java` | Damage/hit responses | ✅ Done (HitReactionComponent.ts) |
 | `HitPlayerComponent.java` | Player hit detection | ✅ Done (HitPlayerComponent.ts) |
