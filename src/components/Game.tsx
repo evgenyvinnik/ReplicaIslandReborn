@@ -262,6 +262,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               hasShownIntroDialogRef.current = false;
               levelSys.loadLevel(nextLevelId).then(() => {
                 gameObjectMgr?.commitUpdates();
+                
+                // Initialize tile map renderer for new level
+                const parsedLevel = levelSys.getParsedLevel();
+                if (parsedLevel && tileMapRendererRef.current) {
+                  tileMapRendererRef.current.initializeFromLevel(parsedLevel);
+                }
+                
                 const spawn = levelSys.playerSpawnPosition;
                 playerSpawnRef.current = { ...spawn };
                 resetPlayerState(); // Reset player state for new level
@@ -337,6 +344,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           const levelSys = levelSystemRef.current;
           if (levelSys) {
             levelSys.loadLevel(state.currentLevel).then(() => {
+              // Initialize tile map renderer for level
+              const parsedLevel = levelSys.getParsedLevel();
+              if (parsedLevel && tileMapRendererRef.current) {
+                tileMapRendererRef.current.initializeFromLevel(parsedLevel);
+              }
+              
               const spawn = levelSys.playerSpawnPosition;
               playerSpawnRef.current = { ...spawn };
               resetPlayerState(); // Reset player state for retry
@@ -381,6 +394,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setLevel(nextLevelId);
               hasShownIntroDialogRef.current = false;
               levelSys.loadLevel(nextLevelId).then(() => {
+                // Initialize tile map renderer for new level
+                const parsedLevel = levelSys.getParsedLevel();
+                if (parsedLevel && tileMapRendererRef.current) {
+                  tileMapRendererRef.current.initializeFromLevel(parsedLevel);
+                }
+                
                 const spawn = levelSys.playerSpawnPosition;
                 playerSpawnRef.current = { ...spawn };
                 resetPlayerState(); // Reset player state for new level
@@ -1127,6 +1146,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setLevel(nextLevelId);
               // Reload the level system
               levelSys.loadLevel(nextLevelId).then(() => {
+                // Initialize tile map renderer for new level
+                const parsedLevel = levelSys.getParsedLevel();
+                if (parsedLevel && tileMapRendererRef.current) {
+                  tileMapRendererRef.current.initializeFromLevel(parsedLevel);
+                }
+                
                 // Store new spawn position
                 playerSpawnRef.current = { ...levelSys.playerSpawnPosition };
                 // Reset player position
