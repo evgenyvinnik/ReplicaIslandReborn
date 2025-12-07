@@ -42,9 +42,21 @@ interface GameProps {
 }
 
 // Player physics constants (from original PlayerComponent.java)
+// Player state machine (from original PlayerComponent.java)
+enum PlayerState {
+  MOVE = 0,          // Normal movement
+  STOMP = 1,         // Stomp attack in progress
+  HIT_REACT = 2,     // Hit reaction (invulnerability frames)
+  DEAD = 3,          // Death animation
+  WIN = 4,           // Level complete
+  FROZEN = 5,        // Frozen (cutscene, dialog)
+  POST_GHOST_DELAY = 6, // Delay after ghost possession ends
+}
+
 // Note: In canvas coordinates, positive Y is DOWN, negative Y is UP
 // The original Java code used a coordinate system where positive Y was UP
 const PLAYER = {
+  // Movement constants
   GROUND_IMPULSE_SPEED: 5000,
   AIR_HORIZONTAL_IMPULSE_SPEED: 4000,
   AIR_VERTICAL_IMPULSE_SPEED: 1200,
@@ -53,12 +65,34 @@ const PLAYER = {
   MAX_AIR_HORIZONTAL_SPEED: 150,
   MAX_UPWARD_SPEED: 250,
   JUMP_TO_JETS_DELAY: 0.5,
-  STOMP_VELOCITY: 1000, // Positive = downward in canvas coordinates (was -1000 in original which had Y-up)
   AIR_DRAG_SPEED: 4000,
   GRAVITY: 500,
   FUEL_AMOUNT: 1.0,
   WIDTH: 48,
   HEIGHT: 48,
+  
+  // Stomp attack constants (from original)
+  STOMP_VELOCITY: 1000, // Positive = downward in canvas coordinates
+  STOMP_DELAY_TIME: 0.15,     // Hitstop duration on stomp impact
+  STOMP_AIR_HANG_TIME: 0.0,   // Time to hang in air before stomp
+  STOMP_SHAKE_MAGNITUDE: 15,  // Camera shake intensity on stomp land
+  STOMP_VIBRATE_TIME: 0.05,   // Vibration duration
+  
+  // Hit reaction constants
+  HIT_REACT_TIME: 0.5,        // Duration of hit reaction state
+  INVINCIBILITY_TIME: 2.0,    // Post-hit invincibility duration
+  
+  // Ghost/Possession constants
+  GHOST_REACTIVATION_DELAY: 0.3,
+  GHOST_CHARGE_TIME: 0.75,    // Time to hold attack to spawn ghost
+  
+  // Win condition
+  MAX_GEMS_PER_LEVEL: 3,      // Rubies needed to win
+  
+  // Ghost duration by gems
+  NO_GEMS_GHOST_TIME: 3.0,
+  ONE_GEM_GHOST_TIME: 8.0,
+  TWO_GEMS_GHOST_TIME: 0.0,   // Unlimited with 2+ gems
 };
 
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
@@ -88,26 +122,77 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   // Player spawn point (set when level loads)
   const playerSpawnRef = useRef({ x: 100, y: 320 });
   
-  // Player state ref for physics
+  // Player state ref for physics (matching original PlayerComponent.java)
   const playerStateRef = useRef({
+    // State machine
+    currentState: PlayerState.MOVE,
+    stateTimer: 0,
+    
+    // Physics state
     fuel: PLAYER.FUEL_AMOUNT,
     jumpTime: 0,
     touchingGround: false,
     wasTouchingGround: false, // Track previous frame for landing detection
     rocketsOn: false,
+    
+    // Stomp attack state
     stomping: false,
     stompTime: 0,
+    stompHangTime: 0,         // Air hang time before stomp
+    stompLanded: false,       // True when stomp impacts ground/enemy
+    
+    // Hit reaction state
     invincible: false,
     invincibleTime: 0,
     lastHitTime: 0,
+    hitReactTimer: 0,         // Time remaining in HIT_REACT state
+    
+    // Ghost/Possession state
+    ghostChargeTime: 0,       // Time attack held on ground
+    ghostActive: false,       // True when ghost is spawned
+    postGhostDelay: 0,        // Delay after ghost returns
+    
     // Animation state
     animFrame: 0,
     animTimer: 0,
     lastAnimState: '',
+    
     // Death/respawn state
     isDying: false,
     deathTime: 0,
+    
+    // Win state
+    levelWon: false,
   });
+  
+  // Helper function to reset player state (call when loading/restarting levels)
+  const resetPlayerState = useCallback((): void => {
+    const pState = playerStateRef.current;
+    pState.currentState = PlayerState.MOVE;
+    pState.stateTimer = 0;
+    pState.fuel = PLAYER.FUEL_AMOUNT;
+    pState.jumpTime = 0;
+    pState.touchingGround = false;
+    pState.wasTouchingGround = false;
+    pState.rocketsOn = false;
+    pState.stomping = false;
+    pState.stompTime = 0;
+    pState.stompHangTime = 0;
+    pState.stompLanded = false;
+    pState.invincible = false;
+    pState.invincibleTime = 0;
+    pState.lastHitTime = 0;
+    pState.hitReactTimer = 0;
+    pState.ghostChargeTime = 0;
+    pState.ghostActive = false;
+    pState.postGhostDelay = 0;
+    pState.animFrame = 0;
+    pState.animTimer = 0;
+    pState.lastAnimState = '';
+    pState.isDying = false;
+    pState.deathTime = 0;
+    pState.levelWon = false;
+  }, []);
   
   const [isInitialized, setIsInitialized] = useState(false);
   const [scale, setScale] = useState(1);
@@ -179,6 +264,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 gameObjectMgr?.commitUpdates();
                 const spawn = levelSys.playerSpawnPosition;
                 playerSpawnRef.current = { ...spawn };
+                resetPlayerState(); // Reset player state for new level
                 const newPlayer = gameObjectMgr?.getPlayer();
                 if (newPlayer) {
                   newPlayer.setPosition(spawn.x, spawn.y);
@@ -196,7 +282,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     } else {
       canvasDialog.hide();
     }
-  }, [activeDialog, setLevel]);
+  }, [activeDialog, setLevel, resetPlayerState]);
 
   // Handle Canvas Cutscene when cutscene state changes
   useEffect(() => {
@@ -253,6 +339,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             levelSys.loadLevel(state.currentLevel).then(() => {
               const spawn = levelSys.playerSpawnPosition;
               playerSpawnRef.current = { ...spawn };
+              resetPlayerState(); // Reset player state for retry
               const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
               gameObjectMgr?.commitUpdates();
               const player = gameObjectMgr?.getPlayer();
@@ -273,7 +360,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     } else {
       canvasGameOver.hide();
     }
-  }, [state.gameState, state.currentLevel, resumeGame, goToMainMenu]);
+  }, [state.gameState, state.currentLevel, resumeGame, goToMainMenu, resetPlayerState]);
 
   // Handle Canvas Level Complete Screen when game state changes
   useEffect(() => {
@@ -296,6 +383,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               levelSys.loadLevel(nextLevelId).then(() => {
                 const spawn = levelSys.playerSpawnPosition;
                 playerSpawnRef.current = { ...spawn };
+                resetPlayerState(); // Reset player state for new level
                 const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
                 gameObjectMgr?.commitUpdates();
                 const player = gameObjectMgr?.getPlayer();
@@ -317,7 +405,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     } else {
       canvasLevelComplete.hide();
     }
-  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu]);
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState]);
 
   // Attach/detach Canvas Controls when settings change
   useEffect(() => {
@@ -1076,9 +1164,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               player.getVelocity().y = 0;
             }
             
-            // Give invincibility frames after respawn
+            // Reset state machine to MOVE
+            pState.currentState = PlayerState.MOVE;
+            pState.stomping = false;
+            pState.stompHangTime = 0;
+            pState.stompLanded = false;
+            pState.ghostChargeTime = 0;
+            pState.ghostActive = false;
+            
+            // Give invincibility frames after respawn (using constant)
             pState.invincible = true;
-            pState.invincibleTime = 2.0;
+            pState.invincibleTime = PLAYER.INVINCIBILITY_TIME;
           }
         }
       }
@@ -1160,8 +1256,24 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 setInventory({ coinCount: inv.coinCount + 1, score: inv.score + 1 });
                 soundSystem.playSfx(SoundEffects.GEM1, 0.5);
               } else if (obj.type === 'ruby') {
-                setInventory({ rubyCount: inv.rubyCount + 1, score: inv.score + 3 });
+                const newRubyCount = inv.rubyCount + 1;
+                setInventory({ rubyCount: newRubyCount, score: inv.score + 3 });
                 soundSystem.playSfx(SoundEffects.GEM2, 0.5);
+                
+                // WIN CONDITION: Collecting 3 rubies (MAX_GEMS_PER_LEVEL) completes the level
+                if (newRubyCount >= PLAYER.MAX_GEMS_PER_LEVEL) {
+                  const pState = playerStateRef.current;
+                  if (!pState.levelWon) {
+                    pState.levelWon = true;
+                    pState.currentState = PlayerState.WIN;
+                    soundSystem.playSfx(SoundEffects.DING, 1.0);
+                    
+                    // Trigger level complete after a short delay
+                    setTimeout(() => {
+                      completeLevel();
+                    }, 500);
+                  }
+                }
               } else if (obj.type === 'pearl') {
                 setInventory({ pearls: inv.pearls + 1, score: inv.score + 5 });
                 soundSystem.playSfx(SoundEffects.GEM2, 0.5);
@@ -1217,26 +1329,31 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 // Award points
                 const inv = getInventory();
                 setInventory({ score: inv.score + 25 });
-              } else if (!pState.invincible) {
-                // Enemy damages player (only if not invincible)
+              } else if (!pState.invincible && pState.currentState !== PlayerState.HIT_REACT) {
+                // Enemy damages player (only if not invincible and not in hit reaction)
                 const inv = getInventory();
                 if (inv.lives > 0) {
                   const newLives = inv.lives - 1;
                   setInventory({ lives: newLives });
                   soundSystem.playSfx(SoundEffects.THUMP);
                   
+                  // Enter HIT_REACT state (matching original HIT_REACT_TIME = 0.5s)
+                  pState.currentState = PlayerState.HIT_REACT;
+                  pState.hitReactTimer = PLAYER.HIT_REACT_TIME;
+                  
                   // Screen shake for damage feedback
                   cameraSystem.shake(8, 0.3);
                   
                   if (newLives <= 0) {
-                    // Game over - play death cutscene
+                    // Enter DEAD state, then game over
+                    pState.currentState = PlayerState.DEAD;
                     playCutscene(CutsceneType.KYLE_DEATH);
                     return;
                   }
                   
-                  // Grant invincibility frames
+                  // Grant invincibility frames (INVINCIBILITY_TIME from original)
                   pState.invincible = true;
-                  pState.invincibleTime = 2.0;  // 2 seconds
+                  pState.invincibleTime = PLAYER.INVINCIBILITY_TIME;
                   
                   // Knock player back
                   const knockbackDir = playerPos.x < objPos.x ? -1 : 1;
@@ -1248,11 +1365,22 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         });
       }
       
-      // Update player invincibility timer
-      if (playerStateRef.current.invincible) {
-        playerStateRef.current.invincibleTime -= deltaTime;
-        if (playerStateRef.current.invincibleTime <= 0) {
-          playerStateRef.current.invincible = false;
+      // Update player state machine (using existing pState from death handling above)
+      
+      // Update HIT_REACT state timer
+      if (pState.currentState === PlayerState.HIT_REACT) {
+        pState.hitReactTimer -= deltaTime;
+        if (pState.hitReactTimer <= 0) {
+          pState.currentState = PlayerState.MOVE;
+          pState.hitReactTimer = 0;
+        }
+      }
+      
+      // Update invincibility timer
+      if (pState.invincible) {
+        pState.invincibleTime -= deltaTime;
+        if (pState.invincibleTime <= 0) {
+          pState.invincible = false;
         }
       }
 
@@ -1360,22 +1488,95 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         pState.rocketsOn = false;
       }
 
-      // Stomp attack
-      if (input.attack && inTheAir && !pState.stomping) {
+      // Stomp attack (with hang time matching original)
+      if (input.attack && inTheAir && !pState.stomping && pState.currentState === PlayerState.MOVE) {
+        // Enter stomp state
+        pState.currentState = PlayerState.STOMP;
         pState.stomping = true;
         pState.stompTime = gameTime;
-        velocity.y = PLAYER.STOMP_VELOCITY;
+        pState.stompHangTime = PLAYER.STOMP_AIR_HANG_TIME;
+        pState.stompLanded = false;
+        
+        // Freeze position momentarily for hang time (if STOMP_AIR_HANG_TIME > 0)
+        if (PLAYER.STOMP_AIR_HANG_TIME > 0) {
+          velocity.x = 0;
+          velocity.y = 0;
+        } else {
+          // No hang time, start stomp immediately
+          velocity.y = PLAYER.STOMP_VELOCITY;
+        }
         soundSys.playSfx(SoundEffects.STOMP);
       }
 
-      // Reset stomp when landing
-      if (pState.stomping && pState.touchingGround) {
-        pState.stomping = false;
-        // Could add screen shake here
+      // Handle stomp hang time
+      if (pState.stomping && pState.stompHangTime > 0) {
+        pState.stompHangTime -= deltaTime;
+        // Keep velocity at 0 during hang time
+        velocity.x = 0;
+        velocity.y = 0;
+        
+        // When hang time ends, apply stomp velocity
+        if (pState.stompHangTime <= 0) {
+          velocity.y = PLAYER.STOMP_VELOCITY;
+        }
       }
 
-      // Apply gravity
-      velocity.y += PLAYER.GRAVITY * deltaTime;
+      // Reset stomp when landing - with camera shake and effects
+      if (pState.stomping && pState.touchingGround && !pState.stompLanded) {
+        pState.stompLanded = true;
+        
+        // Camera shake on stomp landing (matching original STOMP_SHAKE_MAGNITUDE)
+        const cameraSystem = systemRegistryRef.current?.cameraSystem;
+        if (cameraSystem) {
+          cameraSystem.shake(PLAYER.STOMP_SHAKE_MAGNITUDE, PLAYER.STOMP_DELAY_TIME);
+        }
+        
+        // Spawn dust/impact effects
+        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2, position.y + PLAYER.HEIGHT);
+        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2 - 15, position.y + PLAYER.HEIGHT);
+        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2 + 15, position.y + PLAYER.HEIGHT);
+        
+        // Reset stomp state
+        pState.stomping = false;
+        pState.currentState = PlayerState.MOVE;
+      }
+
+      // Ghost mechanic - hold attack on ground to spawn ghost (from original)
+      if (input.attack && pState.touchingGround && !pState.stomping && !pState.ghostActive) {
+        // Charge ghost while holding attack on ground
+        pState.ghostChargeTime += deltaTime;
+        
+        // Visual feedback could be added here (player glowing, etc.)
+        
+        // When fully charged, spawn ghost
+        if (pState.ghostChargeTime >= PLAYER.GHOST_CHARGE_TIME) {
+          pState.ghostActive = true;
+          pState.ghostChargeTime = 0;
+          soundSys.playSfx(SoundEffects.BUZZ, 0.5);
+          
+          // TODO: Actually spawn ghost entity using GhostComponent
+          // The ghost should be controlled by the player while active
+          // Camera should follow the ghost
+          // Player is frozen during ghost possession
+        }
+      } else if (!input.attack) {
+        // Reset charge when attack is released
+        pState.ghostChargeTime = 0;
+      }
+      
+      // Handle post-ghost delay (after ghost returns to player)
+      if (pState.currentState === PlayerState.POST_GHOST_DELAY) {
+        pState.postGhostDelay -= deltaTime;
+        if (pState.postGhostDelay <= 0) {
+          pState.currentState = PlayerState.MOVE;
+          pState.ghostActive = false;
+        }
+      }
+
+      // Apply gravity (skip during stomp hang time)
+      if (!pState.stomping || pState.stompHangTime <= 0) {
+        velocity.y += PLAYER.GRAVITY * deltaTime;
+      }
 
       // Clamp velocity
       velocity.x = Math.max(-PLAYER.MAX_GROUND_HORIZONTAL_SPEED, Math.min(PLAYER.MAX_GROUND_HORIZONTAL_SPEED, velocity.x));
@@ -1482,10 +1683,27 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           let animFrames: string[] = ['andou_stand'];
           let looping = false;
           
-          if (pState.stomping) {
+          // Check state machine first for special states
+          if (pState.currentState === PlayerState.HIT_REACT) {
+            // HIT_REACT animation - hit/damaged pose
+            animState = 'hit';
+            animFrames = ['andou_hit'];
+            looping = false;
+          } else if (pState.currentState === PlayerState.DEAD || pState.isDying) {
+            // DEAD animation - death sequence
+            animState = 'dead';
+            animFrames = ['andou_die01', 'andou_die02'];
+            looping = false;
+          } else if (pState.stomping) {
             // STOMP animation - 4 frames, not looping
             animState = 'stomp';
             animFrames = ['andou_stomp01', 'andou_stomp02', 'andou_stomp03', 'andou_stomp04'];
+            looping = false;
+          } else if (pState.ghostChargeTime > 0) {
+            // Charging ghost - could use a special charging animation
+            // For now, use a slight variation (maybe flyup frames to show charging)
+            animState = 'charge';
+            animFrames = ['andou_flyup01'];
             looping = false;
           } else if (pState.touchingGround) {
             // On ground

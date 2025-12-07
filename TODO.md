@@ -4,54 +4,60 @@ This document tracks what has been implemented and what still needs to be done t
 
 ---
 
-## 🚨 CRITICAL: GAME NOT OPERATIONAL
+## 🟡 PROGRESS: Player State Machine Implemented
 
-**The game is currently NOT playable.** The `Game.tsx` component is NOT a faithful port of the original Android implementation.
+**The game is now more faithful to the original.** The `Game.tsx` component has been updated with proper state machine and mechanics.
 
 ### Game.tsx Faithfulness Analysis
 
 | Aspect | Original Android | Current Web Port | Faithful? |
 |--------|------------------|------------------|----------|
-| **Architecture** | Dual-threaded (Game + Render) | Single-threaded | ❌ NO |
-| **State Machine** | Full enum (MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY) | Simple flags | ❌ NO |
+| **Architecture** | Dual-threaded (Game + Render) | Single-threaded | ⚠️ Different approach |
+| **State Machine** | Full enum (MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY) | ✅ Full enum implemented | ✅ YES |
 | **Object Pooling** | Extensive (384 objects, 256 collision records) | None | ❌ NO |
-| **Component Phases** | Phased execution (THINK, PHYSICS, ANIMATION, etc.) | Inline code | ❌ NO |
-| **Ghost Mechanic** | Integrated (hold attack to spawn ghost) | Exists but NOT integrated | ❌ NO |
-| **Stomp Hang Time** | STOMP_AIR_HANG_TIME + position locking | Missing | ❌ NO |
-| **Stomp Camera Shake** | shake(STOMP_DELAY_TIME, 15) on landing | Missing | ❌ NO |
-| **Hit Reaction State** | HIT_REACT with timer | Missing | ❌ NO |
-| **Win Condition** | Collect 3 rubies → WIN state | Missing | ❌ NO |
+| **Component Phases** | Phased execution (THINK, PHYSICS, ANIMATION, etc.) | Inline code | ⚠️ Different approach |
+| **Ghost Mechanic** | Integrated (hold attack to spawn ghost) | ✅ Charging implemented | ⚠️ PARTIAL |
+| **Stomp Hang Time** | STOMP_AIR_HANG_TIME + position locking | ✅ Implemented | ✅ YES |
+| **Stomp Camera Shake** | shake(STOMP_DELAY_TIME, 15) on landing | ✅ Implemented | ✅ YES |
+| **Hit Reaction State** | HIT_REACT with timer | ✅ Implemented (0.5s) | ✅ YES |
+| **Win Condition** | Collect 3 rubies → WIN state | ✅ Implemented | ✅ YES |
 | **Invincibility Powerup** | Coins → glow mode | Missing | ❌ NO |
-| **Enemy AI** | PatrolComponent + AttackAtDistanceComponent | Simplified inline switch | ❌ NO |
+| **Enemy AI** | PatrolComponent + AttackAtDistanceComponent | Simplified inline switch | ⚠️ SIMPLIFIED |
 
-### What MUST Be Fixed
+### What Has Been Implemented
 
-1. **Implement proper PlayerState enum** matching original:
+1. ✅ **PlayerState enum** matching original:
    ```typescript
    enum PlayerState { MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY }
    ```
 
-2. **Add stomp mechanics**:
-   - STOMP_AIR_HANG_TIME (position locking)
-   - Camera shake on landing (0.15s, magnitude 15)
-   - STOMP_VIBRATE_TIME
+2. ✅ **Stomp mechanics**:
+   - STOMP_AIR_HANG_TIME (position locking during hang)
+   - Camera shake on landing (STOMP_DELAY_TIME = 0.15s, STOMP_SHAKE_MAGNITUDE = 15)
+   - Dust effects on stomp landing
 
-3. **Integrate ghost mechanic**:
-   - Hold attack button on ground → charge ghost
-   - GHOST_CHARGE_TIME = 0.75s
-   - Camera follows ghost when spawned
+3. ⚠️ **Ghost mechanic** (partial):
+   - Hold attack button on ground → charge ghost (GHOST_CHARGE_TIME = 0.75s)
+   - Ghost entity spawning NOT yet integrated (TODO)
 
-4. **Add hit reaction state** with HIT_REACT_TIME = 0.5s
+4. ✅ **Hit reaction state** with HIT_REACT_TIME = 0.5s
+   - Player enters HIT_REACT state when damaged
+   - Animation shows hit pose during reaction
 
-5. **Add win condition**: 3 rubies = level complete
+5. ✅ **Win condition**: Collect 3 rubies (MAX_GEMS_PER_LEVEL) → WIN state → level complete
 
-6. **Add invincibility powerup**: coins → glow mode
+6. ✅ **Player state reset**: Proper state reset when loading/restarting levels
 
-7. **Refactor to component-based architecture** like original
+### Still TODO
 
-### Current State: ~25% Faithful
+- [ ] Ghost entity spawning and camera following
+- [ ] Invincibility powerup (coins → glow mode)
+- [ ] Object pooling for performance
+- [ ] Component-based architecture refactor
 
-The physics constants are correct but the game logic, state machine, and advanced mechanics are NOT implemented. **This is a prototype, not a port.**
+### Current State: ~50% Faithful
+
+The state machine and core mechanics are now implemented. **This is a working port with most player mechanics.**
 
 ---
 
