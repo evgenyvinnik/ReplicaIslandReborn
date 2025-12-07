@@ -253,17 +253,27 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   }, [state.gameState]);
 
   // Show intro dialog after level finishes loading
+  // Only auto-show for cutscene levels (no player spawn)
   useEffect(() => {
     if (!levelLoading && isInitialized && !hasShownIntroDialogRef.current) {
       const levelSystem = levelSystemRef.current;
-      if (levelSystem) {
-        const levelInfo = levelSystem.getLevelInfo(state.currentLevel);
-        if (levelInfo) {
-          const dialogs = getDialogsForLevel(levelInfo.file);
-          if (dialogs.length > 0) {
-            hasShownIntroDialogRef.current = true;
-            setActiveDialog(dialogs[0]);
+      const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
+      if (levelSystem && gameObjectManager) {
+        // Only auto-show dialog for cutscene levels (no player)
+        const player = gameObjectManager.getPlayer();
+        if (!player) {
+          const levelInfo = levelSystem.getLevelInfo(state.currentLevel);
+          console.warn('[Game] Cutscene level - showing intro dialog, level:', state.currentLevel, 'levelInfo:', levelInfo?.file);
+          if (levelInfo) {
+            const dialogs = getDialogsForLevel(levelInfo.file);
+            console.warn('[Game] Found', dialogs.length, 'dialogs for level', levelInfo.file);
+            if (dialogs.length > 0) {
+              hasShownIntroDialogRef.current = true;
+              setActiveDialog(dialogs[0]);
+            }
           }
+        } else {
+          console.warn('[Game] Playable level - skipping auto-dialog, level:', state.currentLevel);
         }
       }
     }
@@ -369,6 +379,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   tileMapRendererRef.current.initializeFromLevel(parsedLevel);
                 }
                 
+                // Update camera bounds for new level
+                const cameraSystem = systemRegistryRef.current?.cameraSystem;
+                if (cameraSystem) {
+                  cameraSystem.setBounds({
+                    minX: 0,
+                    minY: 0,
+                    maxX: levelSys.getLevelWidth(),
+                    maxY: levelSys.getLevelHeight(),
+                  });
+                }
+                
                 const spawn = levelSys.playerSpawnPosition;
                 playerSpawnRef.current = { ...spawn };
                 resetPlayerState(); // Reset player state for new level
@@ -377,6 +398,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   newPlayer.setPosition(spawn.x, spawn.y);
                   newPlayer.getVelocity().x = 0;
                   newPlayer.getVelocity().y = 0;
+                  
+                  // Set camera to follow the new player
+                  if (cameraSystem) {
+                    cameraSystem.setTarget(newPlayer);
+                    cameraSystem.setPosition(spawn.x, spawn.y);
+                  }
                 }
                 setLevelLoading(false);
               });

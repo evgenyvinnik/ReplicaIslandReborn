@@ -190,7 +190,8 @@ export class CollisionSystem {
               }
             } else {
               // Vertical collision
-              if (overlapTop < overlapBottom && velocityY > 0) {
+              // Use >= 0 for grounded check so standing still also counts as grounded
+              if (overlapTop < overlapBottom && velocityY >= 0) {
                 result.grounded = true;
                 result.normal.y = -1;
               } else if (velocityY < 0) {

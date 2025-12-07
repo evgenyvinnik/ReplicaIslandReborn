@@ -81,3 +81,16 @@ export { SolidSurfaceComponent, setSolidSurfaceSystemRegistry } from './SolidSur
 export type { SurfaceDefinition } from './SolidSurfaceComponent';
 
 export { MotionBlurComponent } from './MotionBlurComponent';
+
+export { FadeDrawableComponent, FadeLoopType, FadeFunction } from './FadeDrawableComponent';
+export type { FadeConfig } from './FadeDrawableComponent';
+
+export { PlaySingleSoundComponent } from './PlaySingleSoundComponent';
+
+export { OrbitalMagnetComponent } from './OrbitalMagnetComponent';
+export type { OrbitalMagnetConfig } from './OrbitalMagnetComponent';
+
+export { SimplePhysicsComponent } from './SimplePhysicsComponent';
+export type { SimplePhysicsConfig } from './SimplePhysicsComponent';
+
+export { FixedAnimationComponent } from './FixedAnimationComponent';

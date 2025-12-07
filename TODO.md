@@ -386,18 +386,18 @@ Unlocks after completing the game. Contains:
 |-----------|---------------|----------|-------------|
 | GravityComponent | GravityComponent.java | ✅ Done | Custom gravity zones |
 | CameraBiasComponent | CameraBiasComponent.java | ✅ Done | Shifts camera focus |
-| OrbitalMagnetComponent | OrbitalMagnetComponent.java | LOW | Magnetic attraction for collectibles |
+| OrbitalMagnetComponent | OrbitalMagnetComponent.java | ✅ Done | Magnetic attraction for collectibles |
 | ChangeComponentsComponent | ChangeComponentsComponent.java | LOW | Dynamic component swapping |
 | SimpleCollisionComponent | SimpleCollisionComponent.java | ✅ Done | Simplified collision for effects |
-| SimplePhysicsComponent | SimplePhysicsComponent.java | LOW | Simplified physics for projectiles |
+| SimplePhysicsComponent | SimplePhysicsComponent.java | ✅ Done | Simplified physics for projectiles |
 | SolidSurfaceComponent | SolidSurfaceComponent.java | ✅ Done | Solid collision surfaces |
 | SelectDialogComponent | SelectDialogComponent.java | LOW | Dialog selection UI |
-| FixedAnimationComponent | FixedAnimationComponent.java | LOW | Static looping animations |
-| FadeDrawableComponent | FadeDrawableComponent.java | LOW | Fade in/out effects |
-| MotionBlurComponent | MotionBlurComponent.java | LOW | Motion blur visual effect |
-| ScrollerComponent | ScrollerComponent.java | LOW | Parallax scrolling helper |
+| FixedAnimationComponent | FixedAnimationComponent.java | ✅ Done | Static looping animations |
+| FadeDrawableComponent | FadeDrawableComponent.java | ✅ Done | Fade in/out effects |
+| MotionBlurComponent | MotionBlurComponent.java | ✅ Done | Motion blur visual effect |
+| ScrollerComponent | ScrollerComponent.java | N/A | Handled by TileMapRenderer |
 | FrameRateWatcherComponent | FrameRateWatcherComponent.java | LOW | Performance monitoring |
-| PlaySingleSoundComponent | PlaySingleSoundComponent.java | LOW | One-shot sound on spawn |
+| PlaySingleSoundComponent | PlaySingleSoundComponent.java | ✅ Done | One-shot sound on spawn |
 | CrusherAndouComponent | CrusherAndouComponent.java | MEDIUM | Full stomp attack logic |
 
 #### 8. Camera System Enhancements
@@ -411,9 +411,9 @@ Unlocks after completing the game. Contains:
 #### 9. Vibration/Haptic Feedback
 | Component | Original File | Description |
 |-----------|---------------|-------------|
-| VibrationSystem | VibrationSystem.java | Haptic feedback on damage/death |
+| VibrationSystem | VibrationSystem.java | ✅ Implemented - Haptic feedback using Web Vibration API |
 
-Can be implemented using the Gamepad Haptic API or Vibration API for supported browsers.
+Implemented using the Web Vibration API for mobile browsers and Gamepad haptic API for controllers.
 
 #### 10. Save System Enhancements
 | Feature | Status |
@@ -1004,15 +1004,15 @@ The hot spot layer defines special tile behaviors:
 
 | Category | Original | Ported | Percentage | Notes |
 |----------|----------|--------|------------|-------|
-| Java Classes | 118 | ~56 | 47% | Core gameplay classes ported |
-| Components | 35 | 24 | 69% | All core components including NPCComponent |
+| Java Classes | 118 | ~60 | 51% | Core gameplay classes ported |
+| Components | 35 | 30 | 86% | All core components including NPCComponent |
 | Sound Effects | 22 | 22 | 100% | All OGG files copied and working |
 | Level Files (.bin) | 47 | 47 | 100% | All levels parsed to JSON |
 | Dialog Files (.xml) | 38 | 38 | 100% | All dialogs ported to TypeScript |
 | Tileset Images | 7 | 7 | 100% | grass, island, sewage, cave, lab, tutorial, titletileset |
 | Background Images | 9 | 9 | 100% | All parallax backgrounds |
 | Sprite Assets | 420 | 342 | 81% | 78 missing (see breakdown below) |
-| Canvas Render Features | 12 | 10 | 83% | MotionBlur, FadeDrawable not ported |
+| Canvas Render Features | 12 | 12 | 100% | MotionBlur, FadeDrawable now ported |
 | Options/Settings | 10 | 10 | 100% | Full settings persistence |
 | Player Physics | 1 | 1 | 100% | Ground/air/jetpack/stomp |
 | Core Game Loop | 1 | 1 | 100% | Fixed timestep loop |
@@ -1020,6 +1020,7 @@ The hot spot layer defines special tile behaviors:
 | Dialog Triggers | 1 | 1 | 100% | Hot spot triggered dialogs |
 | Game UI Screens | 5 | 5 | 100% | Main menu, level select, pause, game over, level complete |
 | NPC Cutscene System | 1 | 1 | 100% | Camera focus switching, NPC movement via hot spots |
+| Vibration/Haptic | 1 | 1 | 100% | VibrationSystem with Web Vibration API |
 
 ### Missing Sprites by Feature (78 total)
 
