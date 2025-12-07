@@ -37,6 +37,7 @@ import { getDialogsForLevel, type Dialog } from '../data/dialogs';
 import { getDiaryByCollectionOrder } from '../data/diaries';
 import { assetPath } from '../utils/helpers';
 import { CutsceneType, getCutscene } from '../data/cutscenes';
+import { useGameStore } from '../stores/useGameStore';
 
 interface GameProps {
   width?: number;
@@ -110,6 +111,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, endCutscene, goToMainMenu } = useGameContext();
   
+  // Zustand store for persistent progress/scores - use individual selectors to avoid infinite loops
+  const storeCompleteLevel = useGameStore((s) => s.completeLevel);
+  const storeRecordLevelAttempt = useGameStore((s) => s.recordLevelAttempt);
+  const storeCollectDiary = useGameStore((s) => s.collectDiary);
+  const storeAddToTotalStats = useGameStore((s) => s.addToTotalStats);
+  const storeLevelProgress = useGameStore((s) => s.progress.levels);
+  
   // Systems refs
   const gameLoopRef = useRef<GameLoop | null>(null);
   const systemRegistryRef = useRef<SystemRegistry | null>(null);
@@ -129,6 +137,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const canvasGameOverRef = useRef<CanvasGameOverScreen | null>(null);
   const canvasLevelCompleteRef = useRef<CanvasLevelCompleteScreen | null>(null);
   const canvasDiaryRef = useRef<CanvasDiaryOverlay | null>(null);
+  
+  // Level timing tracking
+  const levelStartTimeRef = useRef<number>(0);
+  const levelElapsedTimeRef = useRef<number>(0);
   
   // Player spawn point (set when level loads)
   const playerSpawnRef = useRef({ x: 100, y: 320 });
@@ -331,15 +343,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     if (activeDialog) {
       // Define dialog completion handler
       const handleDialogComplete = (): void => {
+        console.warn('[Game] Dialog complete');
         setActiveDialog(null);
         // If this is a cutscene-only level (no player), advance to next level after dialog
         const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
         const player = gameObjectMgr?.getPlayer();
+        console.warn('[Game] Player exists:', !!player);
         if (!player) {
           // No player means this is a story/cutscene level - advance to next
           const levelSys = levelSystemRef.current;
           if (levelSys) {
             const nextLevelId = levelSys.getNextLevelId();
+            console.warn('[Game] Cutscene level - advancing to next level:', nextLevelId);
             if (nextLevelId !== null) {
               levelSys.unlockLevel(nextLevelId);
               setLevel(nextLevelId);
@@ -466,6 +481,25 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     if (!canvasLevelComplete) return;
     
     if (state.gameState === GameState.LEVEL_COMPLETE) {
+      // Calculate elapsed time and save progress to store
+      const elapsedTime = (Date.now() - levelStartTimeRef.current) / 1000; // In seconds
+      levelElapsedTimeRef.current = elapsedTime;
+      const inventory = getInventory();
+      
+      // Get previous best stats before saving (for comparison display)
+      const levelProgress = storeLevelProgress[state.currentLevel];
+      const previousBestTime = levelProgress?.bestTime ?? null;
+      const previousBestScore = levelProgress?.bestScore ?? 0;
+      
+      // Save level completion with score and time to persistent store
+      storeCompleteLevel(state.currentLevel, inventory.score, elapsedTime);
+      
+      // Update total stats
+      storeAddToTotalStats({
+        totalCoinsCollected: inventory.coinCount,
+        totalRubiesCollected: inventory.rubyCount,
+      });
+      
       const levelName = levelSystemRef.current?.getLevelInfo(state.currentLevel)?.name ?? 'Level';
       canvasLevelComplete.show(
         levelName,
@@ -488,6 +522,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 const spawn = levelSys.playerSpawnPosition;
                 playerSpawnRef.current = { ...spawn };
                 resetPlayerState(); // Reset player state for new level
+                
+                // Start timer for new level
+                levelStartTimeRef.current = Date.now();
+                levelElapsedTimeRef.current = 0;
+                storeRecordLevelAttempt(nextLevelId);
+                
                 const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
                 gameObjectMgr?.commitUpdates();
                 const player = gameObjectMgr?.getPlayer();
@@ -504,12 +544,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         (): void => {
           // Main menu
           goToMainMenu();
+        },
+        // Pass level stats for display
+        {
+          bestTime: previousBestTime,
+          bestScore: previousBestScore,
+          currentTime: elapsedTime,
         }
       );
     } else {
       canvasLevelComplete.hide();
     }
-  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState]);
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState, storeCompleteLevel, storeAddToTotalStats, storeRecordLevelAttempt, storeLevelProgress]);
 
   // Attach/detach Canvas Controls when settings change
   useEffect(() => {
@@ -942,6 +988,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
           
           // Note: Intro dialog is now shown via a separate useEffect after levelLoading becomes false
+          
+          // Start level timer
+          levelStartTimeRef.current = Date.now();
+          levelElapsedTimeRef.current = 0;
+          
+          // Record level attempt in store
+          storeRecordLevelAttempt(levelToLoad);
         } else {
           // Fallback: create test level
           createTestLevel(factory, gameObjectManager, collisionSystem);
@@ -1027,6 +1080,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const input = inputSystem.getInputState();
       
       if (player) {
+        // Update player's internal gameTime before physics so touchingGround() works correctly
+        player.setGameTime(gameTime);
         // Player physics update (based on original PlayerComponent.java)
         updatePlayerPhysics(player, input, deltaTime, gameTime, collisionSystem, soundSystem);
       }
@@ -1444,6 +1499,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 const newDiaryCount = inv.diaryCount + 1;
                 setInventory({ diaryCount: newDiaryCount, score: inv.score + 50 });
                 soundSystem.playSfx(SoundEffects.DING, 0.5);
+                
+                // Save diary collection to persistent store
+                storeCollectDiary(state.currentLevel, newDiaryCount);
                 
                 // Show diary overlay with entry content
                 const canvasDiary = canvasDiaryRef.current;
@@ -1865,8 +1923,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const bgImage = backgroundImageRef.current;
       if (bgImage) {
         const ctx = (renderSystem as unknown as { ctx: CanvasRenderingContext2D }).ctx;
-        const cameraX = cameraSystem.getFocusPositionX() - width / 2;
-        const cameraY = cameraSystem.getFocusPositionY() - height / 2;
+        // focusPosition is already the top-left corner of the camera viewport
+        const cameraX = cameraSystem.getFocusPositionX();
+        const cameraY = cameraSystem.getFocusPositionY();
         
         // Simple parallax - background scrolls at 0.5x speed
         const bgScrollX = -(cameraX * 0.3) % bgImage.width;
@@ -1938,27 +1997,27 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               // IDLE - standing still
               animState = 'idle';
               animFrames = ['andou_stand'];
-            } else if (absVelX > 300) {
-              // MOVE_FAST - extreme diagonal
+            } else if (absVelX > 200) {
+              // MOVE_FAST - running fast (adjusted threshold for ground max speed 500)
               animState = 'move_fast';
               animFrames = ['andou_diagmore01'];
             } else {
-              // MOVE - slight diagonal
+              // MOVE - walking/running
               animState = 'move';
               animFrames = ['andou_diag01'];
             }
           } else {
             // In air
             if (pState.rocketsOn) {
-              // Boosting
+              // Boosting with jets
               // Note: In canvas, negative vel.y = going up, positive = going down
-              if (absVelX < 100 && vel.y < -10) {
-                // BOOST_UP - going mostly up (vel.y < -10 means moving upward fast)
+              if (absVelX < 50 && vel.y < -50) {
+                // BOOST_UP - going mostly up (strong upward velocity)
                 animState = 'boost_up';
                 animFrames = ['andou_flyup02', 'andou_flyup03'];
                 looping = true;
-              } else if (absVelX > 300) {
-                // BOOST_MOVE_FAST - fast diagonal boost
+              } else if (absVelX > 100) {
+                // BOOST_MOVE_FAST - fast diagonal boost (adjusted for air max 150)
                 animState = 'boost_move_fast';
                 animFrames = ['andou_diagmore02', 'andou_diagmore03'];
                 looping = true;
@@ -1969,15 +2028,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 looping = true;
               }
             } else {
-              // Falling without boost (use movement poses based on horizontal velocity)
-              if (absVelX < 1) {
-                animState = 'idle';
-                animFrames = ['andou_stand'];
-              } else if (absVelX > 300) {
-                animState = 'move_fast';
+              // Falling without boost - show falling/gliding animations
+              if (absVelX < 10) {
+                // Falling straight down - use flyup frames (looks like falling)
+                animState = 'fall';
+                animFrames = ['andou_flyup01'];
+              } else if (absVelX > 100) {
+                // Fast horizontal movement while falling
+                animState = 'fall_fast';
                 animFrames = ['andou_diagmore01'];
               } else {
-                animState = 'move';
+                // Normal falling with some horizontal movement
+                animState = 'fall_move';
                 animFrames = ['andou_diag01'];
               }
             }
@@ -2179,13 +2241,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Render visual effects (explosions, smoke, etc.)
       const ctx = (renderSystem as unknown as { ctx: CanvasRenderingContext2D }).ctx;
-      const cameraX = cameraSystem.getFocusPositionX() - width / 2;
-      const cameraY = cameraSystem.getFocusPositionY() - height / 2;
-      effectsSystem.render(ctx, cameraX, cameraY);
+      // focusPosition is already the top-left corner of the camera viewport
+      const effectsCameraX = cameraSystem.getFocusPositionX();
+      const effectsCameraY = cameraSystem.getFocusPositionY();
+      effectsSystem.render(ctx, effectsCameraX, effectsCameraY);
 
-      // Swap and render - camera at top-left corner for world-space objects
-      const cameraTopLeftX = cameraSystem.getFocusPositionX() - width / 2;
-      const cameraTopLeftY = cameraSystem.getFocusPositionY() - height / 2;
+      // Swap and render - focusPosition is already the top-left corner for world-space objects
+      const cameraTopLeftX = cameraSystem.getFocusPositionX();
+      const cameraTopLeftY = cameraSystem.getFocusPositionY();
       renderSystem.swap(cameraTopLeftX, cameraTopLeftY);
       
       // === Canvas UI Layer (rendered after swap, in screen space) ===
@@ -2272,7 +2335,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       inputSystem.destroy();
       soundSystem.destroy();
     };
-  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, currentSettings.onScreenControlsEnabled, currentSettings.showFPS]);
+  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.currentLevel, storeRecordLevelAttempt, storeCollectDiary]);
 
   // Handle resize
   useEffect(() => {

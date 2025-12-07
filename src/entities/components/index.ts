@@ -79,3 +79,5 @@ export { SimpleCollisionComponent, setSimpleCollisionSystemRegistry } from './Si
 
 export { SolidSurfaceComponent, setSolidSurfaceSystemRegistry } from './SolidSurfaceComponent';
 export type { SurfaceDefinition } from './SolidSurfaceComponent';
+
+export { MotionBlurComponent } from './MotionBlurComponent';

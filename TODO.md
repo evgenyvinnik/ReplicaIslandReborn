@@ -174,7 +174,7 @@ The original used **OpenGL ES 1.x** with Android's GL surface. The web port uses
 
 | Original Feature | Java File | Web Port Status | Notes |
 |-----------------|-----------|-----------------|-------|
-| Motion Blur Effect | `MotionBlurComponent.java` | ❌ Not implemented | Draws sprite trail with decreasing opacity (4 steps @ 0.1s delay) |
+| Motion Blur Effect | `MotionBlurComponent.java` | ✅ Implemented | Draws sprite trail with decreasing opacity (4 steps @ 0.1s delay) |
 | Per-Object Fade | `FadeDrawableComponent.java` | ❌ Not implemented | Per-drawable opacity animation with easing (linear/ease), looping modes (none/loop/ping-pong) |
 | Scrollable Bitmap | `ScrollableBitmap.java` | ⚠️ Partial | Basic parallax works; original had more complex UV scrolling |
 | Drawable Factory | `DrawableFactory.java` | ⚠️ Simplified | Original had object pooling for DrawableBitmap; web uses simpler allocation |
@@ -420,8 +420,9 @@ Can be implemented using the Gamepad Haptic API or Vibration API for supported b
 |---------|--------|
 | Basic level progress | ✅ LocalStorage |
 | Diary collection tracking | ✅ Implemented |
-| High scores | ❌ Not implemented |
-| Time stamps per level | ❌ Not implemented |
+| High scores | ✅ Implemented |
+| Best time per level | ✅ Implemented |
+| Time stamps per level | ✅ Implemented |
 
 #### 11. Localization
 | Language | Original Files | Status |
@@ -1037,7 +1038,7 @@ The hot spot layer defines special tile behaviors:
 | Ghost Mechanic | 1 | ✅ GhostComponent implemented |
 | Other | 6 | ⚠️ Utility sprites |
 
-**Overall Completion: ~85%**
+**Overall Completion: ~88%**
 
 The game is **fully playable through all 47 levels** with:
 - ✅ **Level loading** - Binary .bin level files fully parsed
@@ -1069,7 +1070,7 @@ The remaining **~18%** consists of these major unimplemented features:
 | **Ghost Mechanic** | 1 (`ghost.png`) | `GhostComponent.ts` | MEDIUM | ✅ Done |
 | **Evil Kabocha Boss** | 0 | `EvilKabochaComponent.ts` | HIGH | ✅ Done |
 | **Snailbomb Enemy** | 7 (`snailbomb_*.png`) | Enemy factory spawn | LOW | ❌ |
-| **Motion Blur Effect** | 0 | `MotionBlurComponent.ts` | LOW | ❌ |
+| **Motion Blur Effect** | 0 | `MotionBlurComponent.ts` | LOW | ✅ Done |
 | **Per-Object Fade** | 0 | `FadeDrawableComponent.ts` | LOW | ❌ |
 | **Background Music** | 0 | MIDI→OGG conversion | LOW | ⚠️ SoundSystem ready |
 | **Diary System** | 0 | `CanvasDiaryOverlay.ts` | MEDIUM | ✅ Done |

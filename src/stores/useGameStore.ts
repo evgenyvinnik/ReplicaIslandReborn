@@ -460,6 +460,10 @@ export const useGameStore = create<GameStore>()(
       },
 
       resetEverything: () => {
+        // First, clear the persisted storage to ensure a clean slate
+        localStorage.removeItem('replica-island-save-data');
+        
+        // Then reset all state to defaults
         set({
           settings: DEFAULT_SETTINGS,
           progress: DEFAULT_PROGRESS,

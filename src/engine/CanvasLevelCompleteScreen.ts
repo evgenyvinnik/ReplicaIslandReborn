@@ -10,6 +10,12 @@ interface MenuOption {
   action: 'continue' | 'menu';
 }
 
+interface LevelStats {
+  bestTime: number | null;
+  bestScore: number;
+  currentTime: number;
+}
+
 export class CanvasLevelCompleteScreen {
   private ctx: CanvasRenderingContext2D;
   private canvas: HTMLCanvasElement;
@@ -29,6 +35,15 @@ export class CanvasLevelCompleteScreen {
   private lifeBonus: number = 0;
   private finalScore: number = 0;
   private levelName: string = 'Level';
+  
+  // Level stats for display
+  private levelStats: LevelStats = {
+    bestTime: null,
+    bestScore: 0,
+    currentTime: 0,
+  };
+  private isNewBestTime: boolean = false;
+  private isNewHighScore: boolean = false;
   
   // Menu options
   private options: MenuOption[] = [
@@ -64,8 +79,17 @@ export class CanvasLevelCompleteScreen {
   
   /**
    * Show level complete screen
+   * @param levelName The level's display name
+   * @param onContinue Callback when continue is selected
+   * @param onMainMenu Callback when main menu is selected
+   * @param stats Optional level stats (best time, high score, current time)
    */
-  show(levelName: string, onContinue: () => void, onMainMenu: () => void): void {
+  show(
+    levelName: string,
+    onContinue: () => void,
+    onMainMenu: () => void,
+    stats?: LevelStats
+  ): void {
     this.isActive = true;
     this.levelName = levelName;
     this.onContinue = onContinue;
@@ -82,6 +106,17 @@ export class CanvasLevelCompleteScreen {
     const inventory = getInventory();
     this.lifeBonus = inventory.lives * 1000;
     this.finalScore = inventory.score + this.lifeBonus;
+    
+    // Store stats and check for new records
+    if (stats) {
+      this.levelStats = stats;
+      this.isNewBestTime = stats.bestTime === null || stats.currentTime < stats.bestTime;
+      this.isNewHighScore = this.finalScore > stats.bestScore;
+    } else {
+      this.levelStats = { bestTime: null, bestScore: 0, currentTime: 0 };
+      this.isNewBestTime = false;
+      this.isNewHighScore = false;
+    }
     
     this.attach();
   }
@@ -276,7 +311,7 @@ export class CanvasLevelCompleteScreen {
       const boxX = this.width / 2 - 110;
       const boxY = 90;
       const boxWidth = 220;
-      const boxHeight = 130;
+      const boxHeight = 150;  // Increased height for time display
       
       // Stats box background
       this.ctx.fillStyle = 'rgba(0, 30, 0, 0.7)';
@@ -291,16 +326,42 @@ export class CanvasLevelCompleteScreen {
       this.ctx.fillStyle = '#aaaaaa';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'top';
-      this.ctx.fillText('Score', this.width / 2, boxY + 12);
+      this.ctx.fillText('Score', this.width / 2, boxY + 10);
       
-      // Score value
+      // Score value with high score indicator
       this.ctx.font = '14px "Press Start 2P", monospace';
-      this.ctx.fillStyle = '#ffcc00';
-      this.ctx.fillText(inventory.score.toLocaleString(), this.width / 2, boxY + 26);
+      this.ctx.fillStyle = this.isNewHighScore ? '#44ff44' : '#ffcc00';
+      this.ctx.fillText(inventory.score.toLocaleString(), this.width / 2, boxY + 22);
+      if (this.isNewHighScore) {
+        this.ctx.font = '6px "Press Start 2P", monospace';
+        this.ctx.fillStyle = '#44ff44';
+        this.ctx.fillText('NEW HIGH!', this.width / 2, boxY + 40);
+      }
+      
+      // Time display
+      const timeY = boxY + (this.isNewHighScore ? 52 : 44);
+      this.ctx.font = '8px "Press Start 2P", monospace';
+      this.ctx.fillStyle = '#aaaaaa';
+      this.ctx.fillText('Time', this.width / 2, timeY);
+      
+      const currentTime = this.formatTime(this.levelStats.currentTime);
+      this.ctx.font = '10px "Press Start 2P", monospace';
+      this.ctx.fillStyle = this.isNewBestTime ? '#44ff44' : '#88ccff';
+      this.ctx.fillText(currentTime, this.width / 2, timeY + 12);
+      
+      if (this.isNewBestTime) {
+        this.ctx.font = '6px "Press Start 2P", monospace';
+        this.ctx.fillStyle = '#44ff44';
+        this.ctx.fillText('BEST TIME!', this.width / 2, timeY + 24);
+      } else if (this.levelStats.bestTime !== null) {
+        this.ctx.font = '6px "Press Start 2P", monospace';
+        this.ctx.fillStyle = '#888888';
+        this.ctx.fillText(`Best: ${this.formatTime(this.levelStats.bestTime)}`, this.width / 2, timeY + 24);
+      }
       
       // Collectibles row
       this.ctx.font = '8px "Press Start 2P", monospace';
-      const statsY = boxY + 52;
+      const statsY = boxY + (this.isNewHighScore || this.isNewBestTime ? 82 : 74);
       const col1 = boxX + 30;
       const col2 = boxX + 80;
       const col3 = boxX + 130;
@@ -333,32 +394,34 @@ export class CanvasLevelCompleteScreen {
       
       // Life bonus section
       if (this.showBonus) {
+        const bonusBaseY = statsY + 16;
+        
         // Divider line
         this.ctx.strokeStyle = '#44aa44';
         this.ctx.lineWidth = 1;
         this.ctx.beginPath();
-        this.ctx.moveTo(boxX + 20, boxY + 72);
-        this.ctx.lineTo(boxX + boxWidth - 20, boxY + 72);
+        this.ctx.moveTo(boxX + 20, bonusBaseY);
+        this.ctx.lineTo(boxX + boxWidth - 20, bonusBaseY);
         this.ctx.stroke();
         
         // Life Bonus
         this.ctx.font = '8px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#aaaaaa';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText('Life Bonus', this.width / 2, boxY + 82);
+        this.ctx.fillText('Life Bonus', this.width / 2, bonusBaseY + 10);
         
         this.ctx.font = '11px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#44ff44';
-        this.ctx.fillText('+' + this.lifeBonus.toLocaleString(), this.width / 2, boxY + 96);
+        this.ctx.fillText('+' + this.lifeBonus.toLocaleString(), this.width / 2, bonusBaseY + 24);
         
         // Final Score
         this.ctx.font = '8px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#ffcc00';
-        this.ctx.fillText('Final Score', this.width / 2, boxY + 112);
+        this.ctx.fillText('Final Score', this.width / 2, bonusBaseY + 40);
         
         this.ctx.font = '11px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#ffff44';
-        this.ctx.fillText(this.finalScore.toLocaleString(), this.width / 2, boxY + 126);
+        this.ctx.fillText(this.finalScore.toLocaleString(), this.width / 2, bonusBaseY + 54);
       }
     }
     
@@ -424,5 +487,15 @@ export class CanvasLevelCompleteScreen {
     this.ctx.lineTo(x, y + r);
     this.ctx.quadraticCurveTo(x, y, x + r, y);
     this.ctx.closePath();
+  }
+  
+  /**
+   * Format time in seconds to MM:SS.cc format
+   */
+  private formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    const centisecs = Math.floor((seconds % 1) * 100);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${centisecs.toString().padStart(2, '0')}`;
   }
 }

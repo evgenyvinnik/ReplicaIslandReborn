@@ -324,6 +324,15 @@ export class GameObject implements Poolable {
     return this.lastTouchedFloorTime;
   }
 
+  // Game time setters/getters (for external systems that need to update gameTime before using touchingGround)
+  setGameTime(time: number): void {
+    this.gameTime = time;
+  }
+
+  getGameTime(): number {
+    return this.gameTime;
+  }
+
   setLastTouchedCeilingTime(time: number): void {
     this.lastTouchedCeilingTime = time;
   }

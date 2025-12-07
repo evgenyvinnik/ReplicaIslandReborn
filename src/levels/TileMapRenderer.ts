@@ -129,30 +129,15 @@ export class TileMapRenderer {
    */
   render(renderSystem: RenderSystem, camera: CameraSystem): void {
     this.renderCallCount++;
-    const cameraX = camera.getFocusPositionX() - this.viewWidth / 2;
-    const cameraY = camera.getFocusPositionY() - this.viewHeight / 2;
+    // Camera's getFocusPosition already returns top-left corner of the viewport
+    const cameraX = camera.getFocusPositionX();
+    const cameraY = camera.getFocusPositionY();
 
     // Get canvas context for direct rendering
     const ctx = (renderSystem as unknown as { ctx: CanvasRenderingContext2D }).ctx;
     
     if (!ctx || this.layers.length === 0) {
-      if (this.renderCallCount <= 3) {
-        console.warn('[TileMapRenderer.render] Early exit - ctx:', !!ctx, 'layers:', this.layers.length);
-      }
       return;
-    }
-    
-    if (this.renderCallCount === 1) {
-      console.warn('[TileMapRenderer.render] First render - camera:', cameraX.toFixed(0), cameraY.toFixed(0), 'layers:', this.layers.length);
-      // Debug: log first layer info
-      const layer = this.layers[0];
-      console.warn('[TileMapRenderer.render] Layer 0:', {
-        tileset: layer.tileset,
-        worldSize: `${layer.world.width}x${layer.world.height}`,
-        tilesArrayShape: `${layer.world.tiles?.length}x${layer.world.tiles?.[0]?.length}`,
-        scrollSpeed: `${layer.scrollSpeedX},${layer.scrollSpeedY}`,
-        sampleTiles: layer.world.tiles?.slice(0, 3).map(col => col?.slice(0, 3))
-      });
     }
 
     for (const layer of this.layers) {
@@ -197,23 +182,11 @@ export class TileMapRenderer {
       return;
     }
     
-    // Debug: log tileset on first render
-    if (this.renderCallCount === 1) {
-      console.warn('[TileMapRenderer] Tileset image:', {
-        tileset: layer.tileset,
-        width: tilesetImage.width,
-        height: tilesetImage.height,
-        complete: (tilesetImage as HTMLImageElement).complete,
-        naturalWidth: (tilesetImage as HTMLImageElement).naturalWidth
-      });
-    }
-    
     // Calculate tileset grid dimensions
     const tilesPerRow = Math.floor(tilesetImage.width / this.tileWidth);
     
-    // Debug: count rendered tiles
+    // Count rendered tiles for debugging
     let tilesRendered = 0;
-    const isFirstRender = this.renderCallCount === 1;
 
     // Render visible tiles - tiles[x][y] is column-major
     for (let tileY = startTileY; tileY < endTileY; tileY++) {
