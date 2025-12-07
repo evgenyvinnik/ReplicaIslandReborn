@@ -1651,9 +1651,64 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             dialog={activeDialog}
             onComplete={(): void => {
               setActiveDialog(null);
+              // If this is a cutscene-only level (no player), advance to next level after dialog
+              const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+              const player = gameObjectMgr?.getPlayer();
+              if (!player) {
+                // No player means this is a story/cutscene level - advance to next
+                const levelSys = levelSystemRef.current;
+                if (levelSys) {
+                  const nextLevelId = levelSys.getNextLevelId();
+                  if (nextLevelId !== null) {
+                    levelSys.unlockLevel(nextLevelId);
+                    setLevel(nextLevelId);
+                    setLevelLoading(true);
+                    hasShownIntroDialogRef.current = false;
+                    levelSys.loadLevel(nextLevelId).then(() => {
+                      gameObjectMgr?.commitUpdates();
+                      const spawn = levelSys.playerSpawnPosition;
+                      playerSpawnRef.current = { ...spawn };
+                      const newPlayer = gameObjectMgr?.getPlayer();
+                      if (newPlayer) {
+                        newPlayer.setPosition(spawn.x, spawn.y);
+                        newPlayer.getVelocity().x = 0;
+                        newPlayer.getVelocity().y = 0;
+                      }
+                      setLevelLoading(false);
+                    });
+                  }
+                }
+              }
             }}
             onSkip={(): void => {
               setActiveDialog(null);
+              // Same logic for skip - if cutscene level, advance
+              const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+              const player = gameObjectMgr?.getPlayer();
+              if (!player) {
+                const levelSys = levelSystemRef.current;
+                if (levelSys) {
+                  const nextLevelId = levelSys.getNextLevelId();
+                  if (nextLevelId !== null) {
+                    levelSys.unlockLevel(nextLevelId);
+                    setLevel(nextLevelId);
+                    setLevelLoading(true);
+                    hasShownIntroDialogRef.current = false;
+                    levelSys.loadLevel(nextLevelId).then(() => {
+                      gameObjectMgr?.commitUpdates();
+                      const spawn = levelSys.playerSpawnPosition;
+                      playerSpawnRef.current = { ...spawn };
+                      const newPlayer = gameObjectMgr?.getPlayer();
+                      if (newPlayer) {
+                        newPlayer.setPosition(spawn.x, spawn.y);
+                        newPlayer.getVelocity().x = 0;
+                        newPlayer.getVelocity().y = 0;
+                      }
+                      setLevelLoading(false);
+                    });
+                  }
+                }
+              }
             }}
           />
         )}
