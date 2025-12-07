@@ -41,16 +41,18 @@ See **Section 5.5. NPC Intro Cutscene System** for implementation details.
 - [x] Main menu with original title_background.png and title.png assets
 - [x] Loading screen
 - [x] Level select screen (basic)
-- [x] HUD component
-- [x] On-screen controls (twin-stick style matching original)
+- [x] HUD component (Canvas-based: CanvasHUD.ts)
+- [x] On-screen controls (Canvas-based: CanvasControls.ts)
   - Movement slider (left side)
   - Fly button
   - Stomp button
 - [x] Keyboard support (WASD/Arrows, Space, X)
-- [x] Pause menu overlay
-- [x] Game over screen
-- [x] Level complete screen
+- [x] Pause menu overlay (Canvas-based: CanvasPauseMenu.ts)
+- [x] Game over screen (Canvas-based: CanvasGameOverScreen.ts)
+- [x] Level complete screen (Canvas-based: CanvasLevelCompleteScreen.ts)
 - [x] Difficulty menu (matches original layout with dark panel)
+- [x] Dialog overlay (Canvas-based: CanvasDialog.ts)
+- [x] Cutscene player (Canvas-based: CanvasCutscene.ts)
 
 ### Core Engine
 - [x] GameLoop.ts - Basic game loop with fixed timestep
@@ -67,6 +69,16 @@ See **Section 5.5. NPC Intro Cutscene System** for implementation details.
 - [x] ChannelSystem.ts - Event/messaging system
 - [x] GameFlowEvent.ts - Game state transitions
 - [x] GameObjectCollisionSystem.ts - Object-to-object collision
+
+### Canvas-Based UI Systems (NEW)
+All gameplay UI is now rendered directly to Canvas for a pure Canvas game experience:
+- [x] CanvasHUD.ts - Fuel bar, coin/ruby counters, FPS display
+- [x] CanvasControls.ts - Touch/mouse movement slider, fly/stomp buttons
+- [x] CanvasDialog.ts - NPC conversation with typewriter effect, portraits
+- [x] CanvasCutscene.ts - Frame-by-frame cutscene animation with parallax
+- [x] CanvasPauseMenu.ts - Pause overlay with ui_paused.png
+- [x] CanvasGameOverScreen.ts - Stats display, retry/menu options
+- [x] CanvasLevelCompleteScreen.ts - Level stats, life bonus, continue/menu
 
 ### Canvas Rendering Status
 The `RenderSystem.ts` uses HTML5 Canvas 2D API:

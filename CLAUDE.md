@@ -32,10 +32,11 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 
 ### Technology Stack
 - **Framework**: React 19 + TypeScript with Vite
-- **Rendering**: HTML5 Canvas 2D API
+- **Rendering**: HTML5 Canvas 2D API (gameplay) + React (menus)
 - **Audio**: Web Audio API
 - **State Management**: Zustand (persistent) + React Context (runtime)
 - **Build Tool**: Vite with Bun runtime
+- **UI Architecture**: React for menus, Canvas for all gameplay UI
 
 ### Implementation Progress Summary
 
@@ -43,11 +44,12 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 |----------|--------|---------|
 | **Core Engine** | ✅ 95% | 15 systems implemented |
 | **Components** | ✅ 90% | 30 of ~33 components ported |
-| **UI/Screens** | ✅ 95% | 18 React components |
+| **UI/Screens** | ✅ 100% | 11 React menu components + 7 Canvas gameplay systems |
+| **Canvas Gameplay UI** | ✅ 100% | HUD, Controls, Dialog, Cutscene, Pause, GameOver, LevelComplete |
 | **Levels** | ✅ 100% | 40+ levels working |
 | **Sound** | ✅ 100% | All SFX loaded and playing |
 | **Music** | ❌ 0% | MIDI needs conversion |
-| **Cutscenes** | ✅ 100% | CutscenePlayer with 4 cutscene types |
+| **Cutscenes** | ✅ 100% | CanvasCutscene with 4 cutscene types |
 | **Ghost Mechanic** | ✅ 100% | GhostComponent ported |
 
 ### Implemented Engine Systems (15 total)
@@ -113,28 +115,43 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 | MotionBlurComponent | MotionBlurComponent.java | LOW | Visual effect |
 | FadeDrawableComponent | FadeDrawableComponent.java | LOW | Per-object fade |
 
-### React UI Components (17 total)
+### React UI Components (Menu Screens Only)
+
+React is used **only for menu screens**. Gameplay is 100% Canvas-based.
 
 | Component | Purpose |
 |-----------|---------|
-| `Game.tsx` | Main game canvas, system orchestration (~1700 lines) |
-| `CutscenePlayer.tsx` | Cutscene/animation player (death, endings) |
+| `Game.tsx` | Main game canvas, system orchestration (~1900 lines) |
 | `MainMenu.tsx` | Title screen with original assets |
 | `LevelSelect.tsx` | Level grid with unlock states |
 | `DifficultyMenu.tsx` | Baby/Kids/Adults selection |
 | `OptionsMenu.tsx` | Settings and key bindings |
-| `PauseMenu.tsx` | In-game pause overlay |
-| `HUD.tsx` | Fuel bar, coin/ruby counters, FPS |
-| `GameOverScreen.tsx` | Death screen with retry |
-| `LevelCompleteScreen.tsx` | Victory stats and next level |
-| `DialogOverlay.tsx` | NPC conversation display |
 | `LoadingScreen.tsx` | Level loading progress |
-| `OnScreenControls.tsx` | Mobile virtual joystick |
 | `FadeTransition.tsx` | Screen transitions |
 | `PhoneFrame.tsx` | Android phone bezel aesthetic |
 | `AndroidHomeScreen.tsx` | Fake home screen for immersion |
 | `AndroidRecentsScreen.tsx` | Fake recents view |
 | `SoundControls.tsx` | Volume controls |
+
+### Canvas-Based Gameplay UI (NEW ARCHITECTURE)
+
+All gameplay UI is rendered directly to Canvas for performance and consistency:
+
+| System | File | Purpose |
+|--------|------|---------|
+| CanvasHUD | `CanvasHUD.ts` | Fuel bar, coin/ruby counters, FPS display |
+| CanvasControls | `CanvasControls.ts` | Movement slider, fly/stomp buttons, touch/mouse |
+| CanvasDialog | `CanvasDialog.ts` | Typewriter text, character portraits, conversations |
+| CanvasCutscene | `CanvasCutscene.ts` | Frame animation, parallax layers, Kyle death |
+| CanvasPauseMenu | `CanvasPauseMenu.ts` | Pause overlay with ui_paused.png |
+| CanvasGameOverScreen | `CanvasGameOverScreen.ts` | Score/stats, Try Again/Main Menu options |
+| CanvasLevelCompleteScreen | `CanvasLevelCompleteScreen.ts` | Level stats, life bonus, Continue/Main Menu |
+
+**Why Canvas-based UI?**
+- **Consistent rendering**: All gameplay visuals in one rendering context
+- **Performance**: No React reconciliation during gameplay
+- **Pixel-perfect**: Matches original game's retro aesthetic
+- **Architecture**: Clear separation - React for menus, Canvas for gameplay
 
 ---
 

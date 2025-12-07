@@ -17,18 +17,18 @@ import { TimeSystem } from '../engine/TimeSystem';
 import { HotSpotSystem, HotSpotType } from '../engine/HotSpotSystem';
 import { AnimationSystem } from '../engine/AnimationSystem';
 import { EffectsSystem } from '../engine/EffectsSystem';
+import { CanvasHUD } from '../engine/CanvasHUD';
+import { CanvasControls } from '../engine/CanvasControls';
+import { CanvasDialog } from '../engine/CanvasDialog';
+import { CanvasCutscene } from '../engine/CanvasCutscene';
+import { CanvasPauseMenu } from '../engine/CanvasPauseMenu';
+import { CanvasGameOverScreen } from '../engine/CanvasGameOverScreen';
+import { CanvasLevelCompleteScreen } from '../engine/CanvasLevelCompleteScreen';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { GameObject } from '../entities/GameObject';
 import { LevelSystem } from '../levels/LevelSystemNew';
 import { TileMapRenderer } from '../levels/TileMapRenderer';
-import { HUD } from './HUD';
-import { OnScreenControls } from './OnScreenControls';
-import { DialogOverlay } from './DialogOverlay';
-import { PauseMenu } from './PauseMenu';
-import { GameOverScreen } from './GameOverScreen';
-import { LevelCompleteScreen } from './LevelCompleteScreen';
-import { CutscenePlayer } from './CutscenePlayer';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 import { gameSettings } from '../utils/GameSettings';
 import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
@@ -64,7 +64,7 @@ const PLAYER = {
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, endCutscene } = useGameContext();
+  const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, endCutscene, goToMainMenu } = useGameContext();
   
   // Systems refs
   const gameLoopRef = useRef<GameLoop | null>(null);
@@ -75,6 +75,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const tileMapRendererRef = useRef<TileMapRenderer | null>(null);
   const backgroundImageRef = useRef<HTMLImageElement | null>(null);
   const levelSystemRef = useRef<LevelSystem | null>(null);
+  
+  // Canvas-based UI systems
+  const canvasHUDRef = useRef<CanvasHUD | null>(null);
+  const canvasControlsRef = useRef<CanvasControls | null>(null);
+  const canvasDialogRef = useRef<CanvasDialog | null>(null);
+  const canvasCutsceneRef = useRef<CanvasCutscene | null>(null);
+  const canvasPauseMenuRef = useRef<CanvasPauseMenu | null>(null);
+  const canvasGameOverRef = useRef<CanvasGameOverScreen | null>(null);
+  const canvasLevelCompleteRef = useRef<CanvasLevelCompleteScreen | null>(null);
   
   // Player spawn point (set when level loads)
   const playerSpawnRef = useRef({ x: 100, y: 320 });
@@ -101,10 +110,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   });
   
   const [isInitialized, setIsInitialized] = useState(false);
-  const [fps, setFps] = useState(0);
   const [scale, setScale] = useState(1);
   const [levelLoading, setLevelLoading] = useState(true);
-  const [playerFuel, setPlayerFuel] = useState(PLAYER.FUEL_AMOUNT);
   
   // Use ref for current level to avoid dependency issues
   const currentLevelRef = useRef(state.currentLevel);
@@ -112,14 +119,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   
   // Game settings state - subscribe to changes
   const [currentSettings, setCurrentSettings] = useState(gameSettings.getAll());
-  
-  // Input state for on-screen controls sync (keyboard/gamepad -> UI)
-  const [inputUIState, setInputUIState] = useState({
-    flyActive: false,
-    stompActive: false,
-    leftActive: false,
-    rightActive: false,
-  });
   
   // Dialog state
   const [activeDialog, setActiveDialog] = useState<Dialog | null>(null);
@@ -153,6 +152,188 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       }
     }
   }, [levelLoading, isInitialized, state.currentLevel]);
+
+  // Handle Canvas Dialog when activeDialog changes
+  useEffect(() => {
+    const canvasDialog = canvasDialogRef.current;
+    if (!canvasDialog) return;
+    
+    if (activeDialog) {
+      // Define dialog completion handler
+      const handleDialogComplete = (): void => {
+        setActiveDialog(null);
+        // If this is a cutscene-only level (no player), advance to next level after dialog
+        const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+        const player = gameObjectMgr?.getPlayer();
+        if (!player) {
+          // No player means this is a story/cutscene level - advance to next
+          const levelSys = levelSystemRef.current;
+          if (levelSys) {
+            const nextLevelId = levelSys.getNextLevelId();
+            if (nextLevelId !== null) {
+              levelSys.unlockLevel(nextLevelId);
+              setLevel(nextLevelId);
+              setLevelLoading(true);
+              hasShownIntroDialogRef.current = false;
+              levelSys.loadLevel(nextLevelId).then(() => {
+                gameObjectMgr?.commitUpdates();
+                const spawn = levelSys.playerSpawnPosition;
+                playerSpawnRef.current = { ...spawn };
+                const newPlayer = gameObjectMgr?.getPlayer();
+                if (newPlayer) {
+                  newPlayer.setPosition(spawn.x, spawn.y);
+                  newPlayer.getVelocity().x = 0;
+                  newPlayer.getVelocity().y = 0;
+                }
+                setLevelLoading(false);
+              });
+            }
+          }
+        }
+      };
+      
+      canvasDialog.show(activeDialog, handleDialogComplete, handleDialogComplete);
+    } else {
+      canvasDialog.hide();
+    }
+  }, [activeDialog, setLevel]);
+
+  // Handle Canvas Cutscene when cutscene state changes
+  useEffect(() => {
+    const canvasCutscene = canvasCutsceneRef.current;
+    if (!canvasCutscene) return;
+    
+    if (state.gameState === GameState.CUTSCENE && state.activeCutscene !== null) {
+      const handleCutsceneComplete = (): void => {
+        // Check if this cutscene leads to game over
+        const cutscene = getCutscene(state.activeCutscene!);
+        if (cutscene.isGameOver) {
+          endCutscene();
+          gameOver();
+        } else if (cutscene.isEnding) {
+          // Ending cutscenes return to main menu
+          endCutscene();
+          // TODO: Show ending stats screen before main menu
+        } else {
+          endCutscene();
+        }
+      };
+      
+      canvasCutscene.play(state.activeCutscene, handleCutsceneComplete);
+    } else {
+      canvasCutscene.stop();
+    }
+  }, [state.gameState, state.activeCutscene, endCutscene, gameOver]);
+
+  // Handle Canvas Pause Menu when game state changes
+  useEffect(() => {
+    const canvasPauseMenu = canvasPauseMenuRef.current;
+    if (!canvasPauseMenu) return;
+    
+    if (state.gameState === GameState.PAUSED) {
+      canvasPauseMenu.show((): void => {
+        resumeGame();
+      });
+    } else {
+      canvasPauseMenu.hide();
+    }
+  }, [state.gameState, resumeGame]);
+
+  // Handle Canvas Game Over Screen when game state changes
+  useEffect(() => {
+    const canvasGameOver = canvasGameOverRef.current;
+    if (!canvasGameOver) return;
+    
+    if (state.gameState === GameState.GAME_OVER) {
+      canvasGameOver.show(
+        (): void => {
+          // Retry - reload current level
+          const levelSys = levelSystemRef.current;
+          if (levelSys) {
+            levelSys.loadLevel(state.currentLevel).then(() => {
+              const spawn = levelSys.playerSpawnPosition;
+              playerSpawnRef.current = { ...spawn };
+              const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+              gameObjectMgr?.commitUpdates();
+              const player = gameObjectMgr?.getPlayer();
+              if (player) {
+                player.setPosition(spawn.x, spawn.y);
+                player.getVelocity().x = 0;
+                player.getVelocity().y = 0;
+              }
+              resumeGame();
+            });
+          }
+        },
+        (): void => {
+          // Main menu
+          goToMainMenu();
+        }
+      );
+    } else {
+      canvasGameOver.hide();
+    }
+  }, [state.gameState, state.currentLevel, resumeGame, goToMainMenu]);
+
+  // Handle Canvas Level Complete Screen when game state changes
+  useEffect(() => {
+    const canvasLevelComplete = canvasLevelCompleteRef.current;
+    if (!canvasLevelComplete) return;
+    
+    if (state.gameState === GameState.LEVEL_COMPLETE) {
+      const levelName = levelSystemRef.current?.getLevelInfo(state.currentLevel)?.name ?? 'Level';
+      canvasLevelComplete.show(
+        levelName,
+        (): void => {
+          // Continue - go to next level
+          const levelSys = levelSystemRef.current;
+          if (levelSys) {
+            const nextLevelId = levelSys.getNextLevelId();
+            if (nextLevelId !== null) {
+              levelSys.unlockLevel(nextLevelId);
+              setLevel(nextLevelId);
+              hasShownIntroDialogRef.current = false;
+              levelSys.loadLevel(nextLevelId).then(() => {
+                const spawn = levelSys.playerSpawnPosition;
+                playerSpawnRef.current = { ...spawn };
+                const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+                gameObjectMgr?.commitUpdates();
+                const player = gameObjectMgr?.getPlayer();
+                if (player) {
+                  player.setPosition(spawn.x, spawn.y);
+                  player.getVelocity().x = 0;
+                  player.getVelocity().y = 0;
+                }
+                resumeGame();
+              });
+            }
+          }
+        },
+        (): void => {
+          // Main menu
+          goToMainMenu();
+        }
+      );
+    } else {
+      canvasLevelComplete.hide();
+    }
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu]);
+
+  // Attach/detach Canvas Controls when settings change
+  useEffect(() => {
+    const canvasControls = canvasControlsRef.current;
+    if (!canvasControls) return;
+    
+    if (currentSettings.onScreenControlsEnabled && isInitialized && !levelLoading) {
+      canvasControls.attach();
+    } else {
+      canvasControls.detach();
+    }
+    
+    return (): void => {
+      canvasControls.detach();
+    };
+  }, [currentSettings.onScreenControlsEnabled, isInitialized, levelLoading]);
 
   // Subscribe to settings changes
   useEffect(() => {
@@ -248,6 +429,58 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Placeholder tileset for fallback
     const placeholderTileset = generatePlaceholderTileset(32);
     renderSystem.registerCanvasSprite('tileset', placeholderTileset, 32, 32);
+
+    // Canvas-based UI systems - get canvas context
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // Canvas HUD
+      const canvasHUD = new CanvasHUD(ctx, width, height);
+      canvasHUDRef.current = canvasHUD;
+      
+      // Canvas Controls
+      const canvasControls = new CanvasControls(ctx, canvas, width, height);
+      canvasControlsRef.current = canvasControls;
+      
+      // Canvas Dialog
+      const canvasDialog = new CanvasDialog(ctx, canvas, width, height);
+      canvasDialogRef.current = canvasDialog;
+      
+      // Canvas Cutscene
+      const canvasCutscene = new CanvasCutscene(ctx, canvas, width, height);
+      canvasCutsceneRef.current = canvasCutscene;
+      
+      // Canvas Pause Menu
+      const canvasPauseMenu = new CanvasPauseMenu(ctx, canvas, width, height);
+      canvasPauseMenuRef.current = canvasPauseMenu;
+      canvasPauseMenu.preload();
+      
+      // Canvas Game Over Screen
+      const canvasGameOver = new CanvasGameOverScreen(ctx, canvas, width, height);
+      canvasGameOverRef.current = canvasGameOver;
+      
+      // Canvas Level Complete Screen
+      const canvasLevelComplete = new CanvasLevelCompleteScreen(ctx, canvas, width, height);
+      canvasLevelCompleteRef.current = canvasLevelComplete;
+      
+      // Setup controls callbacks
+      canvasControls.setCallbacks(
+        (direction: number): void => {
+          inputSystem.setVirtualAxis('horizontal', direction);
+        },
+        (): void => {
+          inputSystem.setVirtualButton('fly', true);
+        },
+        (): void => {
+          inputSystem.setVirtualButton('fly', false);
+        },
+        (): void => {
+          inputSystem.setVirtualButton('stomp', true);
+        },
+        (): void => {
+          inputSystem.setVirtualButton('stomp', false);
+        }
+      );
+    }
 
     // Load background image helper
     const loadBackgroundImage = (imageName: string): Promise<HTMLImageElement> => {
@@ -405,6 +638,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Load effect sprites (explosions, smoke, etc.)
         await effectsSystem.preloadSprites();
         
+        // Load Canvas UI sprites
+        if (canvasHUDRef.current) {
+          await canvasHUDRef.current.preload();
+        }
+        if (canvasControlsRef.current) {
+          await canvasControlsRef.current.preload();
+        }
+        
         // Initialize sound system
         await soundSystem.initialize();
         await soundSystem.preloadAllSounds();
@@ -559,14 +800,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Get player and input state
       const player = gameObjectManager.getPlayer();
       const input = inputSystem.getInputState();
-      
-      // Update input UI state for on-screen controls synchronization
-      setInputUIState({
-        flyActive: inputSystem.isJumpActive(),
-        stompActive: inputSystem.isAttackActive(),
-        leftActive: inputSystem.isMovingLeft(),
-        rightActive: inputSystem.isMovingRight(),
-      });
       
       if (player) {
         // Player physics update (based on original PlayerComponent.java)
@@ -1069,9 +1302,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
         pState.fuel = Math.min(PLAYER.FUEL_AMOUNT, pState.fuel);
       }
-      
-      // Update HUD fuel display
-      setPlayerFuel(pState.fuel);
 
       // Horizontal movement
       let moveX = 0;
@@ -1481,16 +1711,74 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const cameraY = cameraSystem.getFocusPositionY() - height / 2;
       effectsSystem.render(ctx, cameraX, cameraY);
 
-      // Draw HUD fuel bar
-      const pState = playerStateRef.current;
-      const fuelPercent = pState.fuel / PLAYER.FUEL_AMOUNT;
-      renderSystem.drawRect(10, 10, 100, 10, '#333333', 100, 0.8);
-      renderSystem.drawRect(10, 10, 100 * fuelPercent, 10, '#44ff44', 101, 0.9);
-
       // Swap and render - camera at top-left corner for world-space objects
       const cameraTopLeftX = cameraSystem.getFocusPositionX() - width / 2;
       const cameraTopLeftY = cameraSystem.getFocusPositionY() - height / 2;
       renderSystem.swap(cameraTopLeftX, cameraTopLeftY);
+      
+      // === Canvas UI Layer (rendered after swap, in screen space) ===
+      
+      // Update and render Canvas HUD
+      const canvasHUD = canvasHUDRef.current;
+      if (canvasHUD) {
+        const pState = playerStateRef.current;
+        const inventory = getInventory();
+        canvasHUD.setFuel(pState.fuel / PLAYER.FUEL_AMOUNT);
+        canvasHUD.setInventory(inventory.coinCount, inventory.rubyCount);
+        canvasHUD.setShowFPS(currentSettings.showFPS);
+        canvasHUD.setFPS(gameLoop.getFPS());
+        canvasHUD.update(1 / 60); // ~60fps deltaTime
+        canvasHUD.render();
+      }
+      
+      // Update and render Canvas Controls (if enabled)
+      const canvasControls = canvasControlsRef.current;
+      if (canvasControls && currentSettings.onScreenControlsEnabled) {
+        const iSystem = systemRegistryRef.current?.inputSystem;
+        if (iSystem) {
+          canvasControls.setKeyboardState(
+            iSystem.isMovingLeft(),
+            iSystem.isMovingRight(),
+            iSystem.isJumpActive(),
+            iSystem.isAttackActive()
+          );
+        }
+        canvasControls.render();
+      }
+      
+      // Update and render Canvas Dialog (if active)
+      const canvasDialog = canvasDialogRef.current;
+      if (canvasDialog && canvasDialog.isActive()) {
+        canvasDialog.update(1 / 60);
+        canvasDialog.render();
+      }
+      
+      // Update and render Canvas Cutscene (if active)
+      const canvasCutscene = canvasCutsceneRef.current;
+      if (canvasCutscene && canvasCutscene.isActive()) {
+        canvasCutscene.update(1 / 60);
+        canvasCutscene.render();
+      }
+      
+      // Update and render Canvas Pause Menu (if active)
+      const canvasPauseMenu = canvasPauseMenuRef.current;
+      if (canvasPauseMenu && canvasPauseMenu.isShowing()) {
+        canvasPauseMenu.render();
+      }
+      
+      // Update and render Canvas Game Over Screen (if active)
+      const canvasGameOver = canvasGameOverRef.current;
+      if (canvasGameOver && canvasGameOver.isShowing()) {
+        canvasGameOver.update(1 / 60);
+        canvasGameOver.render();
+      }
+      
+      // Update and render Canvas Level Complete Screen (if active)
+      const canvasLevelComplete = canvasLevelCompleteRef.current;
+      if (canvasLevelComplete && canvasLevelComplete.isShowing()) {
+        canvasLevelComplete.update(1 / 60);
+        canvasLevelComplete.render();
+      }
     });
 
     setIsInitialized(true);
@@ -1498,20 +1786,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Start the game loop
     gameLoop.start();
 
-    // FPS counter
-    const fpsInterval = setInterval(() => {
-      setFps(gameLoop.getFPS());
-    }, 500);
-
     // Cleanup
     return (): void => {
-      clearInterval(fpsInterval);
       hasShownIntroDialogRef.current = false; // Reset for strict mode double-render
       gameLoop.stop();
       inputSystem.destroy();
       soundSystem.destroy();
     };
-  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene]);
+  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, currentSettings.onScreenControlsEnabled, currentSettings.showFPS]);
 
   // Handle resize
   useEffect(() => {
@@ -1601,199 +1883,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }}
         />
         
-        {isInitialized && !levelLoading && (
-          <>
-            <HUD fps={fps} showFPS={currentSettings.showFPS} fuel={playerFuel} gameWidth={width} gameHeight={height} />
-            {currentSettings.onScreenControlsEnabled && (
-              <OnScreenControls
-                onMovementChange={(direction: number): void => {
-                  const inputSystem = systemRegistryRef.current?.inputSystem;
-                  if (inputSystem) {
-                    inputSystem.setVirtualAxis('horizontal', direction);
-                  }
-                }}
-                onFlyPressed={(): void => {
-                  const inputSystem = systemRegistryRef.current?.inputSystem;
-                  if (inputSystem) {
-                    inputSystem.setVirtualButton('fly', true);
-                  }
-                }}
-                onFlyReleased={(): void => {
-                  const inputSystem = systemRegistryRef.current?.inputSystem;
-                  if (inputSystem) {
-                    inputSystem.setVirtualButton('fly', false);
-                  }
-                }}
-                onStompPressed={(): void => {
-                  const inputSystem = systemRegistryRef.current?.inputSystem;
-                  if (inputSystem) {
-                    inputSystem.setVirtualButton('stomp', true);
-                  }
-                }}
-                onStompReleased={(): void => {
-                  const inputSystem = systemRegistryRef.current?.inputSystem;
-                  if (inputSystem) {
-                    inputSystem.setVirtualButton('stomp', false);
-                  }
-                }}
-                keyboardFlyActive={inputUIState.flyActive}
-                keyboardStompActive={inputUIState.stompActive}
-                keyboardLeftActive={inputUIState.leftActive}
-                keyboardRightActive={inputUIState.rightActive}
-              />
-            )}
-          </>
-        )}
-        
-        {/* Dialog overlay */}
-        {activeDialog && (
-          <DialogOverlay
-            dialog={activeDialog}
-            onComplete={(): void => {
-              setActiveDialog(null);
-              // If this is a cutscene-only level (no player), advance to next level after dialog
-              const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
-              const player = gameObjectMgr?.getPlayer();
-              if (!player) {
-                // No player means this is a story/cutscene level - advance to next
-                const levelSys = levelSystemRef.current;
-                if (levelSys) {
-                  const nextLevelId = levelSys.getNextLevelId();
-                  if (nextLevelId !== null) {
-                    levelSys.unlockLevel(nextLevelId);
-                    setLevel(nextLevelId);
-                    setLevelLoading(true);
-                    hasShownIntroDialogRef.current = false;
-                    levelSys.loadLevel(nextLevelId).then(() => {
-                      gameObjectMgr?.commitUpdates();
-                      const spawn = levelSys.playerSpawnPosition;
-                      playerSpawnRef.current = { ...spawn };
-                      const newPlayer = gameObjectMgr?.getPlayer();
-                      if (newPlayer) {
-                        newPlayer.setPosition(spawn.x, spawn.y);
-                        newPlayer.getVelocity().x = 0;
-                        newPlayer.getVelocity().y = 0;
-                      }
-                      setLevelLoading(false);
-                    });
-                  }
-                }
-              }
-            }}
-            onSkip={(): void => {
-              setActiveDialog(null);
-              // Same logic for skip - if cutscene level, advance
-              const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
-              const player = gameObjectMgr?.getPlayer();
-              if (!player) {
-                const levelSys = levelSystemRef.current;
-                if (levelSys) {
-                  const nextLevelId = levelSys.getNextLevelId();
-                  if (nextLevelId !== null) {
-                    levelSys.unlockLevel(nextLevelId);
-                    setLevel(nextLevelId);
-                    setLevelLoading(true);
-                    hasShownIntroDialogRef.current = false;
-                    levelSys.loadLevel(nextLevelId).then(() => {
-                      gameObjectMgr?.commitUpdates();
-                      const spawn = levelSys.playerSpawnPosition;
-                      playerSpawnRef.current = { ...spawn };
-                      const newPlayer = gameObjectMgr?.getPlayer();
-                      if (newPlayer) {
-                        newPlayer.setPosition(spawn.x, spawn.y);
-                        newPlayer.getVelocity().x = 0;
-                        newPlayer.getVelocity().y = 0;
-                      }
-                      setLevelLoading(false);
-                    });
-                  }
-                }
-              }
-            }}
-          />
-        )}
-        
-        {/* Pause menu overlay */}
-        {state.gameState === GameState.PAUSED && (
-          <PauseMenu />
-        )}
-        
-        {/* Cutscene overlay */}
-        {state.gameState === GameState.CUTSCENE && state.activeCutscene !== null && (
-          <CutscenePlayer
-            cutsceneType={state.activeCutscene}
-            width={width}
-            height={height}
-            onComplete={(): void => {
-              // Check if this cutscene leads to game over
-              const cutscene = getCutscene(state.activeCutscene!);
-              if (cutscene.isGameOver) {
-                endCutscene();
-                gameOver();
-              } else if (cutscene.isEnding) {
-                // Ending cutscenes return to main menu
-                endCutscene();
-                // TODO: Show ending stats screen before main menu
-              } else {
-                endCutscene();
-              }
-            }}
-          />
-        )}
-        
-        {/* Game over overlay */}
-        {state.gameState === GameState.GAME_OVER && (
-          <GameOverScreen
-            onRetry={(): void => {
-              resetInventory();
-              // Reload current level
-              const levelSys = levelSystemRef.current;
-              if (levelSys) {
-                levelSys.loadLevel(state.currentLevel).then(() => {
-                  const spawn = levelSys.playerSpawnPosition;
-                  playerSpawnRef.current = { ...spawn };
-                  const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
-                  const player = gameObjectMgr?.getPlayer();
-                  if (player) {
-                    player.setPosition(spawn.x, spawn.y);
-                    player.getVelocity().x = 0;
-                    player.getVelocity().y = 0;
-                  }
-                });
-              }
-              resumeGame();
-            }}
-          />
-        )}
-        
-        {/* Level complete overlay */}
-        {state.gameState === GameState.LEVEL_COMPLETE && (
-          <LevelCompleteScreen
-            levelName={levelSystemRef.current?.getLevelInfo(state.currentLevel)?.name}
-            onContinue={(): void => {
-              const levelSys = levelSystemRef.current;
-              if (levelSys) {
-                const nextLevelId = levelSys.getNextLevelId();
-                if (nextLevelId !== null) {
-                  levelSys.unlockLevel(nextLevelId);
-                  setLevel(nextLevelId);
-                  levelSys.loadLevel(nextLevelId).then(() => {
-                    const spawn = levelSys.playerSpawnPosition;
-                    playerSpawnRef.current = { ...spawn };
-                    const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
-                    const player = gameObjectMgr?.getPlayer();
-                    if (player) {
-                      player.setPosition(spawn.x, spawn.y);
-                      player.getVelocity().x = 0;
-                      player.getVelocity().y = 0;
-                    }
-                  });
-                  resumeGame();
-                }
-              }
-            }}
-          />
-        )}
+        {/* All UI is now Canvas-based, rendered in the game loop */}
       </div>
     </div>
   );
