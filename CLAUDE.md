@@ -28,6 +28,27 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 
 ---
 
+## 🚨 CRITICAL: GAME NOT OPERATIONAL
+
+**The game is currently NOT a faithful port of the original.** `Game.tsx` is approximately **25% faithful** to the original Android implementation.
+
+### What's Wrong
+
+| Feature | Original | Current | Status |
+|---------|----------|---------|--------|
+| Player State Machine | 7 states (MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY) | Flags only | ❌ BROKEN |
+| Ghost Mechanic | Hold attack → spawn ghost | NOT integrated | ❌ BROKEN |
+| Stomp Mechanics | Hang time + camera shake | Instant, no shake | ❌ BROKEN |
+| Hit Reaction | HIT_REACT state, 0.5s timer | Missing | ❌ BROKEN |
+| Win Condition | 3 rubies = WIN | Missing | ❌ BROKEN |
+| Invincibility | Coins → glow powerup | Missing | ❌ BROKEN |
+| Enemy AI | Component-based | Inline switch | ⚠️ SIMPLIFIED |
+| Object Pooling | 384+ pooled objects | None | ❌ MISSING |
+
+**The physics constants are correct, but game logic is NOT.**
+
+---
+
 ## 🎮 Web Port Status (Current Implementation)
 
 ### Technology Stack
@@ -42,15 +63,17 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 
 | Category | Status | Details |
 |----------|--------|---------|
-| **Core Engine** | ✅ 95% | 15 systems implemented |
-| **Components** | ✅ 90% | 30 of ~33 components ported |
+| **Game.tsx Faithfulness** | ❌ 25% | NOT a faithful port - see critical issues above |
+| **Core Engine** | ⚠️ 60% | Systems exist but not properly integrated |
+| **Player State Machine** | ❌ 30% | Missing 5 of 7 states |
+| **Ghost Mechanic** | ❌ 10% | Component exists but NOT integrated in Game.tsx |
+| **Components** | ⚠️ 50% | Components exist but Game.tsx uses inline code |
 | **UI/Screens** | ✅ 100% | 11 React menu components + 7 Canvas gameplay systems |
 | **Canvas Gameplay UI** | ✅ 100% | HUD, Controls, Dialog, Cutscene, Pause, GameOver, LevelComplete |
-| **Levels** | ✅ 100% | 40+ levels working |
+| **Levels** | ✅ 100% | 40+ levels load correctly |
 | **Sound** | ✅ 100% | All SFX loaded and playing |
 | **Music** | ❌ 0% | MIDI needs conversion |
 | **Cutscenes** | ✅ 100% | CanvasCutscene with 4 cutscene types |
-| **Ghost Mechanic** | ✅ 100% | GhostComponent ported |
 
 ### Implemented Engine Systems (15 total)
 

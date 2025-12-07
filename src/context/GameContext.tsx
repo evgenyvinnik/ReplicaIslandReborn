@@ -2,7 +2,7 @@
  * Game Context - Global game state management
  */
 
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useMemo, ReactNode } from 'react';
 import { GameState, type GameConfig, type SaveData } from '../types';
 import { CutsceneType } from '../data/cutscenes';
 
@@ -31,6 +31,8 @@ type GameAction =
   | { type: 'SET_LOADING_PROGRESS'; payload: number }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_ACTIVE_CUTSCENE'; payload: CutsceneType | null }
+  | { type: 'COMPLETE_CURRENT_LEVEL' }
+  | { type: 'GAME_OVER' }
   | { type: 'RESET' };
 
 // Default config
@@ -89,6 +91,23 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       return { ...state, error: action.payload };
     case 'SET_ACTIVE_CUTSCENE':
       return { ...state, activeCutscene: action.payload };
+    case 'COMPLETE_CURRENT_LEVEL': {
+      const newCompletedLevels = [...state.saveData.completedLevels];
+      if (!newCompletedLevels.includes(state.currentLevel)) {
+        newCompletedLevels.push(state.currentLevel);
+      }
+      return {
+        ...state,
+        saveData: { ...state.saveData, completedLevels: newCompletedLevels },
+        gameState: GameState.LEVEL_COMPLETE,
+      };
+    }
+    case 'GAME_OVER':
+      return {
+        ...state,
+        saveData: { ...state.saveData, totalDeaths: state.saveData.totalDeaths + 1 },
+        gameState: GameState.GAME_OVER,
+      };
     case 'RESET':
       return initialState;
     default:
@@ -128,82 +147,73 @@ interface GameProviderProps {
 export function GameProvider({ children }: GameProviderProps): React.JSX.Element {
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
-  const startGame = (level?: number): void => {
+  const startGame = useCallback((level?: number): void => {
     if (level !== undefined) {
       dispatch({ type: 'SET_CURRENT_LEVEL', payload: level });
     }
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.PLAYING });
     dispatch({ type: 'SET_PAUSED', payload: false });
-  };
+  }, []);
 
-  const startNewGame = (): void => {
+  const startNewGame = useCallback((): void => {
     // Reset save data for a new game
     dispatch({ type: 'SET_SAVE_DATA', payload: { ...defaultSaveData } });
     dispatch({ type: 'SET_CURRENT_LEVEL', payload: 1 });
     // Go to difficulty select first (like the original game)
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.DIFFICULTY_SELECT });
-  };
+  }, []);
 
-  const pauseGame = (): void => {
+  const pauseGame = useCallback((): void => {
     dispatch({ type: 'SET_PAUSED', payload: true });
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.PAUSED });
-  };
+  }, []);
 
-  const resumeGame = (): void => {
+  const resumeGame = useCallback((): void => {
     dispatch({ type: 'SET_PAUSED', payload: false });
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.PLAYING });
-  };
+  }, []);
 
-  const goToMainMenu = (): void => {
+  const goToMainMenu = useCallback((): void => {
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.MAIN_MENU });
     dispatch({ type: 'SET_PAUSED', payload: false });
-  };
+  }, []);
 
-  const goToLevelSelect = (): void => {
+  const goToLevelSelect = useCallback((): void => {
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.LEVEL_SELECT });
-  };
+  }, []);
 
-  const goToDifficultySelect = (): void => {
+  const goToDifficultySelect = useCallback((): void => {
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.DIFFICULTY_SELECT });
-  };
+  }, []);
 
-  const goToOptions = (): void => {
+  const goToOptions = useCallback((): void => {
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.OPTIONS });
-  };
+  }, []);
 
-  const setLevel = (level: number): void => {
+  const setLevel = useCallback((level: number): void => {
     dispatch({ type: 'SET_CURRENT_LEVEL', payload: level });
-  };
+  }, []);
 
-  const completeLevel = (): void => {
-    const newCompletedLevels = [...state.saveData.completedLevels];
-    if (!newCompletedLevels.includes(state.currentLevel)) {
-      newCompletedLevels.push(state.currentLevel);
-    }
-    dispatch({ type: 'SET_SAVE_DATA', payload: { completedLevels: newCompletedLevels } });
-    dispatch({ type: 'SET_GAME_STATE', payload: GameState.LEVEL_COMPLETE });
-  };
+  const completeLevel = useCallback((): void => {
+    dispatch({ type: 'COMPLETE_CURRENT_LEVEL' });
+  }, []);
 
-  const gameOver = (): void => {
-    dispatch({
-      type: 'SET_SAVE_DATA',
-      payload: { totalDeaths: state.saveData.totalDeaths + 1 },
-    });
-    dispatch({ type: 'SET_GAME_STATE', payload: GameState.GAME_OVER });
-  };
+  const gameOver = useCallback((): void => {
+    dispatch({ type: 'GAME_OVER' });
+  }, []);
 
-  const playCutscene = (cutsceneType: CutsceneType): void => {
+  const playCutscene = useCallback((cutsceneType: CutsceneType): void => {
     dispatch({ type: 'SET_ACTIVE_CUTSCENE', payload: cutsceneType });
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.CUTSCENE });
-  };
+  }, []);
 
-  const endCutscene = (): void => {
+  const endCutscene = useCallback((): void => {
     dispatch({ type: 'SET_ACTIVE_CUTSCENE', payload: null });
     // Return to playing state after cutscene
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.PLAYING });
-  };
+  }, []);
 
-  const value: GameContextValue = {
+  const value: GameContextValue = useMemo(() => ({
     state,
     dispatch,
     startGame,
@@ -219,7 +229,22 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     gameOver,
     playCutscene,
     endCutscene,
-  };
+  }), [
+    state,
+    startGame,
+    startNewGame,
+    pauseGame,
+    resumeGame,
+    goToMainMenu,
+    goToLevelSelect,
+    goToDifficultySelect,
+    goToOptions,
+    setLevel,
+    completeLevel,
+    gameOver,
+    playCutscene,
+    endCutscene,
+  ]);
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 }

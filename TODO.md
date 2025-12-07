@@ -4,6 +4,57 @@ This document tracks what has been implemented and what still needs to be done t
 
 ---
 
+## 🚨 CRITICAL: GAME NOT OPERATIONAL
+
+**The game is currently NOT playable.** The `Game.tsx` component is NOT a faithful port of the original Android implementation.
+
+### Game.tsx Faithfulness Analysis
+
+| Aspect | Original Android | Current Web Port | Faithful? |
+|--------|------------------|------------------|----------|
+| **Architecture** | Dual-threaded (Game + Render) | Single-threaded | ❌ NO |
+| **State Machine** | Full enum (MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY) | Simple flags | ❌ NO |
+| **Object Pooling** | Extensive (384 objects, 256 collision records) | None | ❌ NO |
+| **Component Phases** | Phased execution (THINK, PHYSICS, ANIMATION, etc.) | Inline code | ❌ NO |
+| **Ghost Mechanic** | Integrated (hold attack to spawn ghost) | Exists but NOT integrated | ❌ NO |
+| **Stomp Hang Time** | STOMP_AIR_HANG_TIME + position locking | Missing | ❌ NO |
+| **Stomp Camera Shake** | shake(STOMP_DELAY_TIME, 15) on landing | Missing | ❌ NO |
+| **Hit Reaction State** | HIT_REACT with timer | Missing | ❌ NO |
+| **Win Condition** | Collect 3 rubies → WIN state | Missing | ❌ NO |
+| **Invincibility Powerup** | Coins → glow mode | Missing | ❌ NO |
+| **Enemy AI** | PatrolComponent + AttackAtDistanceComponent | Simplified inline switch | ❌ NO |
+
+### What MUST Be Fixed
+
+1. **Implement proper PlayerState enum** matching original:
+   ```typescript
+   enum PlayerState { MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY }
+   ```
+
+2. **Add stomp mechanics**:
+   - STOMP_AIR_HANG_TIME (position locking)
+   - Camera shake on landing (0.15s, magnitude 15)
+   - STOMP_VIBRATE_TIME
+
+3. **Integrate ghost mechanic**:
+   - Hold attack button on ground → charge ghost
+   - GHOST_CHARGE_TIME = 0.75s
+   - Camera follows ghost when spawned
+
+4. **Add hit reaction state** with HIT_REACT_TIME = 0.5s
+
+5. **Add win condition**: 3 rubies = level complete
+
+6. **Add invincibility powerup**: coins → glow mode
+
+7. **Refactor to component-based architecture** like original
+
+### Current State: ~25% Faithful
+
+The physics constants are correct but the game logic, state machine, and advanced mechanics are NOT implemented. **This is a prototype, not a port.**
+
+---
+
 ## 🔴 CRITICAL: Level Variants & Cutscene System
 
 ### Level 0-1 Variants Explained
