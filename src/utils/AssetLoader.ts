@@ -6,6 +6,7 @@
 import type { AssetManifest, SpriteAsset, AudioAsset } from '../types';
 import type { RenderSystem } from '../engine/RenderSystem';
 import type { SoundSystem } from '../engine/SoundSystem';
+import { assetPath } from './helpers';
 
 export interface LoadProgress {
   loaded: number;
@@ -33,7 +34,7 @@ export class AssetLoader {
   /**
    * Load the asset manifest
    */
-  async loadManifest(url: string = '/assets/manifest.json'): Promise<AssetManifest> {
+  async loadManifest(url: string = assetPath('/assets/manifest.json')): Promise<AssetManifest> {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to load manifest: ${response.status}`);
@@ -99,7 +100,7 @@ export class AssetLoader {
 
     await this.renderSystem.loadSprite(
       sprite.name,
-      sprite.path,
+      assetPath(sprite.path),
       frameWidth,
       frameHeight
     );
@@ -119,7 +120,7 @@ export class AssetLoader {
       return;
     }
 
-    await this.soundSystem.loadSound(audio.name, audio.path);
+    await this.soundSystem.loadSound(audio.name, assetPath(audio.path));
     this.loadedAssets.add(`audio:${audio.name}`);
   }
 
@@ -144,7 +145,7 @@ export class AssetLoader {
    * Load a level
    */
   async loadLevel(levelFile: string): Promise<unknown> {
-    const response = await fetch(`/assets/levels/${levelFile}.json`);
+    const response = await fetch(assetPath(`/assets/levels/${levelFile}.json`));
     if (!response.ok) {
       throw new Error(`Failed to load level: ${response.status}`);
     }
@@ -164,13 +165,13 @@ export class AssetLoader {
   async preloadEssentials(progressCallback?: ProgressCallback): Promise<void> {
     // Define essential assets that must be loaded first
     const essentialSprites: SpriteAsset[] = [
-      { name: 'player', path: '/assets/sprites/player.png' },
-      { name: 'tileset', path: '/assets/sprites/tileset.png' },
+      { name: 'player', path: assetPath('/assets/sprites/player.png') },
+      { name: 'tileset', path: assetPath('/assets/sprites/tileset.png') },
     ];
 
     const essentialAudio: AudioAsset[] = [
-      { name: 'jump', path: '/assets/audio/jump.mp3', type: 'sfx' },
-      { name: 'collect', path: '/assets/audio/collect.mp3', type: 'sfx' },
+      { name: 'jump', path: assetPath('/assets/audio/jump.mp3'), type: 'sfx' },
+      { name: 'collect', path: assetPath('/assets/audio/collect.mp3'), type: 'sfx' },
     ];
 
     const total = essentialSprites.length + essentialAudio.length;

@@ -6,6 +6,7 @@
 import type { LevelData, LevelLayer, LevelObject } from '../types';
 import type { CollisionSystem } from '../engine/CollisionSystem';
 import type { GameObjectManager } from '../entities/GameObjectManager';
+import { assetPath } from '../utils/helpers';
 
 export interface LevelInfo {
   id: number;
@@ -67,7 +68,7 @@ export class LevelSystem {
     }
 
     try {
-      const response = await fetch(`/assets/levels/${levelInfo.file}.json`);
+      const response = await fetch(assetPath(`/assets/levels/${levelInfo.file}.json`));
       if (!response.ok) {
         throw new Error(`Failed to load level: ${response.status}`);
       }

@@ -60,3 +60,6 @@ export { LifetimeComponent } from './LifetimeComponent';
 
 export { TheSourceComponent } from './TheSourceComponent';
 export type { TheSourceConfig } from './TheSourceComponent';
+
+export { NPCComponent } from './NPCComponent';
+export type { NPCComponentConfig } from './NPCComponent';

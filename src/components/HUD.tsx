@@ -27,6 +27,7 @@ import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useGameContext } from '../context/GameContext';
 import { GameState } from '../types';
 import { getInventory, addInventoryListener, type InventoryRecord } from '../entities/components/InventoryComponent';
+import { assetPath } from '../utils/helpers';
 
 // ============================================================================
 // HUD Layout Constants (from original HudSystem.java)
@@ -67,16 +68,16 @@ const FPS_EDGE_PADDING = 10;
 // ============================================================================
 
 const DIGIT_SPRITES = [
-  '/assets/sprites/ui_0.png',
-  '/assets/sprites/ui_1.png',
-  '/assets/sprites/ui_2.png',
-  '/assets/sprites/ui_3.png',
-  '/assets/sprites/ui_4.png',
-  '/assets/sprites/ui_5.png',
-  '/assets/sprites/ui_6.png',
-  '/assets/sprites/ui_7.png',
-  '/assets/sprites/ui_8.png',
-  '/assets/sprites/ui_9.png',
+  assetPath('/assets/sprites/ui_0.png'),
+  assetPath('/assets/sprites/ui_1.png'),
+  assetPath('/assets/sprites/ui_2.png'),
+  assetPath('/assets/sprites/ui_3.png'),
+  assetPath('/assets/sprites/ui_4.png'),
+  assetPath('/assets/sprites/ui_5.png'),
+  assetPath('/assets/sprites/ui_6.png'),
+  assetPath('/assets/sprites/ui_7.png'),
+  assetPath('/assets/sprites/ui_8.png'),
+  assetPath('/assets/sprites/ui_9.png'),
 ];
 
 // ============================================================================
@@ -140,7 +141,7 @@ function DigitDisplay({
     <span style={{ display: 'inline-flex', alignItems: 'center', ...style }}>
       {drawX && (
         <img
-          src="/assets/sprites/ui_x.png"
+          src={assetPath('/assets/sprites/ui_x.png')}
           alt="x"
           style={{
             width: X_MARK_SIZE,
@@ -349,7 +350,7 @@ export function HUD({
       >
         {/* Fuel background - 128x16 sprite */}
         <img
-          src="/assets/sprites/ui_bar_bg.png"
+          src={assetPath('/assets/sprites/ui_bar_bg.png')}
           alt="fuel bg"
           style={{
             position: 'absolute',
@@ -363,7 +364,7 @@ export function HUD({
         {/* Fuel bar fill - stretch the 8x8 ui_bar.png sprite to fill (matching original) */}
         {fuelBarWidth >= 1 && (
           <img
-            src="/assets/sprites/ui_bar.png"
+            src={assetPath('/assets/sprites/ui_bar.png')}
             alt="fuel"
             style={{
               position: 'absolute',
@@ -390,7 +391,7 @@ export function HUD({
         }}
       >
         <img
-          src="/assets/sprites/object_coin01.png"
+          src={assetPath('/assets/sprites/object_coin01.png')}
           alt="coin"
           style={{
             width: COIN_SPRITE_SIZE,
@@ -418,7 +419,7 @@ export function HUD({
         }}
       >
         <img
-          src="/assets/sprites/object_ruby01.png"
+          src={assetPath('/assets/sprites/object_ruby01.png')}
           alt="ruby"
           style={{
             width: RUBY_SPRITE_SIZE,
@@ -470,7 +471,7 @@ export function HUD({
           }}
         >
           <img
-            src="/assets/sprites/ui_paused.png"
+            src={assetPath('/assets/sprites/ui_paused.png')}
             alt="PAUSED"
             style={{
               width: 200,
@@ -512,7 +513,7 @@ export function HUD({
             right: 0,
             bottom: 0,
             backgroundColor: '#FFFFFF',
-            backgroundImage: 'url(/assets/sprites/title_background.png)',
+            backgroundImage: `url(${assetPath('/assets/sprites/title_background.png')})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             display: 'flex',
@@ -570,7 +571,7 @@ export function HUD({
             right: 0,
             bottom: 0,
             backgroundColor: '#FFFFFF',
-            backgroundImage: 'url(/assets/sprites/title_background.png)',
+            backgroundImage: `url(${assetPath('/assets/sprites/title_background.png')})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             display: 'flex',
@@ -604,7 +605,7 @@ export function HUD({
             <div style={{ display: 'flex', gap: 32, marginTop: 16, marginBottom: 24 }}>
               <div style={{ textAlign: 'center', color: '#000000', fontFamily: 'serif' }}>
                 <img 
-                  src="/assets/sprites/object_coin01.png" 
+                  src={assetPath('/assets/sprites/object_coin01.png')} 
                   alt="coins" 
                   style={{ width: 32, imageRendering: 'pixelated' }} 
                 />
@@ -614,7 +615,7 @@ export function HUD({
               </div>
               <div style={{ textAlign: 'center', color: '#000000', fontFamily: 'serif' }}>
                 <img 
-                  src="/assets/sprites/object_ruby01.png" 
+                  src={assetPath('/assets/sprites/object_ruby01.png')} 
                   alt="rubies" 
                   style={{ width: 32, imageRendering: 'pixelated' }} 
                 />

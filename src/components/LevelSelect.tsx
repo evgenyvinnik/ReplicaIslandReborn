@@ -20,6 +20,7 @@ import {
   completedLevelIdsToResourceSet,
   type LevelMetaData,
 } from '../data/levelTree';
+import { assetPath } from '../utils/helpers';
 
 // Row height in pixels - matches original 70dp at mdpi (1:1 pixel ratio)
 // This means ~4-5 rows visible at a time with scrolling
@@ -62,12 +63,12 @@ function LevelRow({
   const getRackImage = (): string => {
     switch (state) {
       case 'enabled':
-        return '/assets/sprites/ui_rack_green.png';
+        return assetPath('/assets/sprites/ui_rack_green.png');
       case 'completed':
-        return '/assets/sprites/ui_rack_gray.png';
+        return assetPath('/assets/sprites/ui_rack_gray.png');
       case 'disabled':
       default:
-        return '/assets/sprites/ui_rack_red.png';
+        return assetPath('/assets/sprites/ui_rack_red.png');
     }
   };
 

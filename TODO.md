@@ -99,7 +99,7 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 - [x] GameObjectManager.ts - Object management
 - [x] GameObjectFactory.ts - Object spawning
 
-### Components Implemented (23 total)
+### Components Implemented (24 total)
 | Component | Original Java | Status |
 |-----------|---------------|--------|
 | SpriteComponent.ts | SpriteComponent.java | ✅ Done |
@@ -124,6 +124,7 @@ The `RenderSystem.ts` uses HTML5 Canvas 2D API:
 | NPCAnimationComponent.ts | NPCAnimationComponent.java | ✅ Done |
 | ButtonAnimationComponent.ts | ButtonAnimationComponent.java | ✅ Done |
 | DoorAnimationComponent.ts | DoorAnimationComponent.java | ✅ Done |
+| NPCComponent.ts | NPCComponent.java | ✅ Done |
 
 ### Collision System
 | Component | Status |
@@ -263,7 +264,7 @@ Unlocks after completing the game. Contains:
 | Feature | Original | Status |
 |---------|----------|--------|
 | Camera bias points | CameraBiasComponent.java | ❌ Not implemented |
-| Focus on specific objects | TAKE_CAMERA_FOCUS hotspot | ⚠️ Partial |
+| Focus on specific objects | TAKE_CAMERA_FOCUS hotspot | ✅ Implemented via NPCComponent |
 
 ### LOW PRIORITY - Nice to Have
 
@@ -318,8 +319,8 @@ Can be implemented using the Gamepad Haptic API or Vibration API for supported b
 
 | Category | Original | Ported | Percentage |
 |----------|----------|--------|------------|
-| Java Classes | 130 | ~55 | 42% |
-| Components | 35 | 23 | 66% |
+| Java Classes | 130 | ~56 | 43% |
+| Components | 35 | 24 | 69% |
 | Sound Effects | 22 | 22 | 100% |
 | Level Files (.bin) | 47 | 47 | 100% |
 | Dialog Files (.xml) | 38 | 38 | 100% |
@@ -328,7 +329,7 @@ Can be implemented using the Gamepad Haptic API or Vibration API for supported b
 | Sprite Assets | 423 | 306 | 72% |
 | UI Screens | 8 | 7 | 88% |
 
-**Overall Completion: ~80%**
+**Overall Completion: ~82%**
 
 The game is fully playable with all levels, enemies, NPCs, and dialog. The main gaps are:
 1. **Evil Kabocha boss** - Need dedicated component
@@ -336,9 +337,8 @@ The game is fully playable with all levels, enemies, NPCs, and dialog. The main 
 3. **Background music** - Just needs MIDI→OGG conversion
 4. **Cutscenes** - End-game animations
 5. **Diary UI** - Popup when collecting diary items
-6. **NPC Intro Cutscenes** - NPCs walking/camera following (e.g., Wanda intro in level 0-1)
 
-#### 5.5. NPC Intro Cutscene System (NEEDED FOR LEVEL 0-1)
+#### 5.5. NPC Intro Cutscene System (IMPLEMENTED)
 
 The first level (level_0_1_sewer) has an intro cutscene where Wanda walks toward the player:
 
@@ -349,24 +349,19 @@ The first level (level_0_1_sewer) has an intro cutscene where Wanda walks toward
 4. When Wanda reaches player, RELEASE_CAMERA_FOCUS returns camera to player
 5. Dialog triggers, then gameplay begins
 
-**What's currently implemented:**
-- Dialog shows immediately on level start
-- Wanda is static (no movement)
-- Camera always follows player
-
-**Components needed:**
-- `NPCComponent.ts` - Handle NPC movement via hot spots
-- Camera focus switching in Game.tsx
-- NPC animation states (walking, running)
+**Implementation status:**
+- ✅ NPCComponent.ts - Handle NPC movement via hot spots
+- ✅ Camera focus switching in Game.tsx/CameraSystem.ts
+- ✅ NPC animation states (walking, running)
 
 | Hot Spot | Purpose | Status |
 |----------|---------|--------|
-| TAKE_CAMERA_FOCUS (11) | Make camera follow NPC | ❌ Not implemented |
-| RELEASE_CAMERA_FOCUS (12) | Return camera to player | ❌ Not implemented |
-| NPC_GO_RIGHT (16) | Move NPC right | ❌ Not implemented |
-| NPC_GO_LEFT (17) | Move NPC left | ❌ Not implemented |
-| NPC_STOP (28) | Stop NPC movement | ❌ Not implemented |
-| WALK_AND_TALK (10) | Walk while triggering dialog | ❌ Not implemented |
+| TAKE_CAMERA_FOCUS (11) | Make camera follow NPC | ✅ Implemented |
+| RELEASE_CAMERA_FOCUS (12) | Return camera to player | ✅ Implemented |
+| NPC_GO_RIGHT (16) | Move NPC right | ✅ Implemented |
+| NPC_GO_LEFT (17) | Move NPC left | ✅ Implemented |
+| NPC_STOP (28) | Stop NPC movement | ✅ Implemented |
+| WALK_AND_TALK (10) | Walk while triggering dialog | ✅ Implemented |
 
 | `PlayerComponent.java` | Player physics/controls | ✅ Done (in Game.tsx) |
 | `HitReactionComponent.java` | Damage/hit responses | ✅ Done (HitReactionComponent.ts) |
@@ -379,7 +374,7 @@ The first level (level_0_1_sewer) has an intro cutscene where Wanda walks toward
 #### Enemy & NPC AI (MEDIUM PRIORITY)
 | Original File | Description | Priority |
 |---------------|-------------|----------|
-| `NPCComponent.java` | NPC behavior/AI | MEDIUM |
+| `NPCComponent.java` | NPC behavior/AI | ✅ Done (NPCComponent.ts) |
 | `PatrolComponent.java` | Enemy patrol patterns | ✅ Done (PatrolComponent.ts) |
 | `AttackAtDistanceComponent.java` | Ranged enemy attacks | ✅ Done (AttackAtDistanceComponent.ts) |
 | `LaunchProjectileComponent.java` | Projectile spawning | ✅ Done (LaunchProjectileComponent.ts) |

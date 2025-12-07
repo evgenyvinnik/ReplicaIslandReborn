@@ -16,6 +16,7 @@
  */
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { assetPath } from '../utils/helpers';
 
 interface OnScreenControlsProps {
   onMovementChange: (direction: number) => void; // -1 to 1, 0 is center
@@ -207,7 +208,7 @@ export function OnScreenControls({
           }}
         >
           <img 
-            src="/assets/sprites/ui_movement_slider_base.png" 
+            src={assetPath('/assets/sprites/ui_movement_slider_base.png')} 
             alt="Movement base"
             style={{
               position: 'absolute',
@@ -219,8 +220,8 @@ export function OnScreenControls({
           />
           <img 
             src={isSliderActive
-              ? '/assets/sprites/ui_movement_slider_button_on.png'
-              : '/assets/sprites/ui_movement_slider_button_off.png'
+              ? assetPath('/assets/sprites/ui_movement_slider_button_on.png')
+              : assetPath('/assets/sprites/ui_movement_slider_button_off.png')
             }
             alt="Movement button"
             style={{
@@ -269,7 +270,7 @@ export function OnScreenControls({
           }}
         >
           <img 
-            src={flyPressed ? '/assets/sprites/ui_button_fly_on.png' : '/assets/sprites/ui_button_fly_off.png'}
+            src={flyPressed ? assetPath('/assets/sprites/ui_button_fly_on.png') : assetPath('/assets/sprites/ui_button_fly_off.png')}
             alt="Fly"
             style={{ 
               width: FLY_BUTTON_DISPLAY_SIZE, 
@@ -295,7 +296,7 @@ export function OnScreenControls({
           }}
         >
           <img 
-            src={stompPressed ? '/assets/sprites/ui_button_stomp_on.png' : '/assets/sprites/ui_button_stomp_off.png'}
+            src={stompPressed ? assetPath('/assets/sprites/ui_button_stomp_on.png') : assetPath('/assets/sprites/ui_button_stomp_off.png')}
             alt="Stomp"
             style={{ 
               width: STOMP_BUTTON_DISPLAY_SIZE, 

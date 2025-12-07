@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { assetPath } from '../utils/helpers';
 
 interface AndroidHomeScreenProps {
   onLaunch: () => void;
@@ -113,7 +114,7 @@ export function AndroidHomeScreen({ onLaunch }: AndroidHomeScreenProps): React.J
             }}
           >
             <img
-              src="/assets/sprites/icon.png"
+              src={assetPath('/assets/sprites/icon.png')}
               alt="Replica Island"
               style={{
                 width: '100%',

@@ -31,11 +31,11 @@ export class GameObject implements Poolable {
   private impulse: Vector2 = new Vector2();
   private backgroundCollisionNormal: Vector2 = new Vector2();
 
-  // Collision timing
-  private lastTouchedFloorTime: number = 0;
-  private lastTouchedCeilingTime: number = 0;
-  private lastTouchedLeftWallTime: number = 0;
-  private lastTouchedRightWallTime: number = 0;
+  // Collision timing (public for external systems to update)
+  public lastTouchedFloorTime: number = 0;
+  public lastTouchedCeilingTime: number = 0;
+  public lastTouchedLeftWallTime: number = 0;
+  public lastTouchedRightWallTime: number = 0;
 
   // State
   public positionLocked: boolean = false;

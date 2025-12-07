@@ -8,6 +8,7 @@
 
 import React, { useEffect } from 'react';
 import { useGameContext } from '../context/GameContext';
+import { assetPath } from '../utils/helpers';
 
 export function PauseMenu(): React.JSX.Element {
   const { resumeGame } = useGameContext();
@@ -46,7 +47,7 @@ export function PauseMenu(): React.JSX.Element {
       }}
     >
       <img
-        src="/assets/sprites/ui_paused.png"
+        src={assetPath('/assets/sprites/ui_paused.png')}
         alt="PAUSED"
         style={{
           imageRendering: 'pixelated',

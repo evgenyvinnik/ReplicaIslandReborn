@@ -9,6 +9,8 @@ import type { GameObjectManager } from '../entities/GameObjectManager';
 import { LevelParser, type ParsedLevel } from './LevelParser';
 import { HotSpotSystem } from '../engine/HotSpotSystem';
 import { GameObjectTypeIndex, getObjectTypeName } from '../types/GameObjectTypes';
+import { NPCComponent } from '../entities/components/NPCComponent';
+import { assetPath } from '../utils/helpers';
 
 export interface LevelInfo {
   id: number;
@@ -220,7 +222,7 @@ export class LevelSystem {
    * Load a JSON level file (legacy format)
    */
   private async loadJsonLevel(levelId: number, levelInfo: LevelInfo): Promise<boolean> {
-    const response = await fetch(`/assets/levels/${levelInfo.file}.json`);
+    const response = await fetch(assetPath(`/assets/levels/${levelInfo.file}.json`));
     if (!response.ok) {
       throw new Error(`Failed to load level: ${response.status}`);
     }
@@ -480,37 +482,53 @@ export class LevelSystem {
         objHeight = 16;
         break;
 
-      case GameObjectTypeIndex.WANDA:
+      case GameObjectTypeIndex.WANDA: {
         obj.type = 'npc';
         obj.subType = 'wanda';
         objWidth = 48;
         objHeight = 64;
         obj.activationRadius = 150;
+        // Add NPC movement component
+        const npcComponent = new NPCComponent();
+        obj.addComponent(npcComponent);
         break;
+      }
         
-      case GameObjectTypeIndex.KYLE:
+      case GameObjectTypeIndex.KYLE: {
         obj.type = 'npc';
         obj.subType = 'kyle';
         objWidth = 48;
         objHeight = 64;
         obj.activationRadius = 150;
+        // Add NPC movement component
+        const npcComponent = new NPCComponent();
+        obj.addComponent(npcComponent);
         break;
+      }
         
-      case GameObjectTypeIndex.KABOCHA:
+      case GameObjectTypeIndex.KABOCHA: {
         obj.type = 'npc';
         obj.subType = 'kabocha';
         objWidth = 48;
         objHeight = 64;
         obj.activationRadius = 150;
+        // Add NPC movement component
+        const npcComponent = new NPCComponent();
+        obj.addComponent(npcComponent);
         break;
+      }
         
-      case GameObjectTypeIndex.ROKUDOU:
+      case GameObjectTypeIndex.ROKUDOU: {
         obj.type = 'npc';
         obj.subType = 'rokudou';
         objWidth = 48;
         objHeight = 64;
         obj.activationRadius = 150;
+        // Add NPC movement component
+        const npcComponent = new NPCComponent();
+        obj.addComponent(npcComponent);
         break;
+      }
 
       default:
         // Generic object - keep default size

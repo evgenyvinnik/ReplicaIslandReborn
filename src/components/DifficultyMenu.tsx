@@ -13,6 +13,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useGameContext } from '../context/GameContext';
 import { GameState } from '../types';
+import { assetPath } from '../utils/helpers';
 
 export type Difficulty = 'baby' | 'kids' | 'adults';
 
@@ -134,9 +135,9 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
 
   // Map difficulty to sprite
   const spriteMap: Record<Difficulty, string> = {
-    baby: '/assets/sprites/ui_button_baby.png',
-    kids: '/assets/sprites/ui_button_kids.png',
-    adults: '/assets/sprites/ui_button_adults.png',
+    baby: assetPath('/assets/sprites/ui_button_baby.png'),
+    kids: assetPath('/assets/sprites/ui_button_kids.png'),
+    adults: assetPath('/assets/sprites/ui_button_adults.png'),
   };
 
   return (
@@ -150,7 +151,7 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
     >
       {/* Background Image - matches original title_background */}
       <img
-        src="/assets/sprites/title_background.png"
+        src={assetPath('/assets/sprites/title_background.png')}
         alt=""
         onLoad={handleImageLoad}
         style={{

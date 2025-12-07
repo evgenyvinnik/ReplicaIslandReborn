@@ -18,6 +18,7 @@ import type { AnimationSystem } from './AnimationSystem';
 import type { LevelSystem } from '../levels/LevelSystem';
 import type { GameObjectManager } from '../entities/GameObjectManager';
 import type { GameObjectFactory } from '../entities/GameObjectFactory';
+import type { GameFlowEvent } from './GameFlowEvent';
 
 /**
  * Central registry for all game systems
@@ -38,6 +39,7 @@ export class SystemRegistry {
   public gameObjectFactory: GameObjectFactory | null = null;
   public hotSpotSystem: HotSpotSystem | null = null;
   public animationSystem: AnimationSystem | null = null;
+  public gameFlowEvent: GameFlowEvent | null = null;
 
   // Game configuration
   public gameWidth: number = 480;
@@ -61,6 +63,7 @@ export class SystemRegistry {
     this.gameObjectFactory = null;
     this.hotSpotSystem = null;
     this.animationSystem = null;
+    this.gameFlowEvent = null;
   }
 
   /**
@@ -103,6 +106,9 @@ export class SystemRegistry {
         break;
       case 'gameObjectCollision':
         this.gameObjectCollisionSystem = system as unknown as GameObjectCollisionSystem;
+        break;
+      case 'gameFlowEvent':
+        this.gameFlowEvent = system as unknown as GameFlowEvent;
         break;
     }
   }

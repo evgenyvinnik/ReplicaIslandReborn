@@ -4,6 +4,27 @@
  */
 
 /**
+ * Get the base URL for the application.
+ * Uses Vite's import.meta.env.BASE_URL which is set via --base flag during build.
+ */
+export function getBaseUrl(): string {
+  return import.meta.env.BASE_URL || '/';
+}
+
+/**
+ * Resolve an asset path to include the base URL.
+ * Use this for all asset paths to ensure they work on GitHub Pages.
+ * @param path - The asset path starting with /assets/...
+ * @returns The full path including base URL
+ */
+export function assetPath(path: string): string {
+  const base = getBaseUrl();
+  // Remove leading slash from path if base already ends with slash
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  return `${base}${cleanPath}`;
+}
+
+/**
  * Check if two values are close within a tolerance
  */
 export function close(a: number, b: number, tolerance: number): boolean {

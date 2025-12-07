@@ -681,6 +681,55 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
       });
 
+      // NPC movement and physics
+      gameObjectManager.forEach((obj) => {
+        if (obj.type !== 'npc' || !obj.isVisible()) return;
+        
+        const velocity = obj.getVelocity();
+        const targetVelocity = obj.getTargetVelocity();
+        const acceleration = obj.getAcceleration();
+        const position = obj.getPosition();
+        
+        // Interpolate velocity towards target velocity (based on original MovementComponent)
+        if (acceleration.x > 0) {
+          if (Math.abs(targetVelocity.x - velocity.x) < 0.1) {
+            velocity.x = targetVelocity.x;
+          } else if (targetVelocity.x > velocity.x) {
+            velocity.x += acceleration.x * deltaTime;
+            if (velocity.x > targetVelocity.x) velocity.x = targetVelocity.x;
+          } else if (targetVelocity.x < velocity.x) {
+            velocity.x -= acceleration.x * deltaTime;
+            if (velocity.x < targetVelocity.x) velocity.x = targetVelocity.x;
+          }
+        }
+        
+        // Apply gravity to NPCs (unless flying)
+        velocity.y += 400 * deltaTime;
+        
+        // Update position
+        position.x += velocity.x * deltaTime;
+        position.y += velocity.y * deltaTime;
+        
+        // Ground collision for NPCs
+        const groundCheck = collisionSystem.checkTileCollision(
+          position.x, position.y, obj.width, obj.height, velocity.x, velocity.y
+        );
+        
+        if (groundCheck.grounded) {
+          const tileSize = 32;
+          const groundY = Math.floor((position.y + obj.height) / tileSize) * tileSize - obj.height;
+          position.y = groundY;
+          velocity.y = 0;
+          // Update floor touch time so touchingGround() returns true
+          obj.lastTouchedFloorTime = gameTime;
+        }
+        
+        // Update facing direction based on velocity
+        if (Math.abs(velocity.x) > 1) {
+          obj.facingDirection.x = velocity.x > 0 ? 1 : -1;
+        }
+      });
+
       // Check hot spots
       if (player && hotSpotSystem) {
         const px = player.getPosition().x + player.width / 2;

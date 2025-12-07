@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { assetPath } from '../utils/helpers';
 
 interface AndroidRecentsScreenProps {
   onResume: () => void;
@@ -64,7 +65,7 @@ export function AndroidRecentsScreen({ onResume }: AndroidRecentsScreenProps): R
           }}
         >
           <img
-            src="/assets/sprites/icon.png"
+            src={assetPath('/assets/sprites/icon.png')}
             alt=""
             style={{ width: '16px', height: '16px' }}
           />
@@ -105,7 +106,7 @@ export function AndroidRecentsScreen({ onResume }: AndroidRecentsScreenProps): R
           />
           {/* Replica Island Logo */}
           <img
-            src="/assets/sprites/title.png"
+            src={assetPath('/assets/sprites/title.png')}
             alt="Replica Island"
             style={{
               position: 'relative',

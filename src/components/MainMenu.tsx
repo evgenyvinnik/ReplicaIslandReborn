@@ -9,6 +9,7 @@
 
 import React, { useState } from 'react';
 import { useGameContext } from '../context/GameContext';
+import { assetPath } from '../utils/helpers';
 
 export function MainMenu(): React.JSX.Element {
   const { startNewGame, startGame, goToLevelSelect, goToOptions, state } = useGameContext();
@@ -28,7 +29,7 @@ export function MainMenu(): React.JSX.Element {
     >
       {/* Background Image */}
       <img
-        src="/assets/sprites/title_background.png"
+        src={assetPath('/assets/sprites/title_background.png')}
         alt=""
         onLoad={(): void => setImagesLoaded(true)}
         style={{
@@ -58,7 +59,7 @@ export function MainMenu(): React.JSX.Element {
         {/* Title Logo */}
         <div style={{ marginTop: '20px' }}>
           <img
-            src="/assets/sprites/title.png"
+            src={assetPath('/assets/sprites/title.png')}
             alt="Replica Island"
             style={{
               maxWidth: '280px',
@@ -94,24 +95,24 @@ export function MainMenu(): React.JSX.Element {
           {/* Show Continue if there's saved progress, otherwise Start */}
           {hasSavedProgress ? (
             <ImageButton 
-              src="/assets/sprites/ui_button_continue.png" 
+              src={assetPath('/assets/sprites/ui_button_continue.png')} 
               alt="Continue Game"
               onClick={(): void => startGame(state.currentLevel)} 
             />
           ) : (
             <ImageButton 
-              src="/assets/sprites/ui_button_start.png" 
+              src={assetPath('/assets/sprites/ui_button_start.png')} 
               alt="Start Game"
               onClick={startNewGame} 
             />
           )}
           <ImageButton 
-            src="/assets/sprites/ui_button_level_select.png" 
+            src={assetPath('/assets/sprites/ui_button_level_select.png')} 
             alt="Level Select"
             onClick={goToLevelSelect} 
           />
           <ImageButton 
-            src="/assets/sprites/ui_button_options.png" 
+            src={assetPath('/assets/sprites/ui_button_options.png')} 
             alt="Options"
             onClick={goToOptions} 
           />
