@@ -132,6 +132,7 @@ export class TileMapRenderer {
     const ctx = (renderSystem as unknown as { ctx: CanvasRenderingContext2D }).ctx;
     
     if (!ctx || this.layers.length === 0) {
+      console.warn('[TileMapRenderer.render] Early exit - ctx:', !!ctx, 'layers:', this.layers.length);
       return;
     }
 
@@ -173,11 +174,15 @@ export class TileMapRenderer {
     // Get tileset image
     const tilesetImage = renderSystem.getSpriteImage(layer.tileset);
     if (!tilesetImage) {
+      console.warn('[TileMapRenderer] No tileset image for:', layer.tileset);
       return;
     }
     
     // Calculate tileset grid dimensions
     const tilesPerRow = Math.floor(tilesetImage.width / this.tileWidth);
+    
+    // Debug: count rendered tiles
+    let tilesRendered = 0;
 
     // Render visible tiles - tiles[x][y] is column-major
     for (let tileY = startTileY; tileY < endTileY; tileY++) {
@@ -224,8 +229,19 @@ export class TileMapRenderer {
           this.tileHeight
         );
 
+        tilesRendered++;
         tileX++;
       }
+    }
+    
+    // Log once per layer to see if tiles are being rendered
+    if (tilesRendered === 0) {
+      console.warn('[TileMapRenderer] NO tiles rendered for layer', layer.tileset, 
+        'camera:', cameraX.toFixed(0), cameraY.toFixed(0),
+        'tile range x:', startTileX, '-', endTileX,
+        'tile range y:', startTileY, '-', endTileY,
+        'world size:', world.width, 'x', world.height,
+        'tiles array:', world.tiles?.length, 'x', world.tiles?.[0]?.length);
     }
   }
 

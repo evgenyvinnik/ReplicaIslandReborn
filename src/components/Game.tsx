@@ -93,9 +93,17 @@ const PLAYER = {
   NO_GEMS_GHOST_TIME: 3.0,
   ONE_GEM_GHOST_TIME: 8.0,
   TWO_GEMS_GHOST_TIME: 0.0,   // Unlimited with 2+ gems
+  
+  // Glow mode / Invincibility powerup (from DifficultyConstants.java)
+  // Collecting enough coins grants temporary invincibility with a glowing effect
+  COINS_PER_POWERUP_KIDS: 20,
+  COINS_PER_POWERUP_ADULTS: 30,
+  GLOW_DURATION_KIDS: 15.0,    // 15 seconds of invincibility on Kids difficulty
+  GLOW_DURATION_ADULTS: 10.0,  // 10 seconds on Adults difficulty
 };
 
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
+  console.warn('[Game] Component rendering, width:', width, 'height:', height);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, endCutscene, goToMainMenu } = useGameContext();
@@ -163,6 +171,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     
     // Win state
     levelWon: false,
+    
+    // Glow mode (invincibility powerup from coins)
+    glowMode: false,
+    glowTime: 0,               // Time remaining in glow mode
+    coinsForPowerup: 0,        // Coins collected toward next powerup
   });
   
   // Helper function to reset player state (call when loading/restarting levels)
@@ -192,6 +205,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     pState.isDying = false;
     pState.deathTime = 0;
     pState.levelWon = false;
+    pState.glowMode = false;
+    pState.glowTime = 0;
+    pState.coinsForPowerup = 0;
   }, []);
   
   const [isInitialized, setIsInitialized] = useState(false);
@@ -587,6 +603,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     factory.setRenderSystem(renderSystem);
     factory.setCollisionSystem(collisionSystem);
     factory.setInputSystem(inputSystem);
+    factory.setSystemRegistry(systemRegistry);
     systemRegistry.register(factory, 'factory');
 
     // Level system
@@ -838,9 +855,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Get the current level from ref (or default to 1)
         const levelToLoad = currentLevelRef.current || 1;
+        console.warn('[Game] Loading level:', levelToLoad);
         
         // Try to load the level (JSON format)
         const levelLoaded = await levelSystem.loadLevel(levelToLoad);
+        console.warn('[Game] Level loaded:', levelLoaded);
         
         if (levelLoaded) {
           // Commit pending object additions immediately so they're available for rendering
@@ -851,8 +870,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           // Initialize tile map renderer from parsed level
           const parsedLevel = levelSystem.getParsedLevel();
+          console.warn('[Game] parsedLevel:', parsedLevel ? { bgLayers: parsedLevel.backgroundLayers.length, w: parsedLevel.widthInTiles, h: parsedLevel.heightInTiles } : null);
           if (parsedLevel) {
             tileMapRenderer.initializeFromLevel(parsedLevel);
+            console.warn('[Game] TileMapRenderer initialized, layers:', tileMapRenderer.getLayerCount());
             
             // Load background image
             try {
@@ -875,6 +896,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Handle cutscene levels (no player spawn)
           // If there's no player but there is an NPC, focus camera on the NPC
           const player = gameObjectManager.getPlayer();
+          console.warn('[Game] Player found:', !!player, 'position:', player?.getPosition());
           
           if (!player) {
             // Find an NPC to focus on (Wanda, Kyle, Kabocha, or Rokudou)
@@ -911,6 +933,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       }
       
       setLevelLoading(false);
+      
+      // Start game loop AFTER initialization completes
+      if (gameLoopRef.current && !gameLoopRef.current.isRunning()) {
+        console.warn('[Game] Starting game loop after initialization');
+        gameLoopRef.current.start();
+      }
     };
 
     // Function to create a test level when binary loading fails
@@ -1347,9 +1375,29 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               
               // Update inventory and play sound based on type
               const inv = getInventory();
+              const pState = playerStateRef.current;
+              
               if (obj.type === 'coin') {
                 setInventory({ coinCount: inv.coinCount + 1, score: inv.score + 1 });
                 soundSystem.playSfx(SoundEffects.GEM1, 0.5);
+                
+                // Track coins toward glow mode powerup
+                pState.coinsForPowerup++;
+                
+                // Check if enough coins for glow mode (difficulty-based)
+                // TODO: Get difficulty from game settings, for now use Kids
+                const coinsNeeded = PLAYER.COINS_PER_POWERUP_KIDS;
+                const glowDuration = PLAYER.GLOW_DURATION_KIDS;
+                
+                if (pState.coinsForPowerup >= coinsNeeded && !pState.glowMode) {
+                  // Activate glow mode!
+                  pState.glowMode = true;
+                  pState.glowTime = glowDuration;
+                  pState.invincible = true;  // Glow mode grants invincibility
+                  pState.invincibleTime = glowDuration;
+                  pState.coinsForPowerup = 0;  // Reset counter
+                  soundSystem.playSfx(SoundEffects.DING, 1.0);  // Power-up sound
+                }
               } else if (obj.type === 'ruby') {
                 const newRubyCount = inv.rubyCount + 1;
                 setInventory({ rubyCount: newRubyCount, score: inv.score + 3 });
@@ -1476,6 +1524,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         pState.invincibleTime -= deltaTime;
         if (pState.invincibleTime <= 0) {
           pState.invincible = false;
+        }
+      }
+      
+      // Update glow mode timer (separate from invincibility in case we extend glow)
+      if (pState.glowMode) {
+        pState.glowTime -= deltaTime;
+        if (pState.glowTime <= 0) {
+          pState.glowMode = false;
+          pState.glowTime = 0;
         }
       }
 
@@ -1647,16 +1704,48 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         if (pState.ghostChargeTime >= PLAYER.GHOST_CHARGE_TIME) {
           pState.ghostActive = true;
           pState.ghostChargeTime = 0;
-          soundSys.playSfx(SoundEffects.BUZZ, 0.5);
+          soundSys.playSfx(SoundEffects.POSSESSION, 0.7);
           
-          // TODO: Actually spawn ghost entity using GhostComponent
-          // The ghost should be controlled by the player while active
-          // Camera should follow the ghost
-          // Player is frozen during ghost possession
+          // Spawn ghost entity using GhostComponent
+          const ghostFactory = systemRegistryRef.current?.gameObjectFactory;
+          const inv = getInventory();
+          if (ghostFactory && player) {
+            const playerPos = player.getPosition();
+            const ghost = ghostFactory.spawnGhost(playerPos.x, playerPos.y - 32, inv.rubyCount);
+            
+            if (ghost) {
+              // Camera should follow the ghost
+              const camera = systemRegistryRef.current?.cameraSystem;
+              if (camera) {
+                camera.setTarget(ghost);
+              }
+              
+              // Player is frozen during ghost possession
+              pState.currentState = PlayerState.FROZEN;
+            }
+          }
         }
       } else if (!input.attack) {
         // Reset charge when attack is released
         pState.ghostChargeTime = 0;
+      }
+      
+      // Check if ghost has been released/destroyed (camera returned to player)
+      if (pState.ghostActive && pState.currentState === PlayerState.FROZEN) {
+        const camera = systemRegistryRef.current?.cameraSystem;
+        const currentTarget = camera?.getTarget();
+        
+        // If camera target is null or player, ghost was released
+        if (!currentTarget || currentTarget === player) {
+          // Transition to post-ghost delay
+          pState.currentState = PlayerState.POST_GHOST_DELAY;
+          pState.postGhostDelay = PLAYER.GHOST_REACTIVATION_DELAY;
+          
+          // Return camera to player
+          if (camera && player) {
+            camera.setTarget(player);
+          }
+        }
       }
       
       // Handle post-ghost delay (after ghost returns to player)
@@ -1725,7 +1814,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     };
 
     // Render callback
+    let renderCount = 0;
     gameLoop.setRenderCallback((): void => {
+      renderCount++;
+      if (renderCount === 1 || renderCount === 60) {
+        console.warn('[Game Render]', { renderCount, tileMapLayers: tileMapRendererRef.current?.getLayerCount() });
+      }
+      
       // Clear canvas
       renderSystem.clear('#1a1a2e');
 
@@ -1875,13 +1970,40 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           const spriteName = animFrames[pState.animFrame] || animFrames[0];
           
+          // Get canvas context for glow effect
+          const ctx = renderSystem.getContext();
+          
           // Draw player sprite or fallback rectangle
           if (renderSystem.hasSprite(spriteName)) {
             const scaleX = obj.facingDirection.x < 0 ? -1 : 1;
-            renderSystem.drawSprite(spriteName, pos.x - 8, pos.y - 8, 0, 10, 1, scaleX, 1);
+            
+            // Apply glow effect when in glow mode
+            if (pState.glowMode && ctx) {
+              ctx.save();
+              // Pulsating glow effect - oscillates based on time
+              const glowIntensity = 15 + 10 * Math.sin(Date.now() / 100);
+              ctx.shadowColor = '#FFD700';  // Golden glow color
+              ctx.shadowBlur = glowIntensity;
+              // Draw multiple times for stronger glow
+              renderSystem.drawSprite(spriteName, pos.x - 8, pos.y - 8, 0, 10, 1, scaleX, 1);
+              ctx.shadowColor = '#FFFFFF';  // Inner white glow
+              ctx.shadowBlur = glowIntensity / 2;
+              renderSystem.drawSprite(spriteName, pos.x - 8, pos.y - 8, 0, 10, 1, scaleX, 1);
+              ctx.restore();
+            } else {
+              renderSystem.drawSprite(spriteName, pos.x - 8, pos.y - 8, 0, 10, 1, scaleX, 1);
+            }
           } else {
-            // Fallback green rectangle for player
-            renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, '#4caf50', 10);
+            // Fallback green rectangle for player (with glow if needed)
+            if (pState.glowMode && ctx) {
+              ctx.save();
+              ctx.shadowColor = '#FFD700';
+              ctx.shadowBlur = 20;
+              renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, '#4caf50', 10);
+              ctx.restore();
+            } else {
+              renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, '#4caf50', 10);
+            }
           }
         } else {
           // Draw other objects with sprites
@@ -2096,8 +2218,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     setIsInitialized(true);
 
-    // Start the game loop
-    gameLoop.start();
+    // NOTE: Game loop is started by initializeGame() after level loads
+    // This prevents rendering before tiles are ready
 
     // Cleanup
     return (): void => {

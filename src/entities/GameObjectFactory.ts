@@ -6,14 +6,16 @@
 import { GameObject } from './GameObject';
 import { GameObjectManager } from './GameObjectManager';
 import { ObjectPool } from '../utils/ObjectPool';
-import { Team } from '../types';
+import { Team, ActionType } from '../types';
 import { SpriteComponent } from './components/SpriteComponent';
 import { PhysicsComponent } from './components/PhysicsComponent';
 import { MovementComponent } from './components/MovementComponent';
 import { PlayerComponent } from './components/PlayerComponent';
+import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
 import type { RenderSystem } from '../engine/RenderSystem';
 import type { CollisionSystem } from '../engine/CollisionSystem';
 import type { InputSystem } from '../engine/InputSystem';
+import type { SystemRegistry } from '../engine/SystemRegistry';
 
 // Object type definitions
 export enum GameObjectType {
@@ -102,6 +104,13 @@ export class GameObjectFactory {
   }
 
   /**
+   * Set system registry for components that need it
+   */
+  setSystemRegistry(registry: SystemRegistry): void {
+    setGhostSystemRegistry(registry);
+  }
+
+  /**
    * Create a game object based on type
    */
   spawn(
@@ -135,6 +144,9 @@ export class GameObjectFactory {
         break;
       case GameObjectType.SMOKE_POOF:
         this.configureSmokePoof(obj);
+        break;
+      case GameObjectType.GHOST:
+        this.configureGhost(obj);
         break;
       default:
         // Default configuration
@@ -370,6 +382,87 @@ export class GameObjectFactory {
       sprite.playAnimation('poof');
       obj.addComponent(sprite);
     }
+  }
+
+  /**
+   * Configure ghost entity for possession mechanic
+   * The ghost is controlled by the player and floats freely
+   */
+  private configureGhost(obj: GameObject): void {
+    obj.team = Team.PLAYER;
+    obj.type = 'ghost';
+    obj.width = 32;
+    obj.height = 32;
+    obj.life = 1;
+
+    // Add sprite component (ghost sprite)
+    const sprite = this.componentPools.sprite.allocate();
+    if (sprite && this.renderSystem) {
+      sprite.setSprite('ghost');
+      sprite.setRenderSystem(this.renderSystem);
+      sprite.addAnimation('float', {
+        frames: [
+          { x: 0, y: 0, width: 32, height: 32, duration: 0.1 },
+        ],
+        loop: true,
+      });
+      sprite.playAnimation('float');
+      obj.addComponent(sprite);
+    }
+
+    // Add physics for movement
+    const physics = this.componentPools.physics.allocate();
+    if (physics) {
+      physics.setUseGravity(false);  // Ghost floats, no gravity
+      physics.setMaxVelocity(300, 300);  // Allow movement in all directions
+      obj.addComponent(physics);
+    }
+
+    // Add movement component
+    const movement = this.componentPools.movement.allocate();
+    if (movement) {
+      // MovementComponent doesn't have setMaxSpeed, velocity is handled by physics
+      obj.addComponent(movement);
+    }
+
+    // Add ghost component for possession behavior
+    const ghost = new GhostComponent({
+      movementSpeed: 200,
+      jumpImpulse: 250,
+      acceleration: 500,
+      useOrientationSensor: true,  // Allow free movement in all directions
+      delayOnRelease: 0.3,
+      killOnRelease: true,  // Remove ghost when released
+      targetAction: ActionType.MOVE,
+      lifeTime: 0,  // Unlimited by default, set based on gems collected
+      changeActionOnButton: false,
+      ambientSound: 'sound_possession',
+    });
+    obj.addComponent(ghost);
+  }
+
+  /**
+   * Spawn a ghost at the player's position with gem-based duration
+   */
+  spawnGhost(playerX: number, playerY: number, gemCount: number): GameObject | null {
+    const ghost = this.spawn(GameObjectType.GHOST, playerX, playerY);
+    if (ghost) {
+      // Set lifetime based on gems collected (from original PlayerComponent.java)
+      // Find the GhostComponent in the ghost's components
+      for (const component of ghost.getComponents()) {
+        if (component instanceof GhostComponent) {
+          let lifeTime = 3.0;  // NO_GEMS_GHOST_TIME
+          if (gemCount >= 2) {
+            lifeTime = 0;  // Unlimited with 2+ gems
+          } else if (gemCount >= 1) {
+            lifeTime = 8.0;  // ONE_GEM_GHOST_TIME
+          }
+          component.setLifeTime(lifeTime);
+          break;
+        }
+      }
+    }
+    return ghost;
   }
 
   /**

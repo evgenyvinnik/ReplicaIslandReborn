@@ -77,6 +77,13 @@ export class RenderSystem {
   }
 
   /**
+   * Get the 2D rendering context (for advanced effects like glow)
+   */
+  getContext(): CanvasRenderingContext2D {
+    return this.ctx;
+  }
+
+  /**
    * Set camera position
    */
   setCamera(x: number, y: number): void {
