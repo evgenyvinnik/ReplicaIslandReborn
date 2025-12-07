@@ -23,6 +23,17 @@ export interface TileCollisionResult {
   normal: Vector2;
 }
 
+/** Temporary collision surface for moving platforms */
+export interface TemporarySurface {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  normalX: number;
+  normalY: number;
+  owner: GameObject | null;
+}
+
 export class CollisionSystem {
   private worldCollision: CollisionSegment[] = [];
   private tileWidth: number = 32;
@@ -34,6 +45,10 @@ export class CollisionSystem {
   // Object collision pools
   private maxColliders: number = 256;
   private colliders: FixedSizeArray<GameObject>;
+
+  // Temporary surfaces for moving platforms
+  private temporarySurfaces: TemporarySurface[] = [];
+  private pendingTemporarySurfaces: TemporarySurface[] = [];
 
   // Reusable vectors for calculations (prefixed with _ as may be used in future)
   private _tempNormal: Vector2 = new Vector2();
@@ -350,5 +365,50 @@ export class CollisionSystem {
    */
   clearColliders(): void {
     this.colliders.clear();
+  }
+
+  /**
+   * Add a temporary surface for moving platforms
+   * The surface will persist for one frame
+   */
+  addTemporarySurface(
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    normalX: number,
+    normalY: number,
+    owner: GameObject | null = null
+  ): void {
+    this.pendingTemporarySurfaces.push({
+      startX,
+      startY,
+      endX,
+      endY,
+      normalX,
+      normalY,
+      owner,
+    });
+  }
+
+  /**
+   * Update temporary surfaces - call once per frame
+   * Swaps pending surfaces into active surfaces
+   */
+  updateTemporarySurfaces(): void {
+    // Clear old temporary surfaces
+    this.temporarySurfaces = [];
+
+    // Swap pending into active
+    const swap = this.temporarySurfaces;
+    this.temporarySurfaces = this.pendingTemporarySurfaces;
+    this.pendingTemporarySurfaces = swap;
+  }
+
+  /**
+   * Get active temporary surfaces
+   */
+  getTemporarySurfaces(): TemporarySurface[] {
+    return this.temporarySurfaces;
   }
 }

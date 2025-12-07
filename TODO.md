@@ -117,7 +117,7 @@ The original used **OpenGL ES 1.x** with Android's GL surface. The web port uses
 - [x] GameObjectManager.ts - Object management
 - [x] GameObjectFactory.ts - Object spawning
 
-### Components Implemented (24 total)
+### Components Implemented (30 total)
 | Component | Original Java | Status |
 |-----------|---------------|--------|
 | SpriteComponent.ts | SpriteComponent.java | ✅ Done |
@@ -143,6 +143,12 @@ The original used **OpenGL ES 1.x** with Android's GL surface. The web port uses
 | ButtonAnimationComponent.ts | ButtonAnimationComponent.java | ✅ Done |
 | DoorAnimationComponent.ts | DoorAnimationComponent.java | ✅ Done |
 | NPCComponent.ts | NPCComponent.java | ✅ Done |
+| GhostComponent.ts | GhostComponent.java | ✅ Done |
+| EvilKabochaComponent.ts | GameObjectFactory (spawnEvilKabocha) | ✅ Done |
+| CameraBiasComponent.ts | CameraBiasComponent.java | ✅ Done |
+| GravityComponent.ts | GravityComponent.java | ✅ Done |
+| SimpleCollisionComponent.ts | SimpleCollisionComponent.java | ✅ Done |
+| SolidSurfaceComponent.ts | SolidSurfaceComponent.java | ✅ Done |
 
 ### Collision System
 | Component | Status |
@@ -177,7 +183,7 @@ The 78 missing sprites map directly to **unimplemented game features**:
 **Summary:** The missing sprites are NOT random gaps - they correspond to these **unimplemented features**:
 1. ❌ **Cutscene System** - Kyle death animation, game endings
 2. ❌ **Rokudou Boss Fight** - Full boss battle with Rokudou
-3. ❌ **Ghost/Possession Mechanic** - `GhostComponent.ts` not implemented
+3. ✅ **Ghost/Possession Mechanic** - `GhostComponent.ts` implemented
 4. ❌ **Snailbomb Enemy** - Enemy type not coded
 5. ⚠️ **Enhanced Effects** - Some particle sprites (basic effects work)
 
@@ -224,21 +230,19 @@ The 78 missing sprites map directly to **unimplemented game features**:
 | Boss | Original File | Status |
 |------|---------------|--------|
 | The Source (Final Boss) | TheSourceComponent.java | ✅ Component exists |
-| Evil Kabocha | GameObjectFactory.java (EVIL_KABOCHA spawn) | ❌ Need EvilKabochaComponent.ts |
-
-The Evil Kabocha boss appears in certain levels and has unique attack patterns. Need to create a dedicated component.
+| Evil Kabocha | GameObjectFactory.java (EVIL_KABOCHA spawn) | ✅ EvilKabochaComponent.ts implemented |
 
 #### 2. Ghost/Possession Mechanic
 | Component | Original File | Description |
 |-----------|---------------|-------------|
-| GhostComponent | GhostComponent.java | Player possesses a "ghost" form with different controls |
+| GhostComponent | GhostComponent.java | ✅ Implemented - Player possesses a "ghost" form with different controls |
 
 The Ghost mechanic allows the player to control a floating ghost entity. This is used in specific story moments. The component handles:
-- Movement via tilt/stick input
-- Lifetime tracking with fade-out
-- Camera target switching
-- Ambient sound loop
-- Action type switching
+- ✅ Movement via stick input
+- ✅ Lifetime tracking with fade-out
+- ✅ Camera target switching
+- ✅ Ambient sound loop
+- ✅ Action type switching
 
 #### 3. Music System
 | Issue | Solution |
@@ -288,13 +292,13 @@ Unlocks after completing the game. Contains:
 #### 7. Missing Components
 | Component | Original File | Priority | Description |
 |-----------|---------------|----------|-------------|
-| GravityComponent | GravityComponent.java | MEDIUM | Custom gravity zones |
-| CameraBiasComponent | CameraBiasComponent.java | MEDIUM | Shifts camera focus |
+| GravityComponent | GravityComponent.java | ✅ Done | Custom gravity zones |
+| CameraBiasComponent | CameraBiasComponent.java | ✅ Done | Shifts camera focus |
 | OrbitalMagnetComponent | OrbitalMagnetComponent.java | LOW | Magnetic attraction for collectibles |
 | ChangeComponentsComponent | ChangeComponentsComponent.java | LOW | Dynamic component swapping |
-| SimpleCollisionComponent | SimpleCollisionComponent.java | MEDIUM | Simplified collision for effects |
+| SimpleCollisionComponent | SimpleCollisionComponent.java | ✅ Done | Simplified collision for effects |
 | SimplePhysicsComponent | SimplePhysicsComponent.java | LOW | Simplified physics for projectiles |
-| SolidSurfaceComponent | SolidSurfaceComponent.java | MEDIUM | Solid collision surfaces |
+| SolidSurfaceComponent | SolidSurfaceComponent.java | ✅ Done | Solid collision surfaces |
 | SelectDialogComponent | SelectDialogComponent.java | LOW | Dialog selection UI |
 | FixedAnimationComponent | FixedAnimationComponent.java | LOW | Static looping animations |
 | FadeDrawableComponent | FadeDrawableComponent.java | LOW | Fade in/out effects |
@@ -307,7 +311,7 @@ Unlocks after completing the game. Contains:
 #### 8. Camera System Enhancements
 | Feature | Original | Status |
 |---------|----------|--------|
-| Camera bias points | CameraBiasComponent.java | ❌ Not implemented |
+| Camera bias points | CameraBiasComponent.java | ✅ Implemented |
 | Focus on specific objects | TAKE_CAMERA_FOCUS hotspot | ✅ Implemented via NPCComponent |
 
 ### LOW PRIORITY - Nice to Have
@@ -338,16 +342,16 @@ Can be implemented using the Gamepad Haptic API or Vibration API for supported b
 ## 📋 Implementation Checklist by Priority
 
 ### Phase 1: Complete Core Gameplay (HIGH)
-- [ ] Create EvilKabochaComponent.ts for Evil Kabocha boss
-- [ ] Implement GhostComponent.ts for possession mechanic
+- [x] Create EvilKabochaComponent.ts for Evil Kabocha boss ✅
+- [x] Implement GhostComponent.ts for possession mechanic ✅
 - [ ] Convert MIDI music to OGG and enable playback
-- [ ] Add CameraBiasComponent.ts for camera focus points
+- [x] Add CameraBiasComponent.ts for camera focus points ✅
 
 ### Phase 2: Story & Polish (MEDIUM)
 - [ ] Create DiaryOverlay.tsx for diary collection UI
 - [ ] Add cutscene player for game endings
-- [ ] Implement GravityComponent.ts for gravity zones
-- [ ] Add SolidSurfaceComponent.ts for moving platforms
+- [x] Implement GravityComponent.ts for gravity zones ✅
+- [x] Add SolidSurfaceComponent.ts for moving platforms ✅
 - [ ] Create CrusherAndouComponent.ts for advanced stomp
 
 ### Phase 3: Extras & Completion (LOW)
@@ -390,7 +394,7 @@ The first level (level_0_1_sewer) has an intro cutscene where Wanda walks toward
 | `HitPoint.java` / `HitPointPool.java` | Health system | ✅ Partial |
 | `InventoryComponent.java` | Collectibles, keys, items | ✅ Done (InventoryComponent.ts) |
 | `CrusherAndouComponent.java` | Stomp attack logic | ✅ Partial (in Game.tsx) |
-| `GhostComponent.java` | Possession mechanic | MEDIUM |
+| `GhostComponent.java` | Possession mechanic | ✅ Done (GhostComponent.ts) |
 
 #### Enemy & NPC AI (MEDIUM PRIORITY)
 | Original File | Description | Priority |
@@ -408,12 +412,12 @@ The first level (level_0_1_sewer) has an intro cutscene where Wanda walks toward
 #### Physics & Collision (MEDIUM PRIORITY)
 | Original File | Description | Priority |
 |---------------|-------------|----------|
-| `GravityComponent.java` | Gravity zones | MEDIUM |
+| `GravityComponent.java` | Gravity zones | ✅ Done (GravityComponent.ts) |
 | `SimplePhysicsComponent.java` | Simplified physics | MEDIUM |
-| `SolidSurfaceComponent.java` | Solid collision surfaces | MEDIUM |
+| `SolidSurfaceComponent.java` | Solid collision surfaces | ✅ Done (SolidSurfaceComponent.ts) |
 | `BackgroundCollisionComponent.java` | Background layer collision | ✅ Done (BackgroundCollisionComponent.ts) |
 | `DynamicCollisionComponent.java` | Dynamic collision volumes | ✅ Done (DynamicCollisionComponent.ts) |
-| `SimpleCollisionComponent.java` | Simple AABB collision | MEDIUM |
+| `SimpleCollisionComponent.java` | Simple AABB collision | ✅ Done (SimpleCollisionComponent.ts) |
 | `AABoxCollisionVolume.java` | Axis-aligned box volumes | ✅ Done (AABoxCollisionVolume.ts) |
 | `SphereCollisionVolume.java` | Circle collision volumes | ✅ Done (SphereCollisionVolume.ts) |
 | `CollisionParameters.java` | Collision configuration | MEDIUM |

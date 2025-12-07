@@ -244,6 +244,30 @@ export class CameraSystem {
   }
 
   /**
+   * Add camera bias toward a position
+   * Used by CameraBiasComponent to pull camera toward points of interest
+   */
+  addCameraBias(biasPosition: Vector2): void {
+    const focalX = this.focusPosition.x;
+    const focalY = this.focusPosition.y;
+
+    // Calculate direction from focal point to bias position
+    const dx = biasPosition.x - focalX;
+    const dy = biasPosition.y - focalY;
+
+    // Normalize the direction
+    const length = Math.sqrt(dx * dx + dy * dy);
+    if (length > 0.001) {
+      const normalizedX = dx / length;
+      const normalizedY = dy / length;
+
+      // Accumulate bias
+      this.biasX += normalizedX;
+      this.biasY += normalizedY;
+    }
+  }
+
+  /**
    * Set camera position directly
    */
   setPosition(x: number, y: number): void {

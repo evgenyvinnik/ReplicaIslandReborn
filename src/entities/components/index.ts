@@ -63,3 +63,19 @@ export type { TheSourceConfig } from './TheSourceComponent';
 
 export { NPCComponent } from './NPCComponent';
 export type { NPCComponentConfig } from './NPCComponent';
+
+export { GhostComponent, setGhostSystemRegistry } from './GhostComponent';
+export type { GhostConfig } from './GhostComponent';
+
+export { EvilKabochaComponent, setEvilKabochaSystemRegistry, EvilKabochaAnimation } from './EvilKabochaComponent';
+export type { EvilKabochaConfig } from './EvilKabochaComponent';
+
+export { CameraBiasComponent, setCameraBiasSystemRegistry } from './CameraBiasComponent';
+
+export { GravityComponent } from './GravityComponent';
+export type { GravityConfig } from './GravityComponent';
+
+export { SimpleCollisionComponent, setSimpleCollisionSystemRegistry } from './SimpleCollisionComponent';
+
+export { SolidSurfaceComponent, setSolidSurfaceSystemRegistry } from './SolidSurfaceComponent';
+export type { SurfaceDefinition } from './SolidSurfaceComponent';
