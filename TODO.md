@@ -301,7 +301,7 @@ The 78 missing sprites map directly to **unimplemented game features**:
 2. ✅ **Rokudou Boss Fight** - RokudouBossComponent implemented with AI and projectiles
 3. ✅ **Ghost/Possession Mechanic** - `GhostComponent.ts` implemented
 4. ✅ **Snailbomb Enemy** - SnailbombComponent implemented with patrol and shooting
-5. ⚠️ **Enhanced Effects** - Some particle sprites (basic effects work)
+5. ✅ **Enhanced Effects** - All 8 particle sprites (dust01-05, spark01-03) now integrated
 
 ### Sound Assets
 | Category | Status |
@@ -1037,7 +1037,7 @@ The hot spot layer defines special tile behaviors:
 | Kyle Death Cutscene | 16 | ✅ CanvasCutscene plays 16-frame animation |
 | Rokudou Boss Battle | 13 | ⚠️ Basic AI, sprites need animation integration |
 | Game Endings | 8 | ✅ Parallax endings implemented in CanvasCutscene |
-| Particle Effects | 8 | ⚠️ Basic effects work, enhanced sprites missing |
+| Particle Effects | 8 | ✅ All dust/spark sprites integrated in EffectsSystem |
 | Snailbomb Enemy | 7 | ✅ SnailbombComponent attached |
 | Debug Rendering | 6 | ⚠️ Low priority, debug mode uses colored rects |
 | UI Misc | 5 | ⚠️ Level select enhancements |

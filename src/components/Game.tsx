@@ -1596,12 +1596,21 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // NPC movement and physics
       gameObjectManager.forEach((obj) => {
-        if (obj.type !== 'npc' || !obj.isVisible()) return;
+        if (obj.type !== 'npc') return;
+        if (!obj.isVisible()) {
+          console.warn(`[NPC Physics] ${obj.name} is not visible, skipping physics`);
+          return;
+        }
         
         const velocity = obj.getVelocity();
         const targetVelocity = obj.getTargetVelocity();
         const acceleration = obj.getAcceleration();
         const position = obj.getPosition();
+        
+        // Debug log for Wanda
+        if (obj.subType === 'wanda' && Math.random() < 0.02) {
+          console.warn(`[NPC Physics] Wanda pos=(${position.x.toFixed(1)}, ${position.y.toFixed(1)}) vel=(${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)})`);
+        }
         
         // Interpolate velocity towards target velocity (based on original MovementComponent)
         if (acceleration.x > 0) {

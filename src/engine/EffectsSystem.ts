@@ -20,6 +20,7 @@ export enum EffectType {
   SMOKE_SMALL = 'smoke_small',
   CRUSH_FLASH = 'crush_flash',
   DUST = 'dust',
+  SPARK = 'spark',
 }
 
 /**
@@ -162,11 +163,25 @@ const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
   [EffectType.DUST]: {
     type: EffectType.DUST,
     frames: [
-      'effect_smoke_small01.png',
-      'effect_smoke_small02.png',
-      'effect_smoke_small03.png',
+      'dust01.png',
+      'dust02.png',
+      'dust03.png',
+      'dust04.png',
+      'dust05.png',
     ],
     frameDuration: 1 / 16,
+    width: 16,
+    height: 16,
+    loop: false,
+  },
+  [EffectType.SPARK]: {
+    type: EffectType.SPARK,
+    frames: [
+      'spark01.png',
+      'spark02.png',
+      'spark03.png',
+    ],
+    frameDuration: 1 / 20,
     width: 16,
     height: 16,
     loop: false,
@@ -327,6 +342,40 @@ export class EffectsSystem {
     this.spawn(EffectType.DUST, x, y, vx, vy);
   }
   
+  /**
+   * Spawn spark effect (for hitting metal, impacts)
+   */
+  spawnSpark(x: number, y: number): void {
+    const vx = (Math.random() - 0.5) * 60;
+    const vy = -30 - Math.random() * 40;
+    this.spawn(EffectType.SPARK, x, y, vx, vy);
+  }
+  
+  /**
+   * Spawn multiple dust particles (for landing)
+   */
+  spawnDustBurst(x: number, y: number, count: number = 3): void {
+    for (let i = 0; i < count; i++) {
+      const offsetX = (Math.random() - 0.5) * 16;
+      const vx = (Math.random() - 0.5) * 50;
+      const vy = -15 - Math.random() * 25;
+      this.spawn(EffectType.DUST, x + offsetX, y, vx, vy);
+    }
+  }
+  
+  /**
+   * Spawn multiple spark particles (for impacts)
+   */
+  spawnSparkBurst(x: number, y: number, count: number = 4): void {
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
+      const speed = 40 + Math.random() * 40;
+      const vx = Math.cos(angle) * speed;
+      const vy = Math.sin(angle) * speed - 20;
+      this.spawn(EffectType.SPARK, x, y, vx, vy);
+    }
+  }
+
   /**
    * Update all active effects
    */
