@@ -217,6 +217,11 @@ export class NPCComponent extends GameComponent {
         if (hitTileX !== this.lastHitTileX || hitTileY !== this.lastHitTileY) {
           const hotSpot = hotSpotSystem.getHotSpotByTile(hitTileX, hitTileY);
           
+          // Debug: Log when Wanda enters a new tile
+          if (parentObject.subType === 'wanda') {
+            console.warn(`[NPCComponent] Wanda NEW TILE: (${hitTileX}, ${hitTileY}) hotSpot=${hotSpot} last=(${this.lastHitTileX}, ${this.lastHitTileY})`);
+          }
+          
           // Movement-related commands are immediate
           if (hotSpot >= HotSpotType.NPC_GO_RIGHT && hotSpot <= HotSpotType.NPC_SLOW) {
             parentObject.setCurrentAction(ActionType.MOVE);

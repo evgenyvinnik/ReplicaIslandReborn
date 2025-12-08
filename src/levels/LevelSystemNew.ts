@@ -18,6 +18,7 @@ import { SleeperComponent } from '../entities/components/SleeperComponent';
 import { PopOutComponent } from '../entities/components/PopOutComponent';
 import { EvilKabochaComponent } from '../entities/components/EvilKabochaComponent';
 import { TheSourceComponent } from '../entities/components/TheSourceComponent';
+import { RokudouBossComponent } from '../entities/components/RokudouBossComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimationComponent, ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
@@ -858,6 +859,52 @@ export class LevelSystem {
         objHeight = 128;
         obj.activationRadius = 400; // Boss has larger activation radius
         obj.life = 3; // Boss has 3 hit points
+        // Add Rokudou boss AI component
+        const rokudouComp = new RokudouBossComponent({
+          life: 3,
+          attackRange: 300,
+          movementSpeed: 100,
+        });
+        // Wire up boss death callback to trigger ending cutscene (ROKUDOU_ENDING)
+        if (this.onBossDeathCallback) {
+          const callback = this.onBossDeathCallback;
+          rokudouComp.setGameEventTrigger((_event: string, _index: number) => {
+            callback('ROKUDOU_ENDING');
+          });
+        }
+        obj.addComponent(rokudouComp);
+        break;
+      }
+      
+      case GameObjectTypeIndex.BREAKABLE_BLOCK: {
+        // Breakable/destructible block (type 41)
+        // Can be destroyed by player attacks
+        obj.type = 'breakable_block';
+        objWidth = 32;
+        objHeight = 32;
+        obj.activationRadius = 100;
+        obj.life = 1;
+        obj.team = Team.ENEMY; // Can be damaged by player
+        
+        // Add dynamic collision component for hit detection
+        const blockCollision = new DynamicCollisionComponent();
+        // Vulnerability volume - can be hit from any direction
+        const blockVulnerability = new AABoxCollisionVolume(7, 0, 32 - 7, 42, HitType.HIT);
+        blockCollision.setCollisionVolumes(null, [blockVulnerability]);
+        obj.addComponent(blockCollision);
+        
+        // Hit reaction - takes damage and dies
+        const blockHitReact = new HitReactionComponent({
+          forceInvincibility: false
+        });
+        blockCollision.setHitReactionComponent(blockHitReact);
+        obj.addComponent(blockHitReact);
+        
+        // Add solid surface component so player can stand on the block
+        const solidSurface = new SolidSurfaceComponent();
+        // Create a 32x32 rectangular solid
+        solidSurface.createRectangle(32, 32);
+        obj.addComponent(solidSurface);
         break;
       }
       

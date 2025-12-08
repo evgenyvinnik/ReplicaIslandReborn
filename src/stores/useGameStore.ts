@@ -583,6 +583,9 @@ export interface DifficultyConstants {
   rubyValue: number;
   playerInvincibleTime: number;
   enemyDamage: number;
+  // Glow mode / Invincibility powerup
+  coinsPerPowerup: number;
+  glowDuration: number;
 }
 
 export const DifficultySettings: Record<GameSettings['difficulty'], DifficultyConstants> = {
@@ -593,6 +596,8 @@ export const DifficultySettings: Record<GameSettings['difficulty'], DifficultyCo
     rubyValue: 5,
     playerInvincibleTime: 3.0,
     enemyDamage: 1,
+    coinsPerPowerup: 15,   // Easier to get powerup
+    glowDuration: 20.0,    // Longer duration
   },
   kids: {
     playerMaxLife: 3,
@@ -601,6 +606,8 @@ export const DifficultySettings: Record<GameSettings['difficulty'], DifficultyCo
     rubyValue: 3,
     playerInvincibleTime: 2.0,
     enemyDamage: 1,
+    coinsPerPowerup: 20,
+    glowDuration: 15.0,
   },
   adults: {
     playerMaxLife: 2,
@@ -609,6 +616,8 @@ export const DifficultySettings: Record<GameSettings['difficulty'], DifficultyCo
     rubyValue: 2,
     playerInvincibleTime: 1.5,
     enemyDamage: 2,
+    coinsPerPowerup: 30,   // Harder to get powerup
+    glowDuration: 10.0,    // Shorter duration
   },
 };
 

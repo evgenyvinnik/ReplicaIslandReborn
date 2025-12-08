@@ -4,9 +4,9 @@ This document tracks what has been implemented and what still needs to be done t
 
 ---
 
-## 🟢 PROGRESS: ~85% Faithful - Playable With Most Features Working
+## 🟢 PROGRESS: ~90% Faithful - Playable With Most Features Working
 
-**The game is playable for all levels. Critical bugs have been fixed. Enemy AI components integrated. Boss endings wired up.**
+**The game is playable for all levels. Critical bugs have been fixed. Enemy AI components integrated. Boss endings wired up. Rokudou boss AI attached.**
 
 ### Game.tsx Faithfulness Analysis (Updated December 2024)
 
@@ -92,6 +92,10 @@ if (state.currentLevel === 41) { // level_final_boss_lab
 - [x] Enemy AI components attached (PatrolComponent, SnailbombComponent, etc.)
 - [x] Special enemy behaviors (SleeperComponent, PopOutComponent, EvilKabochaComponent, TheSourceComponent)
 - [x] Boss death endings (KABOCHA_ENDING, WANDA_ENDING, ROKUDOU_ENDING cutscenes trigger on boss death)
+- [x] RokudouBossComponent attached to Rokudou enemies
+- [x] Difficulty-based glow mode (coinsPerPowerup, glowDuration from DifficultySettings)
+- [ ] Pause-on-attack visual effect (time freeze on player hit - polish)
+- [ ] Ending stats screen (after game completion - polish)
 - [ ] Component-based architecture refactor (nice to have)
 - [ ] Object pooling at runtime (optimization)
 
@@ -1070,13 +1074,13 @@ The remaining **~18%** consists of these major unimplemented features:
 | Feature | Sprites Needed | Components Needed | Priority | Status |
 |---------|---------------|-------------------|----------|--------|
 | **NPC Cutscene System** | 0 | `NPCComponent.ts` | CRITICAL | ✅ Done |
-| **Rokudou Boss Fight** | 13 (`rokudou_fight_*.png`) | Boss AI, attack patterns | HIGH | ❌ |
-| **Cutscene Player** | 16 (`anime_kyle_fall*.png`) + 8 (endings) | AnimationPlayerActivity equivalent | MEDIUM | ❌ |
+| **Rokudou Boss Fight** | 13 (`rokudou_fight_*.png`) | Boss AI, attack patterns | HIGH | ✅ Done |
+| **Cutscene Player** | 16 (`anime_kyle_fall*.png`) + 8 (endings) | AnimationPlayerActivity equivalent | MEDIUM | ✅ Done |
 | **Ghost Mechanic** | 1 (`ghost.png`) | `GhostComponent.ts` | MEDIUM | ✅ Done |
 | **Evil Kabocha Boss** | 0 | `EvilKabochaComponent.ts` | HIGH | ✅ Done |
 | **Snailbomb Enemy** | 7 (`snailbomb_*.png`) | Enemy factory spawn | LOW | ✅ Done |
 | **Motion Blur Effect** | 0 | `MotionBlurComponent.ts` | LOW | ✅ Done |
-| **Per-Object Fade** | 0 | `FadeDrawableComponent.ts` | LOW | ❌ |
+| **Per-Object Fade** | 0 | `FadeDrawableComponent.ts` | LOW | ✅ Done |
 | **Diary System** | 0 | `CanvasDiaryOverlay.ts` | MEDIUM | ✅ Done |
 | **Glow Mode Powerup** | 0 | Game.tsx integration | MEDIUM | ✅ Done |
 

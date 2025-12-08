@@ -110,6 +110,10 @@ export class HotSpotSystem {
   ): void {
     this.levelWidth = levelWidth;
     this.levelHeight = levelHeight;
+    console.warn(`[HotSpotSystem] setLevelDimensions: levelWidth=${levelWidth}, levelHeight=${levelHeight}, tileWidth=${_tileWidth}, tileHeight=${_tileHeight}`);
+    if (this.world) {
+      console.warn(`[HotSpotSystem] world: width=${this.world.width}, height=${this.world.height}`);
+    }
   }
 
   /**

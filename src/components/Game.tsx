@@ -36,7 +36,7 @@ import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { LevelSystem } from '../levels/LevelSystemNew';
 import { TileMapRenderer } from '../levels/TileMapRenderer';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
-import { gameSettings } from '../utils/GameSettings';
+import { gameSettings, getDifficultySettings } from '../utils/GameSettings';
 import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
 import { getDialogsForLevel, type Dialog } from '../data/dialogs';
 import { getDiaryByCollectionOrder } from '../data/diaries';
@@ -105,12 +105,8 @@ const PLAYER = {
   ONE_GEM_GHOST_TIME: 8.0,
   TWO_GEMS_GHOST_TIME: 0.0,   // Unlimited with 2+ gems
   
-  // Glow mode / Invincibility powerup (from DifficultyConstants.java)
-  // Collecting enough coins grants temporary invincibility with a glowing effect
-  COINS_PER_POWERUP_KIDS: 20,
-  COINS_PER_POWERUP_ADULTS: 30,
-  GLOW_DURATION_KIDS: 15.0,    // 15 seconds of invincibility on Kids difficulty
-  GLOW_DURATION_ADULTS: 10.0,  // 10 seconds on Adults difficulty
+  // Note: Glow mode constants moved to DifficultySettings in useGameStore.ts
+  // Access via getDifficultySettings().coinsPerPowerup and .glowDuration
 };
 
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
@@ -959,6 +955,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'ruby05', file: 'object_ruby05', w: 32, h: 32 },
         // Diary
         { name: 'diary01', file: 'object_diary01', w: 32, h: 32 },
+        // Breakable block (destructible wall)
+        { name: 'debris_block', file: 'object_debris_block', w: 32, h: 32 },
+        { name: 'debris_piece', file: 'object_debris_piece', w: 16, h: 16 },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -1760,9 +1759,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 pState.coinsForPowerup++;
                 
                 // Check if enough coins for glow mode (difficulty-based)
-                // TODO: Get difficulty from game settings, for now use Kids
-                const coinsNeeded = PLAYER.COINS_PER_POWERUP_KIDS;
-                const glowDuration = PLAYER.GLOW_DURATION_KIDS;
+                const difficultyConfig = getDifficultySettings();
+                const coinsNeeded = difficultyConfig.coinsPerPowerup;
+                const glowDuration = difficultyConfig.glowDuration;
                 
                 if (pState.coinsForPowerup >= coinsNeeded && !pState.glowMode) {
                   // Activate glow mode!
@@ -2526,6 +2525,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               spriteName = 'diary01';
               spriteOffset.x = -obj.width / 2;
               spriteOffset.y = -obj.height / 2;
+              break;
+            case 'breakable_block':
+              // Breakable/destructible block - uses debris_block sprite
+              spriteName = 'debris_block';
+              // Block is 32x32, same as object dimensions
+              spriteOffset.x = 0;
+              spriteOffset.y = 0;
               break;
             case 'enemy': {
               // Determine enemy type by subtype or default to bat
