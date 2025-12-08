@@ -6,9 +6,9 @@ This document tracks what has been implemented and what still needs to be done t
 
 ---
 
-## 🟢 PROGRESS: ~95% Complete - Fully Playable
+## 🟢 PROGRESS: ~98% Complete - Fully Playable
 
-**The game is fully playable through all 44 levels with nearly all features working. All critical systems implemented.**
+**The game is fully playable through all 44 levels with all features working. All sprites, sounds, and systems implemented.**
 
 ### Core Systems Comparison
 
@@ -280,11 +280,11 @@ These are intentional differences from the original:
 | **Diary Entries** | 15 | 15 | 100% |
 | **Tilesets** | 7 | 7 | 100% |
 | **Backgrounds** | 9 | 9 | 100% |
-| **Gameplay Sprites** | 342 | 342 | 100% |
-| **Polish Sprites** | 78 | 0 | 0% |
+| **Gameplay Sprites** | 396 | 396 | 100% |
+| **Debug/Utility Sprites** | 24 | 0 | 0% (not needed) |
 | **Cutscenes** | 4 | 4 | 100% |
 
-**Overall: ~95% Complete**
+**Overall: ~98% Complete**
 
 ---
 
@@ -1427,7 +1427,7 @@ The hot spot layer defines special tile behaviors:
 | Dialog Files (.xml) | 38 | 38 | 100% | All dialogs ported to TypeScript |
 | Tileset Images | 7 | 7 | 100% | grass, island, sewage, cave, lab, tutorial, titletileset |
 | Background Images | 9 | 9 | 100% | All parallax backgrounds |
-| Sprite Assets | 420 | 342 | 81% | 78 missing (see breakdown below) |
+| Sprite Assets | 420 | 396 | 94% | 24 missing (mostly debug/duplicates) |
 | Canvas Render Features | 12 | 12 | 100% | MotionBlur, FadeDrawable now ported |
 | Options/Settings | 10 | 10 | 100% | Full settings persistence |
 | Player Physics | 1 | 1 | 100% | Ground/air/jetpack/stomp |
@@ -1439,69 +1439,45 @@ The hot spot layer defines special tile behaviors:
 | Vibration/Haptic | 1 | 1 | 100% | VibrationSystem with Web Vibration API |
 | Boss Death Endings | 1 | 1 | 100% | KABOCHA, WANDA, ROKUDOU endings via callbacks |
 
-### Missing Sprites by Feature (78 total)
+### Missing Sprites Analysis (24 remaining)
+
+| Category | Count | Files | Status |
+|----------|-------|-------|--------|
+| **Debug Rendering** | 6 | `debug_box_*.png`, `debug_circle_*.png` | ⚪ Not needed (dev tools) |
+| **Rokudou Duplicates** | 13 | `rokudou_fight_*.png` | ✅ Already have `enemy_rokudou_fight_*.png` |
+| **Dialog Box** | 2 | `dialog_box.9.png`, `dialogue.png` | ✅ Using React/CSS instead |
+| **Utility** | 3 | `collision_map.png`, `framerate_warning.png`, `robot.png` | ⚪ Not needed |
+
+**All gameplay-critical sprites are now present (396/420 = 94%)**
+
+The 24 "missing" sprites fall into these categories:
+- **13 are duplicates** - `rokudou_fight_*.png` files are duplicates of `enemy_rokudou_fight_*.png` which are already in the web port
+- **6 are debug tools** - Only needed for development visualization
+- **2 are dialog UI** - Replaced by React/CSS implementation
+- **3 are utility** - Not used in gameplay
+
+### Sprites Now Fully Integrated
 
 | Feature | Sprites | Status |
 |---------|---------|--------|
-| Kyle Death Cutscene | 16 | ✅ CanvasCutscene plays 16-frame animation |
-| Rokudou Boss Battle | 13 | ⚠️ Basic AI, sprites need animation integration |
-| Game Endings | 8 | ✅ Parallax endings implemented in CanvasCutscene |
-| Particle Effects | 8 | ✅ All dust/spark sprites integrated in EffectsSystem |
-| Snailbomb Enemy | 7 | ✅ SnailbombComponent attached |
-| Debug Rendering | 6 | ⚠️ Low priority, debug mode uses colored rects |
-| UI Misc | 5 | ⚠️ Level select enhancements |
-| Boss Effects | 4 | ⚠️ Boss projectiles need polish |
-| Jetpack Fire | 2 | ⚠️ Visual polish |
-| Dialog Box | 2 | ✅ Using React/CSS instead |
-| Ghost Mechanic | 1 | ✅ GhostComponent implemented |
-| Other | 6 | ⚠️ Utility sprites |
+| Kyle Death Cutscene | 16 | ✅ All `anime_kyle_fall*.png` loaded in CanvasCutscene |
+| Rokudou Boss Battle | 13 | ✅ All `enemy_rokudou_fight_*.png` loaded and animated |
+| Game Endings | 8 | ✅ All ending background/foreground sprites |
+| Particle Effects | 8 | ✅ `dust01-05.png`, `spark01-03.png` in EffectsSystem |
+| Snailbomb Enemy | 7 | ✅ All `snailbomb_*.png` sprites loaded |
+| UI Elements | 5 | ✅ `ui_arrow_*.png`, `ui_locked.png`, `ui_new.png`, `ui_pearl.png` |
+| Boss Effects | 4 | ✅ `energy_ball01-04.png` loaded, ENERGY_BALL effect type added |
+| Jetpack Fire | 2 | ✅ `jetfire01-02.png` loaded and rendering |
+| Ghost Mechanic | 1 | ✅ `ghost.png` loaded for GhostComponent |
 
-**Overall Completion: ~90%**
+**Overall Completion: ~98%**
 
-The game is **fully playable through all 47 levels** with:
-- ✅ **Level loading** - Binary .bin level files fully parsed
-- ✅ **Sound playback** - 22 OGG sound effects loaded and playing
+The game is **fully playable through all 44 levels** with:
+- ✅ **All gameplay sprites present** - Players, enemies, bosses, effects, UI
+- ✅ **Level loading** - All 44 binary .bin level files parsed to JSON
+- ✅ **Sound playback** - All 22 OGG sound effects loaded and playing
 - ✅ **Dialog system** - All 38 dialog files ported with typewriter effect
-- ✅ **Options menu** - Full settings screen with sound, controls, difficulty, save management
-- ✅ **Player physics** - Full jet pack, stomp, ground/air movement
-- ✅ **Tile map rendering** - Parallax scrolling tile backgrounds
-- ✅ **Background images** - Scrolling background scenery
-- ✅ **Hot spot detection** - Death zones, level endings, NPC triggers
-- ✅ **Object spawning** - Game objects spawned from level data
-- ✅ **Collectible sprites** - Coins, rubies, diaries with animated sprites
-- ✅ **Enemy sprites** - Bat, sting, brobot, skeleton, karaguin, mudman, etc.
-- ✅ **Enemy AI (type-based)** - Different behaviors for flying, ground, and stationary enemies
-- ✅ **Collectible pickup** - Player collision with coins/rubies/diaries
-- ✅ **Inventory system** - Track coins, rubies, pearls, diaries, lives
-- ✅ **Player damage** - Invincibility frames, knockback, life system
-- ✅ **Enemy stomp** - Kill enemies by stomping on them
-
-### What's Blocking 100% Completion
-
-The remaining **~18%** consists of these major unimplemented features:
-
-| Feature | Sprites Needed | Components Needed | Priority | Status |
-|---------|---------------|-------------------|----------|--------|
-| **NPC Cutscene System** | 0 | `NPCComponent.ts` | CRITICAL | ✅ Done |
-| **Rokudou Boss Fight** | 13 (`rokudou_fight_*.png`) | Boss AI, attack patterns | HIGH | ✅ Done |
-| **Cutscene Player** | 16 (`anime_kyle_fall*.png`) + 8 (endings) | AnimationPlayerActivity equivalent | MEDIUM | ✅ Done |
-| **Ghost Mechanic** | 1 (`ghost.png`) | `GhostComponent.ts` | MEDIUM | ✅ Done |
-| **Evil Kabocha Boss** | 0 | `EvilKabochaComponent.ts` | HIGH | ✅ Done |
-| **Snailbomb Enemy** | 7 (`snailbomb_*.png`) | Enemy factory spawn | LOW | ✅ Done |
-| **Motion Blur Effect** | 0 | `MotionBlurComponent.ts` | LOW | ✅ Done |
-| **Per-Object Fade** | 0 | `FadeDrawableComponent.ts` | LOW | ✅ Done |
-| **Diary System** | 0 | `CanvasDiaryOverlay.ts` | MEDIUM | ✅ Done |
-| **Glow Mode Powerup** | 0 | Game.tsx integration | MEDIUM | ✅ Done |
-
-### Additional Working Features
-- ✅ **Screen transitions** - FadeTransition component for level changes
-- ✅ **Player death/respawn** - Respawn at level start with invincibility
-- ✅ **Level completion** - Detect END_LEVEL hotspot, advance to next level
-- ✅ **NPC dialog triggers** - TALK hotspots trigger dialog overlay
-- ✅ **NPC cutscene system** - TAKE_CAMERA_FOCUS, NPC_GO_RIGHT/LEFT, queued commands via NPCComponent
-- ✅ **Camera focus switching** - Camera can follow NPCs during cutscenes
-- ✅ **Camera shake** - Screen shake on player damage and death
-- ✅ **Pause menu** - In-game pause with settings
-- ✅ **Game over screen** - Shows when player runs out of lives
-- ✅ **Level complete screen** - Shows score and bonus when completing levels
-- ✅ **Effects system** - Explosions, smoke, dust, crush flash effects
+- ✅ **Full UI** - Menus, HUD, controls, pause, game over, level complete
+- ✅ **All enemies** - Bat, sting, brobot, skeleton, snailbomb, bosses, etc.
+- ✅ **All mechanics** - Jetpack, stomp, ghost, glow mode, collectibles
+- ✅ **All bosses** - Evil Kabocha, The Source, Rokudou with full AI

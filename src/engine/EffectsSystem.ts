@@ -21,6 +21,7 @@ export enum EffectType {
   CRUSH_FLASH = 'crush_flash',
   DUST = 'dust',
   SPARK = 'spark',
+  ENERGY_BALL = 'energy_ball',
 }
 
 /**
@@ -185,6 +186,20 @@ const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
     width: 16,
     height: 16,
     loop: false,
+  },
+  [EffectType.ENERGY_BALL]: {
+    type: EffectType.ENERGY_BALL,
+    frames: [
+      'energy_ball01.png',
+      'energy_ball02.png',
+      'energy_ball03.png',
+      'energy_ball04.png',
+    ],
+    frameDuration: 1 / 12,
+    width: 32,
+    height: 32,
+    loop: true,  // Energy ball loops while flying
+    sound: 'sound_poing',
   },
 };
 

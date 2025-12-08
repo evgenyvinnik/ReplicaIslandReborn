@@ -1029,6 +1029,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'spark01', file: 'spark01' },
         { name: 'spark02', file: 'spark02' },
         { name: 'spark03', file: 'spark03' },
+        // Ghost (for possession mechanic)
+        { name: 'ghost', file: 'ghost' },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -1166,6 +1168,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'source_core', file: 'enemy_source_core', w: 512, h: 512 },
         { name: 'source_spikes', file: 'enemy_source_spikes', w: 512, h: 512 },
         { name: 'source_spots', file: 'enemy_source_spots', w: 512, h: 512 },
+        // Energy ball projectiles (for Rokudou boss)
+        { name: 'energy_ball01', file: 'energy_ball01', w: 32, h: 32 },
+        { name: 'energy_ball02', file: 'energy_ball02', w: 32, h: 32 },
+        { name: 'energy_ball03', file: 'energy_ball03', w: 32, h: 32 },
+        { name: 'energy_ball04', file: 'energy_ball04', w: 32, h: 32 },
+        // Effect energy balls (alternative graphics)
+        { name: 'effect_energyball01', file: 'effect_energyball01', w: 32, h: 32 },
+        { name: 'effect_energyball02', file: 'effect_energyball02', w: 32, h: 32 },
+        { name: 'effect_energyball03', file: 'effect_energyball03', w: 32, h: 32 },
+        { name: 'effect_energyball04', file: 'effect_energyball04', w: 32, h: 32 },
       ];
 
       const loadPromises = sprites.map(sprite =>

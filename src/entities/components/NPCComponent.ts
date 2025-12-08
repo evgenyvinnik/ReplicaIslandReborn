@@ -15,8 +15,11 @@ import { GameFlowEventType } from '../../engine/GameFlowEvent';
 import type { HitReactionComponent } from './HitReactionComponent';
 
 // Speed and timing constants (from original)
-const UP_IMPULSE = 400.0;
-const DOWN_IMPULSE = -10.0;
+// NOTE: In screen coordinates, positive Y is DOWN, so:
+// - UP_IMPULSE should be NEGATIVE to move upward (decrease Y)
+// - DOWN_IMPULSE should be POSITIVE to move downward (increase Y)
+const UP_IMPULSE = -400.0;
+const DOWN_IMPULSE = 10.0;
 const HORIZONTAL_IMPULSE = 200.0;
 const SLOW_HORIZONTAL_IMPULSE = 50.0;
 const ACCELERATION = 300.0;
