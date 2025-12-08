@@ -55,6 +55,7 @@ export class GameObject implements Poolable {
   // Animation state (for simple objects without AnimationComponent)
   public animTimer: number = 0;
   public animFrame: number = 0;
+  public projectileAnimTimer: number = 0;  // Separate timer for faster projectile animation
   public subType: string = '';
 
   // Components organized by phase
@@ -92,6 +93,7 @@ export class GameObject implements Poolable {
     this.currentAction = ActionType.INVALID;
     this.animTimer = 0;
     this.animFrame = 0;
+    this.projectileAnimTimer = 0;
     this.subType = '';
     this.positionLocked = false;
     this.activationRadius = 0;

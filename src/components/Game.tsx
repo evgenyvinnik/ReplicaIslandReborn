@@ -3363,6 +3363,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
             case 'projectile': {
               // Projectiles (energy balls, cannon balls, turret bullets)
+              // Use faster animation for projectiles (80ms per frame instead of 150ms)
+              const PROJECTILE_FRAME_TIME = 0.08;
+              if (obj.projectileAnimTimer === undefined) obj.projectileAnimTimer = 0;
+              obj.projectileAnimTimer += 1 / 60;
+              if (obj.projectileAnimTimer >= PROJECTILE_FRAME_TIME) {
+                obj.projectileAnimTimer -= PROJECTILE_FRAME_TIME;
+                obj.animFrame = (obj.animFrame || 0) + 1;
+              }
+              
               const projectileType = obj.subType || 'energy_ball';
               let projWidth = 32;
               let projHeight = 32;
@@ -3394,7 +3403,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               }
               
               if (spriteFrames.length > 0) {
-                obj.animFrame = obj.animFrame % spriteFrames.length;
+                obj.animFrame = (obj.animFrame || 0) % spriteFrames.length;
                 spriteName = spriteFrames[obj.animFrame];
               }
               
