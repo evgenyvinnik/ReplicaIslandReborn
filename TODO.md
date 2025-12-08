@@ -4,18 +4,18 @@ This document tracks what has been implemented and what still needs to be done t
 
 ---
 
-## 🟡 PROGRESS: Player State Machine Implemented
+## 🟠 PROGRESS: ~60% Faithful - Playable But Incomplete
 
-**The game is now more faithful to the original.** The `Game.tsx` component has been updated with proper state machine and mechanics.
+**The game is playable for most levels but several critical features are broken.**
 
-### Game.tsx Faithfulness Analysis
+### Game.tsx Faithfulness Analysis (Updated December 2024)
 
 | Aspect | Original Android | Current Web Port | Faithful? |
 |--------|------------------|------------------|----------|
 | **Architecture** | Dual-threaded (Game + Render) | Single-threaded | ⚠️ Different approach |
 | **State Machine** | Full enum (MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY) | ✅ Full enum implemented | ✅ YES |
-| **Object Pooling** | Extensive (384 objects, 256 collision records) | ✅ ObjectPool implemented | ✅ YES |
-| **Component Phases** | Phased execution (THINK, PHYSICS, ANIMATION, etc.) | Inline code | ⚠️ Different approach |
+| **Object Pooling** | Extensive (384 objects, 256 collision records) | ❌ Not used at runtime | ❌ NO |
+| **Component Phases** | Phased execution (THINK, PHYSICS, ANIMATION, etc.) | Inline code in Game.tsx | ⚠️ Different approach |
 | **Ghost Mechanic** | Integrated (hold attack to spawn ghost) | ✅ Full GhostComponent + spawning | ✅ YES |
 | **Stomp Hang Time** | STOMP_AIR_HANG_TIME + position locking | ✅ Implemented | ✅ YES |
 | **Stomp Camera Shake** | shake(STOMP_DELAY_TIME, 15) on landing | ✅ Implemented | ✅ YES |
@@ -23,56 +23,84 @@ This document tracks what has been implemented and what still needs to be done t
 | **Win Condition** | Collect 3 rubies → WIN state | ✅ Implemented | ✅ YES |
 | **Invincibility Powerup** | Coins → glow mode | ✅ Glow mode with visual effect | ✅ YES |
 | **Enemy AI** | PatrolComponent + AttackAtDistanceComponent | Simplified inline switch | ⚠️ SIMPLIFIED |
-
-### What Has Been Implemented
-
-1. ✅ **PlayerState enum** matching original:
-   ```typescript
-   enum PlayerState { MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY }
-   ```
-
-2. ✅ **Stomp mechanics**:
-   - STOMP_AIR_HANG_TIME (position locking during hang)
-   - Camera shake on landing (STOMP_DELAY_TIME = 0.15s, STOMP_SHAKE_MAGNITUDE = 15)
-   - Dust effects on stomp landing
-
-3. ✅ **Ghost mechanic** (fully implemented):
-   - Hold attack button on ground → charge ghost (GHOST_CHARGE_TIME = 0.75s)
-   - Ghost entity spawning with GhostComponent
-   - Camera follows ghost during possession
-   - Player frozen in FROZEN state during possession
-   - Ghost duration based on gems collected (3s/8s/unlimited)
-
-4. ✅ **Hit reaction state** with HIT_REACT_TIME = 0.5s
-   - Player enters HIT_REACT state when damaged
-   - Animation shows hit pose during reaction
-
-5. ✅ **Win condition**: Collect 3 rubies (MAX_GEMS_PER_LEVEL) → WIN state → level complete
-
-6. ✅ **Player state reset**: Proper state reset when loading/restarting levels
-
-7. ✅ **Invincibility powerup** (glow mode):
-   - Collect 20 coins (Kids) or 30 coins (Adults) for powerup
-   - GLOW_DURATION: 15s (Kids) / 10s (Adults)
-   - Pulsating golden glow visual effect
-   - Full invincibility during glow mode
-
-8. ✅ **Diary system** (fully implemented):
-   - All 15 diary entries in `/src/data/diaries.ts`
-   - `CanvasDiaryOverlay.ts` displays scrollable diary text with title
-   - Collection triggers overlay display with click-to-dismiss
-
-### Still TODO
-
-- [ ] Component-based architecture refactor
-
-### Current State: ~75% Faithful
-
-The state machine, core mechanics, and diary system are now implemented. **This is a working port with most player mechanics.**
+| **NPC Movement** | NPCComponent reads hot spots | ❌ NPCComponent exists but NOT USED | ❌ BROKEN |
+| **Intro Cutscene (0-1)** | Wanda walks, dialog, camera follows | ❌ NPCs fall and stand still | ❌ BROKEN |
+| **Extras Menu** | Unlocks after game completion | ❌ Never unlocks, always shows locked | ❌ BROKEN |
+| **Erase Progress** | Clears localStorage and resets state | ⚠️ Works but UI may not refresh | ⚠️ BUGGY |
 
 ---
 
-## 🔴 CRITICAL: Level Variants & Cutscene System
+## 🔴 CRITICAL BUGS TO FIX
+
+### 1. NPC Cutscene System Not Integrated (Level 0-1 Broken)
+**Problem**: The intro level (`level_0_1_sewer`) should show Wanda walking to Kyle, but NPCs just fall and stand still.
+
+**Root Cause**: 
+- `NPCComponent.ts` is fully ported (595 lines) and reads hot spots for movement
+- BUT `Game.tsx` has its own inline NPC physics (lines ~1200-1250) that ignores hot spots
+- The inline code just applies gravity and ground collision - NO hot spot reading
+
+**Solution**: Remove inline NPC physics from Game.tsx and let NPCComponent handle movement:
+```typescript
+// Current broken code in Game.tsx (~line 1200):
+gameObjectManager.forEach((obj) => {
+  if (obj.type !== 'npc' || !obj.isVisible()) return;
+  // ... inline physics that ignores NPCComponent
+});
+
+// FIX: Either remove this code entirely, OR integrate NPCComponent properly
+```
+
+### 2. Extras Menu Never Unlocks
+**Problem**: `ExtrasMenu.tsx` checks `extrasUnlocked.linearMode` and `extrasUnlocked.levelSelect` but these are never set to true.
+
+**Root Cause**: 
+- `useGameStore.ts` has `unlockExtra()` function but it's never called anywhere
+- No code triggers extras unlock when game is completed
+
+**Solution**: Add extras unlock when final boss is defeated:
+```typescript
+// In Game.tsx when level complete for final boss (level 42):
+if (currentLevel === 42) { // Final boss
+  useGameStore.getState().unlockExtra('linearMode');
+  useGameStore.getState().unlockExtra('levelSelect');
+}
+```
+
+### 3. Erase Progress May Not Fully Reset UI
+**Problem**: The `resetEverything()` function in `useGameStore.ts` clears localStorage and resets state, but the game UI doesn't always reflect the reset.
+
+**Root Cause**:
+- `resetEverything()` correctly clears `localStorage.removeItem('replica-island-save-data')`
+- But React components may hold stale state in memory
+
+**Solution**: Either:
+1. Force page reload after reset: `window.location.reload()`
+2. Or ensure all consuming components properly re-render
+
+---
+
+## ✅ What Works Well
+
+### Player Mechanics (All Working)
+1. ✅ **PlayerState enum** matching original (7 states)
+2. ✅ **Stomp mechanics** with camera shake and dust effects
+3. ✅ **Ghost mechanic** - hold attack to spawn, camera follows ghost
+4. ✅ **Hit reaction state** with 0.5s invulnerability
+5. ✅ **Win condition** - 3 rubies triggers level complete
+6. ✅ **Glow mode powerup** from collecting coins
+7. ✅ **Diary collection** with overlay display
+
+### Still TODO For Full Port
+
+- [ ] Fix NPC cutscene system (integrate NPCComponent)
+- [ ] Fix Extras menu unlock
+- [ ] Fix Erase progress UI refresh
+- [ ] Component-based architecture refactor (nice to have)
+
+---
+
+## 🟡 Level Variants & Cutscene System
 
 ### Level 0-1 Variants Explained
 The first level has **three variants** that serve different purposes:
@@ -81,18 +109,25 @@ The first level has **three variants** that serve different purposes:
 |------------|---------|-------------------|
 | `level_0_1_sewer.json` | Main/cutscene intro | ❌ NO (intentional) |
 | `level_0_1_sewer_wanda.json` | Wanda cutscene variant | ❌ NO (intentional) |
-| `level_0_1_sewer_kyle.json` | Playable Kyle variant | ✅ YES at `tiles[2][7]` |
+| `level_0_1_sewer_kyle.json` | Playable Kyle variant | ✅ YES |
 
 **Why no player spawn in cutscene levels?**
 - These are **cutscene-only levels** where camera follows Wanda (NPC)
 - Player is not spawned until after the cutscene completes
-- Requires **NPCComponent.ts** (not yet implemented) to work properly
+- Requires **NPCComponent** to read hot spots for scripted movement
 
-**Current Workaround Options:**
-1. Implement NPCComponent and cutscene system (proper fix)
-2. Skip directly to `level_0_1_sewer_kyle.json` (temporary workaround)
+**Current Status**: 
+- ✅ Camera correctly focuses on NPC (Wanda) when no player
+- ❌ NPCComponent.ts exists (595 lines) but is NOT being used
+- ❌ Game.tsx has inline NPC physics that ignores hot spots
+- Result: NPCs fall and stand still instead of following scripted path
 
-See **Section 5.5. NPC Intro Cutscene System** for implementation details.
+**How the Original Works**:
+1. `NPCComponent.java` checks hot spots at NPC position every frame
+2. Hot spots like `NPC_GO_RIGHT`, `NPC_STOP`, `WALK_AND_TALK` control movement
+3. `TAKE_CAMERA_FOCUS` makes camera follow NPC
+4. `TALK` triggers dialog
+5. `END_LEVEL` or `GAME_EVENT` triggers level transition
 
 ---
 

@@ -450,12 +450,25 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const canvasPauseMenu = canvasPauseMenuRef.current;
     if (!canvasPauseMenu) return;
     
+    const currentSoundSystem = systemRegistryRef.current?.soundSystem;
+    
     if (state.gameState === GameState.PAUSED) {
       canvasPauseMenu.show((): void => {
         resumeGame();
       });
+      // Pause background music
+      if (currentSoundSystem) {
+        currentSoundSystem.pauseBackgroundMusic();
+      }
     } else {
       canvasPauseMenu.hide();
+      // Resume background music (if playing state and music enabled)
+      if (state.gameState === GameState.PLAYING && currentSoundSystem) {
+        const settings = gameSettings.getAll();
+        if (settings.musicEnabled) {
+          currentSoundSystem.resumeBackgroundMusic();
+        }
+      }
     }
   }, [state.gameState, resumeGame]);
 
@@ -871,6 +884,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'mudman_walk01', file: 'enemy_mud_walk01', w: 128, h: 128 },
         { name: 'mudman_walk02', file: 'enemy_mud_walk02', w: 128, h: 128 },
         { name: 'mudman_walk03', file: 'enemy_mud_walk03', w: 128, h: 128 },
+        // Pink Namazu enemy (128x128 actual size - sleeping enemy that wakes up)
+        { name: 'pinknamazu_stand', file: 'enemy_pinkdude_stand', w: 128, h: 128 },
+        { name: 'pinknamazu_sleep01', file: 'enemy_pinkdude_sleep01', w: 128, h: 128 },
+        { name: 'pinknamazu_sleep02', file: 'enemy_pinkdude_sleep02', w: 128, h: 128 },
+        { name: 'pinknamazu_eyeopen', file: 'enemy_pinkdude_eyeopen', w: 128, h: 128 },
+        { name: 'pinknamazu_jump', file: 'enemy_pinkdude_jump', w: 128, h: 128 },
         // Shadow Slime enemy (64x64 actual size)
         { name: 'shadowslime_stand', file: 'enemy_shadowslime_stand', w: 64, h: 64 },
         { name: 'shadowslime_idle01', file: 'enemy_shadowslime_idle01', w: 64, h: 64 },
@@ -879,6 +898,21 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'wanda_stand', file: 'enemy_wanda_stand', w: 64, h: 128 },
         { name: 'kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 128 },
         { name: 'kabocha_stand', file: 'enemy_kabocha_stand', w: 64, h: 128 },
+        // Evil Kabocha boss (128x128 actual size)
+        { name: 'evil_kabocha_stand', file: 'enemy_kabocha_evil_stand', w: 128, h: 128 },
+        { name: 'evil_kabocha_walk01', file: 'enemy_kabocha_evil_walk01', w: 128, h: 128 },
+        { name: 'evil_kabocha_walk02', file: 'enemy_kabocha_evil_walk02', w: 128, h: 128 },
+        { name: 'evil_kabocha_walk03', file: 'enemy_kabocha_evil_walk03', w: 128, h: 128 },
+        { name: 'evil_kabocha_walk04', file: 'enemy_kabocha_evil_walk04', w: 128, h: 128 },
+        { name: 'evil_kabocha_walk05', file: 'enemy_kabocha_evil_walk05', w: 128, h: 128 },
+        { name: 'evil_kabocha_walk06', file: 'enemy_kabocha_evil_walk06', w: 128, h: 128 },
+        { name: 'evil_kabocha_hit01', file: 'enemy_kabocha_evil_hit01', w: 128, h: 128 },
+        { name: 'evil_kabocha_hit02', file: 'enemy_kabocha_evil_hit02', w: 128, h: 128 },
+        { name: 'evil_kabocha_surprised', file: 'enemy_kabocha_evil_surprised', w: 128, h: 128 },
+        { name: 'evil_kabocha_die01', file: 'enemy_kabocha_evil_die01', w: 128, h: 128 },
+        { name: 'evil_kabocha_die02', file: 'enemy_kabocha_evil_die02', w: 128, h: 128 },
+        { name: 'evil_kabocha_die03', file: 'enemy_kabocha_evil_die03', w: 128, h: 128 },
+        { name: 'evil_kabocha_die04', file: 'enemy_kabocha_evil_die04', w: 128, h: 128 },
         // Snailbomb enemy (64x64 actual size)
         { name: 'snailbomb_stand', file: 'snailbomb_stand', w: 64, h: 64 },
         { name: 'snailbomb_walk01', file: 'snailbomb_walk01', w: 64, h: 64 },
@@ -900,6 +934,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'rokudou_die02', file: 'enemy_rokudou_fight_die02', w: 128, h: 128 },
         { name: 'rokudou_die03', file: 'enemy_rokudou_fight_die03', w: 128, h: 128 },
         { name: 'rokudou_die04', file: 'enemy_rokudou_fight_die04', w: 128, h: 128 },
+        // The Source - Final boss (512x512 layered sprites)
+        { name: 'source_black', file: 'enemy_source_black', w: 512, h: 512 },
+        { name: 'source_body', file: 'enemy_source_body', w: 512, h: 512 },
+        { name: 'source_core', file: 'enemy_source_core', w: 512, h: 512 },
+        { name: 'source_spikes', file: 'enemy_source_spikes', w: 512, h: 512 },
+        { name: 'source_spots', file: 'enemy_source_spots', w: 512, h: 512 },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -1059,6 +1099,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (gameLoopRef.current && !gameLoopRef.current.isRunning()) {
         console.warn('[Game] Starting game loop after initialization');
         gameLoopRef.current.start();
+        
+        // Start background music if available and music is enabled
+        const settings = gameSettings.getAll();
+        if (settings.musicEnabled && soundSystem.isInitialized()) {
+          soundSystem.setMusicVolume(settings.musicVolume / 100);
+          soundSystem.startBackgroundMusic();
+        }
       }
     };
 
@@ -2280,6 +2327,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   spriteWidth = 128;
                   spriteHeight = 128;
                   break;
+                case 'pink_namazu':
+                  // Pink Namazu is a sleeping enemy that wakes up when player is near
+                  if (obj.getCurrentAction() === ActionType.ATTACK) {
+                    spriteFrames = ['pinknamazu_jump'];
+                  } else if (obj.getCurrentAction() === ActionType.MOVE) {
+                    spriteFrames = ['pinknamazu_eyeopen', 'pinknamazu_stand'];
+                  } else {
+                    spriteFrames = ['pinknamazu_sleep01', 'pinknamazu_sleep02'];
+                  }
+                  spriteWidth = 128;
+                  spriteHeight = 128;
+                  break;
                 case 'shadowslime':
                   spriteFrames = ['shadowslime_idle01', 'shadowslime_idle02'];
                   spriteWidth = 64;
@@ -2297,6 +2356,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   spriteWidth = 64;
                   spriteHeight = 64;
                   break;
+                case 'evil_kabocha':
+                  // Evil Kabocha boss has walk, hit, surprised, and death animations
+                  if (obj.life <= 0) {
+                    spriteFrames = ['evil_kabocha_die01', 'evil_kabocha_die02', 'evil_kabocha_die03', 'evil_kabocha_die04'];
+                  } else if (obj.getCurrentAction() === ActionType.HIT_REACT) {
+                    spriteFrames = ['evil_kabocha_hit01', 'evil_kabocha_hit02'];
+                  } else if (Math.abs(obj.getVelocity().x) > 10) {
+                    spriteFrames = ['evil_kabocha_walk01', 'evil_kabocha_walk02', 'evil_kabocha_walk03', 'evil_kabocha_walk04', 'evil_kabocha_walk05', 'evil_kabocha_walk06'];
+                  } else {
+                    spriteFrames = ['evil_kabocha_stand'];
+                  }
+                  spriteWidth = 128;
+                  spriteHeight = 128;
+                  break;
                 case 'rokudou':
                   // Rokudou boss has fly, shoot, surprise, hit, and death animations
                   if (obj.life <= 0) {
@@ -2313,11 +2386,39 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   spriteWidth = 128;
                   spriteHeight = 128;
                   break;
+                case 'the_source':
+                  // The Source is the final boss with layered 512x512 sprites
+                  // Render all layers with staggered z-indices
+                  {
+                    const sourcePos = obj.getPosition();
+                    const sourceWidth = 512;
+                    const sourceHeight = 512;
+                    const sourceLayers = ['source_black', 'source_body', 'source_core', 'source_spikes', 'source_spots'];
+                    const offsetX = (obj.width - sourceWidth) / 2;
+                    const offsetY = (obj.height - sourceHeight) / 2;
+                    for (let layerIdx = 0; layerIdx < sourceLayers.length; layerIdx++) {
+                      renderSystem.drawSprite(
+                        sourceLayers[layerIdx],
+                        sourcePos.x + offsetX,
+                        sourcePos.y + offsetY,
+                        10 + layerIdx // Staggered z-index for layers
+                      );
+                    }
+                    // Don't set spriteName - we handled rendering above
+                    spriteName = '';
+                  }
+                  spriteWidth = 512;
+                  spriteHeight = 512;
+                  break;
                 default:
                   // Default to bat animation for unhandled enemy types
                   spriteFrames = ['bat01', 'bat02', 'bat03', 'bat04'];
                   spriteWidth = 64;
                   spriteHeight = 32;
+              }
+              // Skip normal rendering if we already handled it specially (The Source)
+              if (spriteName === '') {
+                break;
               }
               obj.animFrame = obj.animFrame % spriteFrames.length;
               spriteName = spriteFrames[obj.animFrame];

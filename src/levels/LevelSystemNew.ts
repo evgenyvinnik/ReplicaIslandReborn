@@ -457,9 +457,9 @@ export class LevelSystem {
         
       case GameObjectTypeIndex.PINK_NAMAZU:
         obj.type = 'enemy';
-        obj.subType = 'namazu';
-        objWidth = 64;
-        objHeight = 64;
+        obj.subType = 'pink_namazu';
+        objWidth = 128;   // Sprites are 128x128
+        objHeight = 128;
         obj.activationRadius = 250;
         break;
         
@@ -521,6 +521,17 @@ export class LevelSystem {
         obj.addComponent(npcComponent3);
         break;
       }
+      
+      case GameObjectTypeIndex.EVIL_KABOCHA: {
+        // Evil Kabocha boss (type 29) - Mini boss
+        obj.type = 'enemy';
+        obj.subType = 'evil_kabocha';
+        objWidth = 128;   // Sprites are 128x128
+        objHeight = 128;
+        obj.activationRadius = 400; // Boss has larger activation radius
+        obj.life = 5; // Mini boss has 5 hit points
+        break;
+      }
         
       case GameObjectTypeIndex.ROKUDOU: {
         // Rokudou boss enemy (type 30 - distinct from ROKUDOU_TERMINAL which is NPC)
@@ -530,6 +541,18 @@ export class LevelSystem {
         objHeight = 128;
         obj.activationRadius = 400; // Boss has larger activation radius
         obj.life = 3; // Boss has 3 hit points
+        break;
+      }
+      
+      case GameObjectTypeIndex.THE_SOURCE: {
+        // The Source - Final boss (type 42)
+        // Multi-layered 512x512 sprite boss
+        obj.type = 'enemy';
+        obj.subType = 'the_source';
+        objWidth = 512;   // Large boss sprites are 512x512
+        objHeight = 512;
+        obj.activationRadius = 600; // Very large activation radius for final boss
+        obj.life = 10; // Final boss has 10 hit points
         break;
       }
 

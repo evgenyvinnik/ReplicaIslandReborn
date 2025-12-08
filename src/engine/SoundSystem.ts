@@ -531,6 +531,11 @@ export class SoundSystem {
     );
 
     await Promise.all(loadPromises);
+    
+    // Try to load background music (optional - will fail silently if not available)
+    // The original game uses bwv_115.mid (Bach's Cantata BWV 115)
+    // For web, we need an OGG version. Place it at /assets/sounds/music.ogg
+    await this.loadBackgroundMusic(assetPath('/assets/sounds/music.ogg'));
   }
 
   /**

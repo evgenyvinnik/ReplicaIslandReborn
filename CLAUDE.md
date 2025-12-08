@@ -28,24 +28,41 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 
 ---
 
-## 🚨 CRITICAL: GAME NOT OPERATIONAL
+## 🚨 CRITICAL: GAME PARTIALLY OPERATIONAL
 
-**The game is currently NOT a faithful port of the original.** `Game.tsx` is approximately **25% faithful** to the original Android implementation.
+**The game is now approximately 60% faithful to the original.** `Game.tsx` has most core mechanics but integration issues remain.
 
-### What's Wrong
+### Current Status
 
 | Feature | Original | Current | Status |
 |---------|----------|---------|--------|
-| Player State Machine | 7 states (MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY) | Flags only | ❌ BROKEN |
-| Ghost Mechanic | Hold attack → spawn ghost | NOT integrated | ❌ BROKEN |
-| Stomp Mechanics | Hang time + camera shake | Instant, no shake | ❌ BROKEN |
-| Hit Reaction | HIT_REACT state, 0.5s timer | Missing | ❌ BROKEN |
-| Win Condition | 3 rubies = WIN | Missing | ❌ BROKEN |
-| Invincibility | Coins → glow powerup | Missing | ❌ BROKEN |
-| Enemy AI | Component-based | Inline switch | ⚠️ SIMPLIFIED |
+| Player State Machine | 7 states (MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY) | ✅ Full enum implemented | ✅ WORKING |
+| Ghost Mechanic | Hold attack → spawn ghost | ✅ Spawns ghost, camera follows | ✅ WORKING |
+| Stomp Mechanics | Hang time + camera shake | ✅ Camera shake, dust effects | ✅ WORKING |
+| Hit Reaction | HIT_REACT state, 0.5s timer | ✅ Implemented with timer | ✅ WORKING |
+| Win Condition | 3 rubies = WIN | ✅ Triggers level complete | ✅ WORKING |
+| Invincibility | Coins → glow powerup | ✅ Glow mode with duration | ✅ WORKING |
+| Enemy AI | Component-based | Inline switch in Game.tsx | ⚠️ SIMPLIFIED |
 | Object Pooling | 384+ pooled objects | None | ❌ MISSING |
+| **NPC Cutscene System** | NPCs follow hot spots | ⚠️ NPCComponent exists but not used | ❌ BROKEN |
+| **Level 0-1 Intro** | Wanda walks to Kyle | ❌ Camera focuses NPC but no movement | ❌ BROKEN |
+| **Erase Progress** | Clears save data | ⚠️ Function exists but UI may not refresh | ⚠️ BUGGY |
+| **Extras Menu** | Unlocks after game complete | ❌ Always locked, no unlock mechanism | ❌ BROKEN |
 
-**The physics constants are correct, but game logic is NOT.**
+### Why The Intro Cutscene Doesn't Work
+
+The first level (`level_0_1_sewer`) is a cutscene-only level where Wanda discovers Kyle. The original game:
+1. Spawns Wanda NPC (not player)
+2. NPCComponent reads hot spots to move Wanda
+3. Hot spots trigger WALK_AND_TALK, TAKE_CAMERA_FOCUS, etc.
+4. Dialog triggers via hot spots
+5. Level ends with transition to playable level
+
+**Current state**: 
+- Camera correctly focuses on NPC (Wanda)
+- NPCComponent.ts exists and is fully ported
+- BUT: Game.tsx doesn't use NPCComponent - it has inline NPC physics that ignores hot spots
+- NPCs just fall and stand still instead of following the scripted path
 
 ---
 
@@ -63,17 +80,20 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 
 | Category | Status | Details |
 |----------|--------|---------|
-| **Game.tsx Faithfulness** | ❌ 25% | NOT a faithful port - see critical issues above |
-| **Core Engine** | ⚠️ 60% | Systems exist but not properly integrated |
-| **Player State Machine** | ❌ 30% | Missing 5 of 7 states |
-| **Ghost Mechanic** | ❌ 10% | Component exists but NOT integrated in Game.tsx |
-| **Components** | ⚠️ 50% | Components exist but Game.tsx uses inline code |
-| **UI/Screens** | ✅ 100% | 11 React menu components + 7 Canvas gameplay systems |
+| **Game.tsx Faithfulness** | ⚠️ 60% | Core mechanics work, but components not properly integrated |
+| **Core Engine** | ⚠️ 70% | Systems exist, some integration issues |
+| **Player State Machine** | ✅ 100% | All 7 states implemented in Game.tsx |
+| **Ghost Mechanic** | ✅ 90% | Works, minor polish needed |
+| **Components** | ⚠️ 40% | 30+ components exist but Game.tsx uses inline code |
+| **NPC Cutscene System** | ❌ 10% | NPCComponent exists but NOT used by Game.tsx |
+| **UI/Screens** | ✅ 95% | 11 React menu components + 7 Canvas gameplay systems |
 | **Canvas Gameplay UI** | ✅ 100% | HUD, Controls, Dialog, Cutscene, Pause, GameOver, LevelComplete |
-| **Levels** | ✅ 100% | 40+ levels load correctly |
+| **Levels** | ✅ 100% | 42 levels load correctly |
 | **Sound** | ✅ 100% | All SFX loaded and playing |
 | **Music** | ❌ 0% | MIDI needs conversion |
-| **Cutscenes** | ✅ 100% | CanvasCutscene with 4 cutscene types |
+| **Cutscenes** | ⚠️ 80% | CanvasCutscene works, but intro cutscene (NPC-driven) broken |
+| **Extras Menu** | ❌ 0% | UI exists but extras never unlock |
+| **Erase Progress** | ⚠️ 70% | Function works but UI doesn't always refresh |
 
 ### Implemented Engine Systems (15 total)
 
