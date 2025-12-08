@@ -1633,9 +1633,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         position.y += velocity.y * deltaTime;
         
         // Ground collision for NPCs
+        // Use a narrower collision width to avoid detecting side walls as ground
+        // NPCs are 64px wide, but we check collision with a centered 32px width
+        const collisionMargin = (obj.width - 32) / 2; // Center a 32px wide collision box
         const groundCheck = collisionSystem.checkTileCollision(
-          position.x, position.y, obj.width, obj.height, velocity.x, velocity.y
+          position.x + collisionMargin, position.y, 32, obj.height, velocity.x, velocity.y
         );
+        
+        // Debug ground check for Wanda
+        if (obj.subType === 'wanda' && Math.random() < 0.01) {
+          console.warn(`[NPC Ground] Wanda grounded=${groundCheck.grounded} pos.y=${position.y.toFixed(1)} bottom=${(position.y + obj.height).toFixed(1)} tileRow=${Math.floor((position.y + obj.height) / 32)}`);
+        }
         
         if (groundCheck.grounded) {
           const tileSize = 32;
@@ -1649,6 +1657,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Update facing direction based on velocity
         if (Math.abs(velocity.x) > 1) {
           obj.facingDirection.x = velocity.x > 0 ? 1 : -1;
+        }
+        
+        // IMPORTANT: Check hotspots AFTER physics update so NPCs don't skip hotspot tiles
+        // Get NPCComponent and trigger its hotspot check with updated position
+        const npcComponent = obj.getComponent(NPCComponent as unknown as new (...args: unknown[]) => NPCComponent);
+        if (npcComponent && hotSpotSystem) {
+          // Call the post-physics hotspot check
+          npcComponent.checkHotSpotsPostPhysics(obj, deltaTime);
         }
       });
 
