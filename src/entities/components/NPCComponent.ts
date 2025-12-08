@@ -150,6 +150,20 @@ export class NPCComponent extends GameComponent {
   override update(timeDelta: number, parent: object): void {
     const parentObject = parent as GameObject;
     
+    // Debug: Log NPC position and hotspot detection
+    const pos = parentObject.getPosition();
+    const hotSpotSystem = sSystemRegistry.hotSpotSystem;
+    if (hotSpotSystem && parentObject.subType === 'wanda') {
+      const centerX = parentObject.getCenteredPositionX();
+      const checkY = pos.y + parentObject.height - 10;
+      const tileX = hotSpotSystem.getHitTileX(centerX);
+      const tileY = hotSpotSystem.getHitTileY(checkY);
+      const hotSpot = hotSpotSystem.getHotSpotByTile(tileX, tileY);
+      if (hotSpot !== -1 || Math.random() < 0.01) { // Log occasionally or when hotspot found
+        console.warn(`[NPCComponent] Wanda at pos(${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}) tile(${tileX}, ${tileY}) hotspot=${hotSpot} targetVel=(${parentObject.getTargetVelocity().x.toFixed(0)}, ${parentObject.getTargetVelocity().y.toFixed(0)}) lastTile=(${this.lastHitTileX}, ${this.lastHitTileY})`);
+      }
+    }
+    
     // Handle hit reaction
     if (this.reactToHits && 
         this.pauseTime <= 0 && 
@@ -401,6 +415,7 @@ export class NPCComponent extends GameComponent {
         break;
         
       case HotSpotType.NPC_GO_RIGHT:
+        console.warn(`[NPCComponent] NPC_GO_RIGHT: Setting targetVelocity.x = ${this.horizontalImpulse}, acceleration.x = ${this.acceleration}`);
         parentObject.getTargetVelocity().x = this.horizontalImpulse;
         parentObject.getAcceleration().x = this.acceleration;
         if (this.flying) {

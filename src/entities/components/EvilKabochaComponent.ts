@@ -75,6 +75,8 @@ export class EvilKabochaComponent extends GameComponent {
   private surpriseTimer: number = 0;
   // Track hits to determine when to die
   private hitsRemaining: number;
+  // Callback for boss death (triggers ending cutscene)
+  private onDeathCallback: ((endingType: string) => void) | null = null;
 
   constructor(config?: Partial<EvilKabochaConfig>) {
     super(ComponentPhase.THINK);
@@ -232,16 +234,19 @@ export class EvilKabochaComponent extends GameComponent {
   }
 
   /**
-   * Trigger the ending cutscene
+   * Trigger the ending cutscene via callback
    */
   private triggerEnding(): void {
-    const gameFlowEvent = sSystemRegistry?.gameFlowEvent;
-    if (gameFlowEvent) {
-      // Trigger the ending animation/cutscene
-      // In the original, this was: GameFlowEvent.EVENT_SHOW_ANIMATION with ROKUDOU_ENDING
-      // TODO: Implement when cutscene system is available
-      // gameFlowEvent.postEvent(GameFlowEvent.EVENT_SHOW_ANIMATION, this.config.endingType);
+    if (this.onDeathCallback) {
+      this.onDeathCallback(this.config.endingType);
     }
+  }
+  
+  /**
+   * Set callback for boss death (triggers ending cutscene)
+   */
+  setOnDeathCallback(callback: (endingType: string) => void): void {
+    this.onDeathCallback = callback;
   }
 
   /**

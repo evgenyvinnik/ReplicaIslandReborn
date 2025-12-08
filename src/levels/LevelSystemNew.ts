@@ -80,6 +80,9 @@ export class LevelSystem {
   
   // Game events
   private attempts: number = 0;
+  
+  // Callbacks for boss deaths to trigger endings
+  private onBossDeathCallback: ((endingType: string) => void) | null = null;
 
   constructor() {
     this.initializeLevelTree();
@@ -165,6 +168,13 @@ export class LevelSystem {
     this.collisionSystem = collision;
     this.gameObjectManager = gameObjects;
     this.hotSpotSystem = hotSpots || null;
+  }
+  
+  /**
+   * Set callback for boss death events (to trigger ending cutscenes)
+   */
+  setOnBossDeathCallback(callback: (endingType: string) => void): void {
+    this.onBossDeathCallback = callback;
   }
 
   /**
@@ -830,8 +840,12 @@ export class LevelSystem {
           knockbackImpulse: 300,
           deathDelay: 4.0,
           triggerEnding: true,
-          endingType: 'ROKUDOU_ENDING'
+          endingType: 'KABOCHA_ENDING'
         });
+        // Wire up boss death callback to trigger ending cutscene
+        if (this.onBossDeathCallback) {
+          kabochaComp.setOnDeathCallback(this.onBossDeathCallback);
+        }
         obj.addComponent(kabochaComp);
         break;
       }
@@ -858,6 +872,16 @@ export class LevelSystem {
         obj.life = 10; // Final boss has 10 hit points
         // Add The Source boss component
         const sourceComp = new TheSourceComponent();
+        // Configure to trigger Wanda ending on death (event 6 = SHOW_ANIMATION, index 1 = WANDA_ENDING)
+        sourceComp.setGameEvent(6, 1);
+        // Wire up game event callback to trigger ending cutscene
+        if (this.onBossDeathCallback) {
+          const callback = this.onBossDeathCallback;
+          sourceComp.setOnGameEvent((_event: number, index: number) => {
+            // Map event index to ending type: 1 = WANDA_ENDING
+            callback(index === 1 ? 'WANDA_ENDING' : 'WANDA_ENDING');
+          });
+        }
         obj.addComponent(sourceComp);
         break;
       }

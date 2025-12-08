@@ -42,6 +42,7 @@ import { getDialogsForLevel, type Dialog } from '../data/dialogs';
 import { getDiaryByCollectionOrder } from '../data/diaries';
 import { assetPath } from '../utils/helpers';
 import { CutsceneType, getCutscene } from '../data/cutscenes';
+import { UIStrings } from '../data/strings';
 import { useGameStore } from '../stores/useGameStore';
 
 interface GameProps {
@@ -306,6 +307,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
   // Track previous level to detect level changes
   const prevLevelRef = useRef(state.currentLevel);
+  // Track whether the previous level was "in the past" (memory flashback)
+  const prevLevelInThePastRef = useRef(false);
   
   // Reload level when currentLevel changes (e.g., from LevelSelect)
   useEffect(() => {
@@ -315,19 +318,39 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Skip if level hasn't actually changed
     if (prevLevelRef.current === state.currentLevel) return;
     
-    // Update previous level
-    prevLevelRef.current = state.currentLevel;
-    
-    // Load the new level
+    // Get the previous level's inThePast status before updating
     const levelSystem = levelSystemRef.current;
     const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
     if (!levelSystem || !gameObjectManager) return;
+    
+    const prevLevelInfo = levelSystem.getLevelInfo(prevLevelRef.current);
+    const wasInThePast = prevLevelInfo?.inThePast ?? false;
+    
+    // Update previous level
+    prevLevelRef.current = state.currentLevel;
     
     setLevelLoading(true);
     hasShownIntroDialogRef.current = false;
     
     levelSystem.loadLevel(state.currentLevel).then(() => {
       gameObjectManager.commitUpdates();
+      
+      // Check if we need to show memory playback toast
+      const newLevelInfo = levelSystem.getLevelInfo(state.currentLevel);
+      const isInThePast = newLevelInfo?.inThePast ?? false;
+      
+      // Show toast based on transition (matching original Game.java logic)
+      if (canvasHUDRef.current) {
+        if (isInThePast) {
+          // Entering a memory/flashback level
+          canvasHUDRef.current.showToast(UIStrings.memory_playback_start, true);
+        } else if (wasInThePast) {
+          // Exiting a memory/flashback level back to present
+          canvasHUDRef.current.showToast(UIStrings.memory_playback_complete, true);
+        }
+      }
+      // Update the ref for next transition
+      prevLevelInThePastRef.current = isInThePast;
       
       // Initialize tile map renderer for new level
       const parsedLevel = levelSystem.getParsedLevel();
@@ -388,6 +411,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // No player means this is a story/cutscene level - advance to next
           const levelSys = levelSystemRef.current;
           if (levelSys) {
+            // Get current level's inThePast status before advancing
+            const currentLevelInfo = levelSys.getLevelInfo(currentLevelRef.current);
+            const wasInThePast = currentLevelInfo?.inThePast ?? false;
+            
             const nextLevelId = levelSys.getNextLevelId();
             console.warn('[Game] Cutscene level - advancing to next level:', nextLevelId);
             if (nextLevelId !== null) {
@@ -397,6 +424,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               hasShownIntroDialogRef.current = false;
               levelSys.loadLevel(nextLevelId).then(() => {
                 gameObjectMgr?.commitUpdates();
+                
+                // Check if we need to show memory playback toast
+                const newLevelInfo = levelSys.getLevelInfo(nextLevelId);
+                const isInThePast = newLevelInfo?.inThePast ?? false;
+                if (canvasHUDRef.current) {
+                  if (isInThePast && !wasInThePast) {
+                    canvasHUDRef.current.showToast(UIStrings.memory_playback_start, true);
+                  } else if (!isInThePast && wasInThePast) {
+                    canvasHUDRef.current.showToast(UIStrings.memory_playback_complete, true);
+                  }
+                }
+                prevLevelInThePastRef.current = isInThePast;
                 
                 // Initialize tile map renderer for new level
                 const parsedLevel = levelSys.getParsedLevel();
@@ -586,12 +625,28 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Continue - go to next level
           const levelSys = levelSystemRef.current;
           if (levelSys) {
+            // Get current level's inThePast status before advancing
+            const currentLevelInfo = levelSys.getLevelInfo(state.currentLevel);
+            const wasInThePast = currentLevelInfo?.inThePast ?? false;
+            
             const nextLevelId = levelSys.getNextLevelId();
             if (nextLevelId !== null) {
               levelSys.unlockLevel(nextLevelId);
               setLevel(nextLevelId);
               hasShownIntroDialogRef.current = false;
               levelSys.loadLevel(nextLevelId).then(() => {
+                // Check if we need to show memory playback toast
+                const newLevelInfo = levelSys.getLevelInfo(nextLevelId);
+                const isInThePast = newLevelInfo?.inThePast ?? false;
+                if (canvasHUDRef.current) {
+                  if (isInThePast && !wasInThePast) {
+                    canvasHUDRef.current.showToast(UIStrings.memory_playback_start, true);
+                  } else if (!isInThePast && wasInThePast) {
+                    canvasHUDRef.current.showToast(UIStrings.memory_playback_complete, true);
+                  }
+                }
+                prevLevelInThePastRef.current = isInThePast;
+                
                 // Initialize tile map renderer for new level
                 const parsedLevel = levelSys.getParsedLevel();
                 if (parsedLevel && tileMapRendererRef.current) {
@@ -743,6 +798,25 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Level system
     const levelSystem = new LevelSystem();
     levelSystem.setSystems(collisionSystem, gameObjectManager, hotSpotSystem);
+    
+    // Set up boss death callback to trigger ending cutscenes
+    levelSystem.setOnBossDeathCallback((endingType: string) => {
+      // Map ending type string to CutsceneType enum
+      switch (endingType) {
+        case 'KABOCHA_ENDING':
+          playCutscene(CutsceneType.KABOCHA_ENDING);
+          break;
+        case 'WANDA_ENDING':
+          playCutscene(CutsceneType.WANDA_ENDING);
+          break;
+        case 'ROKUDOU_ENDING':
+          playCutscene(CutsceneType.ROKUDOU_ENDING);
+          break;
+        default:
+          console.warn(`Unknown ending type: ${endingType}`);
+      }
+    });
+    
     systemRegistry.register(levelSystem, 'level');
     levelSystemRef.current = levelSystem;
 
@@ -1129,6 +1203,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           // Note: Intro dialog is now shown via a separate useEffect after levelLoading becomes false
           
+          // Show memory playback toast for initial level if it's a flashback
+          const initialLevelInfo = levelSystem.getLevelInfo(levelToLoad);
+          if (initialLevelInfo?.inThePast && canvasHUDRef.current) {
+            canvasHUDRef.current.showToast(UIStrings.memory_playback_start, true);
+          }
+          prevLevelInThePastRef.current = initialLevelInfo?.inThePast ?? false;
+          
           // Start level timer
           levelStartTimeRef.current = Date.now();
           levelElapsedTimeRef.current = 0;
@@ -1212,7 +1293,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     gameLoop.setSystemRegistry(systemRegistry);
 
     // Update callback - Full game physics
+    let frameCount = 0;
     gameLoop.setUpdateCallback((deltaTime: number) => {
+      frameCount++;
+      if (frameCount % 60 === 0) {
+        console.warn('[Game] Update tick - state:', gameStateRef.current, 'PLAYING:', GameState.PLAYING, 'match:', gameStateRef.current === GameState.PLAYING);
+      }
       if (gameStateRef.current !== GameState.PLAYING) return;
 
       // Update input
@@ -1224,7 +1310,21 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Get player and input state
       const player = gameObjectManager.getPlayer();
-      const input = inputSystem.getInputState();
+      
+      // Check if any blocking UI is active (dialog, cutscene, pause menu, etc.)
+      // When blocking UI is active, we should not pass movement input to player
+      const isInputBlocked = 
+        canvasDialogRef.current?.isActive() ||
+        canvasCutsceneRef.current?.isActive() ||
+        canvasPauseMenuRef.current?.isShowing() ||
+        canvasGameOverRef.current?.isShowing() ||
+        canvasLevelCompleteRef.current?.isShowing() ||
+        canvasDiaryRef.current?.isVisible();
+      
+      // Use empty input when blocked, otherwise use real input
+      const input = isInputBlocked 
+        ? { left: false, right: false, up: false, down: false, jump: false, attack: false, pause: false }
+        : inputSystem.getInputState();
       
       if (player) {
         // Update player's internal gameTime before physics so touchingGround() works correctly
@@ -1235,6 +1335,22 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Update all game objects
       gameObjectManager.update(deltaTime, gameTime);
+      
+      // Debug: Count NPC objects
+      if (frameCount % 120 === 0) {
+        let npcCount = 0;
+        let activeNpcCount = 0;
+        gameObjectManager.forEach((obj) => {
+          if (obj.type === 'npc') {
+            npcCount++;
+            if (obj.isActive()) {
+              activeNpcCount++;
+              console.warn('[Game] NPC found:', obj.subType, 'active:', obj.isActive(), 'visible:', obj.isVisible(), 'pos:', obj.getPosition().x, obj.getPosition().y);
+            }
+          }
+        });
+        console.warn('[Game] NPC count:', npcCount, 'active:', activeNpcCount);
+      }
       
       // Update effects system (explosions, smoke, etc.)
       effectsSystem.update(deltaTime);
@@ -1459,6 +1575,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Get next level info
           const levelSys = levelSystemRef.current;
           if (levelSys) {
+            // Get current level's inThePast status before advancing
+            const currentLevelInfo = levelSys.getLevelInfo(levelSys.getCurrentLevelId());
+            const wasInThePast = currentLevelInfo?.inThePast ?? false;
+            
             const nextLevelId = levelSys.getNextLevelId();
             if (nextLevelId !== null) {
               // Unlock and go to next level
@@ -1466,6 +1586,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setLevel(nextLevelId);
               // Reload the level system
               levelSys.loadLevel(nextLevelId).then(() => {
+                // Check if we need to show memory playback toast
+                const newLevelInfo = levelSys.getLevelInfo(nextLevelId);
+                const isInThePast = newLevelInfo?.inThePast ?? false;
+                if (canvasHUDRef.current) {
+                  if (isInThePast && !wasInThePast) {
+                    canvasHUDRef.current.showToast(UIStrings.memory_playback_start, true);
+                  } else if (!isInThePast && wasInThePast) {
+                    canvasHUDRef.current.showToast(UIStrings.memory_playback_complete, true);
+                  }
+                }
+                prevLevelInThePastRef.current = isInThePast;
+                
                 // Initialize tile map renderer for new level
                 const parsedLevel = levelSys.getParsedLevel();
                 if (parsedLevel && tileMapRendererRef.current) {
@@ -1667,6 +1799,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 const newDiaryCount = inv.diaryCount + 1;
                 setInventory({ diaryCount: newDiaryCount, score: inv.score + 50 });
                 soundSystem.playSfx(SoundEffects.DING, 0.5);
+                
+                // Show "FOUND OLD DIARY" toast
+                if (canvasHUDRef.current) {
+                  canvasHUDRef.current.showToast(UIStrings.diary_found, false); // Short duration
+                }
                 
                 // Save diary collection to persistent store
                 storeCollectDiary(state.currentLevel, newDiaryCount);
