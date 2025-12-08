@@ -10,8 +10,8 @@ import { ComponentPhase, HitType, ActionType, Team } from '../../types';
 import type { GameObject } from '../GameObject';
 import { Vector2 } from '../../utils/Vector2';
 
-// TODO: Implement pause-on-attack
-// const ATTACK_PAUSE_DELAY = (1.0 / 60) * 4;
+// Pause-on-attack duration: 4 frames at 60fps
+const ATTACK_PAUSE_DELAY = (1.0 / 60) * 4;
 const DEFAULT_BOUNCE_MAGNITUDE = 200;
 const DEFAULT_INVINCIBILITY_TIME = 2.0;  // 2 seconds after hit
 
@@ -29,9 +29,10 @@ export interface HitReactionConfig {
 }
 
 export class HitReactionComponent extends GameComponent {
-  // TODO: Implement pause-on-attack feature (time freeze on hit)
-  // pauseOnAttack: boolean
-  // pauseOnAttackTime: number
+  // Pause-on-attack feature (time freeze on hit)
+  private pauseOnAttack: boolean = false;
+  private pauseOnAttackTime: number = ATTACK_PAUSE_DELAY;
+  
   private bounceOnHit: boolean = false;
   private bounceMagnitude: number = DEFAULT_BOUNCE_MAGNITUDE;
   private invincibleAfterHitTime: number = 0;
@@ -47,6 +48,9 @@ export class HitReactionComponent extends GameComponent {
   
   // Sound system reference (set externally)
   private soundPlayer: ((sound: string) => void) | null = null;
+  
+  // Time freeze callback for pause-on-attack effect
+  private timeFreezer: ((duration: number) => void) | null = null;
   
   // Time getter (set externally)
   private gameTimeGetter: (() => number) | null = null;
@@ -66,9 +70,8 @@ export class HitReactionComponent extends GameComponent {
    * Configure hit reaction behavior
    */
   configure(config: HitReactionConfig): void {
-    // TODO: pause on attack feature
-    // this._pauseOnAttack = config.pauseOnAttack ?? false;
-    // this._pauseOnAttackTime = config.pauseOnAttackTime ?? ATTACK_PAUSE_DELAY;
+    this.pauseOnAttack = config.pauseOnAttack ?? false;
+    this.pauseOnAttackTime = config.pauseOnAttackTime ?? ATTACK_PAUSE_DELAY;
     this.bounceOnHit = config.bounceOnHit ?? false;
     this.bounceMagnitude = config.bounceMagnitude ?? DEFAULT_BOUNCE_MAGNITUDE;
     this.invincibleAfterHitTime = config.invincibleAfterHitTime ?? 0;
@@ -85,12 +88,33 @@ export class HitReactionComponent extends GameComponent {
   setSoundPlayer(player: (sound: string) => void): void {
     this.soundPlayer = player;
   }
+  
+  /**
+   * Set time system reference for freeze effect
+   */
+  setTimeSystem(timeSystem: TimeSystem): void {
+    this.timeSystem = timeSystem;
+  }
 
   /**
    * Set game time getter
    */
   setGameTimeGetter(getter: () => number): void {
     this.gameTimeGetter = getter;
+  }
+  
+  /**
+   * Enable/disable pause-on-attack
+   */
+  setPauseOnAttack(enabled: boolean): void {
+    this.pauseOnAttack = enabled;
+  }
+  
+  /**
+   * Set pause-on-attack duration
+   */
+  setPauseOnAttackTime(seconds: number): void {
+    this.pauseOnAttackTime = seconds;
   }
 
   /**
@@ -118,10 +142,12 @@ export class HitReactionComponent extends GameComponent {
   /**
    * Called when this object attacks another object
    */
-  hitVictim(parent: GameObject, _victim: GameObject, _hitType: HitType, hitAccepted: boolean): void {
+  hitVictim(parent: GameObject, _victim: GameObject, hitType: HitType, hitAccepted: boolean): void {
     if (hitAccepted) {
-      // Could pause game briefly on hit
-      // if (this.pauseOnAttack && hitType === HitType.HIT) { ... }
+      // Pause game briefly on successful attack hit
+      if (this.pauseOnAttack && hitType === HitType.HIT && this.timeFreezer) {
+        this.timeFreezer(this.pauseOnAttackTime);
+      }
 
       if (this.dieOnAttack) {
         parent.life = 0;

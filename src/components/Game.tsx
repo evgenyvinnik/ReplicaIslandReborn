@@ -88,6 +88,7 @@ const PLAYER = {
   STOMP_AIR_HANG_TIME: 0.0,   // Time to hang in air before stomp
   STOMP_SHAKE_MAGNITUDE: 15,  // Camera shake intensity on stomp land
   STOMP_VIBRATE_TIME: 0.05,   // Vibration duration
+  ATTACK_PAUSE_DELAY: (1.0 / 60.0) * 4, // ~67ms pause on attack (4 frames at 60fps)
   
   // Hit reaction constants
   HIT_REACT_TIME: 0.5,        // Duration of hit reaction state
@@ -1306,6 +1307,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Update time
       timeSystem.update(deltaTime);
       const gameTime = timeSystem.getGameTime();
+      // Use frozen-aware delta for game logic (0 when frozen for pause-on-attack effect)
+      const gameDelta = timeSystem.getFrameDelta();
 
       // Get player and input state
       const player = gameObjectManager.getPlayer();
@@ -1329,11 +1332,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Update player's internal gameTime before physics so touchingGround() works correctly
         player.setGameTime(gameTime);
         // Player physics update (based on original PlayerComponent.java)
-        updatePlayerPhysics(player, input, deltaTime, gameTime, collisionSystem, soundSystem);
+        // Use gameDelta so physics freezes during pause-on-attack
+        updatePlayerPhysics(player, input, gameDelta, gameTime, collisionSystem, soundSystem);
       }
 
-      // Update all game objects
-      gameObjectManager.update(deltaTime, gameTime);
+      // Update all game objects (use gameDelta so game freezes during pause-on-attack)
+      gameObjectManager.update(gameDelta, gameTime);
       
       // Debug: Count NPC objects
       if (frameCount % 120 === 0) {
@@ -1867,6 +1871,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 player.getVelocity().y = -200;
                 
                 soundSystem.playSfx(SoundEffects.STOMP);
+                
+                // Pause-on-attack effect: brief time freeze for impact feedback
+                timeSystem.freeze(PLAYER.ATTACK_PAUSE_DELAY);
                 
                 // Award points
                 const inv = getInventory();

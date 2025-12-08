@@ -9,6 +9,10 @@ export class TimeSystem {
   private frameTime: number = 0;
   private timeScale: number = 1.0;
   private paused: boolean = false;
+  
+  // Freeze support (pause-on-attack effect)
+  private freezeTime: number = 0;
+  private frozen: boolean = false;
 
   constructor() {
     this.reset();
@@ -23,6 +27,8 @@ export class TimeSystem {
     this.frameTime = 0;
     this.timeScale = 1.0;
     this.paused = false;
+    this.freezeTime = 0;
+    this.frozen = false;
   }
 
   /**
@@ -31,7 +37,16 @@ export class TimeSystem {
   update(deltaTime: number): void {
     this.realTime += deltaTime;
 
-    if (!this.paused) {
+    // Handle freeze countdown
+    if (this.frozen) {
+      this.freezeTime -= deltaTime;
+      if (this.freezeTime <= 0) {
+        this.frozen = false;
+        this.freezeTime = 0;
+      }
+    }
+
+    if (!this.paused && !this.frozen) {
       this.frameTime = deltaTime * this.timeScale;
       this.gameTime += this.frameTime;
     } else {
@@ -93,5 +108,29 @@ export class TimeSystem {
    */
   isPaused(): boolean {
     return this.paused;
+  }
+
+  /**
+   * Freeze game time for a specified duration (pause-on-attack effect)
+   * Unlike pause(), freeze automatically unfreezes after the duration
+   */
+  freeze(duration: number): void {
+    this.frozen = true;
+    this.freezeTime = duration;
+  }
+
+  /**
+   * Check if time is frozen
+   */
+  isFrozen(): boolean {
+    return this.frozen;
+  }
+
+  /**
+   * Unfreeze time immediately
+   */
+  unfreeze(): void {
+    this.frozen = false;
+    this.freezeTime = 0;
   }
 }
