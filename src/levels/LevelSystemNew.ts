@@ -3,15 +3,29 @@
  * Ported from: Original/src/com/replica/replicaisland/LevelSystem.java
  */
 
-import type { LevelData, LevelLayer, LevelObject } from '../types';
+import type { LevelData, LevelLayer, LevelObject, AnimationDefinition } from '../types';
+import { HitType, Team } from '../types';
 import type { CollisionSystem } from '../engine/CollisionSystem';
 import type { GameObjectManager } from '../entities/GameObjectManager';
 import { LevelParser, type ParsedLevel } from './LevelParser';
 import { HotSpotSystem } from '../engine/HotSpotSystem';
 import { GameObjectTypeIndex, getObjectTypeName } from '../types/GameObjectTypes';
 import { NPCComponent } from '../entities/components/NPCComponent';
+import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
+import { ButtonAnimationComponent, ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
+import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
+import { HitReactionComponent } from '../entities/components/HitReactionComponent';
+import { SolidSurfaceComponent } from '../entities/components/SolidSurfaceComponent';
+import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
+import { sSystemRegistry } from '../engine/SystemRegistry';
 import { assetPath } from '../utils/helpers';
 import { useGameStore, isLevelUnlocked } from '../stores/useGameStore';
+
+// Channel names for buttons and doors (must match original)
+const RED_BUTTON_CHANNEL = 'RED BUTTON';
+const BLUE_BUTTON_CHANNEL = 'BLUE BUTTON';
+const GREEN_BUTTON_CHANNEL = 'GREEN BUTTON';
 
 export interface LevelInfo {
   id: number;
@@ -476,19 +490,174 @@ export class LevelSystem {
 
       case GameObjectTypeIndex.DOOR_RED:
       case GameObjectTypeIndex.DOOR_BLUE:
-      case GameObjectTypeIndex.DOOR_GREEN:
+      case GameObjectTypeIndex.DOOR_GREEN: {
         obj.type = 'door';
         objWidth = 32;
         objHeight = 64;
+        obj.activationRadius = 200;
+        
+        // Determine color for sprite and channel
+        let doorColor = 'red';
+        let channelName = RED_BUTTON_CHANNEL;
+        if (spawn.type === GameObjectTypeIndex.DOOR_BLUE) {
+          doorColor = 'blue';
+          channelName = BLUE_BUTTON_CHANNEL;
+        } else if (spawn.type === GameObjectTypeIndex.DOOR_GREEN) {
+          doorColor = 'green';
+          channelName = GREEN_BUTTON_CHANNEL;
+        }
+        obj.subType = doorColor;
+        
+        // Create sprite component with door animations
+        // Each door frame is a separate 32x64 sprite
+        const doorSprite = new SpriteComponent();
+        doorSprite.setSprite(`object_door_${doorColor}01`);  // Default to closed state
+        
+        // Door animations - using frame index for sprite selection
+        // Sprites are: 01=closed, 02=middle1, 03=middle2, 04=open
+        const closedAnim: AnimationDefinition = {
+          name: 'closed',
+          frames: [{ x: 0, y: 0, width: 32, height: 64, duration: 1.0 }],
+          loop: false
+        };
+        const openAnim: AnimationDefinition = {
+          name: 'open',
+          frames: [{ x: 0, y: 0, width: 32, height: 64, duration: 1.0 }],
+          loop: false
+        };
+        const openingAnim: AnimationDefinition = {
+          name: 'opening',
+          frames: [
+            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 },
+            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 }
+          ],
+          loop: false
+        };
+        const closingAnim: AnimationDefinition = {
+          name: 'closing',
+          frames: [
+            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 },
+            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 }
+          ],
+          loop: false
+        };
+        
+        doorSprite.addAnimationAtIndex(DoorAnimation.CLOSED, closedAnim);
+        doorSprite.addAnimationAtIndex(DoorAnimation.OPEN, openAnim);
+        doorSprite.addAnimationAtIndex(DoorAnimation.OPENING, openingAnim);
+        doorSprite.addAnimationAtIndex(DoorAnimation.CLOSING, closingAnim);
+        doorSprite.playAnimation(DoorAnimation.CLOSED);
+        obj.addComponent(doorSprite);
+        
+        // Create door animation component
+        const doorAnim = new DoorAnimationComponent({
+          stayOpenTime: 5.0,
+          openSound: 'sound_open',
+          closeSound: 'sound_close'
+        });
+        doorAnim.setSprite(doorSprite);
+        
+        // Link to channel
+        if (sSystemRegistry.channelSystem) {
+          const channel = sSystemRegistry.channelSystem.registerChannel(channelName);
+          if (channel) {
+            doorAnim.setChannel(channel);
+          }
+        }
+        obj.addComponent(doorAnim);
+        
+        // Create solid surface for door collision (rectangular box)
+        const solidSurface = new SolidSurfaceComponent();
+        solidSurface.createRectangle(objWidth, objHeight);
+        obj.addComponent(solidSurface);
+        
+        // Create dynamic collision for deadly closing door
+        const doorDynCollision = new DynamicCollisionComponent();
+        obj.addComponent(doorDynCollision);
+        
+        // Hit reaction for the door
+        const doorHitReact = new HitReactionComponent({
+          forceInvincibility: true // Doors can't be destroyed
+        });
+        doorDynCollision.setHitReactionComponent(doorHitReact);
+        obj.addComponent(doorHitReact);
         break;
+      }
 
       case GameObjectTypeIndex.BUTTON_RED:
       case GameObjectTypeIndex.BUTTON_BLUE:
-      case GameObjectTypeIndex.BUTTON_GREEN:
+      case GameObjectTypeIndex.BUTTON_GREEN: {
         obj.type = 'button';
         objWidth = 32;
-        objHeight = 16;
+        objHeight = 32; // Use 32 for collision detection
+        obj.activationRadius = 200;
+        obj.team = Team.NONE;
+        
+        // Determine color for sprite and channel
+        let buttonColor = 'red';
+        let buttonChannelName = RED_BUTTON_CHANNEL;
+        if (spawn.type === GameObjectTypeIndex.BUTTON_BLUE) {
+          buttonColor = 'blue';
+          buttonChannelName = BLUE_BUTTON_CHANNEL;
+        } else if (spawn.type === GameObjectTypeIndex.BUTTON_GREEN) {
+          buttonColor = 'green';
+          buttonChannelName = GREEN_BUTTON_CHANNEL;
+        }
+        obj.subType = buttonColor;
+        
+        // Create sprite component with button animations
+        const buttonSprite = new SpriteComponent();
+        buttonSprite.setSprite(`object_button_${buttonColor}`);
+        
+        // Button animations: up and down states
+        const upAnim: AnimationDefinition = {
+          name: 'up',
+          frames: [{ x: 0, y: 0, width: 32, height: 32, duration: 1.0 }],
+          loop: false
+        };
+        const downAnim: AnimationDefinition = {
+          name: 'down',
+          frames: [{ x: 0, y: 0, width: 32, height: 32, duration: 1.0 }],
+          loop: false
+        };
+        
+        buttonSprite.addAnimationAtIndex(ButtonAnimation.UP, upAnim);
+        buttonSprite.addAnimationAtIndex(ButtonAnimation.DOWN, downAnim);
+        buttonSprite.playAnimation(ButtonAnimation.UP);
+        obj.addComponent(buttonSprite);
+        
+        // Create button animation component
+        const buttonAnim = new ButtonAnimationComponent({
+          depressSound: 'sound_button'
+        });
+        buttonAnim.setSprite(buttonSprite);
+        
+        // Link to channel
+        if (sSystemRegistry.channelSystem) {
+          const channel = sSystemRegistry.channelSystem.registerChannel(buttonChannelName);
+          if (channel) {
+            buttonAnim.setChannel(channel);
+          }
+        }
+        obj.addComponent(buttonAnim);
+        
+        // Create dynamic collision component
+        const buttonDynCollision = new DynamicCollisionComponent();
+        
+        // Create vulnerability volume for button (can be depressed by stomp)
+        // The button is in the top 16px of the 32px collision height
+        const buttonVulnerability = new AABoxCollisionVolume(0, 0, 32, 16, HitType.DEPRESS);
+        buttonDynCollision.setCollisionVolumes(null, [buttonVulnerability]);
+        obj.addComponent(buttonDynCollision);
+        
+        // Hit reaction for the button
+        const buttonHitReact = new HitReactionComponent({
+          forceInvincibility: false
+        });
+        buttonDynCollision.setHitReactionComponent(buttonHitReact);
+        obj.addComponent(buttonHitReact);
         break;
+      }
 
       case GameObjectTypeIndex.WANDA: {
         obj.type = 'npc';

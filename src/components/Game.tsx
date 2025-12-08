@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useGameContext } from '../context/GameContext';
 import { GameState, ActionType } from '../types';
 import { GameLoop } from '../engine/GameLoop';
-import { SystemRegistry } from '../engine/SystemRegistry';
+import { SystemRegistry, sSystemRegistry } from '../engine/SystemRegistry';
 import { RenderSystem } from '../engine/RenderSystem';
 import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem, SoundEffects } from '../engine/SoundSystem';
@@ -17,6 +17,7 @@ import { TimeSystem } from '../engine/TimeSystem';
 import { HotSpotSystem, HotSpotType } from '../engine/HotSpotSystem';
 import { AnimationSystem } from '../engine/AnimationSystem';
 import { EffectsSystem } from '../engine/EffectsSystem';
+import { ChannelSystem } from '../engine/ChannelSystem';
 import { CanvasHUD } from '../engine/CanvasHUD';
 import { CanvasControls } from '../engine/CanvasControls';
 import { CanvasDialog } from '../engine/CanvasDialog';
@@ -28,6 +29,9 @@ import { CanvasDiaryOverlay } from '../engine/CanvasDiaryOverlay';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { GameObject } from '../entities/GameObject';
+import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
+import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
+import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { LevelSystem } from '../levels/LevelSystemNew';
 import { TileMapRenderer } from '../levels/TileMapRenderer';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
@@ -119,6 +123,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const storeCollectDiary = useGameStore((s) => s.collectDiary);
   const storeAddToTotalStats = useGameStore((s) => s.addToTotalStats);
   const storeLevelProgress = useGameStore((s) => s.progress.levels);
+  const storeUnlockExtra = useGameStore((s) => s.unlockExtra);
   
   // Systems refs
   const gameLoopRef = useRef<GameLoop | null>(null);
@@ -548,6 +553,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Save level completion with score and time to persistent store
       storeCompleteLevel(state.currentLevel, inventory.score, elapsedTime);
       
+      // Unlock extras when final boss is defeated (level 41 = level_final_boss_lab)
+      // This enables Linear Mode and Level Select in the Extras menu
+      if (state.currentLevel === 41) {
+        storeUnlockExtra('linearMode');
+        storeUnlockExtra('levelSelect');
+        console.warn('[Game] Final boss defeated! Unlocking extras (Linear Mode, Level Select)');
+      }
+      
       // Update total stats
       storeAddToTotalStats({
         totalCoinsCollected: inventory.coinCount,
@@ -609,7 +622,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     } else {
       canvasLevelComplete.hide();
     }
-  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState, storeCompleteLevel, storeAddToTotalStats, storeRecordLevelAttempt, storeLevelProgress]);
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState, storeCompleteLevel, storeAddToTotalStats, storeRecordLevelAttempt, storeLevelProgress, storeUnlockExtra]);
 
   // Attach/detach Canvas Controls when settings change
   useEffect(() => {
@@ -647,9 +660,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Create all systems fresh each time (Strict Mode will run this twice,
+    // Reset and reuse the global system registry (Strict Mode will run this twice,
     // but cleanup will stop the first game loop)
-    const systemRegistry = new SystemRegistry();
+    // Using sSystemRegistry ensures NPCComponent and other components can access systems
+    sSystemRegistry.reset();
+    const systemRegistry = sSystemRegistry;
     systemRegistryRef.current = systemRegistry;
 
     // Render system
@@ -679,6 +694,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Time system
     const timeSystem = new TimeSystem();
     systemRegistry.register(timeSystem, 'time');
+
+    // Channel system (for button/door communication)
+    const channelSystem = new ChannelSystem();
+    systemRegistry.channelSystem = channelSystem;
 
     // Hot spot system
     const hotSpotSystem = new HotSpotSystem();
@@ -2504,9 +2523,56 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               spriteOffset.y = (obj.height - npcSpriteHeight) / 2;
               break;
             }
-            case 'door':
-              // Doors are rendered as rectangles for now
+            case 'door': {
+              // Doors use their subtype (red, blue, green) to determine sprite
+              // DoorAnimationComponent handles animation state
+              const doorColor = obj.subType || 'red';
+              const doorAnim = obj.getComponent(DoorAnimationComponent);
+              if (doorAnim) {
+                const doorState = doorAnim.getCurrentState();
+                // Map door state to sprite: 0=closed, 1=open, 2=closing, 3=opening
+                switch (doorState) {
+                  case DoorAnimation.CLOSED:
+                    spriteName = `object_door_${doorColor}01`;
+                    break;
+                  case DoorAnimation.OPEN:
+                    spriteName = `object_door_${doorColor}04`;
+                    break;
+                  case DoorAnimation.OPENING:
+                  case DoorAnimation.CLOSING:
+                    // Use middle frames based on animation time
+                    const animTime = doorAnim.getCurrentAnimationTime();
+                    spriteName = animTime < 0.083 ? `object_door_${doorColor}02` : `object_door_${doorColor}03`;
+                    break;
+                  default:
+                    spriteName = `object_door_${doorColor}01`;
+                }
+              } else {
+                spriteName = `object_door_${doorColor}01`;
+              }
+              // Doors are 32x64
+              spriteOffset.x = 0;
+              spriteOffset.y = 0;
               break;
+            }
+            case 'button': {
+              // Buttons use their subtype (red, blue, green) to determine sprite
+              // Get SpriteComponent directly since ButtonAnimationComponent delegates to it
+              const buttonColor = obj.subType || 'red';
+              const buttonSprite = obj.getComponent(SpriteComponent);
+              if (buttonSprite) {
+                const animIndex = buttonSprite.getCurrentAnimationIndex();
+                spriteName = animIndex === ButtonAnimation.DOWN
+                  ? `object_button_pressed_${buttonColor}`
+                  : `object_button_${buttonColor}`;
+              } else {
+                spriteName = `object_button_${buttonColor}`;
+              }
+              // Buttons are 32x32 sprites but visually only 16px tall
+              spriteOffset.x = 0;
+              spriteOffset.y = 16; // Offset to bottom of collision box
+              break;
+            }
           }
           
           // Try to draw sprite, fall back to colored rectangle

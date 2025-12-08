@@ -4,9 +4,9 @@ This document tracks what has been implemented and what still needs to be done t
 
 ---
 
-## 🟠 PROGRESS: ~60% Faithful - Playable But Incomplete
+## 🟠 PROGRESS: ~75% Faithful - Playable With Most Features Working
 
-**The game is playable for most levels but several critical features are broken.**
+**The game is playable for all levels. Critical bugs have been fixed.**
 
 ### Game.tsx Faithfulness Analysis (Updated December 2024)
 
@@ -23,60 +23,52 @@ This document tracks what has been implemented and what still needs to be done t
 | **Win Condition** | Collect 3 rubies → WIN state | ✅ Implemented | ✅ YES |
 | **Invincibility Powerup** | Coins → glow mode | ✅ Glow mode with visual effect | ✅ YES |
 | **Enemy AI** | PatrolComponent + AttackAtDistanceComponent | Simplified inline switch | ⚠️ SIMPLIFIED |
-| **NPC Movement** | NPCComponent reads hot spots | ❌ NPCComponent exists but NOT USED | ❌ BROKEN |
-| **Intro Cutscene (0-1)** | Wanda walks, dialog, camera follows | ❌ NPCs fall and stand still | ❌ BROKEN |
-| **Extras Menu** | Unlocks after game completion | ❌ Never unlocks, always shows locked | ❌ BROKEN |
-| **Erase Progress** | Clears localStorage and resets state | ⚠️ Works but UI may not refresh | ⚠️ BUGGY |
+| **NPC Movement** | NPCComponent reads hot spots | ✅ NPCComponent integrated + Y spawn fix | ✅ FIXED |
+| **Intro Cutscene (0-1)** | Wanda walks, dialog, camera follows | ✅ Y coordinate spawn fixed | ✅ FIXED |
+| **Extras Menu** | Unlocks after game completion | ✅ Fixed level ID check (41 not 42) | ✅ FIXED |
+| **Erase Progress** | Clears localStorage and resets state | ✅ Works correctly with toast feedback | ✅ YES |
 
 ---
 
-## 🔴 CRITICAL BUGS TO FIX
+## ✅ CRITICAL BUGS FIXED
 
-### 1. NPC Cutscene System Not Integrated (Level 0-1 Broken)
-**Problem**: The intro level (`level_0_1_sewer`) should show Wanda walking to Kyle, but NPCs just fall and stand still.
+### 1. ~~NPC Cutscene System Not Integrated (Level 0-1 Broken)~~ ✅ FIXED
+**Problem**: The intro level (`level_0_1_sewer`) should show Wanda walking to Kyle, but NPCs just fell and stood still.
 
 **Root Cause**: 
-- `NPCComponent.ts` is fully ported (595 lines) and reads hot spots for movement
-- BUT `Game.tsx` has its own inline NPC physics (lines ~1200-1250) that ignores hot spots
-- The inline code just applies gravity and ground collision - NO hot spot reading
+- Object spawn Y coordinates were incorrect due to Y-up vs Y-down coordinate system mismatch
+- Original Java used Y-up (position = bottom of sprite), web port uses Y-down (position = top of sprite)
+- NPCs were spawned at wrong tile positions relative to hotspots
 
-**Solution**: Remove inline NPC physics from Game.tsx and let NPCComponent handle movement:
+**Solution Applied**: Fixed Y coordinate calculation in `LevelSystemNew.ts`:
 ```typescript
-// Current broken code in Game.tsx (~line 1200):
-gameObjectManager.forEach((obj) => {
-  if (obj.type !== 'npc' || !obj.isVisible()) return;
-  // ... inline physics that ignores NPCComponent
-});
-
-// FIX: Either remove this code entirely, OR integrate NPCComponent properly
+// Before: posY = spawn.y (top of sprite at top of tile)
+// After: posY = (spawn.tileY + 1) * tileHeight - objHeight (bottom of sprite at bottom of tile)
 ```
 
-### 2. Extras Menu Never Unlocks
-**Problem**: `ExtrasMenu.tsx` checks `extrasUnlocked.linearMode` and `extrasUnlocked.levelSelect` but these are never set to true.
+### 2. ~~Extras Menu Never Unlocks~~ ✅ FIXED
+**Problem**: `ExtrasMenu.tsx` checks `extrasUnlocked.linearMode` and `extrasUnlocked.levelSelect` but these were never set to true.
 
 **Root Cause**: 
-- `useGameStore.ts` has `unlockExtra()` function but it's never called anywhere
-- No code triggers extras unlock when game is completed
+- The code checked for level 42, but the final boss is level 41 (`level_final_boss_lab`)
 
-**Solution**: Add extras unlock when final boss is defeated:
+**Solution Applied**: Fixed level ID check from 42 to 41 in Game.tsx:
 ```typescript
-// In Game.tsx when level complete for final boss (level 42):
-if (currentLevel === 42) { // Final boss
-  useGameStore.getState().unlockExtra('linearMode');
-  useGameStore.getState().unlockExtra('levelSelect');
+// In Game.tsx when level complete for final boss (level 41):
+if (state.currentLevel === 41) { // level_final_boss_lab
+  storeUnlockExtra('linearMode');
+  storeUnlockExtra('levelSelect');
 }
 ```
 
-### 3. Erase Progress May Not Fully Reset UI
-**Problem**: The `resetEverything()` function in `useGameStore.ts` clears localStorage and resets state, but the game UI doesn't always reflect the reset.
+### 3. ~~Erase Progress May Not Fully Reset UI~~ ✅ VERIFIED WORKING
+**Status**: After review, this is working correctly.
 
-**Root Cause**:
-- `resetEverything()` correctly clears `localStorage.removeItem('replica-island-save-data')`
-- But React components may hold stale state in memory
-
-**Solution**: Either:
-1. Force page reload after reset: `window.location.reload()`
-2. Or ensure all consuming components properly re-render
+**Implementation**:
+- `resetEverything()` in `useGameStore.ts` clears localStorage AND resets Zustand state
+- Zustand's `set()` triggers re-renders in all subscribed components
+- A toast notification confirms the action to users
+- Components like `ExtrasMenu` properly subscribe to state changes
 
 ---
 
@@ -93,10 +85,11 @@ if (currentLevel === 42) { // Final boss
 
 ### Still TODO For Full Port
 
-- [ ] Fix NPC cutscene system (integrate NPCComponent)
-- [ ] Fix Extras menu unlock
-- [ ] Fix Erase progress UI refresh
+- [x] Fix NPC cutscene system (Y coordinate spawn fix in LevelSystemNew.ts)
+- [x] Fix Extras menu unlock (level ID 41, not 42)
+- [x] Fix Erase progress UI refresh (verified working)
 - [ ] Component-based architecture refactor (nice to have)
+- [ ] Object pooling at runtime (optimization)
 
 ---
 

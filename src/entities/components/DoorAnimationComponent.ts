@@ -203,6 +203,20 @@ export class DoorAnimationComponent extends GameComponent {
     return this.solidSurfaceEnabled;
   }
 
+  /**
+   * Get the current door state for rendering
+   */
+  getCurrentState(): number {
+    return this.state;
+  }
+
+  /**
+   * Get current animation time from sprite
+   */
+  getCurrentAnimationTime(): number {
+    return this.sprite?.getCurrentAnimationTime() ?? 0;
+  }
+
   // Setters
   setSprite(sprite: SpriteComponent): void {
     this.sprite = sprite;
