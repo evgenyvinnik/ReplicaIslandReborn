@@ -18,11 +18,11 @@ const CHARACTER_COLORS: Record<Character, string> = {
 };
 
 // Layout constants
-const DIALOG_BOX_MARGIN = 16;
-const DIALOG_BOX_PADDING = 12;
-const PORTRAIT_SIZE = 80;
-const TEXT_GAP = 12;
-const TEXT_LINE_HEIGHT = 18;
+const DIALOG_BOX_MARGIN = 12;
+const DIALOG_BOX_PADDING = 10;
+const PORTRAIT_SIZE = 64;
+const TEXT_GAP = 10;
+const TEXT_LINE_HEIGHT = 16;
 const CURSOR_BLINK_RATE = 500;
 
 interface DialogState {
@@ -269,7 +269,7 @@ export class CanvasDialog {
     const textWidth = boxWidth - DIALOG_BOX_PADDING * 2 - PORTRAIT_SIZE - TEXT_GAP;
     
     // Pre-calculate wrapped text lines to determine box height
-    this.ctx.font = '12px monospace';
+    this.ctx.font = '11px monospace';
     const fullTextLines = this.wrapText(currentPage.text, textWidth);
     const textHeight = Math.max(fullTextLines.length * TEXT_LINE_HEIGHT, PORTRAIT_SIZE - 24); // At least portrait height minus name
     
@@ -281,7 +281,7 @@ export class CanvasDialog {
     
     // Position dialog at top of screen so it doesn't cover the action below
     // But cap it so it doesn't exceed a reasonable portion of the screen
-    const maxBoxHeight = this.height * 0.4; // Max 40% of screen height
+    const maxBoxHeight = this.height * 0.55; // Max 55% of screen height for long dialogs
     const finalBoxHeight = Math.min(boxHeight, maxBoxHeight);
     const boxY = DIALOG_BOX_MARGIN;
     
@@ -331,16 +331,27 @@ export class CanvasDialog {
     this.ctx.fillText(characterName, textX, textY);
     
     // Dialog text with word wrap - show full text immediately
-    this.ctx.font = '12px monospace';
+    this.ctx.font = '11px monospace';
     this.ctx.fillStyle = '#ffffff';
     this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
     this.ctx.shadowBlur = 1;
     
     const lines = this.wrapText(currentPage.text, textWidth);
-    let lineY = textY + 24;
-    for (const line of lines) {
+    // Calculate how many lines can fit in the available space
+    const availableTextHeight = finalBoxHeight - DIALOG_BOX_PADDING - 24 - DIALOG_BOX_PADDING - 16;
+    const maxVisibleLines = Math.floor(availableTextHeight / TEXT_LINE_HEIGHT);
+    const visibleLines = lines.slice(0, maxVisibleLines);
+    
+    let lineY = textY + 22;
+    for (const line of visibleLines) {
       this.ctx.fillText(line, textX, lineY);
       lineY += TEXT_LINE_HEIGHT;
+    }
+    
+    // Show indicator if text was truncated
+    if (lines.length > maxVisibleLines) {
+      this.ctx.fillStyle = 'rgba(255, 255, 200, 0.6)';
+      this.ctx.fillText('...', textX + textWidth - 20, lineY - TEXT_LINE_HEIGHT);
     }
     
     // "Tap to continue" hint with blinking effect

@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useGameContext } from '../context/GameContext';
-import { GameState, ActionType } from '../types';
+import { GameState, ActionType, HitType } from '../types';
 import { GameLoop } from '../engine/GameLoop';
 import { SystemRegistry, sSystemRegistry } from '../engine/SystemRegistry';
 import { RenderSystem } from '../engine/RenderSystem';
@@ -270,6 +270,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const [dialogConversationIndex, setDialogConversationIndex] = useState(0);
   const [dialogSingleMode, setDialogSingleMode] = useState(false);
   const activeDialogRef = useRef<Dialog | null>(null);
+  const dialogIsCutsceneRef = useRef(false); // True for NPC-triggered dialogs (don't pause physics)
   const dialogTriggerCooldownRef = useRef(0);
   const hasShownIntroDialogRef = useRef(false);
 
@@ -335,6 +336,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setDialogConversationIndex(conversationIdx);
               // For NPC-triggered dialogs, only show the single conversation at this hotspot
               setDialogSingleMode(true);
+              // Mark as cutscene dialog so physics don't pause - NPC needs to keep walking
+              dialogIsCutsceneRef.current = true;
               setActiveDialog(dialog);
             }
           }
@@ -469,11 +472,27 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const handleDialogComplete = (): void => {
         console.log('[Game] Dialog complete');
         setActiveDialog(null);
-        // If this is a cutscene-only level (no player), advance to next level after dialog
+        dialogIsCutsceneRef.current = false; // Reset cutscene flag
+        
         const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
         const player = gameObjectMgr?.getPlayer();
+        const levelSys = levelSystemRef.current;
         console.log('[Game] Player exists:', !!player);
-        if (!player) {
+        
+        // Check if this is a non-restartable level (like level_0_1_sewer_kyle)
+        // These levels should end after dialog completes
+        let shouldAutoAdvance = !player; // Always advance if no player
+        
+        if (levelSys && !shouldAutoAdvance) {
+          const levelInfo = levelSys.getLevelInfo(currentLevelRef.current);
+          if (levelInfo && !levelInfo.restartable) {
+            // Non-restartable levels with dialog should auto-advance after dialog
+            console.log('[Game] Non-restartable level - auto-advancing after dialog');
+            shouldAutoAdvance = true;
+          }
+        }
+        
+        if (shouldAutoAdvance) {
           // No player means this is a story/cutscene level - advance to next
           const levelSys = levelSystemRef.current;
           if (levelSys) {
@@ -1195,6 +1214,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'enemy_wanda_jump02', file: 'enemy_wanda_jump02', w: 64, h: 128 },
         { name: 'enemy_wanda_crouch', file: 'enemy_wanda_crouch', w: 64, h: 128 },
         { name: 'kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 128 },
+        { name: 'enemy_kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 128 },
         { name: 'kabocha_stand', file: 'enemy_kabocha_stand', w: 64, h: 128 },
         // Kabocha NPC walk sprites (64x128)
         { name: 'kabocha_walk01', file: 'enemy_kabocha_walk01', w: 64, h: 128 },
@@ -1528,9 +1548,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         canvasEndingStatsRef.current?.isShowing();
       
       // Check if game physics should be paused (dialog, pause menu, game over, etc.)
-      // Note: Cutscenes should NOT pause physics - NPCs need to move during cutscenes
+      // Note: Cutscene dialogs (NPC-triggered) should NOT pause physics - NPCs need to move
+      const isDialogPausingPhysics = canvasDialogRef.current?.isActive() && !dialogIsCutsceneRef.current;
       const isGamePaused = 
-        canvasDialogRef.current?.isActive() ||
+        isDialogPausingPhysics ||
         canvasPauseMenuRef.current?.isShowing() ||
         canvasGameOverRef.current?.isShowing() ||
         canvasLevelCompleteRef.current?.isShowing() ||
@@ -2059,6 +2080,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   // Set the conversation index and show only this single conversation
                   setDialogConversationIndex(conversationIdx);
                   setDialogSingleMode(true); // Only show this one conversation
+                  dialogIsCutsceneRef.current = false; // Player-triggered dialog pauses physics
                   setActiveDialog(dialog);
                   soundSystem.playSfx(SoundEffects.BUTTON);
                   // Set cooldown to prevent immediate re-trigger
@@ -2282,6 +2304,100 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 // Knock player back
                 const knockbackDir = playerPos.x < objPos.x ? -1 : 1;
                 player.setVelocity(knockbackDir * 200, -150);
+              }
+            }
+          }
+        });
+        
+        // Check button collisions - player pressing buttons
+        gameObjectManager.forEach((obj) => {
+          if (obj === player || !obj.isVisible()) return;
+          
+          // Check if button - handle press when player lands/stomps on it
+          if (obj.type === 'button') {
+            const objPos = obj.getPosition();
+            // Button collision box - the pressable area is the top portion
+            // Buttons are 32x32 but the pressable area is in the top 16px
+            const buttonRect = {
+              x: objPos.x,
+              y: objPos.y, // Top of button
+              width: obj.width,
+              height: 16, // Only top 16 pixels are pressable
+            };
+            
+            // Check if player's bottom overlaps with button's top
+            const playerBottom = playerPos.y + player.height;
+            const playerLeft = playerPos.x;
+            const playerRight = playerPos.x + player.width;
+            const playerVel = player.getVelocity();
+            
+            // Check horizontal overlap
+            const horizontalOverlap = playerRight > buttonRect.x && 
+                                     playerLeft < buttonRect.x + buttonRect.width;
+            
+            // Check if player is on top of button (feet touching button's top area)
+            const verticalContact = playerBottom >= buttonRect.y && 
+                                   playerBottom <= buttonRect.y + buttonRect.height + 8; // Small tolerance
+            
+            // Player must be landing (coming from above with downward or no velocity)
+            const isLanding = playerVel.y >= 0;
+            
+            if (horizontalOverlap && verticalContact && isLanding) {
+              // Trigger button press via HIT_REACT mechanism
+              // This matches how ButtonAnimationComponent expects to receive the press
+              obj.setCurrentAction(ActionType.HIT_REACT);
+              obj.lastReceivedHitType = HitType.DEPRESS;
+              
+              // Debug logging
+              if (Math.random() < 0.02) { // Log occasionally
+                console.log(`[Button] Pressing ${obj.subType} button at (${objPos.x}, ${objPos.y})`);
+              }
+            }
+          }
+        });
+        
+        // Check NPC collisions for dialog trigger (e.g., Kyle encounter)
+        gameObjectManager.forEach((obj) => {
+          if (obj === player || !obj.isVisible()) return;
+          
+          // Check if NPC - trigger dialog when player touches them
+          if (obj.type === 'npc' && activeDialogRef.current === null && dialogTriggerCooldownRef.current <= 0) {
+            const objPos = obj.getPosition();
+            const objRect = {
+              x: objPos.x,
+              y: objPos.y,
+              width: obj.width,
+              height: obj.height,
+            };
+            
+            // Simple AABB collision
+            if (playerRect.x < objRect.x + objRect.width &&
+                playerRect.x + playerRect.width > objRect.x &&
+                playerRect.y < objRect.y + objRect.height &&
+                playerRect.y + playerRect.height > objRect.y) {
+              
+              // Trigger dialog for this NPC
+              const levelSys = levelSystemRef.current;
+              if (levelSys) {
+                const levelId = levelSys.getCurrentLevelId();
+                const levelInfo = levelSys.getLevelInfo(levelId);
+                
+                if (levelInfo) {
+                  const dialogs = getDialogsForLevel(levelInfo.file);
+                  
+                  if (dialogs.length > 0) {
+                    const dialog = dialogs[0]; // Use first dialog for NPC collision
+                    
+                    if (dialog) {
+                      console.log('[Game] Player touched NPC, triggering dialog');
+                      setDialogConversationIndex(0);
+                      setDialogSingleMode(false); // Show full dialog
+                      setActiveDialog(dialog);
+                      soundSystem.playSfx(SoundEffects.BUTTON);
+                      dialogTriggerCooldownRef.current = 2.0;
+                    }
+                  }
+                }
               }
             }
           }
@@ -3063,11 +3179,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                     const offsetX = (obj.width - sourceWidth) / 2;
                     const offsetY = (obj.height - sourceHeight) / 2;
                     for (let layerIdx = 0; layerIdx < sourceLayers.length; layerIdx++) {
+                      // drawSprite(name, x, y, frame, z, alpha, scaleX, scaleY, rotation)
+                      // Use frame=0 (single frame sprites), z-index staggered for layering
                       renderSystem.drawSprite(
                         sourceLayers[layerIdx],
                         sourcePos.x + offsetX,
                         sourcePos.y + offsetY,
-                        10 + layerIdx // Staggered z-index for layers
+                        0,                // frame (single frame sprites)
+                        10 + layerIdx     // z-index (staggered for layers)
                       );
                     }
                     // Don't set spriteName - we handled rendering above

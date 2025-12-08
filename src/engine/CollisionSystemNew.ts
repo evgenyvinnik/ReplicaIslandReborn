@@ -602,20 +602,20 @@ export class CollisionSystem {
       return result;
     }
 
-    // If collision data is loaded, use line segment collision
-    if (this.collisionDataLoaded) {
-      return this.checkTileCollisionWithSegments(x, y, width, height, velocityX, velocityY);
-    }
-
-    // Fallback to simple tile-based collision if no segment data
+    // Use simple tile-based collision for reliability
+    // The segment-based collision has edge cases that cause pass-through issues
+    // TODO: Debug and fix checkTileCollisionWithSegments for slope support
     return this.checkTileCollisionSimple(x, y, width, height, velocityX, velocityY);
   }
 
   /**
    * Line segment-based collision detection.
-   * Casts rays from multiple points on the collision box to detect surfaces.
+   * Uses a hybrid approach: first checks tile occupancy, then uses segments
+   * to determine collision type (wall vs slope).
    */
-  private checkTileCollisionWithSegments(
+  // @ts-ignore - Kept for future slope support, not currently used
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private _checkTileCollisionWithSegments(
     x: number,
     y: number,
     width: number,
@@ -631,138 +631,169 @@ export class CollisionSystem {
       normal: new Vector2(),
     };
 
-    const hitPoint = new Vector2();
-    const hitNormal = new Vector2();
-    const movementDir = new Vector2();
+    // Use a small margin to prevent edge-case clipping
+    const margin = 0.5;
     
-    // Center of the object
-    const centerX = x + width / 2;
-    const centerY = y + height / 2;
-    
-    // Small penetration test distance
-    const testDistance = 2;
+    // Extend the search area based on velocity direction to catch surfaces
+    // we're about to hit
+    const extraBottom = velocityY > 0 ? 4 : 0;
+    const extraTop = velocityY < 0 ? 4 : 0;
+    const extraLeft = velocityX < 0 ? 4 : 0;
+    const extraRight = velocityX > 0 ? 4 : 0;
 
-    // ========================================================================
-    // Ground check - cast ray from center-bottom downward
-    // ========================================================================
-    if (velocityY >= 0) {
-      const groundStart = new Vector2(centerX, y + height - testDistance);
-      const groundEnd = new Vector2(centerX, y + height + testDistance);
-      movementDir.set(0, 1); // Moving downward
-      
-      if (this.castRay(groundStart, groundEnd, movementDir, hitPoint, hitNormal, null)) {
-        // Check if the normal points upward (floor surface)
-        if (hitNormal.y < -0.3) { // Allow some angle for slopes
+    // Calculate tile ranges to check (extended based on velocity)
+    const left = Math.floor((x + margin - extraLeft) / this.tileWidth);
+    const right = Math.floor((x + width - margin + extraRight) / this.tileWidth);
+    const top = Math.floor((y + margin - extraTop) / this.tileHeight);
+    const bottom = Math.floor((y + height - margin + extraBottom) / this.tileHeight);
+
+    // Check each tile in range for collision
+    for (let ty = top; ty <= bottom; ty++) {
+      for (let tx = left; tx <= right; tx++) {
+        const tileIndex = this.getTileAt(tx, ty);
+        if (tileIndex < 0) continue;
+        
+        // Get collision tile definition
+        const collisionTile = this.collisionTileDefinitions.get(tileIndex);
+        if (!collisionTile || collisionTile.segments.length === 0) continue;
+
+        // This tile has collision - determine what kind
+        const tileLeft = tx * this.tileWidth;
+        const tileTop = ty * this.tileHeight;
+
+        // Check the tile's segments to determine collision type
+        const collisionType = this.analyzeSegmentCollision(
+          collisionTile.segments,
+          x, y, width, height,
+          tileLeft, tileTop,
+          velocityX, velocityY
+        );
+        
+        if (collisionType.isFloor) {
           result.grounded = true;
-          result.normal.set(hitNormal);
+          result.normal.y = -1;
         }
-      }
-      
-      // Additional ground checks at left and right edges for wide objects
-      if (!result.grounded) {
-        // Left foot
-        groundStart.set(x + 4, y + height - testDistance);
-        groundEnd.set(x + 4, y + height + testDistance);
-        if (this.castRay(groundStart, groundEnd, movementDir, hitPoint, hitNormal, null)) {
-          if (hitNormal.y < -0.3) {
-            result.grounded = true;
-            result.normal.set(hitNormal);
-          }
-        }
-      }
-      
-      if (!result.grounded) {
-        // Right foot
-        groundStart.set(x + width - 4, y + height - testDistance);
-        groundEnd.set(x + width - 4, y + height + testDistance);
-        if (this.castRay(groundStart, groundEnd, movementDir, hitPoint, hitNormal, null)) {
-          if (hitNormal.y < -0.3) {
-            result.grounded = true;
-            result.normal.set(hitNormal);
-          }
-        }
-      }
-    }
-
-    // ========================================================================
-    // Ceiling check - cast ray from center-top upward
-    // ========================================================================
-    if (velocityY <= 0) {
-      const ceilingStart = new Vector2(centerX, y + testDistance);
-      const ceilingEnd = new Vector2(centerX, y - testDistance);
-      movementDir.set(0, -1); // Moving upward
-      
-      if (this.castRay(ceilingStart, ceilingEnd, movementDir, hitPoint, hitNormal, null)) {
-        // Check if the normal points downward (ceiling surface)
-        if (hitNormal.y > 0.3) {
+        if (collisionType.isCeiling) {
           result.ceiling = true;
-          if (result.normal.lengthSquared() === 0) {
-            result.normal.set(hitNormal);
-          }
+          result.normal.y = 1;
+        }
+        if (collisionType.isLeftWall) {
+          result.leftWall = true;
+          result.normal.x = 1;
+        }
+        if (collisionType.isRightWall) {
+          result.rightWall = true;
+          result.normal.x = -1;
+        }
+        
+        // Use segment normal if available for slopes
+        if (collisionType.normal) {
+          result.normal.set(collisionType.normal);
         }
       }
     }
 
-    // ========================================================================
-    // Left wall check - cast ray from left edge leftward
-    // ========================================================================
-    if (velocityX <= 0) {
-      const leftStart = new Vector2(x + testDistance, centerY);
-      const leftEnd = new Vector2(x - testDistance, centerY);
-      movementDir.set(-1, 0); // Moving left
-      
-      if (this.castRay(leftStart, leftEnd, movementDir, hitPoint, hitNormal, null)) {
-        // Check if the normal points right (left wall surface)
-        if (hitNormal.x > 0.7) { // Steeper threshold for walls
-          result.leftWall = true;
-          if (result.normal.lengthSquared() === 0) {
-            result.normal.set(hitNormal);
-          }
-        }
+    return result;
+  }
+
+  /**
+   * Analyze segment collision to determine collision type.
+   * This checks what segments the object is intersecting with using proper
+   * line-box intersection tests (matching the original game's approach).
+   */
+  private analyzeSegmentCollision(
+    segments: LineSegment[],
+    objX: number,
+    objY: number,
+    objWidth: number,
+    objHeight: number,
+    tileOffsetX: number,
+    tileOffsetY: number,
+    velocityX: number,
+    velocityY: number
+  ): { isFloor: boolean; isCeiling: boolean; isLeftWall: boolean; isRightWall: boolean; normal: Vector2 | null } {
+    const result = {
+      isFloor: false,
+      isCeiling: false,
+      isLeftWall: false,
+      isRightWall: false,
+      normal: null as Vector2 | null
+    };
+
+    // Object edges in tile-local coordinates
+    const localLeft = objX - tileOffsetX;
+    const localRight = objX + objWidth - tileOffsetX;
+    const localTop = objY - tileOffsetY;
+    const localBottom = objY + objHeight - tileOffsetY;
+
+    // Tolerance for collision detection
+    const TOLERANCE = 4;
+
+    for (const segment of segments) {
+      // Check if segment intersects with the object's bounding box
+      // using the segment-box intersection algorithm from the original game
+      if (!this.segmentIntersectsBox(segment, localLeft, localRight, localTop, localBottom)) {
+        continue;
       }
+
+      // Determine segment type based on normal direction
+      const absNormalX = Math.abs(segment.normalX);
+      const absNormalY = Math.abs(segment.normalY);
+
+      // Check movement direction against normal to filter relevant collisions
+      const dot = velocityX * segment.normalX + velocityY * segment.normalY;
       
-      // Additional check at bottom-left (common case for slopes)
-      if (!result.leftWall) {
-        leftStart.set(x + testDistance, y + height - 8);
-        leftEnd.set(x - testDistance, y + height - 8);
-        if (this.castRay(leftStart, leftEnd, movementDir, hitPoint, hitNormal, null)) {
-          if (hitNormal.x > 0.7) {
-            result.leftWall = true;
-            if (result.normal.lengthSquared() === 0) {
-              result.normal.set(hitNormal);
+      // Only consider surfaces that oppose movement (dot < 0) or that we're resting on
+      if (dot > 0.1 && Math.abs(velocityX) + Math.abs(velocityY) > 1) {
+        continue;
+      }
+
+      if (absNormalY > absNormalX) {
+        // Primarily horizontal surface (floor or ceiling)
+        if (segment.normalY < -0.3) {
+          // Floor surface (normal points up in screen coords = negative Y)
+          // Calculate the Y coordinate of the floor at the object's center X
+          const localCenterX = localLeft + objWidth / 2;
+          const floorY = this.getSegmentYAtX(segment, localCenterX);
+          
+          if (floorY !== null) {
+            const distanceToFloor = localBottom - floorY;
+            // Player is on floor if their bottom is at or slightly below the surface
+            if (distanceToFloor >= -TOLERANCE && distanceToFloor <= TOLERANCE * 2) {
+              result.isFloor = true;
+              result.normal = new Vector2(segment.normalX, segment.normalY);
+            }
+          }
+        } else if (segment.normalY > 0.3) {
+          // Ceiling surface (normal points down)
+          const localCenterX = localLeft + objWidth / 2;
+          const ceilingY = this.getSegmentYAtX(segment, localCenterX);
+          
+          if (ceilingY !== null) {
+            const distanceToCeiling = ceilingY - localTop;
+            if (distanceToCeiling >= -TOLERANCE && distanceToCeiling <= TOLERANCE * 2) {
+              result.isCeiling = true;
             }
           }
         }
-      }
-    }
-
-    // ========================================================================
-    // Right wall check - cast ray from right edge rightward
-    // ========================================================================
-    if (velocityX >= 0) {
-      const rightStart = new Vector2(x + width - testDistance, centerY);
-      const rightEnd = new Vector2(x + width + testDistance, centerY);
-      movementDir.set(1, 0); // Moving right
-      
-      if (this.castRay(rightStart, rightEnd, movementDir, hitPoint, hitNormal, null)) {
-        // Check if the normal points left (right wall surface)
-        if (hitNormal.x < -0.7) { // Steeper threshold for walls
-          result.rightWall = true;
-          if (result.normal.lengthSquared() === 0) {
-            result.normal.set(hitNormal);
-          }
-        }
-      }
-      
-      // Additional check at bottom-right (common case for slopes)
-      if (!result.rightWall) {
-        rightStart.set(x + width - testDistance, y + height - 8);
-        rightEnd.set(x + width + testDistance, y + height - 8);
-        if (this.castRay(rightStart, rightEnd, movementDir, hitPoint, hitNormal, null)) {
-          if (hitNormal.x < -0.7) {
-            result.rightWall = true;
-            if (result.normal.lengthSquared() === 0) {
-              result.normal.set(hitNormal);
+      } else if (absNormalX > 0.3) {
+        // Primarily vertical surface (wall)
+        // Calculate the X coordinate of the wall at the object's center Y
+        const localCenterY = localTop + objHeight / 2;
+        const wallX = this.getSegmentXAtY(segment, localCenterY);
+        
+        if (wallX !== null) {
+          if (segment.normalX > 0.3) {
+            // Left wall (normal points right)
+            const distanceToWall = localLeft - wallX;
+            if (distanceToWall >= -TOLERANCE && distanceToWall <= TOLERANCE * 2) {
+              result.isLeftWall = true;
+            }
+          } else if (segment.normalX < -0.3) {
+            // Right wall (normal points left)
+            const distanceToWall = wallX - localRight;
+            if (distanceToWall >= -TOLERANCE && distanceToWall <= TOLERANCE * 2) {
+              result.isRightWall = true;
             }
           }
         }
@@ -770,6 +801,117 @@ export class CollisionSystem {
     }
 
     return result;
+  }
+
+  /**
+   * Check if a line segment intersects with a bounding box.
+   * Based on the original game's calculateIntersectionBox method.
+   */
+  private segmentIntersectsBox(
+    segment: LineSegment,
+    left: number,
+    right: number,
+    top: number,
+    bottom: number
+  ): boolean {
+    const x1 = segment.startX;
+    const x2 = segment.endX;
+    const y1 = segment.startY;
+    const y2 = segment.endY;
+
+    let intersectTimeStart = 0;
+    let intersectTimeEnd = 1;
+
+    // X axis test
+    if (x1 < x2) {
+      if (x1 > right || x2 < left) return false;
+      const deltaX = x2 - x1;
+      const startIntersect = x1 < left ? (left - x1) / deltaX : 0;
+      const endIntersect = x2 > right ? (right - x1) / deltaX : 1;
+      if (startIntersect > intersectTimeStart) intersectTimeStart = startIntersect;
+      if (endIntersect < intersectTimeEnd) intersectTimeEnd = endIntersect;
+    } else {
+      if (x2 > right || x1 < left) return false;
+      const deltaX = x2 - x1;
+      if (deltaX !== 0) {
+        const startIntersect = x1 > right ? (right - x1) / deltaX : 0;
+        const endIntersect = x2 < left ? (left - x1) / deltaX : 1;
+        if (startIntersect > intersectTimeStart) intersectTimeStart = startIntersect;
+        if (endIntersect < intersectTimeEnd) intersectTimeEnd = endIntersect;
+      }
+    }
+    if (intersectTimeEnd < intersectTimeStart) return false;
+
+    // Y axis test
+    if (y1 < y2) {
+      if (y1 > bottom || y2 < top) return false;
+      const deltaY = y2 - y1;
+      const startIntersect = y1 < top ? (top - y1) / deltaY : 0;
+      const endIntersect = y2 > bottom ? (bottom - y1) / deltaY : 1;
+      if (startIntersect > intersectTimeStart) intersectTimeStart = startIntersect;
+      if (endIntersect < intersectTimeEnd) intersectTimeEnd = endIntersect;
+    } else {
+      if (y2 > bottom || y1 < top) return false;
+      const deltaY = y2 - y1;
+      if (deltaY !== 0) {
+        const startIntersect = y1 > bottom ? (bottom - y1) / deltaY : 0;
+        const endIntersect = y2 < top ? (top - y1) / deltaY : 1;
+        if (startIntersect > intersectTimeStart) intersectTimeStart = startIntersect;
+        if (endIntersect < intersectTimeEnd) intersectTimeEnd = endIntersect;
+      }
+    }
+    
+    return intersectTimeEnd >= intersectTimeStart;
+  }
+
+  /**
+   * Get the Y coordinate of a segment at a given X coordinate.
+   * Returns null if X is outside the segment's X range.
+   */
+  private getSegmentYAtX(segment: LineSegment, x: number): number | null {
+    const minX = Math.min(segment.startX, segment.endX);
+    const maxX = Math.max(segment.startX, segment.endX);
+    
+    // Check if X is within segment range (with small tolerance)
+    if (x < minX - 2 || x > maxX + 2) {
+      return null;
+    }
+    
+    // Handle vertical segments
+    const deltaX = segment.endX - segment.startX;
+    if (Math.abs(deltaX) < 0.001) {
+      return (segment.startY + segment.endY) / 2;
+    }
+    
+    // Linear interpolation
+    const t = (x - segment.startX) / deltaX;
+    const clampedT = Math.max(0, Math.min(1, t));
+    return segment.startY + clampedT * (segment.endY - segment.startY);
+  }
+
+  /**
+   * Get the X coordinate of a segment at a given Y coordinate.
+   * Returns null if Y is outside the segment's Y range.
+   */
+  private getSegmentXAtY(segment: LineSegment, y: number): number | null {
+    const minY = Math.min(segment.startY, segment.endY);
+    const maxY = Math.max(segment.startY, segment.endY);
+    
+    // Check if Y is within segment range (with small tolerance)
+    if (y < minY - 2 || y > maxY + 2) {
+      return null;
+    }
+    
+    // Handle horizontal segments
+    const deltaY = segment.endY - segment.startY;
+    if (Math.abs(deltaY) < 0.001) {
+      return (segment.startX + segment.endX) / 2;
+    }
+    
+    // Linear interpolation
+    const t = (y - segment.startY) / deltaY;
+    const clampedT = Math.max(0, Math.min(1, t));
+    return segment.startX + clampedT * (segment.endX - segment.startX);
   }
 
   /**

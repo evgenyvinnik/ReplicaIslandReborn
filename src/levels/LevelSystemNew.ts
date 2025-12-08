@@ -364,6 +364,10 @@ export class LevelSystem {
   private spawnObjectsFromLayer(objectLayer: { width: number; height: number; tiles: number[][] }): void {
     if (!this.gameObjectManager) return;
 
+    // Clear all existing objects before spawning new level objects
+    // This prevents crashes when transitioning between levels
+    this.gameObjectManager.clear();
+
     const spawnList: SpawnInfo[] = [];
 
     console.log(`[LevelSystem] spawnObjectsFromLayer: ${objectLayer.width}x${objectLayer.height}, tiles array length: ${objectLayer.tiles?.length}`);
@@ -1655,6 +1659,10 @@ export class LevelSystem {
    */
   private spawnLevelObjects(objects: LevelObject[]): void {
     if (!this.gameObjectManager) return;
+
+    // Clear all existing objects before spawning new level objects
+    // This prevents crashes when transitioning between levels
+    this.gameObjectManager.clear();
 
     for (const objData of objects) {
       this.createObjectFromData(objData);

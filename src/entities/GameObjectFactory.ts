@@ -15,6 +15,7 @@ import { GhostComponent, setGhostSystemRegistry } from './components/GhostCompon
 import { SnailbombComponent } from './components/SnailbombComponent';
 import { RokudouBossComponent } from './components/RokudouBossComponent';
 import { LifetimeComponent } from './components/LifetimeComponent';
+import { MultiSpriteAnimComponent } from './components/MultiSpriteAnimComponent';
 import type { RenderSystem } from '../engine/RenderSystem';
 import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { InputSystem } from '../engine/InputSystem';
@@ -658,20 +659,17 @@ export class GameObjectFactory {
     obj.height = 32;
     obj.life = 1;
 
-    // Add sprite - use energy_ball01 as the base sprite (single frame per image)
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('energy_ball01');
-      sprite.setRenderSystem(this.renderSystem);
-      // Each energy_ball frame is a separate 32x32 image, so frame 0 is the whole image
-      sprite.addAnimation('fly', {
-        frames: [
-          { x: 0, y: 0, width: 32, height: 32, duration: 0.08 },
-        ],
-        loop: true,
-      });
-      sprite.playAnimation('fly');
-      obj.addComponent(sprite);
+    // Add multi-sprite animated component for energy ball
+    // Since each frame is a separate image (energy_ball01-04), we use MultiSpriteAnimComponent
+    const multiSprite = new MultiSpriteAnimComponent();
+    if (this.renderSystem) {
+      multiSprite.setRenderSystem(this.renderSystem);
+      multiSprite.setSpriteSequence(
+        ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'],
+        0.08,  // 80ms per frame
+        true   // loop
+      );
+      obj.addComponent(multiSprite);
     }
 
     // Add physics (no gravity for straight projectile - like Wanda's attack)
