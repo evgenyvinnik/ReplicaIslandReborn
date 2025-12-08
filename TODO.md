@@ -4,9 +4,9 @@ This document tracks what has been implemented and what still needs to be done t
 
 ---
 
-## 🟠 PROGRESS: ~75% Faithful - Playable With Most Features Working
+## 🟠 PROGRESS: ~80% Faithful - Playable With Most Features Working
 
-**The game is playable for all levels. Critical bugs have been fixed.**
+**The game is playable for all levels. Critical bugs have been fixed. Enemy AI components integrated.**
 
 ### Game.tsx Faithfulness Analysis (Updated December 2024)
 
@@ -88,6 +88,8 @@ if (state.currentLevel === 41) { // level_final_boss_lab
 - [x] Fix NPC cutscene system (Y coordinate spawn fix in LevelSystemNew.ts)
 - [x] Fix Extras menu unlock (level ID 41, not 42)
 - [x] Fix Erase progress UI refresh (verified working)
+- [x] Enemy AI components attached (PatrolComponent, SnailbombComponent, etc.)
+- [x] Special enemy behaviors (SleeperComponent, PopOutComponent, EvilKabochaComponent, TheSourceComponent)
 - [ ] Component-based architecture refactor (nice to have)
 - [ ] Object pooling at runtime (optimization)
 
@@ -111,9 +113,9 @@ The first level has **three variants** that serve different purposes:
 
 **Current Status**: 
 - ✅ Camera correctly focuses on NPC (Wanda) when no player
-- ❌ NPCComponent.ts exists (595 lines) but is NOT being used
-- ❌ Game.tsx has inline NPC physics that ignores hot spots
-- Result: NPCs fall and stand still instead of following scripted path
+- ✅ NPCComponent.ts is now properly integrated with hot spots
+- ✅ Game.tsx handles NPC physics with velocity interpolation
+- Result: NPCs correctly follow hot spot paths in cutscene levels
 
 **How the Original Works**:
 1. `NPCComponent.java` checks hot spots at NPC position every frame
@@ -279,7 +281,7 @@ The 78 missing sprites map directly to **unimplemented game features**:
 | **Rokudou Boss Battle** | 13 | `rokudou_fight_stand.png`, `rokudou_fight_fly01-02.png`, `rokudou_fight_hit01-03.png`, `rokudou_fight_shoot01-02.png`, `rokudou_fight_die01-04.png`, `rokudou_fight_surprise.png` | ✅ RokudouBossComponent implemented |
 | **Game Endings UI** | 8 | `ui_good_ending_background.png`, `ui_good_ending_foreground.png`, `ui_ending_bad_kabocha_background.png`, `ui_ending_bad_kabocha_foreground.png`, `ui_bad_ending_rokudou_bg.png`, `ui_bad_ending_rokudou_cliffs.png`, `ui_bad_ending_rokudou_rokudou.png`, `ui_bad_ending_rokudou_sphere.png` | End-game cutscene parallax layers |
 | **Particle Effects** | 8 | `dust01.png` - `dust05.png`, `spark01.png` - `spark03.png` | Additional particle effects (basic effects exist in EffectsSystem) |
-| **Snailbomb Enemy** | 7 | `snailbomb.png`, `snail_bomb.png`, `snailbomb_stand.png`, `snailbomb_walk01-02.png`, `snailbomb_shoot01-02.png` | ✅ SnailbombComponent implemented |
+| **Snailbomb Enemy** | 7 | `snailbomb.png`, `snail_bomb.png`, `snailbomb_stand.png`, `snailbomb_walk01-02.png`, `snailbomb_shoot01-02.png` | ✅ SnailbombComponent attached to enemies |
 | **Debug Rendering** | 6 | `debug_box_blue.png`, `debug_box_red.png`, `debug_box_outline.png`, `debug_circle_blue.png`, `debug_circle_red.png`, `debug_circle_outline.png` | Debug collision visualization (low priority) |
 | **UI Miscellaneous** | 5 | `ui_arrow_dark.png`, `ui_arrow_light.png`, `ui_locked.png`, `ui_new.png`, `ui_pearl.png` | Level select UI enhancements |
 | **Boss Attack Effects** | 4 | `energy_ball01.png` - `energy_ball04.png` | Boss projectile attacks |
@@ -1037,7 +1039,7 @@ The hot spot layer defines special tile behaviors:
 | Rokudou Boss Battle | 13 | ❌ Boss fight not implemented |
 | Game Endings | 8 | ❌ Ending animations not implemented |
 | Particle Effects | 8 | ⚠️ Basic effects work, enhanced sprites missing |
-| Snailbomb Enemy | 7 | ❌ Enemy type not implemented |
+| Snailbomb Enemy | 7 | ✅ SnailbombComponent attached |
 | Debug Rendering | 6 | ⚠️ Low priority, debug mode uses colored rects |
 | UI Misc | 5 | ⚠️ Level select enhancements |
 | Boss Effects | 4 | ❌ Boss projectiles not implemented |
@@ -1077,7 +1079,7 @@ The remaining **~18%** consists of these major unimplemented features:
 | **Cutscene Player** | 16 (`anime_kyle_fall*.png`) + 8 (endings) | AnimationPlayerActivity equivalent | MEDIUM | ❌ |
 | **Ghost Mechanic** | 1 (`ghost.png`) | `GhostComponent.ts` | MEDIUM | ✅ Done |
 | **Evil Kabocha Boss** | 0 | `EvilKabochaComponent.ts` | HIGH | ✅ Done |
-| **Snailbomb Enemy** | 7 (`snailbomb_*.png`) | Enemy factory spawn | LOW | ❌ |
+| **Snailbomb Enemy** | 7 (`snailbomb_*.png`) | Enemy factory spawn | LOW | ✅ Done |
 | **Motion Blur Effect** | 0 | `MotionBlurComponent.ts` | LOW | ✅ Done |
 | **Per-Object Fade** | 0 | `FadeDrawableComponent.ts` | LOW | ❌ |
 | **Background Music** | 0 | MIDI→OGG conversion | LOW | ⚠️ SoundSystem ready |

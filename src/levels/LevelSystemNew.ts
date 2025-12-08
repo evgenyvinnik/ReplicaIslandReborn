@@ -13,6 +13,11 @@ import { GameObjectTypeIndex, getObjectTypeName } from '../types/GameObjectTypes
 import { NPCComponent } from '../entities/components/NPCComponent';
 import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
+import { SnailbombComponent } from '../entities/components/SnailbombComponent';
+import { SleeperComponent } from '../entities/components/SleeperComponent';
+import { PopOutComponent } from '../entities/components/PopOutComponent';
+import { EvilKabochaComponent } from '../entities/components/EvilKabochaComponent';
+import { TheSourceComponent } from '../entities/components/TheSourceComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimationComponent, ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
@@ -38,6 +43,7 @@ export interface LevelInfo {
   unlocked: boolean;
   world: number;     // World/chapter number
   stage: number;     // Stage within world
+  inThePast: boolean; // True if this level is a memory/flashback sequence
 }
 
 export interface SpawnInfo {
@@ -88,59 +94,59 @@ export class LevelSystem {
       // Tutorial (World 0)
       // Level 0-1 Intro: Cutscene showing Wanda discovering Kyle falling into sewer
       // This is a story-only level with NPCs, no player spawn
-      { id: 1, name: 'Intro', file: 'level_0_1_sewer', binary: true, next: 2, unlocked: true, world: 0, stage: 1 },
+      { id: 1, name: 'Intro', file: 'level_0_1_sewer', binary: true, next: 2, unlocked: true, world: 0, stage: 1, inThePast: false },
       // Level 0-1 Playable: First tutorial level after the intro cutscene
-      { id: 2, name: 'Tutorial 1', file: 'level_0_1_sewer_kyle', binary: true, next: 3, unlocked: true, world: 0, stage: 1 },
-      { id: 3, name: 'Tutorial 2', file: 'level_0_2_lab', binary: true, next: 4, unlocked: false, world: 0, stage: 2 },
-      { id: 4, name: 'Tutorial 3', file: 'level_0_3_lab', binary: true, next: 5, unlocked: false, world: 0, stage: 3 },
+      { id: 2, name: 'Tutorial 1', file: 'level_0_1_sewer_kyle', binary: true, next: 3, unlocked: true, world: 0, stage: 1, inThePast: false },
+      { id: 3, name: 'Tutorial 2', file: 'level_0_2_lab', binary: true, next: 4, unlocked: false, world: 0, stage: 2, inThePast: true },
+      { id: 4, name: 'Tutorial 3', file: 'level_0_3_lab', binary: true, next: 5, unlocked: false, world: 0, stage: 3, inThePast: true },
       
-      // Island (World 1)
-      { id: 5, name: 'Island 1', file: 'level_1_1_island', binary: true, next: 6, unlocked: false, world: 1, stage: 1 },
-      { id: 6, name: 'Island 2', file: 'level_1_2_island', binary: true, next: 7, unlocked: false, world: 1, stage: 2 },
-      { id: 7, name: 'Island 3', file: 'level_1_3_island', binary: true, next: 8, unlocked: false, world: 1, stage: 3 },
-      { id: 8, name: 'Island 4', file: 'level_1_4_island', binary: true, next: 9, unlocked: false, world: 1, stage: 4 },
-      { id: 9, name: 'Island 5', file: 'level_1_5_island', binary: true, next: 10, unlocked: false, world: 1, stage: 5 },
-      { id: 10, name: 'Island 6', file: 'level_1_6_island', binary: true, next: 11, unlocked: false, world: 1, stage: 6 },
-      { id: 11, name: 'Island 8', file: 'level_1_8_island', binary: true, next: 12, unlocked: false, world: 1, stage: 8 },
-      { id: 12, name: 'Island 9', file: 'level_1_9_island', binary: true, next: 13, unlocked: false, world: 1, stage: 9 },
+      // Island (World 1) - All island levels are memory flashbacks
+      { id: 5, name: 'Island 1', file: 'level_1_1_island', binary: true, next: 6, unlocked: false, world: 1, stage: 1, inThePast: true },
+      { id: 6, name: 'Island 2', file: 'level_1_2_island', binary: true, next: 7, unlocked: false, world: 1, stage: 2, inThePast: true },
+      { id: 7, name: 'Island 3', file: 'level_1_3_island', binary: true, next: 8, unlocked: false, world: 1, stage: 3, inThePast: true },
+      { id: 8, name: 'Island 4', file: 'level_1_4_island', binary: true, next: 9, unlocked: false, world: 1, stage: 4, inThePast: true },
+      { id: 9, name: 'Island 5', file: 'level_1_5_island', binary: true, next: 10, unlocked: false, world: 1, stage: 5, inThePast: true },
+      { id: 10, name: 'Island 6', file: 'level_1_6_island', binary: true, next: 11, unlocked: false, world: 1, stage: 6, inThePast: true },
+      { id: 11, name: 'Island 8', file: 'level_1_8_island', binary: true, next: 12, unlocked: false, world: 1, stage: 8, inThePast: true },
+      { id: 12, name: 'Island 9', file: 'level_1_9_island', binary: true, next: 13, unlocked: false, world: 1, stage: 9, inThePast: true },
       
-      // Grass (World 2)
-      { id: 13, name: 'Forest 1', file: 'level_2_1_grass', binary: true, next: 14, unlocked: false, world: 2, stage: 1 },
-      { id: 14, name: 'Forest 2', file: 'level_2_2_grass', binary: true, next: 15, unlocked: false, world: 2, stage: 2 },
-      { id: 15, name: 'Forest 3', file: 'level_2_3_grass', binary: true, next: 16, unlocked: false, world: 2, stage: 3 },
-      { id: 16, name: 'Forest 4', file: 'level_2_4_grass', binary: true, next: 17, unlocked: false, world: 2, stage: 4 },
-      { id: 17, name: 'Forest 5', file: 'level_2_5_grass', binary: true, next: 18, unlocked: false, world: 2, stage: 5 },
-      { id: 18, name: 'Forest 6', file: 'level_2_6_grass', binary: true, next: 19, unlocked: false, world: 2, stage: 6 },
-      { id: 19, name: 'Forest 7', file: 'level_2_7_grass', binary: true, next: 20, unlocked: false, world: 2, stage: 7 },
-      { id: 20, name: 'Forest 8', file: 'level_2_8_grass', binary: true, next: 21, unlocked: false, world: 2, stage: 8 },
-      { id: 21, name: 'Forest 9', file: 'level_2_9_grass', binary: true, next: 22, unlocked: false, world: 2, stage: 9 },
+      // Grass (World 2) - All forest/grass levels are memory flashbacks
+      { id: 13, name: 'Forest 1', file: 'level_2_1_grass', binary: true, next: 14, unlocked: false, world: 2, stage: 1, inThePast: true },
+      { id: 14, name: 'Forest 2', file: 'level_2_2_grass', binary: true, next: 15, unlocked: false, world: 2, stage: 2, inThePast: true },
+      { id: 15, name: 'Forest 3', file: 'level_2_3_grass', binary: true, next: 16, unlocked: false, world: 2, stage: 3, inThePast: true },
+      { id: 16, name: 'Forest 4', file: 'level_2_4_grass', binary: true, next: 17, unlocked: false, world: 2, stage: 4, inThePast: true },
+      { id: 17, name: 'Forest 5', file: 'level_2_5_grass', binary: true, next: 18, unlocked: false, world: 2, stage: 5, inThePast: true },
+      { id: 18, name: 'Forest 6', file: 'level_2_6_grass', binary: true, next: 19, unlocked: false, world: 2, stage: 6, inThePast: true },
+      { id: 19, name: 'Forest 7', file: 'level_2_7_grass', binary: true, next: 20, unlocked: false, world: 2, stage: 7, inThePast: true },
+      { id: 20, name: 'Forest 8', file: 'level_2_8_grass', binary: true, next: 21, unlocked: false, world: 2, stage: 8, inThePast: true },
+      { id: 21, name: 'Forest 9', file: 'level_2_9_grass', binary: true, next: 22, unlocked: false, world: 2, stage: 9, inThePast: true },
       
-      // Sewer (World 3)
-      { id: 22, name: 'Sewer 0', file: 'level_3_0_sewer', binary: true, next: 23, unlocked: false, world: 3, stage: 0 },
-      { id: 23, name: 'Sewer 1', file: 'level_3_1_grass', binary: true, next: 24, unlocked: false, world: 3, stage: 1 },
-      { id: 24, name: 'Sewer 2', file: 'level_3_2_sewer', binary: true, next: 25, unlocked: false, world: 3, stage: 2 },
-      { id: 25, name: 'Sewer 3', file: 'level_3_3_sewer', binary: true, next: 26, unlocked: false, world: 3, stage: 3 },
-      { id: 26, name: 'Sewer 4', file: 'level_3_4_sewer', binary: true, next: 27, unlocked: false, world: 3, stage: 4 },
-      { id: 27, name: 'Sewer 5', file: 'level_3_5_sewer', binary: true, next: 28, unlocked: false, world: 3, stage: 5 },
-      { id: 28, name: 'Sewer 6', file: 'level_3_6_sewer', binary: true, next: 29, unlocked: false, world: 3, stage: 6 },
-      { id: 29, name: 'Sewer 7', file: 'level_3_7_sewer', binary: true, next: 30, unlocked: false, world: 3, stage: 7 },
-      { id: 30, name: 'Sewer 8', file: 'level_3_8_sewer', binary: true, next: 31, unlocked: false, world: 3, stage: 8 },
-      { id: 31, name: 'Sewer 9', file: 'level_3_9_sewer', binary: true, next: 32, unlocked: false, world: 3, stage: 9 },
-      { id: 32, name: 'Sewer 10', file: 'level_3_10_sewer', binary: true, next: 33, unlocked: false, world: 3, stage: 10 },
-      { id: 33, name: 'Sewer 11', file: 'level_3_11_sewer', binary: true, next: 34, unlocked: false, world: 3, stage: 11 },
+      // Sewer (World 3) - Sewer levels are present-day, not flashbacks
+      { id: 22, name: 'Sewer 0', file: 'level_3_0_sewer', binary: true, next: 23, unlocked: false, world: 3, stage: 0, inThePast: false },
+      { id: 23, name: 'Sewer 1', file: 'level_3_1_grass', binary: true, next: 24, unlocked: false, world: 3, stage: 1, inThePast: false },
+      { id: 24, name: 'Sewer 2', file: 'level_3_2_sewer', binary: true, next: 25, unlocked: false, world: 3, stage: 2, inThePast: false },
+      { id: 25, name: 'Sewer 3', file: 'level_3_3_sewer', binary: true, next: 26, unlocked: false, world: 3, stage: 3, inThePast: false },
+      { id: 26, name: 'Sewer 4', file: 'level_3_4_sewer', binary: true, next: 27, unlocked: false, world: 3, stage: 4, inThePast: false },
+      { id: 27, name: 'Sewer 5', file: 'level_3_5_sewer', binary: true, next: 28, unlocked: false, world: 3, stage: 5, inThePast: false },
+      { id: 28, name: 'Sewer 6', file: 'level_3_6_sewer', binary: true, next: 29, unlocked: false, world: 3, stage: 6, inThePast: false },
+      { id: 29, name: 'Sewer 7', file: 'level_3_7_sewer', binary: true, next: 30, unlocked: false, world: 3, stage: 7, inThePast: false },
+      { id: 30, name: 'Sewer 8', file: 'level_3_8_sewer', binary: true, next: 31, unlocked: false, world: 3, stage: 8, inThePast: false },
+      { id: 31, name: 'Sewer 9', file: 'level_3_9_sewer', binary: true, next: 32, unlocked: false, world: 3, stage: 9, inThePast: false },
+      { id: 32, name: 'Sewer 10', file: 'level_3_10_sewer', binary: true, next: 33, unlocked: false, world: 3, stage: 10, inThePast: false },
+      { id: 33, name: 'Sewer 11', file: 'level_3_11_sewer', binary: true, next: 34, unlocked: false, world: 3, stage: 11, inThePast: false },
       
-      // Underground (World 4)
-      { id: 34, name: 'Underground 1', file: 'level_4_1_underground', binary: true, next: 35, unlocked: false, world: 4, stage: 1 },
-      { id: 35, name: 'Underground 2', file: 'level_4_2_underground', binary: true, next: 36, unlocked: false, world: 4, stage: 2 },
-      { id: 36, name: 'Underground 3', file: 'level_4_3_underground', binary: true, next: 37, unlocked: false, world: 4, stage: 3 },
-      { id: 37, name: 'Underground 4', file: 'level_4_4_underground', binary: true, next: 38, unlocked: false, world: 4, stage: 4 },
-      { id: 38, name: 'Underground 5', file: 'level_4_5_underground', binary: true, next: 39, unlocked: false, world: 4, stage: 5 },
-      { id: 39, name: 'Underground 7', file: 'level_4_7_underground', binary: true, next: 40, unlocked: false, world: 4, stage: 7 },
-      { id: 40, name: 'Underground 8', file: 'level_4_8_underground', binary: true, next: 41, unlocked: false, world: 4, stage: 8 },
-      { id: 41, name: 'Underground 9', file: 'level_4_9_underground', binary: true, next: 42, unlocked: false, world: 4, stage: 9 },
+      // Underground (World 4) - Underground levels are memory flashbacks
+      { id: 34, name: 'Underground 1', file: 'level_4_1_underground', binary: true, next: 35, unlocked: false, world: 4, stage: 1, inThePast: true },
+      { id: 35, name: 'Underground 2', file: 'level_4_2_underground', binary: true, next: 36, unlocked: false, world: 4, stage: 2, inThePast: true },
+      { id: 36, name: 'Underground 3', file: 'level_4_3_underground', binary: true, next: 37, unlocked: false, world: 4, stage: 3, inThePast: true },
+      { id: 37, name: 'Underground 4', file: 'level_4_4_underground', binary: true, next: 38, unlocked: false, world: 4, stage: 4, inThePast: true },
+      { id: 38, name: 'Underground 5', file: 'level_4_5_underground', binary: true, next: 39, unlocked: false, world: 4, stage: 5, inThePast: true },
+      { id: 39, name: 'Underground 7', file: 'level_4_7_underground', binary: true, next: 40, unlocked: false, world: 4, stage: 7, inThePast: true },
+      { id: 40, name: 'Underground 8', file: 'level_4_8_underground', binary: true, next: 41, unlocked: false, world: 4, stage: 8, inThePast: true },
+      { id: 41, name: 'Underground 9', file: 'level_4_9_underground', binary: true, next: 42, unlocked: false, world: 4, stage: 9, inThePast: true },
       
-      // Final Boss
-      { id: 42, name: 'Final Boss', file: 'level_final_boss_lab', binary: true, next: null, unlocked: false, world: 5, stage: 1 },
+      // Final Boss - Present day
+      { id: 42, name: 'Final Boss', file: 'level_final_boss_lab', binary: true, next: null, unlocked: false, world: 5, stage: 1, inThePast: false },
     ];
 
     for (const level of levelTree) {
@@ -499,15 +505,13 @@ export class LevelSystem {
         objWidth = 64;   // Assumed 64x64
         objHeight = 64;
         obj.activationRadius = 200;
-        // Snailbomb has special behavior (explodes) - uses SnailbombComponent
-        // For now, use basic patrol
-        const snailPatrol = new PatrolComponent({
-          maxSpeed: 30.0,
-          acceleration: 1000.0,
-          flying: false,
-          turnToFacePlayer: false
+        // Snailbomb has special behavior - uses SnailbombComponent for patrol + shooting
+        const snailbomb = new SnailbombComponent({
+          patrolSpeed: 20.0,
+          attackRange: 300,
+          shotCount: 3
         });
-        obj.addComponent(snailPatrol);
+        obj.addComponent(snailbomb);
         break;
       }
         
@@ -517,15 +521,15 @@ export class LevelSystem {
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
         obj.activationRadius = 200;
-        // Shadowslime uses PopOutComponent in original (appears/hides)
-        // For now, use slow ground patrol
-        const slimePatrol = new PatrolComponent({
-          maxSpeed: 25.0,
-          acceleration: 400.0,
-          flying: false,
-          turnToFacePlayer: false
+        // Shadowslime uses PopOutComponent - appears/hides based on player distance
+        const shadowslimePopOut = new PopOutComponent({
+          appearDistance: 120,
+          hideDistance: 190,
+          attackDistance: 60,
+          attackDelay: 1.0,
+          attackLength: 0.5
         });
-        obj.addComponent(slimePatrol);
+        obj.addComponent(shadowslimePopOut);
         break;
       }
         
@@ -576,8 +580,15 @@ export class LevelSystem {
         objWidth = 128;   // Sprites are 128x128
         objHeight = 128;
         obj.activationRadius = 250;
-        // Pink Namazu uses SleeperComponent in original (sleeps then jumps)
-        // For now, no patrol - stationary until proper SleeperComponent
+        // Pink Namazu uses SleeperComponent - sleeps until camera shakes, then jumps/slams
+        const namazuSleeper = new SleeperComponent({
+          wakeUpDuration: 2.0,
+          slamDuration: 0.5,
+          slamMagnitude: 15,
+          attackImpulseX: 200,
+          attackImpulseY: -400  // Jump up (negative Y in canvas coords)
+        });
+        obj.addComponent(namazuSleeper);
         break;
       }
         
@@ -812,6 +823,16 @@ export class LevelSystem {
         objHeight = 128;
         obj.activationRadius = 400; // Boss has larger activation radius
         obj.life = 5; // Mini boss has 5 hit points
+        // Add Evil Kabocha boss component
+        const kabochaComp = new EvilKabochaComponent({
+          life: 5,
+          hitPauseDuration: 1.0,
+          knockbackImpulse: 300,
+          deathDelay: 4.0,
+          triggerEnding: true,
+          endingType: 'ROKUDOU_ENDING'
+        });
+        obj.addComponent(kabochaComp);
         break;
       }
         
@@ -835,6 +856,9 @@ export class LevelSystem {
         objHeight = 512;
         obj.activationRadius = 600; // Very large activation radius for final boss
         obj.life = 10; // Final boss has 10 hit points
+        // Add The Source boss component
+        const sourceComp = new TheSourceComponent();
+        obj.addComponent(sourceComp);
         break;
       }
 
