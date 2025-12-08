@@ -6,10 +6,12 @@
 import { GameComponent } from '../GameComponent';
 import { ComponentPhase } from '../../types';
 import type { GameObject } from '../GameObject';
-import type { CollisionSystem, TileCollisionResult } from '../../engine/CollisionSystem';
+import type { CollisionSystem } from '../../engine/CollisionSystem';
 
 export class MovementComponent extends GameComponent {
   private collisionSystem: CollisionSystem | null = null;
+  private tileWidth: number = 32;
+  private tileHeight: number = 32;
 
   constructor() {
     super(ComponentPhase.MOVEMENT);
@@ -23,6 +25,14 @@ export class MovementComponent extends GameComponent {
   }
 
   /**
+   * Set tile dimensions for proper collision snapping
+   */
+  setTileDimensions(width: number, height: number): void {
+    this.tileWidth = width;
+    this.tileHeight = height;
+  }
+
+  /**
    * Update position based on velocity
    */
   update(deltaTime: number, parent: GameObject): void {
@@ -32,74 +42,83 @@ export class MovementComponent extends GameComponent {
     const velocity = parent.getVelocity();
 
     // Calculate new position
-    const newX = position.x + velocity.x * deltaTime;
-    const newY = position.y + velocity.y * deltaTime;
+    let newX = position.x + velocity.x * deltaTime;
+    let newY = position.y + velocity.y * deltaTime;
 
     // Check collision if collision system is available
     if (this.collisionSystem) {
-      const collision = this.collisionSystem.checkTileCollision(
+      // Handle horizontal movement first
+      const horizontalCollision = this.collisionSystem.checkTileCollision(
+        newX,
+        position.y,
+        parent.width,
+        parent.height,
+        velocity.x,
+        0
+      );
+
+      if (horizontalCollision.leftWall || horizontalCollision.rightWall) {
+        // Snap to tile edge
+        if (horizontalCollision.leftWall) {
+          // Object's left edge hit a wall (moving left)
+          // Find the tile that the left edge collided with
+          const tileX = Math.floor(newX / this.tileWidth);
+          // Snap left edge just past the right edge of the blocking tile
+          newX = (tileX + 1) * this.tileWidth + 0.1;
+          velocity.x = Math.max(0, velocity.x);
+          parent.setLastTouchedLeftWallTime(performance.now() / 1000);
+        }
+        if (horizontalCollision.rightWall) {
+          // Object's right edge hit a wall (moving right)
+          // Find the tile that the right edge collided with
+          const tileX = Math.floor((newX + parent.width) / this.tileWidth);
+          // Snap right edge just before the left edge of the blocking tile
+          newX = tileX * this.tileWidth - parent.width - 0.1;
+          velocity.x = Math.min(0, velocity.x);
+          parent.setLastTouchedRightWallTime(performance.now() / 1000);
+        }
+      }
+
+      // Now handle vertical movement with the adjusted X position
+      const verticalCollision = this.collisionSystem.checkTileCollision(
         newX,
         newY,
         parent.width,
         parent.height,
-        velocity.x,
+        0,
         velocity.y
       );
 
-      // Resolve collision
-      this.resolveCollision(parent, collision, deltaTime);
+      if (verticalCollision.grounded) {
+        // Snap to top of tile
+        const tileY = Math.floor((newY + parent.height) / this.tileHeight);
+        newY = tileY * this.tileHeight - parent.height;
+        velocity.y = 0;
+        parent.setLastTouchedFloorTime(performance.now() / 1000);
+      }
+
+      if (verticalCollision.ceiling) {
+        // Snap to bottom of tile
+        const tileY = Math.floor(newY / this.tileHeight);
+        newY = (tileY + 1) * this.tileHeight;
+        velocity.y = Math.max(0, velocity.y);
+        parent.setLastTouchedCeilingTime(performance.now() / 1000);
+      }
+
+      // Merge normals for background collision
+      const normal = horizontalCollision.normal.clone();
+      normal.add(verticalCollision.normal);
+      if (normal.lengthSquared() > 0) {
+        normal.normalize();
+      }
+      parent.setBackgroundCollisionNormal(normal);
     } else {
       // No collision system, just update position
-      position.x = newX;
-      position.y = newY;
-    }
-  }
-
-  /**
-   * Resolve collision and update position/velocity
-   */
-  private resolveCollision(
-    parent: GameObject,
-    collision: TileCollisionResult,
-    _deltaTime: number
-  ): void {
-    const position = parent.getPosition();
-    const velocity = parent.getVelocity();
-
-    // Apply velocity
-    position.x += velocity.x * 1/60; // Using fixed timestep
-    position.y += velocity.y * 1/60;
-
-    // Handle ground collision
-    if (collision.grounded) {
-      // Snap to ground
-      const tileHeight = 32; // TODO: Get from level system
-      const tileY = Math.floor((position.y + parent.height) / tileHeight);
-      position.y = tileY * tileHeight - parent.height;
-      velocity.y = 0;
-      parent.setLastTouchedFloorTime(performance.now() / 1000);
     }
 
-    // Handle ceiling collision
-    if (collision.ceiling) {
-      velocity.y = Math.max(0, velocity.y);
-      parent.setLastTouchedCeilingTime(performance.now() / 1000);
-    }
-
-    // Handle left wall collision
-    if (collision.leftWall) {
-      velocity.x = Math.max(0, velocity.x);
-      parent.setLastTouchedLeftWallTime(performance.now() / 1000);
-    }
-
-    // Handle right wall collision
-    if (collision.rightWall) {
-      velocity.x = Math.min(0, velocity.x);
-      parent.setLastTouchedRightWallTime(performance.now() / 1000);
-    }
-
-    // Update background collision normal
-    parent.setBackgroundCollisionNormal(collision.normal);
+    // Update position
+    position.x = newX;
+    position.y = newY;
   }
 
   /**

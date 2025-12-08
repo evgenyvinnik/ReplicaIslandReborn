@@ -71,7 +71,9 @@ const PLAYER = {
   AIR_DRAG_SPEED: 4000,
   GRAVITY: 500,
   FUEL_AMOUNT: 1.0,
-  WIDTH: 48,
+  // Collision box dimensions (smaller than sprite)
+  // Original Java: sprite 64x64, collision box 32x48 with offset (16, 0)
+  WIDTH: 32,
   HEIGHT: 48,
   
   // Stomp attack constants (from original)
@@ -180,6 +182,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     animTimer: 0,
     lastAnimState: '',
     
+    // Jet fire animation (separate from player animation)
+    jetFrame: 0,
+    jetTimer: 0,
+    
+    // Sparks animation (shown when hit)
+    sparkFrame: 0,
+    sparkTimer: 0,
+    
     // Death/respawn state
     isDying: false,
     deathTime: 0,
@@ -217,6 +227,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     pState.animFrame = 0;
     pState.animTimer = 0;
     pState.lastAnimState = '';
+    pState.jetFrame = 0;
+    pState.jetTimer = 0;
+    pState.sparkFrame = 0;
+    pState.sparkTimer = 0;
     pState.isDying = false;
     pState.deathTime = 0;
     pState.levelWon = false;
@@ -806,6 +820,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Death animation
         { name: 'andou_die01', file: 'andou_die01' },
         { name: 'andou_die02', file: 'andou_die02' },
+        // Jet fire (shown when boosting with jetpack)
+        { name: 'jetfire01', file: 'jetfire01' },
+        { name: 'jetfire02', file: 'jetfire02' },
+        // Sparks (shown when hit)
+        { name: 'spark01', file: 'spark01' },
+        { name: 'spark02', file: 'spark02' },
+        { name: 'spark03', file: 'spark03' },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -1972,15 +1993,19 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       );
       
       if (hCollision.leftWall) {
-        // Snap to right edge of tile
-        const tileX = Math.floor(position.x / tileSize);
-        position.x = (tileX + 1) * tileSize;
+        // Player's LEFT edge hit a wall (moving left)
+        // Find the tile that the left edge collided with
+        const tileX = Math.floor(newX / tileSize);
+        // Snap player's left edge just past the right edge of the blocking tile
+        position.x = (tileX + 1) * tileSize + 0.1;
         velocity.x = 0;
         player.setLastTouchedLeftWallTime(gameTime);
       } else if (hCollision.rightWall) {
-        // Snap to left edge of tile
+        // Player's RIGHT edge hit a wall (moving right)
+        // Find the tile that the right edge collided with
         const tileX = Math.floor((newX + player.width) / tileSize);
-        position.x = tileX * tileSize - player.width;
+        // Snap player's right edge just before the left edge of the blocking tile
+        position.x = tileX * tileSize - player.width - 0.1;
         velocity.x = 0;
         player.setLastTouchedRightWallTime(gameTime);
       } else {
@@ -2199,9 +2224,33 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Get canvas context for glow effect
           const ctx = renderSystem.getContext();
           
+          // Calculate sprite offset to align sprite bottom with collision box bottom
+          // Player sprite is 64x64, collision box is 32x48 (matches original Java)
+          // X: center horizontally: (32 - 64) / 2 = -16 (offset collision box 16px from sprite left)
+          // Y: align bottoms: 48 - 64 = -16 (sprite extends 16px above collision box)
+          const spriteOffsetX = -16;
+          const spriteOffsetY = -16;
+          const scaleX = obj.facingDirection.x < 0 ? -1 : 1;
+          
+          // Draw jet fire FIRST (behind player) when boosting
+          if (pState.rocketsOn) {
+            // Update jet fire animation
+            pState.jetTimer += 1 / 60;
+            if (pState.jetTimer >= FRAME_TIME) {
+              pState.jetTimer -= FRAME_TIME;
+              pState.jetFrame = (pState.jetFrame + 1) % 2;
+            }
+            
+            const jetSpriteName = pState.jetFrame === 0 ? 'jetfire01' : 'jetfire02';
+            if (renderSystem.hasSprite(jetSpriteName)) {
+              // Jets are drawn below the player (offset Y by +16 in original)
+              // In canvas coords, +Y is down, so we add to Y to draw below feet
+              renderSystem.drawSprite(jetSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY + 16, 0, 9, 1, scaleX, 1);
+            }
+          }
+          
           // Draw player sprite or fallback rectangle
           if (renderSystem.hasSprite(spriteName)) {
-            const scaleX = obj.facingDirection.x < 0 ? -1 : 1;
             
             // Apply glow effect when in glow mode
             if (pState.glowMode && ctx) {
@@ -2211,13 +2260,30 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               ctx.shadowColor = '#FFD700';  // Golden glow color
               ctx.shadowBlur = glowIntensity;
               // Draw multiple times for stronger glow
-              renderSystem.drawSprite(spriteName, pos.x - 8, pos.y - 8, 0, 10, 1, scaleX, 1);
+              renderSystem.drawSprite(spriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 10, 1, scaleX, 1);
               ctx.shadowColor = '#FFFFFF';  // Inner white glow
               ctx.shadowBlur = glowIntensity / 2;
-              renderSystem.drawSprite(spriteName, pos.x - 8, pos.y - 8, 0, 10, 1, scaleX, 1);
+              renderSystem.drawSprite(spriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 10, 1, scaleX, 1);
               ctx.restore();
             } else {
-              renderSystem.drawSprite(spriteName, pos.x - 8, pos.y - 8, 0, 10, 1, scaleX, 1);
+              renderSystem.drawSprite(spriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 10, 1, scaleX, 1);
+            }
+            
+            // Draw sparks ON TOP of player when hit
+            if (pState.currentState === PlayerState.HIT_REACT) {
+              // Update sparks animation
+              pState.sparkTimer += 1 / 60;
+              if (pState.sparkTimer >= FRAME_TIME) {
+                pState.sparkTimer -= FRAME_TIME;
+                pState.sparkFrame = (pState.sparkFrame + 1) % 3;
+              }
+              
+              const sparkFrames = ['spark01', 'spark02', 'spark03'];
+              const sparkSpriteName = sparkFrames[pState.sparkFrame];
+              if (renderSystem.hasSprite(sparkSpriteName)) {
+                // Sparks drawn at player center, slightly higher priority (on top)
+                renderSystem.drawSprite(sparkSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 11, 1, scaleX, 1);
+              }
             }
           } else {
             // Fallback green rectangle for player (with glow if needed)

@@ -641,7 +641,7 @@ export const levelTree: LevelGroup[] = [
       {
         resource: 'level_4_8_underground',
         name: 'Memory #038',
-        timeStamp: '+ 11:55:00',
+        timeStamp: '+ 11:57:22',
         inThePast: false,
         completed: false,
         restartable: true,
@@ -684,7 +684,7 @@ export const levelTree: LevelGroup[] = [
       {
         resource: 'level_4_9_underground',
         name: 'Memory #039',
-        timeStamp: '+ 12:10:00',
+        timeStamp: '+ 12:13:40',
         inThePast: false,
         completed: false,
         restartable: true,
@@ -700,7 +700,7 @@ export const levelTree: LevelGroup[] = [
       {
         resource: 'level_final_boss_lab',
         name: 'Memory #040',
-        timeStamp: '+ 12:30:00',
+        timeStamp: '+ 12:45:12',
         inThePast: false,
         completed: false,
         restartable: true,

@@ -134,8 +134,8 @@ export class CollisionSystem {
     y: number,
     width: number,
     height: number,
-    _velocityX: number,
-    _velocityY: number
+    velocityX: number,
+    velocityY: number
   ): TileCollisionResult {
     const result: TileCollisionResult = {
       grounded: false,
@@ -149,11 +149,14 @@ export class CollisionSystem {
       return result;
     }
 
+    // Use a small margin to prevent edge-case clipping
+    const margin = 0.5;
+
     // Calculate tile ranges to check
-    const left = Math.floor(x / this.tileWidth);
-    const right = Math.floor((x + width - 0.001) / this.tileWidth); // -0.001 to avoid edge cases
-    const top = Math.floor(y / this.tileHeight);
-    const bottom = Math.floor((y + height - 0.001) / this.tileHeight);
+    const left = Math.floor((x + margin) / this.tileWidth);
+    const right = Math.floor((x + width - margin) / this.tileWidth);
+    const top = Math.floor((y + margin) / this.tileHeight);
+    const bottom = Math.floor((y + height - margin) / this.tileHeight);
 
     // Check each tile in range
     for (let ty = top; ty <= bottom; ty++) {
@@ -167,11 +170,11 @@ export class CollisionSystem {
           const objectRight = x + width;
           const objectBottom = y + height;
 
-          // Check actual overlap
-          const overlapLeft = objectRight - tileLeft;   // Object's right overlapping tile's left
-          const overlapRight = tileRight - x;            // Tile's right overlapping object's left
-          const overlapTop = objectBottom - tileTop;     // Object's bottom overlapping tile's top
-          const overlapBottom = tileBottom - y;          // Tile's bottom overlapping object's top
+          // Calculate overlap on each side
+          const overlapLeft = objectRight - tileLeft;   // How much object's right overlaps tile's left
+          const overlapRight = tileRight - x;            // How much tile's right overlaps object's left
+          const overlapTop = objectBottom - tileTop;     // How much object's bottom overlaps tile's top
+          const overlapBottom = tileBottom - y;          // How much tile's bottom overlaps object's top
 
           // Only process if there's actual overlap
           if (overlapLeft > 0 && overlapRight > 0 && overlapTop > 0 && overlapBottom > 0) {
@@ -180,28 +183,51 @@ export class CollisionSystem {
             const minOverlapY = Math.min(overlapTop, overlapBottom);
 
             // Use velocity direction to help resolve ambiguous cases
-            // Primarily use the smaller overlap axis
-            if (minOverlapX < minOverlapY) {
+            // If we're primarily moving horizontally, prefer horizontal collision
+            // If we're primarily moving vertically, prefer vertical collision
+            const absVelX = Math.abs(velocityX);
+            const absVelY = Math.abs(velocityY);
+            
+            // Determine which axis has the smaller overlap, using velocity as a tiebreaker
+            let resolveHorizontal: boolean;
+            
+            if (Math.abs(minOverlapX - minOverlapY) < 2) {
+              // Overlaps are similar - use velocity direction as tiebreaker
+              resolveHorizontal = absVelX > absVelY;
+            } else {
+              // Clear difference - use smaller overlap axis
+              resolveHorizontal = minOverlapX < minOverlapY;
+            }
+            
+            if (resolveHorizontal) {
               // Horizontal collision
               if (overlapLeft <= overlapRight) {
                 // Object hit tile from the left (object moving right)
-                result.rightWall = true;
-                result.normal.x = -1;
+                if (velocityX >= 0) {  // Only count as right wall if moving right or stationary
+                  result.rightWall = true;
+                  result.normal.x = -1;
+                }
               } else {
                 // Object hit tile from the right (object moving left)
-                result.leftWall = true;
-                result.normal.x = 1;
+                if (velocityX <= 0) {  // Only count as left wall if moving left or stationary
+                  result.leftWall = true;
+                  result.normal.x = 1;
+                }
               }
             } else {
               // Vertical collision
               if (overlapTop <= overlapBottom) {
                 // Object hit tile from above (object moving down - grounded)
-                result.grounded = true;
-                result.normal.y = -1;
+                if (velocityY >= 0) {  // Only count as grounded if moving down or stationary
+                  result.grounded = true;
+                  result.normal.y = -1;
+                }
               } else {
                 // Object hit tile from below (object moving up - ceiling)
-                result.ceiling = true;
-                result.normal.y = 1;
+                if (velocityY <= 0) {  // Only count as ceiling if moving up or stationary
+                  result.ceiling = true;
+                  result.normal.y = 1;
+                }
               }
             }
           }

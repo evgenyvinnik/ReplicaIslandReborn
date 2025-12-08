@@ -357,8 +357,10 @@ export class LevelSystem {
     switch (spawn.type) {
       case GameObjectTypeIndex.PLAYER:
         obj.type = 'player';
-        objWidth = 64;
-        objHeight = 64;
+        // Original Java: sprite is 64x64, collision box is 32x48 with offset (16, 0)
+        // The collision box dimensions determine collision detection
+        objWidth = 32;    // Collision box width (not sprite width)
+        objHeight = 48;   // Collision box height (not sprite height)
         this.gameObjectManager.setPlayer(obj);
         break;
 
@@ -565,16 +567,27 @@ export class LevelSystem {
     obj.width = objWidth;
     obj.height = objHeight;
     
-    // Calculate position - center objects in tile (matches original Java)
+    // Calculate position to match original Java behavior
+    // Original used Y-up coords with position at bottom-left of sprite
+    // Web port uses Y-down coords with position at top-left of sprite
+    // 
+    // Original formula: worldY = worldHeight - ((tileY + 1) * tileHeight)
+    // This places the BOTTOM of the sprite at the bottom edge of the spawn tile
+    //
+    // For Y-down with position at top-left, to place BOTTOM at bottom of tile:
+    // position.y + height = (tileY + 1) * tileHeight
+    // position.y = (tileY + 1) * tileHeight - height
+    let posX = spawn.x;
+    let posY = (spawn.tileY + 1) * this.tileHeight - objHeight;
+    
+    // Center small objects in their tile (matches original)
     // Original: if (object.height < tileHeight) object.y += (tileHeight - object.height) / 2
+    // In Y-up, += moves sprite UP. In Y-down, we need -= to move UP.
+    if (objHeight < this.tileHeight) {
+      posY -= (this.tileHeight - objHeight) / 2;
+    }
     // Original: if (object.width < tileWidth) object.x += (tileWidth - object.width) / 2
     // Original: if (object.width > tileWidth) object.x -= (object.width - tileWidth) / 2
-    let posX = spawn.x;
-    let posY = spawn.y;
-    
-    if (objHeight < this.tileHeight) {
-      posY += (this.tileHeight - objHeight) / 2;
-    }
     if (objWidth < this.tileWidth) {
       posX += (this.tileWidth - objWidth) / 2;
     } else if (objWidth > this.tileWidth) {

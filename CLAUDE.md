@@ -770,6 +770,37 @@ For each layer:
         Remaining: Tile data (1 byte per tile)
 ```
 
+#### Level Binary to JSON Conversion
+All `.bin` level files have been converted to JSON format using `scripts/convert-levels-to-json.ts`. The conversion preserves:
+- All 4 layer types (background, collision, objects, hotspots)
+- Theme and scroll speed data
+- Tile data as 2D arrays
+
+**Conversion script:** `bun run scripts/convert-levels-to-json.ts`
+
+#### Non-Linear Level Tree (Important!)
+The original game uses a **non-linear "memory tree"** structure for level progression (see README.TXT). This is defined in `Original/res/xml/level_tree.xml` and implemented in `src/data/levelTree.ts`.
+
+**Key characteristics:**
+- Levels are organized into **groups** (31 total groups)
+- Each group can contain **1-3 levels** that the player can choose between
+- Completing **any level** in a group unlocks the **next group**
+- Groups alternate between "present" (current story) and "past" (flashback memories)
+- This creates a **non-linear narrative** where the player experiences memories out of chronological order
+
+**Example group structure:**
+```
+Group 0:  [level_0_1_sewer]           → Tutorial (present)
+Group 1:  [level_0_2_lab]             → Flashback (past)
+Group 2:  [level_3_5_sewer]           → Story continues (present)
+...
+Group 10: [level_1_5_island,          → Player choice between 3 flashbacks
+           level_2_2_grass,
+           level_2_3_grass]
+```
+
+**Timestamps** represent the chronological position in the story (Memory #000 at `+ 07:12:03` is actually later in time than Memory #001 at `+ 00:00:00`).
+
 ### Camera System Files
 
 | File | Purpose | Key Connections |
