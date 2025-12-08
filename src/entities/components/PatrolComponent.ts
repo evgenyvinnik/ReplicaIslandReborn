@@ -11,6 +11,7 @@ import { ComponentPhase, ActionType } from '../../types';
 import type { GameObject } from '../GameObject';
 import { Vector2 } from '../../utils/Vector2';
 import { HotSpotType } from '../../engine/HotSpotSystem';
+import { sSystemRegistry } from '../../engine/SystemRegistry';
 
 export interface PatrolConfig {
   maxSpeed: number;
@@ -40,18 +41,6 @@ export class PatrolComponent extends GameComponent {
   private lastAttackTime: number = 0;
   private workingVector: Vector2 = new Vector2(0, 0);
   private workingVector2: Vector2 = new Vector2(0, 0);
-
-  // Reference to player (set externally)
-  private playerRef: GameObject | null = null;
-  
-  // Reference to hot spot getter (set externally)
-  private hotSpotGetter: ((x: number, y: number) => number) | null = null;
-  
-  // Reference to camera position getter (for visibility check)
-  private cameraGetter: (() => { x: number; y: number; width: number; height: number }) | null = null;
-
-  // Current game time (updated externally)
-  private gameTime: number = 0;
 
   constructor(config?: PatrolConfig) {
     super(ComponentPhase.THINK);
@@ -113,34 +102,6 @@ export class PatrolComponent extends GameComponent {
   }
 
   /**
-   * Set reference to player object
-   */
-  setPlayerRef(player: GameObject | null): void {
-    this.playerRef = player;
-  }
-
-  /**
-   * Set hot spot getter function
-   */
-  setHotSpotGetter(getter: (x: number, y: number) => number): void {
-    this.hotSpotGetter = getter;
-  }
-
-  /**
-   * Set camera getter function
-   */
-  setCameraGetter(getter: () => { x: number; y: number; width: number; height: number }): void {
-    this.cameraGetter = getter;
-  }
-
-  /**
-   * Update game time (call this from game loop)
-   */
-  setGameTime(time: number): void {
-    this.gameTime = time;
-  }
-
-  /**
    * Helper to get sign of a number
    */
   private sign(x: number): number {
@@ -164,21 +125,22 @@ export class PatrolComponent extends GameComponent {
   /**
    * Update attack behavior
    */
-  private updateAttack(player: GameObject | null, parent: GameObject): void {
+  private updateAttack(player: GameObject | null, parent: GameObject, gameTime: number): void {
     // Check if enemy is visible on screen
     let visible = true;
-    if (this.cameraGetter) {
-      const camera = this.cameraGetter();
-      const dx = Math.abs(this.getCenteredX(parent) - camera.x);
-      const dy = Math.abs(this.getCenteredY(parent) - camera.y);
-      if (dx > camera.width / 2 || dy > camera.height / 2) {
+    const camera = sSystemRegistry.cameraSystem;
+    if (camera) {
+      const cameraPos = camera.getPosition();
+      const dx = Math.abs(this.getCenteredX(parent) - (cameraPos.x + sSystemRegistry.gameWidth / 2));
+      const dy = Math.abs(this.getCenteredY(parent) - (cameraPos.y + sSystemRegistry.gameHeight / 2));
+      if (dx > sSystemRegistry.gameWidth / 2 || dy > sSystemRegistry.gameHeight / 2) {
         visible = false;
       }
     }
 
     if (visible && parent.getCurrentAction() === ActionType.MOVE) {
       let closeEnough = false;
-      const timeToAttack = (this.gameTime - this.lastAttackTime) > this.attackDelay;
+      const timeToAttack = (gameTime - this.lastAttackTime) > this.attackDelay;
 
       if (this.attackAtDistance > 0 && player && player.life > 0 && timeToAttack) {
         // Only attack if facing the player
@@ -206,14 +168,14 @@ export class PatrolComponent extends GameComponent {
       if (timeToAttack && closeEnough) {
         // Time to attack
         parent.setCurrentAction(ActionType.ATTACK);
-        this.lastAttackTime = this.gameTime;
+        this.lastAttackTime = gameTime;
         if (this.attackStopsMovement) {
           parent.setVelocity(0, 0);
           parent.setTargetVelocity(0, 0);
         }
       }
     } else if (parent.getCurrentAction() === ActionType.ATTACK) {
-      if (this.gameTime - this.lastAttackTime > this.attackDuration) {
+      if (gameTime - this.lastAttackTime > this.attackDuration) {
         parent.setCurrentAction(ActionType.MOVE);
         if (this.attackStopsMovement) {
           parent.getTargetVelocity().x = this.maxSpeed * this.sign(parent.facingDirection.x);
@@ -227,6 +189,12 @@ export class PatrolComponent extends GameComponent {
    * Main update loop
    */
   update(_deltaTime: number, parent: GameObject): void {
+    // Get player and game time from system registry
+    const manager = sSystemRegistry.gameObjectManager;
+    const player = manager?.getPlayer() ?? null;
+    const timeSystem = sSystemRegistry.timeSystem;
+    const gameTime = timeSystem?.getGameTime() ?? 0;
+
     // Initialize action if needed
     const currentAction = parent.getCurrentAction();
     if (currentAction === ActionType.INVALID || currentAction === ActionType.HIT_REACT) {
@@ -237,15 +205,16 @@ export class PatrolComponent extends GameComponent {
     if ((this.flying || parent.touchingGround()) && parent.life > 0) {
       // Handle attack logic
       if (this.attack) {
-        this.updateAttack(this.playerRef, parent);
+        this.updateAttack(player, parent, gameTime);
       }
 
       // Handle movement
       if (parent.getCurrentAction() === ActionType.MOVE && this.maxSpeed > 0) {
         // Get hot spot at current position
         let hotSpot: number = HotSpotType.NONE;
-        if (this.hotSpotGetter) {
-          hotSpot = this.hotSpotGetter(this.getCenteredX(parent), parent.getPosition().y + 10);
+        const hotSpotSystem = sSystemRegistry.hotSpotSystem;
+        if (hotSpotSystem) {
+          hotSpot = hotSpotSystem.getHotSpot(this.getCenteredX(parent), parent.getPosition().y + 10);
         }
 
         const targetVelocityX = parent.getTargetVelocity().x;
@@ -257,10 +226,10 @@ export class PatrolComponent extends GameComponent {
         let pause = this.maxSpeed === 0 || hotSpot === HotSpotType.GO_DOWN;
 
         // Turn to face player if configured
-        if (this.turnToFacePlayer && this.playerRef && this.playerRef.life > 0) {
-          const horizontalDelta = this.getCenteredX(this.playerRef) - this.getCenteredX(parent);
+        if (this.turnToFacePlayer && player && player.life > 0) {
+          const horizontalDelta = this.getCenteredX(player) - this.getCenteredX(parent);
           const targetFacingDirection = this.sign(horizontalDelta);
-          const closestDistance = this.playerRef.width / 2;
+          const closestDistance = player.width / 2;
 
           if (targetFacingDirection < 0) {
             // Want to turn left

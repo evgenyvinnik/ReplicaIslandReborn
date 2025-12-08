@@ -11,6 +11,8 @@ import { LevelParser, type ParsedLevel } from './LevelParser';
 import { HotSpotSystem } from '../engine/HotSpotSystem';
 import { GameObjectTypeIndex, getObjectTypeName } from '../types/GameObjectTypes';
 import { NPCComponent } from '../entities/components/NPCComponent';
+import { PatrolComponent } from '../entities/components/PatrolComponent';
+import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimationComponent, ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
@@ -399,94 +401,203 @@ export class LevelSystem {
         obj.activationRadius = 100;
         break;
 
-      case GameObjectTypeIndex.BAT:
+      case GameObjectTypeIndex.BAT: {
         obj.type = 'enemy';
         obj.subType = 'bat';
         objWidth = 64;   // Sprite is 64x32
         objHeight = 32;
         obj.activationRadius = 200;
+        // Add PatrolComponent - flying, 75 speed (from original)
+        const batPatrol = new PatrolComponent({
+          maxSpeed: 75.0,
+          acceleration: 1000.0,
+          flying: true,
+          turnToFacePlayer: false
+        });
+        obj.addComponent(batPatrol);
         break;
+      }
         
-      case GameObjectTypeIndex.STING:
+      case GameObjectTypeIndex.STING: {
         obj.type = 'enemy';
         obj.subType = 'sting';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
         obj.activationRadius = 200;
+        // Add PatrolComponent - flying, 75 speed (from original)
+        const stingPatrol = new PatrolComponent({
+          maxSpeed: 75.0,
+          acceleration: 1000.0,
+          flying: true,
+          turnToFacePlayer: false
+        });
+        obj.addComponent(stingPatrol);
         break;
+      }
         
-      case GameObjectTypeIndex.ONION:
+      case GameObjectTypeIndex.ONION: {
         obj.type = 'enemy';
         obj.subType = 'onion';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
         obj.activationRadius = 200;
+        // Add PatrolComponent - ground, 50 speed (from original)
+        const onionPatrol = new PatrolComponent({
+          maxSpeed: 50.0,
+          acceleration: 1000.0,
+          flying: false,
+          turnToFacePlayer: false
+        });
+        obj.addComponent(onionPatrol);
         break;
+      }
         
-      case GameObjectTypeIndex.BROBOT:
+      case GameObjectTypeIndex.BROBOT: {
         obj.type = 'enemy';
         obj.subType = 'brobot';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
         obj.activationRadius = 200;
+        // Add PatrolComponent - ground, 50 speed (from original)
+        const brobotPatrol = new PatrolComponent({
+          maxSpeed: 50.0,
+          acceleration: 1000.0,
+          flying: false,
+          turnToFacePlayer: false
+        });
+        obj.addComponent(brobotPatrol);
         break;
+      }
         
-      case GameObjectTypeIndex.SKELETON:
+      case GameObjectTypeIndex.SKELETON: {
         obj.type = 'enemy';
         obj.subType = 'skeleton';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
         obj.activationRadius = 200;
+        // Add PatrolComponent - ground, 20 speed, turn to face player, with attack (from original)
+        const skeletonPatrol = new PatrolComponent({
+          maxSpeed: 20.0,
+          acceleration: 1000.0,
+          flying: false,
+          turnToFacePlayer: true,
+          attack: {
+            enabled: true,
+            atDistance: 75,
+            duration: 0.5, // Attack animation length
+            delay: 2.0,
+            stopsMovement: true
+          }
+        });
+        obj.addComponent(skeletonPatrol);
         break;
+      }
         
-      case GameObjectTypeIndex.SNAILBOMB:
+      case GameObjectTypeIndex.SNAILBOMB: {
         obj.type = 'enemy';
         obj.subType = 'snailbomb';
         objWidth = 64;   // Assumed 64x64
         objHeight = 64;
         obj.activationRadius = 200;
+        // Snailbomb has special behavior (explodes) - uses SnailbombComponent
+        // For now, use basic patrol
+        const snailPatrol = new PatrolComponent({
+          maxSpeed: 30.0,
+          acceleration: 1000.0,
+          flying: false,
+          turnToFacePlayer: false
+        });
+        obj.addComponent(snailPatrol);
         break;
+      }
         
-      case GameObjectTypeIndex.SHADOWSLIME:
+      case GameObjectTypeIndex.SHADOWSLIME: {
         obj.type = 'enemy';
         obj.subType = 'shadowslime';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
         obj.activationRadius = 200;
+        // Shadowslime uses PopOutComponent in original (appears/hides)
+        // For now, use slow ground patrol
+        const slimePatrol = new PatrolComponent({
+          maxSpeed: 25.0,
+          acceleration: 400.0,
+          flying: false,
+          turnToFacePlayer: false
+        });
+        obj.addComponent(slimePatrol);
         break;
+      }
         
-      case GameObjectTypeIndex.MUDMAN:
+      case GameObjectTypeIndex.MUDMAN: {
         obj.type = 'enemy';
         obj.subType = 'mudman';
         objWidth = 128;  // Sprite is 128x128
         objHeight = 128;
         obj.activationRadius = 300;
+        // Add PatrolComponent - slow ground, 20 speed, with attack (from original)
+        const mudmanPatrol = new PatrolComponent({
+          maxSpeed: 20.0,
+          acceleration: 400.0,
+          flying: false,
+          turnToFacePlayer: false,
+          attack: {
+            enabled: true,
+            atDistance: 70,
+            duration: 0.5, // Attack animation length
+            delay: 0.0,
+            stopsMovement: true
+          }
+        });
+        obj.addComponent(mudmanPatrol);
         break;
+      }
         
-      case GameObjectTypeIndex.KARAGUIN:
+      case GameObjectTypeIndex.KARAGUIN: {
         obj.type = 'enemy';
         obj.subType = 'karaguin';
         objWidth = 32;   // Sprite is 32x32
         objHeight = 32;
         obj.activationRadius = 200;
+        // Add PatrolComponent - flying (swimming), 50 speed (from original)
+        const karaguinPatrol = new PatrolComponent({
+          maxSpeed: 50.0,
+          acceleration: 1000.0,
+          flying: true,  // Swimming = flying in water
+          turnToFacePlayer: false
+        });
+        obj.addComponent(karaguinPatrol);
         break;
+      }
         
-      case GameObjectTypeIndex.PINK_NAMAZU:
+      case GameObjectTypeIndex.PINK_NAMAZU: {
         obj.type = 'enemy';
         obj.subType = 'pink_namazu';
         objWidth = 128;   // Sprites are 128x128
         objHeight = 128;
         obj.activationRadius = 250;
+        // Pink Namazu uses SleeperComponent in original (sleeps then jumps)
+        // For now, no patrol - stationary until proper SleeperComponent
         break;
+      }
         
       case GameObjectTypeIndex.TURRET:
-      case GameObjectTypeIndex.TURRET_LEFT:
+      case GameObjectTypeIndex.TURRET_LEFT: {
         obj.type = 'enemy';
         obj.subType = 'turret';
         objWidth = 32;
         objHeight = 32;
         obj.activationRadius = 300;
+        // Turret uses AttackAtDistanceComponent - stationary, shoots at player
+        const turretAttack = new AttackAtDistanceComponent({
+          attackDistance: 200,
+          attackDelay: 1.0,
+          attackLength: 0.5,
+          requireFacing: false // Turret shoots in any direction
+        });
+        obj.addComponent(turretAttack);
         break;
+      }
 
       case GameObjectTypeIndex.DOOR_RED:
       case GameObjectTypeIndex.DOOR_BLUE:

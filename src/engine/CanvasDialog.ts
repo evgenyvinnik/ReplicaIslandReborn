@@ -63,6 +63,9 @@ export class CanvasDialog {
   private onComplete: (() => void) | null = null;
   private onSkip: (() => void) | null = null;
   
+  // Single conversation mode - only show one conversation then complete
+  private singleConversation: boolean = false;
+  
   // Bound handlers
   private boundHandleKeyDown: (e: KeyboardEvent) => void;
   private boundHandleClick: (e: MouseEvent | TouchEvent) => void;
@@ -87,14 +90,32 @@ export class CanvasDialog {
   
   /**
    * Start showing a dialog
+   * @param dialog The dialog to show
+   * @param onComplete Callback when dialog is complete
+   * @param onSkip Optional callback when dialog is skipped
+   * @param conversationIndex Optional index of which conversation to start at (default 0)
+   * @param singleConversation If true, only show one conversation then complete (default false)
    */
-  show(dialog: Dialog, onComplete: () => void, onSkip?: () => void): void {
+  show(
+    dialog: Dialog, 
+    onComplete: () => void, 
+    onSkip?: () => void, 
+    conversationIndex: number = 0,
+    singleConversation: boolean = false
+  ): void {
     this.dialog = dialog;
     this.onComplete = onComplete;
     this.onSkip = onSkip ?? null;
+    this.singleConversation = singleConversation;
+    
+    // Clamp conversation index to valid range
+    const validConvIndex = Math.min(
+      Math.max(0, conversationIndex), 
+      dialog.conversations.length - 1
+    );
     
     this.state = {
-      conversationIndex: 0,
+      conversationIndex: validConvIndex,
       pageIndex: 0,
       charIndex: 0,
       isTyping: true,
@@ -210,6 +231,15 @@ export class CanvasDialog {
       this.state.charIndex = 0;
       this.state.isTyping = true;
       this.state.lastTypeTime = performance.now();
+      return;
+    }
+    
+    // If in single conversation mode, complete after this conversation
+    if (this.singleConversation) {
+      this.detach();
+      this.dialog = null;
+      this.singleConversation = false;
+      this.onComplete?.();
       return;
     }
     

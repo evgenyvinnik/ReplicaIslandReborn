@@ -22,7 +22,7 @@ This document tracks what has been implemented and what still needs to be done t
 | **Hit Reaction State** | HIT_REACT with timer | ✅ Implemented (0.5s) | ✅ YES |
 | **Win Condition** | Collect 3 rubies → WIN state | ✅ Implemented | ✅ YES |
 | **Invincibility Powerup** | Coins → glow mode | ✅ Glow mode with visual effect | ✅ YES |
-| **Enemy AI** | PatrolComponent + AttackAtDistanceComponent | Simplified inline switch | ⚠️ SIMPLIFIED |
+| **Enemy AI** | PatrolComponent + AttackAtDistanceComponent | ✅ PatrolComponent attached to enemies with configs | ✅ IMPROVED |
 | **NPC Movement** | NPCComponent reads hot spots | ✅ NPCComponent integrated + Y spawn fix | ✅ FIXED |
 | **Intro Cutscene (0-1)** | Wanda walks, dialog, camera follows | ✅ Y coordinate spawn fixed | ✅ FIXED |
 | **Extras Menu** | Unlocks after game completion | ✅ Fixed level ID check (41 not 42) | ✅ FIXED |

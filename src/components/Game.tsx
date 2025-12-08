@@ -32,6 +32,7 @@ import { GameObject } from '../entities/GameObject';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { LevelSystem } from '../levels/LevelSystemNew';
 import { TileMapRenderer } from '../levels/TileMapRenderer';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
@@ -257,6 +258,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   
   // Dialog state
   const [activeDialog, setActiveDialog] = useState<Dialog | null>(null);
+  const [dialogConversationIndex, setDialogConversationIndex] = useState(0);
+  const [dialogSingleMode, setDialogSingleMode] = useState(false);
   const activeDialogRef = useRef<Dialog | null>(null);
   const dialogTriggerCooldownRef = useRef(0);
   const hasShownIntroDialogRef = useRef(false);
@@ -288,6 +291,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             console.warn('[Game] Found', dialogs.length, 'dialogs for level', levelInfo.file);
             if (dialogs.length > 0) {
               hasShownIntroDialogRef.current = true;
+              // For cutscene levels, show all conversations in sequence (not single mode)
+              setDialogConversationIndex(0);
+              setDialogSingleMode(false);
               setActiveDialog(dialogs[0]);
             }
           }
@@ -431,11 +437,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
       };
       
-      canvasDialog.show(activeDialog, handleDialogComplete, handleDialogComplete);
+      canvasDialog.show(
+        activeDialog, 
+        handleDialogComplete, 
+        handleDialogComplete,
+        dialogConversationIndex,
+        dialogSingleMode
+      );
     } else {
       canvasDialog.hide();
     }
-  }, [activeDialog, setLevel, resetPlayerState]);
+  }, [activeDialog, dialogConversationIndex, dialogSingleMode, setLevel, resetPlayerState]);
 
   // Handle Canvas Cutscene when cutscene state changes
   useEffect(() => {
@@ -1227,7 +1239,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Update effects system (explosions, smoke, etc.)
       effectsSystem.update(deltaTime);
 
-      // Enemy AI - Different behaviors based on subType
+      // Enemy AI and physics
       gameObjectManager.forEach((obj) => {
         if (obj.type !== 'enemy' || !obj.isVisible() || obj.life <= 0) return;
         
@@ -1237,110 +1249,104 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
         
         const velocity = obj.getVelocity();
+        const targetVelocity = obj.getTargetVelocity();
+        const acceleration = obj.getAcceleration();
         const position = obj.getPosition();
         
-        // Get player position for tracking enemies
-        const playerPos = player?.getPosition();
+        // Check if enemy has PatrolComponent (proper AI)
+        const hasPatrolComponent = obj.getComponent(PatrolComponent as unknown as new (...args: unknown[]) => PatrolComponent) !== null;
         
-        // Behavior based on enemy type
-        switch (obj.subType) {
-          case 'bat':
-          case 'sting': {
-            // Flying enemies - swoop towards player when close
-            const FLYING_SPEED = 60;
-            const SWOOP_DISTANCE = 150;
-            
-            if (playerPos) {
-              const dx = playerPos.x - position.x;
-              const dy = playerPos.y - position.y;
-              const dist = Math.sqrt(dx * dx + dy * dy);
-              
-              if (dist < SWOOP_DISTANCE && dist > 10) {
-                // Swoop towards player
-                velocity.x = (dx / dist) * FLYING_SPEED * 1.5;
-                velocity.y = (dy / dist) * FLYING_SPEED;
-              } else {
-                // Normal patrol with bobbing
-                velocity.x = obj.facingDirection.x * FLYING_SPEED;
-                velocity.y = Math.sin(gameTime * 3 + obj.id) * 30;
-                
-                // Check bounds and reverse
-                if (position.x < 50 || position.x > levelSystemRef.current!.getLevelWidth() - 50) {
-                  obj.facingDirection.x *= -1;
-                }
-              }
-            } else {
-              velocity.x = obj.facingDirection.x * FLYING_SPEED;
-              velocity.y = Math.sin(gameTime * 3 + obj.id) * 30;
+        // If no PatrolComponent, use simplified inline AI (fallback for special enemies)
+        if (!hasPatrolComponent) {
+          // Behavior based on enemy type - only for enemies without PatrolComponent
+          switch (obj.subType) {
+            case 'pink_namazu': {
+              // Pink Namazu - special sleeper behavior (stationary for now)
+              velocity.x = 0;
+              velocity.y = 0;
+              break;
             }
-            break;
-          }
-          
-          case 'turret': {
-            // Turrets don't move but track player
-            velocity.x = 0;
-            velocity.y = 0;
             
-            if (playerPos) {
-              // Face the player
-              if (playerPos.x < position.x) {
-                obj.facingDirection.x = -1;
-              } else {
-                obj.facingDirection.x = 1;
-              }
+            case 'evil_kabocha': {
+              // Evil Kabocha boss - special behavior
+              velocity.x = 0;
+              velocity.y = 0;
+              break;
             }
-            break;
-          }
-          
-          case 'skeleton':
-          case 'brobot': {
-            // Ground patrol - medium speed
-            const GROUND_SPEED = 40;
-            velocity.x = obj.facingDirection.x * GROUND_SPEED;
-            velocity.y += 500 * deltaTime; // Gravity
-            break;
-          }
-          
-          case 'karaguin': {
-            // Fish - horizontal swimming
-            const SWIM_SPEED = 70;
-            velocity.x = obj.facingDirection.x * SWIM_SPEED;
-            velocity.y = Math.sin(gameTime * 2 + obj.id) * 15;
-            break;
-          }
-          
-          case 'shadowslime':
-          case 'mudman': {
-            // Slower ground enemies
-            const SLOW_SPEED = 25;
-            velocity.x = obj.facingDirection.x * SLOW_SPEED;
-            velocity.y += 400 * deltaTime; // Gravity
-            break;
-          }
-          
-          default: {
-            // Default patrol behavior
-            const DEFAULT_SPEED = 50;
-            velocity.x = obj.facingDirection.x * DEFAULT_SPEED;
-            velocity.y += 400 * deltaTime; // Gravity
+            
+            default: {
+              // Default simple patrol for any enemy without PatrolComponent
+              const DEFAULT_SPEED = 50;
+              targetVelocity.x = obj.facingDirection.x * DEFAULT_SPEED;
+              acceleration.x = 1000;
+            }
           }
         }
         
-        // Wall collision check (skip for flying enemies)
-        if (obj.subType !== 'bat' && obj.subType !== 'sting' && obj.subType !== 'karaguin') {
+        // === Movement Component Logic ===
+        // Interpolate velocity toward target velocity (from original MovementComponent.java)
+        if (acceleration.x > 0) {
+          const diff = targetVelocity.x - velocity.x;
+          if (Math.abs(diff) < 0.1) {
+            velocity.x = targetVelocity.x;
+          } else {
+            const direction = Math.sign(diff);
+            velocity.x += direction * acceleration.x * deltaTime;
+            // Clamp to target
+            if ((direction > 0 && velocity.x > targetVelocity.x) ||
+                (direction < 0 && velocity.x < targetVelocity.x)) {
+              velocity.x = targetVelocity.x;
+            }
+          }
+        }
+        
+        // Flying vs ground enemy physics
+        const isFlying = obj.subType === 'bat' || obj.subType === 'sting' || obj.subType === 'karaguin';
+        
+        if (!isFlying) {
+          // Gravity for ground enemies
+          velocity.y += 500 * deltaTime;
+          
+          // Wall collision check
           const nextX = position.x + velocity.x * deltaTime;
           const collision = collisionSystem.checkTileCollision(
             nextX, position.y, obj.width, obj.height, velocity.x, velocity.y
           );
           
           if (collision.leftWall || collision.rightWall) {
+            // Hit wall - reverse direction
             obj.facingDirection.x *= -1;
             velocity.x = -velocity.x;
+            targetVelocity.x = -targetVelocity.x;
+            
+            // Update touching flags for PatrolComponent
+            if (collision.leftWall) {
+              obj.setLastTouchedLeftWallTime(gameTime);
+            }
+            if (collision.rightWall) {
+              obj.setLastTouchedRightWallTime(gameTime);
+            }
           }
         } else {
+          // Flying enemy - interpolate Y velocity too
+          if (acceleration.y > 0) {
+            const diffY = targetVelocity.y - velocity.y;
+            if (Math.abs(diffY) < 0.1) {
+              velocity.y = targetVelocity.y;
+            } else {
+              const directionY = Math.sign(diffY);
+              velocity.y += directionY * acceleration.y * deltaTime;
+              if ((directionY > 0 && velocity.y > targetVelocity.y) ||
+                  (directionY < 0 && velocity.y < targetVelocity.y)) {
+                velocity.y = targetVelocity.y;
+              }
+            }
+          }
+          
           // Flying enemies reverse at level bounds
           if (position.x < 20 || position.x > (levelSystemRef.current?.getLevelWidth() ?? 960) - 50) {
             obj.facingDirection.x *= -1;
+            targetVelocity.x = -targetVelocity.x;
           }
         }
         
@@ -1348,8 +1354,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         position.x += velocity.x * deltaTime;
         position.y += velocity.y * deltaTime;
         
-        // Ground collision for non-flying enemies
-        if (obj.subType !== 'bat' && obj.subType !== 'sting' && obj.subType !== 'karaguin' && obj.subType !== 'turret') {
+        // Ground collision for non-flying enemies and turrets
+        if (!isFlying && obj.subType !== 'turret') {
           const groundCheck = collisionSystem.checkTileCollision(
             position.x, position.y, obj.width, obj.height, velocity.x, velocity.y
           );
@@ -1359,7 +1365,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             const groundY = Math.floor((position.y + obj.height) / tileSize) * tileSize - obj.height;
             position.y = groundY;
             velocity.y = 0;
+            obj.setLastTouchedFloorTime(gameTime);
           }
+        }
+        
+        // Update facing direction based on velocity
+        if (velocity.x !== 0) {
+          obj.facingDirection.x = Math.sign(velocity.x);
         }
       });
 
@@ -1524,6 +1536,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const hotSpot = hotSpotSystem.getHotSpot(px, py);
         
         // Check for dialog triggers
+        // TALK (8) = generic dialog trigger
+        // NPC_SELECT_DIALOG_1_* (32-36) = character 1's dialog, conversation index = hotspot - 32
+        // NPC_SELECT_DIALOG_2_* (38-42) = character 2's dialog, conversation index = hotspot - 38
         if (hotSpot === HotSpotType.TALK || (hotSpot >= 32 && hotSpot <= 42)) {
           // Get current level info to load the right dialog
           const levelSys = levelSystemRef.current;
@@ -1535,11 +1550,29 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               const dialogs = getDialogsForLevel(levelInfo.file);
               
               if (dialogs.length > 0) {
-                // Determine which dialog to show based on hotspot
-                const dialogIndex = (hotSpot >= 32 && hotSpot <= 42) ? (hotSpot - 32) : 0;
-                const dialog = dialogs[Math.min(dialogIndex, dialogs.length - 1)];
+                let dialogFileIndex = 0; // Which dialog file (character) to use
+                let conversationIdx = 0;  // Which conversation within that dialog
                 
-                if (dialog) {
+                if (hotSpot === HotSpotType.TALK) {
+                  // Generic TALK hot spot - use first dialog, first conversation
+                  dialogFileIndex = 0;
+                  conversationIdx = 0;
+                } else if (hotSpot >= 32 && hotSpot <= 36) {
+                  // NPC_SELECT_DIALOG_1_* - character 1's dialog
+                  dialogFileIndex = 0;
+                  conversationIdx = hotSpot - 32; // 32->0, 33->1, etc.
+                } else if (hotSpot >= 38 && hotSpot <= 42) {
+                  // NPC_SELECT_DIALOG_2_* - character 2's dialog (if exists)
+                  dialogFileIndex = Math.min(1, dialogs.length - 1);
+                  conversationIdx = hotSpot - 38; // 38->0, 39->1, etc.
+                }
+                
+                const dialog = dialogs[dialogFileIndex];
+                
+                if (dialog && conversationIdx < dialog.conversations.length) {
+                  // Set the conversation index and show only this single conversation
+                  setDialogConversationIndex(conversationIdx);
+                  setDialogSingleMode(true); // Only show this one conversation
                   setActiveDialog(dialog);
                   soundSystem.playSfx(SoundEffects.BUTTON);
                   // Set cooldown to prevent immediate re-trigger
@@ -2527,7 +2560,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               // Doors use their subtype (red, blue, green) to determine sprite
               // DoorAnimationComponent handles animation state
               const doorColor = obj.subType || 'red';
-              const doorAnim = obj.getComponent(DoorAnimationComponent);
+              // Use type assertion since getComponent uses strict constructor signature
+              const doorAnim = obj.getComponent(DoorAnimationComponent as unknown as new (...args: unknown[]) => DoorAnimationComponent);
               if (doorAnim) {
                 const doorState = doorAnim.getCurrentState();
                 // Map door state to sprite: 0=closed, 1=open, 2=closing, 3=opening
@@ -2539,11 +2573,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                     spriteName = `object_door_${doorColor}04`;
                     break;
                   case DoorAnimation.OPENING:
-                  case DoorAnimation.CLOSING:
+                  case DoorAnimation.CLOSING: {
                     // Use middle frames based on animation time
                     const animTime = doorAnim.getCurrentAnimationTime();
                     spriteName = animTime < 0.083 ? `object_door_${doorColor}02` : `object_door_${doorColor}03`;
                     break;
+                  }
                   default:
                     spriteName = `object_door_${doorColor}01`;
                 }
@@ -2559,7 +2594,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               // Buttons use their subtype (red, blue, green) to determine sprite
               // Get SpriteComponent directly since ButtonAnimationComponent delegates to it
               const buttonColor = obj.subType || 'red';
-              const buttonSprite = obj.getComponent(SpriteComponent);
+              // Use type assertion since getComponent uses strict constructor signature
+              const buttonSprite = obj.getComponent(SpriteComponent as unknown as new (...args: unknown[]) => SpriteComponent);
               if (buttonSprite) {
                 const animIndex = buttonSprite.getCurrentAnimationIndex();
                 spriteName = animIndex === ButtonAnimation.DOWN

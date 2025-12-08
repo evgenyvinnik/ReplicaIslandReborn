@@ -47,22 +47,22 @@ const defaultConfig: GameConfig = {
   difficulty: 'normal',
 };
 
-// Default save data - start at level 2 (playable tutorial, not intro cutscene)
+// Default save data - start at level 1 (Wanda intro dialog)
 const defaultSaveData: SaveData = {
-  currentLevel: 2, // Skip intro cutscene, start at playable tutorial
-  completedLevels: [1], // Mark intro as completed
+  currentLevel: 1, // Start at Wanda intro level
+  completedLevels: [], // No levels completed yet
   totalPearls: 0,
   totalDeaths: 0,
   playTime: 0,
   lastPlayed: new Date().toISOString(),
 };
 
-// Initial state - start at level 2 (playable tutorial level)
+// Initial state - start at level 1 (Wanda intro dialog)
 const initialState: GameContextState = {
   gameState: GameState.LOADING,
   config: defaultConfig,
   saveData: defaultSaveData,
-  currentLevel: 2, // level_0_1_sewer_kyle - playable tutorial level
+  currentLevel: 1, // level_0_1_sewer - Wanda intro level
   isPaused: false,
   isLoading: true,
   loadingProgress: 0,
