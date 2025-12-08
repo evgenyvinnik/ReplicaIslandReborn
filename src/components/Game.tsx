@@ -36,6 +36,7 @@ import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
+import { setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
 import { LevelSystem } from '../levels/LevelSystemNew';
 import { TileMapRenderer } from '../levels/TileMapRenderer';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
@@ -347,6 +348,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const levelSystem = levelSystemRef.current;
         const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
         if (levelSystem && gameObjectManager) {
+          // Get current level's inThePast status before advancing
+          const currentLevelInfo = levelSystem.getLevelInfo(levelSystem.getCurrentLevelId());
+          const wasInThePast = currentLevelInfo?.inThePast ?? false;
+          
           const nextLevelId = levelSystem.getNextLevelId();
           console.log('[Game] NPC triggered GO_TO_NEXT_LEVEL - advancing to:', nextLevelId);
           if (nextLevelId !== null) {
@@ -355,7 +360,56 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             setLevelLoading(true);
             hasShownIntroDialogRef.current = false;
             levelSystem.loadLevel(nextLevelId).then(() => {
+              // Check if we need to show memory playback toast
+              const newLevelInfo = levelSystem.getLevelInfo(nextLevelId);
+              const isInThePast = newLevelInfo?.inThePast ?? false;
+              if (canvasHUDRef.current) {
+                if (isInThePast && !wasInThePast) {
+                  canvasHUDRef.current.showToast(UIStrings.memory_playback_start, true);
+                } else if (!isInThePast && wasInThePast) {
+                  canvasHUDRef.current.showToast(UIStrings.memory_playback_complete, true);
+                }
+              }
+              prevLevelInThePastRef.current = isInThePast;
+              
+              // Initialize tile map renderer for new level
+              const parsedLevel = levelSystem.getParsedLevel();
+              if (parsedLevel && tileMapRendererRef.current) {
+                tileMapRendererRef.current.initializeFromLevel(parsedLevel);
+              }
+              
+              const spawn = levelSystem.playerSpawnPosition;
+              playerSpawnRef.current = { ...spawn };
+              resetPlayerState(); // Reset player state for new level
+              
+              // Start timer for new level
+              levelStartTimeRef.current = Date.now();
+              levelElapsedTimeRef.current = 0;
+              storeRecordLevelAttempt(nextLevelId);
+              
               gameObjectManager.commitUpdates();
+              const player = gameObjectManager.getPlayer();
+              if (player) {
+                player.setPosition(spawn.x, spawn.y);
+                player.getVelocity().x = 0;
+                player.getVelocity().y = 0;
+              }
+              
+              // Update camera bounds for new level
+              const cameraSystem = systemRegistryRef.current?.cameraSystem;
+              if (cameraSystem) {
+                cameraSystem.setBounds({
+                  minX: 0,
+                  minY: 0,
+                  maxX: levelSystem.getLevelWidth(),
+                  maxY: levelSystem.getLevelHeight(),
+                });
+                if (player) {
+                  cameraSystem.setTarget(player);
+                  cameraSystem.setPosition(spawn.x, spawn.y);
+                }
+              }
+              
               setLevelLoading(false);
             });
           } else {
@@ -372,7 +426,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     return (): void => {
       gameFlowEvent.removeListener(handleGameFlowEvent);
     };
-  }, [isInitialized, setLevel, goToMainMenu]);
+  }, [isInitialized, setLevel, goToMainMenu, resetPlayerState, storeRecordLevelAttempt]);
 
   // Track previous level to detect level changes
   const prevLevelRef = useRef(state.currentLevel);
@@ -889,6 +943,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Collision system
     const collisionSystem = new CollisionSystem();
     systemRegistry.register(collisionSystem, 'collision');
+
+    // Set up SolidSurfaceComponent to use the system registry
+    // This allows door collision surfaces to work properly
+    setSolidSurfaceSystemRegistry(systemRegistry);
 
     // Time system
     const timeSystem = new TimeSystem();
@@ -2808,6 +2866,19 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Render game objects
       const player = gameObjectManager.getPlayer();
       const FRAME_TIME = 1 / 24; // 24 FPS animation, matching original's Utils.framesToTime(24, 1)
+      
+      // Debug: Count coins once per second
+      if (Math.random() < 0.017) {
+        let coinCount = 0;
+        let visibleCoinCount = 0;
+        gameObjectManager.forEach((o) => {
+          if (o.type === 'coin') {
+            coinCount++;
+            if (o.isVisible()) visibleCoinCount++;
+          }
+        });
+        console.log(`[Render] Coins in active list: ${coinCount}, visible: ${visibleCoinCount}`);
+      }
       
       gameObjectManager.forEach((obj) => {
         if (!obj.isVisible()) return;

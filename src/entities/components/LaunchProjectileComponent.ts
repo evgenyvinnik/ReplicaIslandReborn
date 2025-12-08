@@ -216,8 +216,8 @@ export class LaunchProjectileComponent extends GameComponent {
         // to trackedProjectileDestroyed. This needs a callback mechanism.
       }
 
-      manager.add(object);
-      console.log(`[LaunchProjectile] Object added to manager at pos(${object.getPosition().x}, ${object.getPosition().y}) vel(${object.getVelocity().x}, ${object.getVelocity().y})`);
+      // NOTE: Object already added to manager by factory.spawn(), so don't add again
+      console.log(`[LaunchProjectile] Object spawned at pos(${object.getPosition().x}, ${object.getPosition().y}) vel(${object.getVelocity().x}, ${object.getVelocity().y})`);
 
       // Play shoot sound
       if (this.shootSound) {
