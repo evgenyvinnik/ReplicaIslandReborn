@@ -714,6 +714,98 @@ export const levelTree: LevelGroup[] = [
 ];
 
 /**
+ * Linear Level Tree - Sequential level order for Extras Mode
+ * 
+ * This tree has all levels in chronological story order, with one level per group.
+ * Used when the player unlocks and selects "Linear Mode" from the Extras menu.
+ * All levels are immediately accessible (no unlock requirements).
+ * 
+ * Based on linear_level_tree.xml from the original game.
+ */
+export const linearLevelTree: LevelGroup[] = [
+  // 0: Memory #001 - Lab Tutorial 1
+  { levels: [{ resource: 'level_0_2_lab', name: 'Memory #001', timeStamp: '+ 00:00:00', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 0, index: 0 }] },
+  // 1: Memory #002 - Lab Tutorial 2
+  { levels: [{ resource: 'level_0_3_lab', name: 'Memory #002', timeStamp: '+ 00:06:26', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 1, index: 0 }] },
+  // 2: Memory #003 - Island 1
+  { levels: [{ resource: 'level_1_1_island', name: 'Memory #003', timeStamp: '+ 00:34:10', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 2, index: 0 }] },
+  // 3: Memory #004 - Island 2  
+  { levels: [{ resource: 'level_1_2_island', name: 'Memory #004', timeStamp: '+ 00:44:46', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 3, index: 0 }] },
+  // 4: Memory #005 - Island 3
+  { levels: [{ resource: 'level_1_3_island', name: 'Memory #005', timeStamp: '+ 00:52:16', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 4, index: 0 }] },
+  // 5: Memory #007 - Island 5
+  { levels: [{ resource: 'level_1_5_island', name: 'Memory #007', timeStamp: '+ 01:07:24', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 5, index: 0 }] },
+  // 6: Memory #008 - Island 6
+  { levels: [{ resource: 'level_1_6_island', name: 'Memory #008', timeStamp: '+ 01:23:38', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 6, index: 0 }] },
+  // 7: Memory #010 - Island 8
+  { levels: [{ resource: 'level_1_8_island', name: 'Memory #010', timeStamp: '+ 01:47:09', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 7, index: 0 }] },
+  // 8: Memory #011 - Island 9
+  { levels: [{ resource: 'level_1_9_island', name: 'Memory #011', timeStamp: '+ 02:07:56', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 8, index: 0 }] },
+  // 9: Memory #012 - Grass 1
+  { levels: [{ resource: 'level_2_1_grass', name: 'Memory #012', timeStamp: '+ 02:25:18', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 9, index: 0 }] },
+  // 10: Memory #013 - Grass 2
+  { levels: [{ resource: 'level_2_2_grass', name: 'Memory #013', timeStamp: '+ 02:37:20', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 10, index: 0 }] },
+  // 11: Memory #014 - Grass 3
+  { levels: [{ resource: 'level_2_3_grass', name: 'Memory #014', timeStamp: '+ 02:40:13', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 11, index: 0 }] },
+  // 12: Memory #015 - Grass 4
+  { levels: [{ resource: 'level_2_4_grass', name: 'Memory #015', timeStamp: '+ 02:51:09', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 12, index: 0 }] },
+  // 13: Memory #016 - Grass 5
+  { levels: [{ resource: 'level_2_5_grass', name: 'Memory #016', timeStamp: '+ 03:01:55', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 13, index: 0 }] },
+  // 14: Memory #017 - Grass 6
+  { levels: [{ resource: 'level_2_6_grass', name: 'Memory #017', timeStamp: '+ 03:16:10', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 14, index: 0 }] },
+  // 15: Memory #018 - Grass 7
+  { levels: [{ resource: 'level_2_7_grass', name: 'Memory #018', timeStamp: '+ 03:32:27', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 15, index: 0 }] },
+  // 16: Memory #019 - Grass 8
+  { levels: [{ resource: 'level_2_8_grass', name: 'Memory #019', timeStamp: '+ 03:44:05', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 16, index: 0 }] },
+  // 17: Memory #020 - Grass 9
+  { levels: [{ resource: 'level_2_9_grass', name: 'Memory #020', timeStamp: '+ 03:56:31', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 17, index: 0 }] },
+  // 18: Memory #021 - Sewer 1 (Grass themed)
+  { levels: [{ resource: 'level_3_1_grass', name: 'Memory #021', timeStamp: '+ 04:07:10', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 18, index: 0 }] },
+  // 19: Memory #022 - Sewer 2
+  { levels: [{ resource: 'level_3_2_sewer', name: 'Memory #022', timeStamp: '+ 04:22:46', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 19, index: 0 }] },
+  // 20: Memory #023 - Sewer 3
+  { levels: [{ resource: 'level_3_3_sewer', name: 'Memory #023', timeStamp: '+ 04:38:31', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 20, index: 0 }] },
+  // 21: Memory #024 - Sewer 4
+  { levels: [{ resource: 'level_3_4_sewer', name: 'Memory #024', timeStamp: '+ 04:59:06', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 21, index: 0 }] },
+  // 22: Memory #024.3 - Kyle version
+  { levels: [{ resource: 'level_0_1_sewer_kyle', name: 'Memory #024.3', timeStamp: '+ 04:59:06', inThePast: false, completed: false, restartable: false, showWaitMessage: false, row: 22, index: 0 }] },
+  // 23: Memory #024.7 - Wanda version
+  { levels: [{ resource: 'level_0_1_sewer_wanda', name: 'Memory #024.7', timeStamp: '+ 07:12:03', inThePast: false, completed: false, restartable: true, showWaitMessage: true, row: 23, index: 0 }] },
+  // 24: Memory #025 - Sewer 5
+  { levels: [{ resource: 'level_3_5_sewer', name: 'Memory #025', timeStamp: '+ 07:19:59', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 24, index: 0 }] },
+  // 25: Memory #026 - Sewer 6
+  { levels: [{ resource: 'level_3_6_sewer', name: 'Memory #026', timeStamp: '+ 07:36:17', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 25, index: 0 }] },
+  // 26: Memory #027 - Sewer 7
+  { levels: [{ resource: 'level_3_7_sewer', name: 'Memory #027', timeStamp: '+ 07:51:24', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 26, index: 0 }] },
+  // 27: Memory #028 - Sewer 8
+  { levels: [{ resource: 'level_3_8_sewer', name: 'Memory #028', timeStamp: '+ 08:16:55', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 27, index: 0 }] },
+  // 28: Memory #029 - Sewer 9
+  { levels: [{ resource: 'level_3_9_sewer', name: 'Memory #029', timeStamp: '+ 08:35:12', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 28, index: 0 }] },
+  // 29: Memory #030 - Sewer 10
+  { levels: [{ resource: 'level_3_10_sewer', name: 'Memory #030', timeStamp: '+ 08:50:36', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 29, index: 0 }] },
+  // 30: Memory #030.5 - Sewer 11
+  { levels: [{ resource: 'level_3_11_sewer', name: 'Memory #030.5', timeStamp: '+ 08:55:54', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 30, index: 0 }] },
+  // 31: Memory #031 - Underground 1
+  { levels: [{ resource: 'level_4_1_underground', name: 'Memory #031', timeStamp: '+ 09:10:01', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 31, index: 0 }] },
+  // 32: Memory #032 - Underground 2
+  { levels: [{ resource: 'level_4_2_underground', name: 'Memory #032', timeStamp: '+ 09:42:40', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 32, index: 0 }] },
+  // 33: Memory #033 - Underground 3
+  { levels: [{ resource: 'level_4_3_underground', name: 'Memory #033', timeStamp: '+ 09:58:11', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 33, index: 0 }] },
+  // 34: Memory #034 - Underground 4
+  { levels: [{ resource: 'level_4_4_underground', name: 'Memory #034', timeStamp: '+ 10:25:17', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 34, index: 0 }] },
+  // 35: Memory #035 - Underground 5
+  { levels: [{ resource: 'level_4_5_underground', name: 'Memory #035', timeStamp: '+ 10:45:38', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 35, index: 0 }] },
+  // 36: Memory #037 - Underground 7
+  { levels: [{ resource: 'level_4_7_underground', name: 'Memory #037', timeStamp: '+ 11:20:00', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 36, index: 0 }] },
+  // 37: Memory #038 - Underground 8
+  { levels: [{ resource: 'level_4_8_underground', name: 'Memory #038', timeStamp: '+ 11:59:17', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 37, index: 0 }] },
+  // 38: Memory #039 - Underground 9
+  { levels: [{ resource: 'level_4_9_underground', name: 'Memory #039', timeStamp: '+ 12:22:09', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 38, index: 0 }] },
+  // 39: Memory #040 - Final Boss
+  { levels: [{ resource: 'level_final_boss_lab', name: 'Memory #040', timeStamp: '+ 12:45:12', inThePast: false, completed: false, restartable: true, showWaitMessage: false, row: 39, index: 0 }] },
+];
+
+/**
  * Represents a flattened level entry with unlock state
  */
 export interface LevelMetaData {
@@ -750,12 +842,35 @@ export function completedLevelIdsToResourceSet(
  * Generate the level list for display
  * @param completedLevels Set of completed level resources
  * @param onlyAllowThePast If true, only show past levels plus the next unlocked present level
+ * @param useLinearTree If true, use the linear level tree (Extras mode - all levels unlocked)
  */
 export function generateLevelList(
   completedLevels: Set<string>,
-  onlyAllowThePast: boolean = true
+  onlyAllowThePast: boolean = true,
+  useLinearTree: boolean = false
 ): LevelMetaData[] {
   const result: LevelMetaData[] = [];
+  const tree = useLinearTree ? linearLevelTree : levelTree;
+  
+  // In linear mode, all levels are enabled
+  if (useLinearTree) {
+    for (let x = 0; x < tree.length; x++) {
+      const group = tree[x];
+      for (let y = 0; y < group.levels.length; y++) {
+        const level = { ...group.levels[y] };
+        level.completed = completedLevels.has(level.resource);
+        result.push({
+          level,
+          row: x,
+          index: y,
+          enabled: true, // All levels enabled in linear mode
+        });
+      }
+    }
+    return result;
+  }
+  
+  // Non-linear mode: standard unlock logic
   let oneBranchUnlocked = false;
 
   for (let x = 0; x < levelTree.length; x++) {
@@ -807,10 +922,14 @@ export function sortLevelsByTime(levels: LevelMetaData[]): LevelMetaData[] {
 
 /**
  * Get a specific level by row and index
+ * @param row The row/group index
+ * @param index The level index within the group
+ * @param useLinearTree If true, use the linear level tree
  */
-export function getLevel(row: number, index: number): Level | null {
-  if (row >= 0 && row < levelTree.length) {
-    const group = levelTree[row];
+export function getLevel(row: number, index: number, useLinearTree: boolean = false): Level | null {
+  const tree = useLinearTree ? linearLevelTree : levelTree;
+  if (row >= 0 && row < tree.length) {
+    const group = tree[row];
     if (index >= 0 && index < group.levels.length) {
       return group.levels[index];
     }
@@ -820,7 +939,10 @@ export function getLevel(row: number, index: number): Level | null {
 
 /**
  * Check if a level exists
+ * @param row The row/group index  
+ * @param index The level index within the group
+ * @param useLinearTree If true, use the linear level tree
  */
-export function levelIsValid(row: number, index: number): boolean {
-  return getLevel(row, index) !== null;
+export function levelIsValid(row: number, index: number, useLinearTree: boolean = false): boolean {
+  return getLevel(row, index, useLinearTree) !== null;
 }

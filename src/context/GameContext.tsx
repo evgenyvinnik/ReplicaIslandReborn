@@ -18,6 +18,8 @@ interface GameContextState {
   error: string | null;
   /** Active cutscene type (when in CUTSCENE state) */
   activeCutscene: CutsceneType | null;
+  /** Whether playing in linear mode (Extras - all levels unlocked) */
+  isLinearMode: boolean;
 }
 
 // Actions
@@ -31,6 +33,7 @@ type GameAction =
   | { type: 'SET_LOADING_PROGRESS'; payload: number }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_ACTIVE_CUTSCENE'; payload: CutsceneType | null }
+  | { type: 'SET_LINEAR_MODE'; payload: boolean }
   | { type: 'COMPLETE_CURRENT_LEVEL' }
   | { type: 'GAME_OVER' }
   | { type: 'RESET' };
@@ -68,6 +71,7 @@ const initialState: GameContextState = {
   loadingProgress: 0,
   error: null,
   activeCutscene: null,
+  isLinearMode: false,
 };
 
 // Reducer
@@ -91,6 +95,8 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       return { ...state, error: action.payload };
     case 'SET_ACTIVE_CUTSCENE':
       return { ...state, activeCutscene: action.payload };
+    case 'SET_LINEAR_MODE':
+      return { ...state, isLinearMode: action.payload };
     case 'COMPLETE_CURRENT_LEVEL': {
       const newCompletedLevels = [...state.saveData.completedLevels];
       if (!newCompletedLevels.includes(state.currentLevel)) {
@@ -162,6 +168,8 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     // Reset save data for a new game
     dispatch({ type: 'SET_SAVE_DATA', payload: { ...defaultSaveData } });
     dispatch({ type: 'SET_CURRENT_LEVEL', payload: 1 });
+    // Ensure linear mode is reset unless explicitly set before this call
+    // (Linear mode is set separately by App.tsx startLinearMode)
     // Go to difficulty select first (like the original game)
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.DIFFICULTY_SELECT });
   }, []);
@@ -179,6 +187,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
   const goToMainMenu = useCallback((): void => {
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.MAIN_MENU });
     dispatch({ type: 'SET_PAUSED', payload: false });
+    dispatch({ type: 'SET_LINEAR_MODE', payload: false }); // Reset linear mode
   }, []);
 
   const goToLevelSelect = useCallback((): void => {

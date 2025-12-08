@@ -41,7 +41,7 @@ import { GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { assetPath } from '../utils/helpers';
 import { useGameStore, isLevelUnlocked } from '../stores/useGameStore';
-import { levelTree, resourceToLevelId } from '../data/levelTree';
+import { levelTree, linearLevelTree, resourceToLevelId } from '../data/levelTree';
 
 // Channel names for buttons and doors (must match original)
 const RED_BUTTON_CHANNEL = 'RED BUTTON';
@@ -100,9 +100,27 @@ export class LevelSystem {
   
   // Callbacks for boss deaths to trigger endings
   private onBossDeathCallback: ((endingType: string) => void) | null = null;
+  
+  // Linear mode - when true, uses linearLevelTree for sequential progression
+  private isLinearMode: boolean = false;
 
   constructor() {
     this.initializeLevelTree();
+  }
+  
+  /**
+   * Set linear mode (Extras menu - all levels unlocked in chronological order)
+   */
+  setLinearMode(linear: boolean): void {
+    this.isLinearMode = linear;
+    console.log(`[LevelSystem] Linear mode set to: ${linear}`);
+  }
+  
+  /**
+   * Check if currently in linear mode
+   */
+  getLinearMode(): boolean {
+    return this.isLinearMode;
   }
 
   /**
@@ -1737,11 +1755,44 @@ export class LevelSystem {
 
   /**
    * Get the ID of the next level (without unlocking)
-   * Returns the first level of the next group
+   * In linear mode, returns the next level in linearLevelTree sequence
+   * In normal mode, returns the first level of the next group
    */
   getNextLevelId(): number | null {
+    if (this.isLinearMode) {
+      // In linear mode, find current level in linearLevelTree and return next
+      return this.getNextLinearLevelId();
+    }
+    
     const current = this.levels.get(this.currentLevelId);
     return current?.next ?? null;
+  }
+  
+  /**
+   * Get the next level ID in linear mode (sequential progression)
+   */
+  private getNextLinearLevelId(): number | null {
+    // Find current level's position in linear tree
+    for (let i = 0; i < linearLevelTree.length; i++) {
+      const group = linearLevelTree[i];
+      const levelResource = group.levels[0].resource;
+      const levelId = resourceToLevelId[levelResource];
+      
+      if (levelId === this.currentLevelId) {
+        // Found current level, return next level's ID
+        if (i + 1 < linearLevelTree.length) {
+          const nextGroup = linearLevelTree[i + 1];
+          const nextResource = nextGroup.levels[0].resource;
+          return resourceToLevelId[nextResource] ?? null;
+        }
+        // No more levels
+        return null;
+      }
+    }
+    
+    // Current level not found in linear tree, fall back to first level
+    console.warn(`[LevelSystem] Current level ${this.currentLevelId} not found in linear tree`);
+    return null;
   }
 
   /**
@@ -1750,8 +1801,15 @@ export class LevelSystem {
    * - Complete ALL levels in a group to unlock the next group
    * - Returns the next uncompleted level in the current group, or
    *   the first level of the next group if the current group is fully complete
+   * 
+   * In linear mode, simply returns the next level in sequence.
    */
   completeCurrentLevel(): number | null {
+    // In linear mode, just return the next sequential level
+    if (this.isLinearMode) {
+      return this.getNextLinearLevelId();
+    }
+    
     const current = this.levels.get(this.currentLevelId);
     if (!current) return null;
     

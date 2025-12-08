@@ -103,6 +103,20 @@ function AppContent(): React.JSX.Element {
     loadGame();
   }, [dispatch]);
 
+  // Start linear mode (Extras menu) - all levels accessible in chronological order
+  const startLinearMode = useCallback(() => {
+    // Set linear mode flag before starting the game
+    dispatch({ type: 'SET_LINEAR_MODE', payload: true });
+    startNewGame();
+  }, [dispatch, startNewGame]);
+  
+  // Go to level select with all levels unlocked (Extras menu)
+  const goToExtrasLevelSelect = useCallback(() => {
+    // Set linear mode to enable all levels in level select
+    dispatch({ type: 'SET_LINEAR_MODE', payload: true });
+    goToLevelSelect();
+  }, [dispatch, goToLevelSelect]);
+
   // Determine which screen to show
   const renderScreen = (): React.JSX.Element => {
     console.log('[App] renderScreen, gameState:', state.gameState, 'isLoading:', state.isLoading, 'currentLevel:', state.currentLevel);
@@ -124,8 +138,8 @@ function AppContent(): React.JSX.Element {
         return (
           <ExtrasMenu
             onBack={goToMainMenu}
-            onStartLinearMode={startNewGame}
-            onGoToLevelSelect={goToLevelSelect}
+            onStartLinearMode={startLinearMode}
+            onGoToLevelSelect={goToExtrasLevelSelect}
             onGoToOptions={goToOptions}
           />
         );

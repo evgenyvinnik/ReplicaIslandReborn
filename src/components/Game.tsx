@@ -898,6 +898,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Level system
     const levelSystem = new LevelSystem();
     levelSystem.setSystems(collisionSystem, gameObjectManager, hotSpotSystem);
+    levelSystem.setLinearMode(state.isLinearMode); // Set linear mode from context
     
     // Set up boss death callback to trigger ending cutscenes
     levelSystem.setOnBossDeathCallback((endingType: string) => {

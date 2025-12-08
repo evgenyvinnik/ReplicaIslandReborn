@@ -170,12 +170,12 @@ export function LevelSelect(): React.JSX.Element {
   const [levelList, setLevelList] = useState<LevelMetaData[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Generate level list based on completed levels
+  // Generate level list based on completed levels and mode
   useEffect(() => {
     const completedSet = completedLevelIdsToResourceSet(state.saveData.completedLevels);
 
-    // Generate and sort the level list
-    const list = generateLevelList(completedSet, true);
+    // Generate level list - use linear tree in linear mode (all levels enabled)
+    const list = generateLevelList(completedSet, true, state.isLinearMode);
     const sorted = sortLevelsByTime(list);
     setLevelList(sorted);
 
@@ -184,7 +184,7 @@ export function LevelSelect(): React.JSX.Element {
     if (firstEnabledIndex >= 0) {
       setSelectedIndex(firstEnabledIndex);
     }
-  }, [state.saveData.completedLevels]);
+  }, [state.saveData.completedLevels, state.isLinearMode]);
 
   // Handle level selection with flicker animation
   const handleLevelClick = useCallback(
