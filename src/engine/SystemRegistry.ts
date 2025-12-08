@@ -19,6 +19,7 @@ import type { LevelSystem } from '../levels/LevelSystem';
 import type { GameObjectManager } from '../entities/GameObjectManager';
 import type { GameObjectFactory } from '../entities/GameObjectFactory';
 import type { GameFlowEvent } from './GameFlowEvent';
+import type { EffectsSystem } from './EffectsSystem';
 
 /**
  * Central registry for all game systems
@@ -40,6 +41,7 @@ export class SystemRegistry {
   public hotSpotSystem: HotSpotSystem | null = null;
   public animationSystem: AnimationSystem | null = null;
   public gameFlowEvent: GameFlowEvent | null = null;
+  public effectsSystem: EffectsSystem | null = null;
 
   // Game configuration
   public gameWidth: number = 480;
@@ -64,6 +66,7 @@ export class SystemRegistry {
     this.hotSpotSystem = null;
     this.animationSystem = null;
     this.gameFlowEvent = null;
+    this.effectsSystem = null;
   }
 
   /**
@@ -109,6 +112,9 @@ export class SystemRegistry {
         break;
       case 'gameFlowEvent':
         this.gameFlowEvent = system as unknown as GameFlowEvent;
+        break;
+      case 'effects':
+        this.effectsSystem = system as unknown as EffectsSystem;
         break;
     }
   }

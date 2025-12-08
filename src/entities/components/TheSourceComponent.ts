@@ -8,8 +8,7 @@
 import { GameComponent } from '../GameComponent';
 import { ComponentPhase, ActionType } from '../../types';
 import type { GameObject } from '../GameObject';
-import type { CameraSystem } from '../../engine/CameraSystem';
-import type { EffectsSystem } from '../../engine/EffectsSystem';
+import { sSystemRegistry } from '../../engine/SystemRegistry';
 
 // Configuration constants from original
 const SHAKE_TIME = 0.6;
@@ -18,7 +17,7 @@ const EXPLOSION_TIME = 0.1;
 const SHAKE_MAGNITUDE = 5.0;
 const SHAKE_SCALE = 300.0;
 const CAMERA_HIT_SHAKE_MAGNITUDE = 3.0;
-const SINK_SPEED = 20; // Positive = down in canvas coordinates
+const SINK_SPEED = 20; // Positive = down in canvas coordinates (original used -20 for up)
 
 export interface TheSourceConfig {
   gameEvent?: number;
@@ -30,10 +29,6 @@ export class TheSourceComponent extends GameComponent {
   private explosionTimer: number = 0;
   private shakeStartPosition: number = 0;
   private dead: boolean = false;
-  
-  // External systems
-  private cameraSystem: CameraSystem | null = null;
-  private effectsSystem: EffectsSystem | null = null;
   
   // Channel for signaling death
   private onDeathChannel: (() => void) | null = null;
@@ -56,20 +51,6 @@ export class TheSourceComponent extends GameComponent {
     this.dead = false;
     this.gameEvent = -1;
     this.gameEventIndex = -1;
-  }
-  
-  /**
-   * Set camera system for shaking and focus
-   */
-  setCameraSystem(camera: CameraSystem): void {
-    this.cameraSystem = camera;
-  }
-  
-  /**
-   * Set effects system for explosions
-   */
-  setEffectsSystem(effects: EffectsSystem): void {
-    this.effectsSystem = effects;
   }
   
   /**
@@ -108,14 +89,17 @@ export class TheSourceComponent extends GameComponent {
   
   update(dt: number, parent: GameObject): void {
     const currentAction = parent.getCurrentAction();
+    const cameraSystem = sSystemRegistry?.cameraSystem;
+    const effectsSystem = sSystemRegistry?.effectsSystem;
+    const gameObjectManager = sSystemRegistry?.gameObjectManager;
     
     // Handle hit reaction
     if (currentAction === ActionType.HIT_REACT) {
       if (parent.life > 0) {
         // Still alive - shake
         this.timer = SHAKE_TIME;
-        if (this.cameraSystem) {
-          this.cameraSystem.shake(SHAKE_TIME, CAMERA_HIT_SHAKE_MAGNITUDE);
+        if (cameraSystem) {
+          cameraSystem.shake(SHAKE_TIME, CAMERA_HIT_SHAKE_MAGNITUDE);
         }
         this.shakeStartPosition = parent.getPosition().x;
         parent.setCurrentAction(ActionType.IDLE);
@@ -139,26 +123,25 @@ export class TheSourceComponent extends GameComponent {
     if (this.dead) {
       // Death sequence - sink and spawn explosions
       
-      // Make camera follow the dying boss
-      if (this.cameraSystem) {
-        const target = this.cameraSystem.getTarget();
-        // Only steal camera if player has it
-        if (target && target !== parent) {
-          this.cameraSystem.setTarget(parent);
+      // Make camera follow the dying boss (steal it from player)
+      if (cameraSystem && gameObjectManager) {
+        const player = gameObjectManager.getPlayer();
+        if (player && cameraSystem.getTarget() === player) {
+          cameraSystem.setTarget(parent);
         }
       }
       
-      // Sink downward
+      // Sink downward (positive Y = down in canvas coords)
       parent.getPosition().y += SINK_SPEED * dt;
       
       // Spawn explosions
       this.explosionTimer -= dt;
-      if (this.explosionTimer < 0 && this.effectsSystem) {
+      if (this.explosionTimer < 0 && effectsSystem) {
         // Random position within the boss
         const x = (Math.random() - 0.5) * (parent.width * 0.75);
         const y = (Math.random() - 0.5) * (parent.height * 0.75);
         
-        this.effectsSystem.spawnExplosion(
+        effectsSystem.spawnExplosion(
           parent.getPosition().x + parent.width / 2 + x,
           parent.getPosition().y + parent.height / 2 + y,
           'giant'

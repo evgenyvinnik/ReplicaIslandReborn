@@ -36,6 +36,7 @@ import { GenericAnimationComponent } from '../entities/components/GenericAnimati
 import { SimpleCollisionComponent } from '../entities/components/SimpleCollisionComponent';
 import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
+import { OrbitalMagnetComponent } from '../entities/components/OrbitalMagnetComponent';
 import { GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { assetPath } from '../utils/helpers';
@@ -934,14 +935,44 @@ export class LevelSystem {
       
       case GameObjectTypeIndex.THE_SOURCE: {
         // The Source - Final boss (type 42)
-        // Multi-layered 512x512 sprite boss
+        // Multi-layered 512x512 sprite boss with orbital magnet mechanics
         obj.type = 'enemy';
         obj.subType = 'the_source';
         objWidth = 512;   // Large boss sprites are 512x512
         objHeight = 512;
-        obj.activationRadius = 600; // Very large activation radius for final boss
-        obj.life = 10; // Final boss has 10 hit points
-        // Add The Source boss component
+        obj.activationRadius = -1; // Always active (final boss)
+        obj.life = 3; // Original: life = 3
+        obj.team = Team.PLAYER; // Team.PLAYER means ENEMY attacks can damage it
+        
+        // Orbital Magnet - creates orbital attraction effect that pulls player around
+        // Original: orbit.setup(320.0f, 220.0f) - areaRadius, orbitRadius
+        const orbitalMagnet = new OrbitalMagnetComponent();
+        orbitalMagnet.setConfig({
+          areaRadius: 320,
+          magnetRadius: 220,  // Orbital ring radius
+          strength: 15.0     // Default strength from original
+        });
+        // Target will be auto-set to player when available
+        obj.addComponent(orbitalMagnet);
+        
+        // Sphere collision volume for hit detection (256 radius from center)
+        // Original uses SphereCollisionVolume(256, 256, 256, HitType.HIT)
+        const sourceCollision = new DynamicCollisionComponent();
+        const sourceAttackVolume = new SphereCollisionVolume(256, 256, 256, HitType.HIT);
+        const sourceVulnVolume = new SphereCollisionVolume(256, 256, 256, HitType.HIT);
+        sourceCollision.setCollisionVolumes([sourceAttackVolume], [sourceVulnVolume]);
+        obj.addComponent(sourceCollision);
+        
+        // Hit reaction - manages invincibility after taking damage
+        // Original: hitReact.setInvincibleTime(TheSourceComponent.SHAKE_TIME = 0.6f)
+        const sourceHitReact = new HitReactionComponent({
+          invincibleAfterHitTime: 0.6,
+          forceInvincibility: false
+        });
+        sourceCollision.setHitReactionComponent(sourceHitReact);
+        obj.addComponent(sourceHitReact);
+        
+        // The Source boss component - handles shake, death sequence, explosions
         const sourceComp = new TheSourceComponent();
         // Configure to trigger Wanda ending on death (event 6 = SHOW_ANIMATION, index 1 = WANDA_ENDING)
         sourceComp.setGameEvent(6, 1);
