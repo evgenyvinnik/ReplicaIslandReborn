@@ -2905,9 +2905,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // === Canvas UI Layer (rendered after swap, in screen space) ===
       
-      // Update and render Canvas HUD
+      // Update and render Canvas HUD (hide during cutscenes)
       const canvasHUD = canvasHUDRef.current;
-      if (canvasHUD) {
+      const isCutsceneActive = canvasCutsceneRef.current?.isActive() ?? false;
+      if (canvasHUD && !isCutsceneActive) {
         const pState = playerStateRef.current;
         const inventory = getInventory();
         canvasHUD.setFuel(pState.fuel / PLAYER.FUEL_AMOUNT);

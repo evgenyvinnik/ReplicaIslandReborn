@@ -150,18 +150,17 @@ export class NPCComponent extends GameComponent {
   override update(timeDelta: number, parent: object): void {
     const parentObject = parent as GameObject;
     
-    // Debug: Log NPC position and hotspot detection
+    // Debug: Log NPC position and hotspot detection for ALL NPCs
     const pos = parentObject.getPosition();
     const hotSpotSystem = sSystemRegistry.hotSpotSystem;
-    if (hotSpotSystem && parentObject.subType === 'wanda') {
+    if (hotSpotSystem) {
       const centerX = parentObject.getCenteredPositionX();
       const checkY = pos.y + parentObject.height - 10;
       const tileX = hotSpotSystem.getHitTileX(centerX);
       const tileY = hotSpotSystem.getHitTileY(checkY);
       const hotSpot = hotSpotSystem.getHotSpotByTile(tileX, tileY);
-      if (hotSpot !== -1 || Math.random() < 0.01) { // Log occasionally or when hotspot found
-        console.warn(`[NPCComponent] Wanda at pos(${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}) tile(${tileX}, ${tileY}) hotspot=${hotSpot} targetVel=(${parentObject.getTargetVelocity().x.toFixed(0)}, ${parentObject.getTargetVelocity().y.toFixed(0)}) lastTile=(${this.lastHitTileX}, ${this.lastHitTileY})`);
-      }
+      // Log every frame for NPCs
+      console.warn(`[NPCComponent] ${parentObject.subType || 'NPC'} at pos(${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}) tile(${tileX}, ${tileY}) hotspot=${hotSpot} targetVel=(${parentObject.getTargetVelocity().x.toFixed(0)}, ${parentObject.getTargetVelocity().y.toFixed(0)}) vel=(${parentObject.getVelocity().x.toFixed(0)}, ${parentObject.getVelocity().y.toFixed(0)})`);
     }
     
     // Handle hit reaction
@@ -323,11 +322,16 @@ export class NPCComponent extends GameComponent {
         
       case HotSpotType.WALK_AND_TALK: {
         // Trigger dialog while walking
+        console.warn(`[NPCComponent] WALK_AND_TALK: dialogEvent=${this.dialogEvent}, dialogIndex=${this.dialogIndex}`);
         if (this.dialogEvent !== GameFlowEventType.INVALID) {
           const gameFlowEvent = sSystemRegistry.gameFlowEvent;
+          console.warn(`[NPCComponent] gameFlowEvent from registry:`, gameFlowEvent);
           if (gameFlowEvent) {
+            console.warn(`[NPCComponent] Posting dialog event:`, this.dialogEvent, this.dialogIndex);
             gameFlowEvent.postImmediate(this.dialogEvent, this.dialogIndex);
             this.dialogEvent = GameFlowEventType.INVALID;
+          } else {
+            console.error(`[NPCComponent] ERROR: gameFlowEvent is null!`);
           }
         }
         break;
