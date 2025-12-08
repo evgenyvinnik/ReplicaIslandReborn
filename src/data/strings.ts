@@ -113,6 +113,16 @@ export const UIStrings = {
   // Web port credits
   preference_web_port_title: 'Web Port',
   preference_web_port_summary: 'This web version was ported using React, TypeScript, and HTML5 Canvas.',
+  // Debug menu
+  preference_debug: 'Debug',
+  preference_debug_menu: 'Debug Menu',
+  preference_debug_menu_summary: 'Developer tools for testing.',
+  preference_switch_levels: 'Switch Levels',
+  preference_switch_levels_summary: 'Jump to any level in the game.',
+  preference_show_fps: 'Show FPS',
+  preference_show_fps_summary: 'Display frames per second counter.',
+  preference_debug_mode: 'Debug Mode',
+  preference_debug_mode_summary: 'Enable debug logging and visualizations.',
   // Difficulty
   baby_description: 'No challenge at all.',
   kids_description: 'A comfortable ride to the end.',

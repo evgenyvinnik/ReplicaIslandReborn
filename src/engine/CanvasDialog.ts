@@ -312,7 +312,8 @@ export class CanvasDialog {
     
     // Calculate dialog box dimensions
     const boxHeight = PORTRAIT_SIZE + DIALOG_BOX_PADDING * 2 + 40; // Extra for progress/hints
-    const boxY = this.height - DIALOG_BOX_MARGIN - boxHeight;
+    // Position dialog at top of screen so it doesn't cover the action below
+    const boxY = DIALOG_BOX_MARGIN;
     const boxX = DIALOG_BOX_MARGIN;
     const boxWidth = this.width - DIALOG_BOX_MARGIN * 2;
     

@@ -25,7 +25,18 @@ import { ButtonAnimationComponent, ButtonAnimation } from '../entities/component
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { SolidSurfaceComponent } from '../entities/components/SolidSurfaceComponent';
+import { LauncherComponent } from '../entities/components/LauncherComponent';
+import { LaunchProjectileComponent } from '../entities/components/LaunchProjectileComponent';
+import { LifetimeComponent } from '../entities/components/LifetimeComponent';
+import { CameraBiasComponent } from '../entities/components/CameraBiasComponent';
+import { SelectDialogComponent } from '../entities/components/SelectDialogComponent';
+import { GravityComponent } from '../entities/components/GravityComponent';
+import { MovementComponent } from '../entities/components/MovementComponent';
+import { GenericAnimationComponent } from '../entities/components/GenericAnimationComponent';
+import { SimpleCollisionComponent } from '../entities/components/SimpleCollisionComponent';
 import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
+import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
+import { GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { assetPath } from '../utils/helpers';
 import { useGameStore, isLevelUnlocked } from '../stores/useGameStore';
@@ -882,9 +893,11 @@ export class LevelSystem {
         obj.type = 'breakable_block';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 100;
+        obj.activationRadius = 500; // Large radius to ensure blocks are active when NPC approaches
         obj.life = 1;
         obj.team = Team.ENEMY; // Can be damaged by player
+        
+        console.log(`[LevelSystem] Spawning breakable_block at tile (${spawn.tileX}, ${spawn.tileY}) world (${spawn.x}, ${spawn.y})`);
         
         // Add dynamic collision component for hit detection
         const blockCollision = new DynamicCollisionComponent();
@@ -930,6 +943,546 @@ export class LevelSystem {
           });
         }
         obj.addComponent(sourceComp);
+        break;
+      }
+
+      // ============================================
+      // NEW OBJECT TYPES - CANNONS, SPAWNERS, ETC.
+      // ============================================
+
+      case GameObjectTypeIndex.CANNON: {
+        // Cannon - launches player upward on contact
+        obj.type = 'cannon';
+        objWidth = 64;
+        objHeight = 128;
+        obj.activationRadius = 200;
+        obj.team = Team.NONE;
+        
+        // Launcher component - launches player with cannon effect
+        const launcherComp = new LauncherComponent({
+          angle: Math.PI / 2, // Launch upward (90 degrees)
+          magnitude: 1500,
+          launchDelay: 0.1,
+          postLaunchDelay: 1.0,
+          launchSound: 'sound_cannon'
+        });
+        obj.addComponent(launcherComp);
+        
+        // Dynamic collision to detect player contact
+        const cannonCollision = new DynamicCollisionComponent();
+        const cannonAttackVolume = new AABoxCollisionVolume(16, 16, 32, 80, HitType.LAUNCH);
+        cannonCollision.setCollisionVolumes([cannonAttackVolume], null);
+        obj.addComponent(cannonCollision);
+        
+        // Hit reaction
+        const cannonHitReact = new HitReactionComponent({
+          forceInvincibility: true
+        });
+        cannonCollision.setHitReactionComponent(cannonHitReact);
+        obj.addComponent(cannonHitReact);
+        
+        // Generic animation component
+        const cannonAnim = new GenericAnimationComponent();
+        obj.addComponent(cannonAnim);
+        break;
+      }
+
+      case GameObjectTypeIndex.BROBOT_SPAWNER:
+      case GameObjectTypeIndex.BROBOT_SPAWNER_LEFT: {
+        // Brobot spawner machine - periodically spawns brobot enemies
+        obj.type = 'spawner';
+        obj.subType = 'brobot_spawner';
+        objWidth = 64;
+        objHeight = 64;
+        obj.activationRadius = 200;
+        obj.team = Team.NONE;
+        const spawnerLauncher = new LaunchProjectileComponent({
+          objectTypeToSpawn: GameObjectType.ENEMY_BROBOT,
+          delayBeforeFirstSet: 2.0,
+          delayBetweenSets: 5.0,
+          setsPerActivation: 0, // Infinite
+          projectilesInSet: 1,
+          velocityX: spawn.type === GameObjectTypeIndex.BROBOT_SPAWNER_LEFT ? -100 : 100,
+          velocityY: -50,
+          trackProjectiles: false,
+          offsetX: spawn.type === GameObjectTypeIndex.BROBOT_SPAWNER_LEFT ? -32 : 32,
+          offsetY: 32
+        });
+        obj.addComponent(spawnerLauncher);
+        
+        // Solid surface so player can stand on it
+        const spawnerSolid = new SolidSurfaceComponent();
+        // Trapezoid shape matching original
+        spawnerSolid.addSurfaceFromCoords(0, 0, 8, 59, -0.9953, 0.0965);
+        spawnerSolid.addSurfaceFromCoords(8, 59, 61, 33, 0.4455, 0.8953);
+        spawnerSolid.addSurfaceFromCoords(61, 33, 61, 0, 1, 0);
+        obj.addComponent(spawnerSolid);
+        
+        // Dynamic collision - can be possessed
+        const spawnerCollision = new DynamicCollisionComponent();
+        const spawnerVulnerability = new SphereCollisionVolume(32, 32, 32, HitType.POSSESS);
+        spawnerCollision.setCollisionVolumes(null, [spawnerVulnerability]);
+        obj.addComponent(spawnerCollision);
+        break;
+      }
+
+      case GameObjectTypeIndex.INFINITE_SPAWNER: {
+        // Invisible infinite spawner - spawns enemies indefinitely
+        obj.type = 'spawner';
+        obj.subType = 'infinite';
+        objWidth = 32;
+        objHeight = 32;
+        obj.activationRadius = 300;
+        obj.team = Team.NONE;
+        
+        // Launch projectile component configured for infinite spawning
+        const infiniteSpawner = new LaunchProjectileComponent({
+          objectTypeToSpawn: GameObjectType.ENEMY_BROBOT,
+          delayBeforeFirstSet: 3.0,
+          delayBetweenSets: 4.0,
+          setsPerActivation: 0, // Infinite
+          projectilesInSet: 1,
+          velocityX: 0,
+          velocityY: 0,
+          trackProjectiles: false
+        });
+        obj.addComponent(infiniteSpawner);
+        break;
+      }
+
+      case GameObjectTypeIndex.HINT_SIGN: {
+        // Hint sign - shows tutorial text when touched
+        obj.type = 'hint_sign';
+        objWidth = 32;
+        objHeight = 32;
+        obj.activationRadius = 100;
+        obj.team = Team.NONE;
+        
+        // Dynamic collision for collection
+        const signCollision = new DynamicCollisionComponent();
+        const signVulnerability = new AABoxCollisionVolume(8, 0, 24, 32, HitType.COLLECT);
+        signCollision.setCollisionVolumes(null, [signVulnerability]);
+        obj.addComponent(signCollision);
+        
+        // Hit reaction to trigger dialog
+        const signHitReact = new HitReactionComponent({
+          forceInvincibility: true
+        });
+        signCollision.setHitReactionComponent(signHitReact);
+        obj.addComponent(signHitReact);
+        
+        // Select dialog component for showing hints
+        const dialogSelect = new SelectDialogComponent();
+        obj.addComponent(dialogSelect);
+        break;
+      }
+
+      case GameObjectTypeIndex.KABOCHA_TERMINAL:
+      case GameObjectTypeIndex.ROKUDOU_TERMINAL: {
+        // Story terminals - NPCs that trigger dialogs
+        obj.type = 'npc';
+        obj.subType = spawn.type === GameObjectTypeIndex.KABOCHA_TERMINAL ? 'kabocha' : 'rokudou';
+        objWidth = 64;
+        objHeight = 128;
+        obj.activationRadius = 2000;
+        obj.team = Team.NONE;
+        
+        // NPC component for scripted behavior
+        const terminalNpc = new NPCComponent();
+        obj.addComponent(terminalNpc);
+        break;
+      }
+
+      case GameObjectTypeIndex.GHOST_NPC: {
+        // Ghost NPC - invisible NPC used in cutscenes
+        obj.type = 'npc';
+        obj.subType = 'ghost';
+        objWidth = 32;
+        objHeight = 32;
+        obj.activationRadius = 10000; // Always active
+        obj.team = Team.NONE;
+        obj.life = 1;
+        
+        // Gravity component (ghost may fall)
+        const ghostGravity = new GravityComponent();
+        obj.addComponent(ghostGravity);
+        
+        // Movement component for scripted movement
+        const ghostMovement = new MovementComponent();
+        obj.addComponent(ghostMovement);
+        
+        // NPC component for hot spot controlled behavior
+        const ghostNpc = new NPCComponent();
+        obj.addComponent(ghostNpc);
+        
+        // Lifetime component (ghost may have limited life)
+        const ghostLifetime = new LifetimeComponent();
+        obj.addComponent(ghostLifetime);
+        break;
+      }
+
+      case GameObjectTypeIndex.CAMERA_BIAS: {
+        // Camera bias point - shifts camera when player is nearby
+        obj.type = 'camera_bias';
+        objWidth = 32;
+        objHeight = 32;
+        obj.activationRadius = 200;
+        obj.team = Team.NONE;
+        
+        // Camera bias component
+        const bias = new CameraBiasComponent();
+        obj.addComponent(bias);
+        break;
+      }
+
+      case GameObjectTypeIndex.CRUSHER_ANDOU: {
+        // Crusher Android - special enemy that crushes player
+        obj.type = 'enemy';
+        obj.subType = 'crusher_andou';
+        objWidth = 64;
+        objHeight = 64;
+        obj.activationRadius = 200;
+        obj.life = 1;
+        obj.team = Team.ENEMY;
+        
+        // Movement component
+        const crusherMovement = new MovementComponent();
+        obj.addComponent(crusherMovement);
+        
+        // Gravity component
+        const crusherGravity = new GravityComponent();
+        obj.addComponent(crusherGravity);
+        
+        // Patrol component for movement
+        const crusherPatrol = new PatrolComponent({
+          maxSpeed: 75.0,
+          acceleration: 1000.0,
+          flying: false,
+          turnToFacePlayer: false
+        });
+        obj.addComponent(crusherPatrol);
+        
+        // Dynamic collision
+        const crusherCollision = new DynamicCollisionComponent();
+        const crusherAttack = new AABoxCollisionVolume(16, 0, 32, 64, HitType.HIT);
+        crusherCollision.setCollisionVolumes([crusherAttack], null);
+        obj.addComponent(crusherCollision);
+        
+        // Hit reaction
+        const crusherHitReact = new HitReactionComponent({
+          forceInvincibility: false
+        });
+        crusherCollision.setHitReactionComponent(crusherHitReact);
+        obj.addComponent(crusherHitReact);
+        break;
+      }
+
+      case GameObjectTypeIndex.ANDOU_DEAD:
+      case GameObjectTypeIndex.KYLE_DEAD: {
+        // Dead character decorations - static sprites
+        obj.type = 'decoration';
+        obj.subType = spawn.type === GameObjectTypeIndex.ANDOU_DEAD ? 'andou_dead' : 'kyle_dead';
+        objWidth = 64;
+        objHeight = 64;
+        obj.activationRadius = 100;
+        obj.team = Team.NONE;
+        // Just a static sprite, no components needed
+        break;
+      }
+
+      case GameObjectTypeIndex.DOOR_RED_NONBLOCKING:
+      case GameObjectTypeIndex.DOOR_BLUE_NONBLOCKING:
+      case GameObjectTypeIndex.DOOR_GREEN_NONBLOCKING: {
+        // Non-blocking doors - same as regular doors but don't block movement
+        obj.type = 'door';
+        objWidth = 32;
+        objHeight = 64;
+        obj.activationRadius = 200;
+        
+        // Determine color for sprite and channel
+        let nbDoorColor = 'red';
+        let nbChannelName = RED_BUTTON_CHANNEL;
+        if (spawn.type === GameObjectTypeIndex.DOOR_BLUE_NONBLOCKING) {
+          nbDoorColor = 'blue';
+          nbChannelName = BLUE_BUTTON_CHANNEL;
+        } else if (spawn.type === GameObjectTypeIndex.DOOR_GREEN_NONBLOCKING) {
+          nbDoorColor = 'green';
+          nbChannelName = GREEN_BUTTON_CHANNEL;
+        }
+        obj.subType = nbDoorColor + '_nonblocking';
+        
+        // Create sprite component with door animations
+        const nbDoorSprite = new SpriteComponent();
+        nbDoorSprite.setSprite(`object_door_${nbDoorColor}01`);
+        
+        const nbClosedAnim: AnimationDefinition = {
+          name: 'closed',
+          frames: [{ x: 0, y: 0, width: 32, height: 64, duration: 1.0 }],
+          loop: false
+        };
+        const nbOpenAnim: AnimationDefinition = {
+          name: 'open',
+          frames: [{ x: 0, y: 0, width: 32, height: 64, duration: 1.0 }],
+          loop: false
+        };
+        
+        nbDoorSprite.addAnimationAtIndex(DoorAnimation.CLOSED, nbClosedAnim);
+        nbDoorSprite.addAnimationAtIndex(DoorAnimation.OPEN, nbOpenAnim);
+        nbDoorSprite.playAnimation(DoorAnimation.CLOSED);
+        obj.addComponent(nbDoorSprite);
+        
+        // Create door animation component
+        const nbDoorAnim = new DoorAnimationComponent({
+          stayOpenTime: 5.0,
+          openSound: 'sound_open',
+          closeSound: 'sound_close'
+        });
+        nbDoorAnim.setSprite(nbDoorSprite);
+        
+        // Link to channel
+        if (sSystemRegistry.channelSystem) {
+          const nbChannel = sSystemRegistry.channelSystem.registerChannel(nbChannelName);
+          if (nbChannel) {
+            nbDoorAnim.setChannel(nbChannel);
+          }
+        }
+        obj.addComponent(nbDoorAnim);
+        // Note: No solid surface component - door doesn't block
+        break;
+      }
+
+      // ============================================
+      // PROJECTILE TYPES
+      // ============================================
+
+      case GameObjectTypeIndex.CANNON_BALL: {
+        // Cannon ball projectile
+        obj.type = 'projectile';
+        obj.subType = 'cannon_ball';
+        objWidth = 32;
+        objHeight = 32;
+        obj.activationRadius = 200;
+        obj.team = Team.ENEMY;
+        
+        // Lifetime - dies after 3 seconds or on hitting background
+        const cannonBallLife = new LifetimeComponent();
+        cannonBallLife.setTimeUntilDeath(3.0);
+        cannonBallLife.setDieOnHitBackground(true);
+        obj.addComponent(cannonBallLife);
+        
+        // Movement component
+        const cannonBallMove = new MovementComponent();
+        obj.addComponent(cannonBallMove);
+        
+        // Dynamic collision with attack volume
+        const cannonBallCollision = new DynamicCollisionComponent();
+        const cannonBallAttack = new SphereCollisionVolume(8, 16, 16, HitType.HIT);
+        cannonBallCollision.setCollisionVolumes([cannonBallAttack], null);
+        obj.addComponent(cannonBallCollision);
+        
+        // Simple collision for background hits
+        const cannonBallSimple = new SimpleCollisionComponent();
+        obj.addComponent(cannonBallSimple);
+        
+        // Hit reaction - dies on attacking
+        const cannonBallHitReact = new HitReactionComponent({
+          dieOnAttack: true
+        });
+        cannonBallCollision.setHitReactionComponent(cannonBallHitReact);
+        obj.addComponent(cannonBallHitReact);
+        break;
+      }
+
+      case GameObjectTypeIndex.TURRET_BULLET: {
+        // Turret bullet projectile
+        obj.type = 'projectile';
+        obj.subType = 'turret_bullet';
+        objWidth = 16;
+        objHeight = 16;
+        obj.activationRadius = 200;
+        obj.team = Team.ENEMY;
+        
+        // Lifetime
+        const turretBulletLife = new LifetimeComponent();
+        turretBulletLife.setTimeUntilDeath(3.0);
+        turretBulletLife.setDieOnHitBackground(true);
+        obj.addComponent(turretBulletLife);
+        
+        // Movement
+        const turretBulletMove = new MovementComponent();
+        obj.addComponent(turretBulletMove);
+        
+        // Dynamic collision
+        const turretBulletCollision = new DynamicCollisionComponent();
+        const turretBulletAttack = new SphereCollisionVolume(8, 8, 8, HitType.HIT);
+        turretBulletCollision.setCollisionVolumes([turretBulletAttack], null);
+        obj.addComponent(turretBulletCollision);
+        
+        // Hit reaction
+        const turretBulletHitReact = new HitReactionComponent({
+          dieOnAttack: true
+        });
+        turretBulletCollision.setHitReactionComponent(turretBulletHitReact);
+        obj.addComponent(turretBulletHitReact);
+        break;
+      }
+
+      case GameObjectTypeIndex.BROBOT_BULLET: {
+        // Brobot bullet projectile
+        obj.type = 'projectile';
+        obj.subType = 'brobot_bullet';
+        objWidth = 16;
+        objHeight = 16;
+        obj.activationRadius = 200;
+        obj.team = Team.ENEMY;
+        
+        // Lifetime
+        const brobotBulletLife = new LifetimeComponent();
+        brobotBulletLife.setTimeUntilDeath(3.0);
+        brobotBulletLife.setDieOnHitBackground(true);
+        obj.addComponent(brobotBulletLife);
+        
+        // Movement
+        const brobotBulletMove = new MovementComponent();
+        obj.addComponent(brobotBulletMove);
+        
+        // Dynamic collision
+        const brobotBulletCollision = new DynamicCollisionComponent();
+        const brobotBulletAttack = new SphereCollisionVolume(8, 8, 8, HitType.HIT);
+        brobotBulletCollision.setCollisionVolumes([brobotBulletAttack], null);
+        obj.addComponent(brobotBulletCollision);
+        
+        // Hit reaction
+        const brobotBulletHitReact = new HitReactionComponent({
+          dieOnAttack: true
+        });
+        brobotBulletCollision.setHitReactionComponent(brobotBulletHitReact);
+        obj.addComponent(brobotBulletHitReact);
+        break;
+      }
+
+      case GameObjectTypeIndex.ENERGY_BALL: {
+        // Energy ball projectile (boss attacks)
+        obj.type = 'projectile';
+        obj.subType = 'energy_ball';
+        objWidth = 32;
+        objHeight = 32;
+        obj.activationRadius = 300;
+        obj.team = Team.ENEMY;
+        
+        // Lifetime
+        const energyBallLife = new LifetimeComponent();
+        energyBallLife.setTimeUntilDeath(5.0);
+        energyBallLife.setDieOnHitBackground(true);
+        obj.addComponent(energyBallLife);
+        
+        // Gravity (energy balls arc downward)
+        const energyBallGravity = new GravityComponent();
+        obj.addComponent(energyBallGravity);
+        
+        // Movement
+        const energyBallMove = new MovementComponent();
+        obj.addComponent(energyBallMove);
+        
+        // Dynamic collision
+        const energyBallCollision = new DynamicCollisionComponent();
+        const energyBallAttack = new SphereCollisionVolume(16, 16, 16, HitType.HIT);
+        energyBallCollision.setCollisionVolumes([energyBallAttack], null);
+        obj.addComponent(energyBallCollision);
+        
+        // Simple collision for background
+        const energyBallSimple = new SimpleCollisionComponent();
+        obj.addComponent(energyBallSimple);
+        
+        // Hit reaction
+        const energyBallHitReact = new HitReactionComponent({
+          dieOnAttack: true
+        });
+        energyBallCollision.setHitReactionComponent(energyBallHitReact);
+        obj.addComponent(energyBallHitReact);
+        break;
+      }
+
+      case GameObjectTypeIndex.WANDA_SHOT: {
+        // Wanda's projectile attack
+        obj.type = 'projectile';
+        obj.subType = 'wanda_shot';
+        objWidth = 16;
+        objHeight = 16;
+        obj.activationRadius = 200;
+        obj.team = Team.ENEMY;
+        
+        // Lifetime
+        const wandaShotLife = new LifetimeComponent();
+        wandaShotLife.setTimeUntilDeath(3.0);
+        wandaShotLife.setDieOnHitBackground(true);
+        obj.addComponent(wandaShotLife);
+        
+        // Movement
+        const wandaShotMove = new MovementComponent();
+        obj.addComponent(wandaShotMove);
+        
+        // Dynamic collision
+        const wandaShotCollision = new DynamicCollisionComponent();
+        const wandaShotAttack = new SphereCollisionVolume(8, 8, 8, HitType.HIT);
+        wandaShotCollision.setCollisionVolumes([wandaShotAttack], null);
+        obj.addComponent(wandaShotCollision);
+        
+        // Hit reaction
+        const wandaShotHitReact = new HitReactionComponent({
+          dieOnAttack: true
+        });
+        wandaShotCollision.setHitReactionComponent(wandaShotHitReact);
+        obj.addComponent(wandaShotHitReact);
+        break;
+      }
+
+      // ============================================
+      // EFFECTS (spawnable as level objects)
+      // ============================================
+
+      case GameObjectTypeIndex.DUST:
+      case GameObjectTypeIndex.EXPLOSION_SMALL:
+      case GameObjectTypeIndex.EXPLOSION_LARGE:
+      case GameObjectTypeIndex.EXPLOSION_GIANT: {
+        // Effects - short-lived animated sprites
+        obj.type = 'effect';
+        if (spawn.type === GameObjectTypeIndex.DUST) {
+          obj.subType = 'dust';
+          objWidth = 16;
+          objHeight = 16;
+        } else if (spawn.type === GameObjectTypeIndex.EXPLOSION_SMALL) {
+          obj.subType = 'explosion_small';
+          objWidth = 32;
+          objHeight = 32;
+        } else if (spawn.type === GameObjectTypeIndex.EXPLOSION_LARGE) {
+          obj.subType = 'explosion_large';
+          objWidth = 64;
+          objHeight = 64;
+        } else {
+          obj.subType = 'explosion_giant';
+          objWidth = 128;
+          objHeight = 128;
+        }
+        obj.activationRadius = 100;
+        obj.team = Team.NONE;
+        
+        // Short lifetime for effects
+        const effectLife = new LifetimeComponent();
+        effectLife.setTimeUntilDeath(0.5);
+        obj.addComponent(effectLife);
+        break;
+      }
+
+      case GameObjectTypeIndex.FRAMERATE_WATCHER: {
+        // Framerate watcher - monitors performance (mostly for debugging)
+        obj.type = 'system';
+        obj.subType = 'framerate_watcher';
+        objWidth = 32;
+        objHeight = 32;
+        obj.activationRadius = 100;
+        obj.team = Team.NONE;
+        // No special components - handled by performance monitor
         break;
       }
 

@@ -76,13 +76,13 @@ export const GameObjectTypeIndex = {
   CRUSHER_ANDOU: 59,
   
   // Projectiles
-  ENERGY_BALL: 68,
   CANNON_BALL: 65,
   TURRET_BULLET: 66,
   BROBOT_BULLET: 67,
-  BREAKABLE_BLOCK_PIECE: 68,
-  BREAKABLE_BLOCK_PIECE_SPAWNER: 69,
-  WANDA_SHOT: 70,
+  ENERGY_BALL: 68,
+  BREAKABLE_BLOCK_PIECE: 69,
+  BREAKABLE_BLOCK_PIECE_SPAWNER: 70,
+  WANDA_SHOT: 71,
 } as const;
 
 export type GameObjectTypeIndexValue = typeof GameObjectTypeIndex[keyof typeof GameObjectTypeIndex];

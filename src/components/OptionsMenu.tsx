@@ -12,14 +12,16 @@
 import React, { useState, useEffect } from 'react';
 import { useGameStore, type GameSettings, type KeyBindings } from '../stores/useGameStore';
 import { UIStrings } from '../data/strings';
+import { levelTree, resourceToLevelId } from '../data/levelTree';
 
 interface OptionsMenuProps {
   onClose: () => void;
+  onStartLevel?: (levelId: number) => void;
 }
 
-// Screen hierarchy: main -> controls | main -> about
+// Screen hierarchy: main -> controls | main -> about | main -> debug | debug -> level-select
 // Keyboard config is shown as a dialog overlay
-type Screen = 'main' | 'controls' | 'about';
+type Screen = 'main' | 'controls' | 'about' | 'debug' | 'level-select';
 
 // 2010-era Android color scheme
 const COLORS = {
@@ -43,7 +45,7 @@ const COLORS = {
   buttonText: '#ffffff',
 };
 
-export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
+export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.JSX.Element {
   // Use Zustand store directly for settings
   const settings = useGameStore((state) => state.settings);
   const setSetting = useGameStore((state) => state.setSetting);
@@ -100,8 +102,18 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
   const handleBack = (): void => {
     if (currentScreen === 'controls' || currentScreen === 'about') {
       setCurrentScreen('main');
+    } else if (currentScreen === 'level-select') {
+      setCurrentScreen('debug');
+    } else if (currentScreen === 'debug') {
+      setCurrentScreen('main');
     } else {
       onClose();
+    }
+  };
+
+  const handleSelectLevel = (levelId: number): void => {
+    if (onStartLevel) {
+      onStartLevel(levelId);
     }
   };
 
@@ -642,6 +654,14 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
           title={UIStrings.preference_misc}
           onClick={(): void => setCurrentScreen('about')}
         />
+
+        {/* Debug Category */}
+        <CategoryHeader title={UIStrings.preference_debug} />
+        <ScreenPreference
+          title={UIStrings.preference_debug_menu}
+          summary={UIStrings.preference_debug_menu_summary}
+          onClick={(): void => setCurrentScreen('debug')}
+        />
       </div>
     </>
   );
@@ -705,6 +725,78 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
     </>
   );
 
+  // Debug Menu sub-screen
+  const DebugScreen = (): React.JSX.Element => (
+    <>
+      <Header title={UIStrings.preference_debug_menu} />
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <ScreenPreference
+          title={UIStrings.preference_switch_levels}
+          summary={UIStrings.preference_switch_levels_summary}
+          onClick={(): void => setCurrentScreen('level-select')}
+        />
+        <CheckBoxPreference
+          title={UIStrings.preference_show_fps}
+          summary={UIStrings.preference_show_fps_summary}
+          checked={settings.showFPS}
+          onChange={(v): void => updateSetting('showFPS', v)}
+        />
+        <CheckBoxPreference
+          title={UIStrings.preference_debug_mode}
+          summary={UIStrings.preference_debug_mode_summary}
+          checked={settings.debugMode}
+          onChange={(v): void => updateSetting('debugMode', v)}
+        />
+      </div>
+    </>
+  );
+
+  // Level Select sub-screen (for debug)
+  const LevelSelectScreen = (): React.JSX.Element => {
+    // Build flat list of all levels from levelTree
+    const allLevels: Array<{ name: string; resource: string; levelId: number; group: number }> = [];
+    
+    levelTree.forEach((group, groupIndex) => {
+      group.levels.forEach((level) => {
+        const levelId = resourceToLevelId[level.resource];
+        if (levelId !== undefined) {
+          allLevels.push({
+            name: level.name,
+            resource: level.resource,
+            levelId,
+            group: groupIndex,
+          });
+        }
+      });
+    });
+
+    return (
+      <>
+        <Header title={UIStrings.preference_switch_levels} />
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {allLevels.map((level) => (
+            <PreferenceItem
+              key={level.resource}
+              onClick={(): void => handleSelectLevel(level.levelId)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: COLORS.titleText, fontSize: '16px', fontFamily: 'sans-serif' }}>
+                    {level.name}
+                  </div>
+                  <div style={{ color: COLORS.summaryText, fontSize: '12px', fontFamily: 'sans-serif', marginTop: '2px' }}>
+                    {level.resource} (ID: {level.levelId})
+                  </div>
+                </div>
+                <span style={{ color: COLORS.categoryText, fontSize: '14px' }}>▶</span>
+              </div>
+            </PreferenceItem>
+          ))}
+        </div>
+      </>
+    );
+  };
+
   return (
     <div
       style={{
@@ -722,6 +814,8 @@ export function OptionsMenu({ onClose }: OptionsMenuProps): React.JSX.Element {
       {currentScreen === 'main' && <MainScreen />}
       {currentScreen === 'controls' && <ControlsScreen />}
       {currentScreen === 'about' && <AboutScreen />}
+      {currentScreen === 'debug' && <DebugScreen />}
+      {currentScreen === 'level-select' && <LevelSelectScreen />}
 
       {/* Keyboard Config Dialog */}
       {showKeyboardConfig && <KeyboardConfigDialog />}

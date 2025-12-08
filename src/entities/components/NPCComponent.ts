@@ -222,10 +222,14 @@ export class NPCComponent extends GameComponent {
           // Debug: Log when Wanda enters a new tile
           if (parentObject.subType === 'wanda') {
             console.log(`[NPCComponent] Wanda NEW TILE: (${hitTileX}, ${hitTileY}) hotSpot=${hotSpot} last=(${this.lastHitTileX}, ${this.lastHitTileY})`);
+            console.log(`[NPCComponent] Checking: hotSpot(${hotSpot}) >= NPC_GO_RIGHT(${HotSpotType.NPC_GO_RIGHT}) && hotSpot(${hotSpot}) <= NPC_SLOW(${HotSpotType.NPC_SLOW}) = ${hotSpot >= HotSpotType.NPC_GO_RIGHT && hotSpot <= HotSpotType.NPC_SLOW}`);
           }
           
           // Movement-related commands are immediate
           if (hotSpot >= HotSpotType.NPC_GO_RIGHT && hotSpot <= HotSpotType.NPC_SLOW) {
+            if (parentObject.subType === 'wanda') {
+              console.log(`[NPCComponent] Wanda: Executing movement command ${hotSpot}`);
+            }
             parentObject.setCurrentAction(ActionType.MOVE);
             accepted = this.executeCommand(hotSpot, parentObject, timeDelta);
           } else if (hotSpot === HotSpotType.ATTACK && !this.pauseOnAttack) {
@@ -484,9 +488,11 @@ export class NPCComponent extends GameComponent {
         break;
         
       case HotSpotType.NPC_GO_RIGHT:
-        console.log(`[NPCComponent] NPC_GO_RIGHT: Setting targetVelocity.x = ${this.horizontalImpulse}, acceleration.x = ${this.acceleration}`);
+        console.log(`[NPCComponent] NPC_GO_RIGHT ENTERED: horizontalImpulse=${this.horizontalImpulse}, acceleration=${this.acceleration}`);
+        console.log(`[NPCComponent] BEFORE: targetVel.x=${parentObject.getTargetVelocity().x}, accel.x=${parentObject.getAcceleration().x}`);
         parentObject.getTargetVelocity().x = this.horizontalImpulse;
         parentObject.getAcceleration().x = this.acceleration;
+        console.log(`[NPCComponent] AFTER: targetVel.x=${parentObject.getTargetVelocity().x}, accel.x=${parentObject.getAcceleration().x}`);
         if (this.flying) {
           parentObject.getVelocity().y = 0;
           parentObject.getTargetVelocity().y = 0;

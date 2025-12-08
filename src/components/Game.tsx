@@ -1124,6 +1124,23 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'shadowslime_idle02', file: 'enemy_shadowslime_idle02', w: 64, h: 64 },
         // NPC sprites (64x128 actual size for wanda/kyle, 64x128 for kabocha)
         { name: 'wanda_stand', file: 'enemy_wanda_stand', w: 64, h: 128 },
+        { name: 'enemy_wanda_stand', file: 'enemy_wanda_stand', w: 64, h: 128 },
+        { name: 'enemy_wanda_walk01', file: 'enemy_wanda_walk01', w: 64, h: 128 },
+        { name: 'enemy_wanda_walk02', file: 'enemy_wanda_walk02', w: 64, h: 128 },
+        { name: 'enemy_wanda_walk03', file: 'enemy_wanda_walk03', w: 64, h: 128 },
+        { name: 'enemy_wanda_walk04', file: 'enemy_wanda_walk04', w: 64, h: 128 },
+        { name: 'enemy_wanda_walk05', file: 'enemy_wanda_walk05', w: 64, h: 128 },
+        { name: 'enemy_wanda_run01', file: 'enemy_wanda_run01', w: 64, h: 128 },
+        { name: 'enemy_wanda_run02', file: 'enemy_wanda_run02', w: 64, h: 128 },
+        { name: 'enemy_wanda_run03', file: 'enemy_wanda_run03', w: 64, h: 128 },
+        { name: 'enemy_wanda_run04', file: 'enemy_wanda_run04', w: 64, h: 128 },
+        { name: 'enemy_wanda_run05', file: 'enemy_wanda_run05', w: 64, h: 128 },
+        { name: 'enemy_wanda_run06', file: 'enemy_wanda_run06', w: 64, h: 128 },
+        { name: 'enemy_wanda_run07', file: 'enemy_wanda_run07', w: 64, h: 128 },
+        { name: 'enemy_wanda_run08', file: 'enemy_wanda_run08', w: 64, h: 128 },
+        { name: 'enemy_wanda_jump01', file: 'enemy_wanda_jump01', w: 64, h: 128 },
+        { name: 'enemy_wanda_jump02', file: 'enemy_wanda_jump02', w: 64, h: 128 },
+        { name: 'enemy_wanda_crouch', file: 'enemy_wanda_crouch', w: 64, h: 128 },
         { name: 'kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 128 },
         { name: 'kabocha_stand', file: 'enemy_kabocha_stand', w: 64, h: 128 },
         // Evil Kabocha boss (128x128 actual size)
@@ -1456,6 +1473,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (frameCount % 120 === 0) {
         let npcCount = 0;
         let activeNpcCount = 0;
+        let breakableBlockCount = 0;
+        let activeBreakableBlockCount = 0;
         gameObjectManager.forEach((obj) => {
           if (obj.type === 'npc') {
             npcCount++;
@@ -1464,8 +1483,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               console.log('[Game] NPC found:', obj.subType, 'active:', obj.isActive(), 'visible:', obj.isVisible(), 'pos:', obj.getPosition().x, obj.getPosition().y);
             }
           }
+          if (obj.type === 'breakable_block') {
+            breakableBlockCount++;
+            if (obj.isActive()) {
+              activeBreakableBlockCount++;
+              const pos = obj.getPosition();
+              console.log(`[Game] Breakable block at (${pos.x}, ${pos.y}) active=${obj.isActive()} visible=${obj.isVisible()} life=${obj.life}`);
+            }
+          }
         });
         console.log('[Game] NPC count:', npcCount, 'active:', activeNpcCount);
+        console.log('[Game] Breakable block count:', breakableBlockCount, 'active:', activeBreakableBlockCount);
       }
       
       // Update effects system (explosions, smoke, etc.)
@@ -1670,6 +1698,63 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Update facing direction based on velocity
         if (Math.abs(velocity.x) > 1) {
           obj.facingDirection.x = velocity.x > 0 ? 1 : -1;
+        }
+        
+        // NPC collision with breakable blocks (Wanda smashing through walls)
+        // Debug: Log Wanda's velocity periodically
+        if (obj.subType === 'wanda' && Math.random() < 0.02) {
+          console.log(`[NPC Velocity] Wanda vel.x=${velocity.x.toFixed(1)} at pos(${position.x.toFixed(0)}, ${position.y.toFixed(0)})`);
+        }
+        
+        if (Math.abs(velocity.x) > 50) {
+          // Debug: Log when Wanda is near breakable block X position
+          if (obj.subType === 'wanda' && position.x > 540 && position.x < 620) {
+            console.log(`[NPC Block Check] Wanda at (${position.x.toFixed(0)}, ${position.y.toFixed(0)}) checking for breakable blocks`);
+          }
+          
+          gameObjectManager.forEach((other) => {
+            if (other.type === 'breakable_block') {
+              // Debug: Log breakable block state when Wanda is nearby
+              if (obj.subType === 'wanda' && position.x > 540 && position.x < 620) {
+                const otherPos = other.getPosition();
+                console.log(`[NPC Block Check] Found breakable_block at (${otherPos.x}, ${otherPos.y}) visible=${other.isVisible()} life=${other.life}`);
+              }
+              
+              if (other.isVisible() && other.life > 0) {
+                const otherPos = other.getPosition();
+                // Check for collision between NPC and breakable block
+                const npcLeft = position.x;
+                const npcRight = position.x + obj.width;
+                const npcTop = position.y;
+                const npcBottom = position.y + obj.height;
+                
+                const blockLeft = otherPos.x;
+                const blockRight = otherPos.x + other.width;
+                const blockTop = otherPos.y;
+                const blockBottom = otherPos.y + other.height;
+                
+                // Check for overlap
+                if (npcRight > blockLeft && npcLeft < blockRight &&
+                    npcBottom > blockTop && npcTop < blockBottom) {
+                  // Destroy the breakable block
+                  other.life = 0;
+                  other.setVisible(false);
+                  
+                  // Spawn explosion effect at block position
+                  effectsSystem.spawnExplosion(
+                    otherPos.x + other.width / 2,
+                    otherPos.y + other.height / 2,
+                    'small'
+                  );
+                  
+                  // Play smash sound
+                  soundSystem.playSfx(SoundEffects.EXPLODE);
+                  
+                  console.log(`[NPC] ${obj.subType} smashed through breakable block at (${otherPos.x}, ${otherPos.y})`);
+                }
+              }
+            }
+          });
         }
         
         // IMPORTANT: Check hotspots AFTER physics update so NPCs don't skip hotspot tiles
@@ -2836,10 +2921,47 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             case 'npc': {
               // NPCs use their subtype to determine sprite
               const npcType = obj.subType || 'wanda';
-              spriteName = `${npcType}_stand`;
-              // NPCs are 64x128 sprites
-              const npcSpriteWidth = 64;
-              const npcSpriteHeight = 128;
+              let npcSpriteWidth = 64;
+              let npcSpriteHeight = 128;
+              
+              // Determine animation based on movement state
+              const npcVel = obj.getVelocity();
+              const absVelX = Math.abs(npcVel.x);
+              const absVelY = Math.abs(npcVel.y);
+              
+              if (npcType === 'wanda') {
+                // Wanda has: stand, walk (5 frames), run (8 frames), jump (2 frames), crouch, shoot (9 frames)
+                if (absVelY > 50 && !obj.touchingGround()) {
+                  // Jumping/falling
+                  spriteFrames = ['enemy_wanda_jump01', 'enemy_wanda_jump02'];
+                } else if (absVelX > 100) {
+                  // Running
+                  spriteFrames = [
+                    'enemy_wanda_run01', 'enemy_wanda_run02', 'enemy_wanda_run03', 'enemy_wanda_run04',
+                    'enemy_wanda_run05', 'enemy_wanda_run06', 'enemy_wanda_run07', 'enemy_wanda_run08'
+                  ];
+                } else if (absVelX > 10) {
+                  // Walking
+                  spriteFrames = [
+                    'enemy_wanda_walk01', 'enemy_wanda_walk02', 'enemy_wanda_walk03',
+                    'enemy_wanda_walk04', 'enemy_wanda_walk05'
+                  ];
+                } else {
+                  // Standing
+                  spriteFrames = ['enemy_wanda_stand'];
+                }
+              } else if (npcType === 'kyle' || npcType === 'kabocha') {
+                // Kyle and Kabocha use similar naming conventions
+                spriteFrames = [`enemy_${npcType}_stand`];
+              } else {
+                // Generic NPC fallback
+                spriteFrames = [`${npcType}_stand`];
+              }
+              
+              obj.animFrame = obj.animFrame % spriteFrames.length;
+              spriteName = spriteFrames[obj.animFrame];
+              
+              // Center sprite on object
               spriteOffset.x = (obj.width - npcSpriteWidth) / 2;
               spriteOffset.y = (obj.height - npcSpriteHeight) / 2;
               break;

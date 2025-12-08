@@ -21,10 +21,15 @@ const GAME_WIDTH = 480;
 const GAME_HEIGHT = 320;
 
 function AppContent(): React.JSX.Element {
-  const { state, dispatch, goToMainMenu, goToLevelSelect, goToOptions, startNewGame, pauseGame, resumeGame } = useGameContext();
+  const { state, dispatch, goToMainMenu, goToLevelSelect, goToOptions, startNewGame, startGame, pauseGame, resumeGame } = useGameContext();
   const [osMode, setOsMode] = useState<'app' | 'home' | 'recents'>('app');
   // Track if we paused the game due to going to recents/home (vs user manually pausing)
   const pausedByOsRef = useRef(false);
+
+  // Handle debug level selection from options menu
+  const handleDebugStartLevel = useCallback((levelId: number) => {
+    startGame(levelId);
+  }, [startGame]);
 
   // Handle back button press
   const handleBack = useCallback(() => {
@@ -114,7 +119,7 @@ function AppContent(): React.JSX.Element {
       case GameState.LEVEL_SELECT:
         return <LevelSelect />;
       case GameState.OPTIONS:
-        return <OptionsMenu onClose={goToMainMenu} />;
+        return <OptionsMenu onClose={goToMainMenu} onStartLevel={handleDebugStartLevel} />;
       case GameState.EXTRAS:
         return (
           <ExtrasMenu
