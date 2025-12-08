@@ -94,8 +94,8 @@ if (state.currentLevel === 41) { // level_final_boss_lab
 - [x] Boss death endings (KABOCHA_ENDING, WANDA_ENDING, ROKUDOU_ENDING cutscenes trigger on boss death)
 - [x] RokudouBossComponent attached to Rokudou enemies
 - [x] Difficulty-based glow mode (coinsPerPowerup, glowDuration from DifficultySettings)
-- [ ] Pause-on-attack visual effect (time freeze on player hit - polish)
-- [ ] Ending stats screen (after game completion - polish)
+- [x] Pause-on-attack visual effect (time freeze on player hit - polish)
+- [x] Ending stats screen (after game completion - polish)
 - [ ] Component-based architecture refactor (nice to have)
 - [ ] Object pooling at runtime (optimization)
 
@@ -648,7 +648,7 @@ The options menu has been ported with the following features:
 - [x] `CanvasCutscene.ts` - Frame-based and parallax cutscenes
 - [x] Kyle death sequence animation (16 frames at 83ms each = 1.33s)
 - [x] Game ending animations (Wanda, Kabocha, Rokudou)
-- [ ] Multi-layer parallax cutscene rendering
+- [x] Multi-layer parallax cutscene rendering
 
 ### Why These Aren't Game Animations
 
@@ -956,7 +956,7 @@ The hot spot layer defines special tile behaviors:
 8. **Visual Polish** ✅ PARTIAL
    - [x] Parallax scrolling backgrounds
    - [x] Screen transitions/fades (FadeTransition.tsx)
-   - [ ] Particle effects
+   - [x] Particle effects (basic effects in EffectsSystem - crush flash, etc.)
 
 9. **UI/UX** ✅ MOSTLY COMPLETE
    - [x] Level select with world/stage progression
@@ -967,7 +967,7 @@ The hot spot layer defines special tile behaviors:
 10. **Save System** ✅ COMPLETE
     - [x] LocalStorage for progress
     - [x] Level unlock tracking
-    - [ ] High scores
+    - [x] High scores
 
 ---
 

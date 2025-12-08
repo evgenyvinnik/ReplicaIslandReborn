@@ -90,10 +90,10 @@ export class HitReactionComponent extends GameComponent {
   }
   
   /**
-   * Set time system reference for freeze effect
+   * Set time freeze callback for pause-on-attack effect
    */
-  setTimeSystem(timeSystem: TimeSystem): void {
-    this.timeSystem = timeSystem;
+  setTimeFreezer(freezer: (duration: number) => void): void {
+    this.timeFreezer = freezer;
   }
 
   /**
@@ -270,9 +270,8 @@ export class HitReactionComponent extends GameComponent {
    * Reset component state
    */
   reset(): void {
-    // TODO: pause on attack feature
-    // this._pauseOnAttack = false;
-    // this._pauseOnAttackTime = ATTACK_PAUSE_DELAY;
+    this.pauseOnAttack = false;
+    this.pauseOnAttackTime = ATTACK_PAUSE_DELAY;
     this.bounceOnHit = false;
     this.bounceMagnitude = DEFAULT_BOUNCE_MAGNITUDE;
     this.invincibleAfterHitTime = 0;
@@ -282,6 +281,7 @@ export class HitReactionComponent extends GameComponent {
     this.dieOnCollect = false;
     this.dieOnAttack = false;
     this.forceInvincibility = false;
+    this.timeFreezer = null;
     this.workingVector.x = 0;
     this.workingVector.y = 0;
   }

@@ -18,6 +18,7 @@ import { HotSpotSystem, HotSpotType } from '../engine/HotSpotSystem';
 import { AnimationSystem } from '../engine/AnimationSystem';
 import { EffectsSystem } from '../engine/EffectsSystem';
 import { ChannelSystem } from '../engine/ChannelSystem';
+import { gameFlowEvent, GameFlowEventType } from '../engine/GameFlowEvent';
 import { CanvasHUD } from '../engine/CanvasHUD';
 import { CanvasControls } from '../engine/CanvasControls';
 import { CanvasDialog } from '../engine/CanvasDialog';
@@ -26,6 +27,7 @@ import { CanvasPauseMenu } from '../engine/CanvasPauseMenu';
 import { CanvasGameOverScreen } from '../engine/CanvasGameOverScreen';
 import { CanvasLevelCompleteScreen } from '../engine/CanvasLevelCompleteScreen';
 import { CanvasDiaryOverlay } from '../engine/CanvasDiaryOverlay';
+import { CanvasEndingStatsScreen } from '../engine/CanvasEndingStatsScreen';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { GameObject } from '../entities/GameObject';
@@ -143,6 +145,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const canvasGameOverRef = useRef<CanvasGameOverScreen | null>(null);
   const canvasLevelCompleteRef = useRef<CanvasLevelCompleteScreen | null>(null);
   const canvasDiaryRef = useRef<CanvasDiaryOverlay | null>(null);
+  const canvasEndingStatsRef = useRef<CanvasEndingStatsScreen | null>(null);
   
   // Level timing tracking
   const levelStartTimeRef = useRef<number>(0);
@@ -273,34 +276,88 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   }, [state.gameState]);
 
   // Show intro dialog after level finishes loading
-  // Only auto-show for cutscene levels (no player spawn)
+  // For cutscene levels (no player), dialog is triggered by NPC via GameFlowEvent
+  // For playable levels, dialog is triggered via hotspots
   useEffect(() => {
     if (!levelLoading && isInitialized && !hasShownIntroDialogRef.current) {
       const levelSystem = levelSystemRef.current;
       const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
       if (levelSystem && gameObjectManager) {
-        // Only auto-show dialog for cutscene levels (no player)
         const player = gameObjectManager.getPlayer();
         if (!player) {
-          const levelInfo = levelSystem.getLevelInfo(state.currentLevel);
-          console.warn('[Game] Cutscene level - showing intro dialog, level:', state.currentLevel, 'levelInfo:', levelInfo?.file);
-          if (levelInfo) {
-            const dialogs = getDialogsForLevel(levelInfo.file);
-            console.warn('[Game] Found', dialogs.length, 'dialogs for level', levelInfo.file);
-            if (dialogs.length > 0) {
-              hasShownIntroDialogRef.current = true;
-              // For cutscene levels, show all conversations in sequence (not single mode)
-              setDialogConversationIndex(0);
-              setDialogSingleMode(false);
-              setActiveDialog(dialogs[0]);
-            }
-          }
+          // Cutscene level - dialog will be triggered by NPC via GameFlowEvent
+          console.warn('[Game] Cutscene level - waiting for NPC to trigger dialog via hotspot, level:', state.currentLevel);
         } else {
-          console.warn('[Game] Playable level - skipping auto-dialog, level:', state.currentLevel);
+          console.warn('[Game] Playable level - dialog will be triggered by hotspots, level:', state.currentLevel);
         }
       }
     }
   }, [levelLoading, isInitialized, state.currentLevel]);
+
+  // Subscribe to GameFlowEvent for NPC-triggered dialogs
+  // NPCs use GameFlowEvent to trigger dialogs when they hit NPC_SELECT_DIALOG hotspots
+  useEffect(() => {
+    if (!isInitialized) return;
+    
+    const handleGameFlowEvent = (event: GameFlowEventType, dataIndex: number): void => {
+      console.warn('[Game] GameFlowEvent received:', event, 'dataIndex:', dataIndex);
+      
+      if (event === GameFlowEventType.SHOW_DIALOG_CHARACTER1 || 
+          event === GameFlowEventType.SHOW_DIALOG_CHARACTER2) {
+        // NPC triggered a dialog
+        const levelSystem = levelSystemRef.current;
+        if (levelSystem) {
+          const levelId = levelSystem.getCurrentLevelId();
+          const levelInfo = levelSystem.getLevelInfo(levelId);
+          
+          if (levelInfo) {
+            const dialogs = getDialogsForLevel(levelInfo.file);
+            // Character 1 uses dialogs[0], Character 2 uses dialogs[1]
+            const dialogIndex = event === GameFlowEventType.SHOW_DIALOG_CHARACTER1 ? 0 : 1;
+            
+            if (dialogs.length > dialogIndex) {
+              const dialog = dialogs[dialogIndex];
+              // dataIndex is the conversation index within the dialog
+              const conversationIdx = Math.min(dataIndex, dialog.conversations.length - 1);
+              
+              console.warn('[Game] Showing NPC dialog - character:', dialogIndex + 1, 
+                'conversation:', conversationIdx, 'level:', levelInfo.file);
+              
+              hasShownIntroDialogRef.current = true;
+              setDialogConversationIndex(conversationIdx);
+              // For NPC-triggered dialogs, show all remaining conversations
+              setDialogSingleMode(false);
+              setActiveDialog(dialog);
+            }
+          }
+        }
+      } else if (event === GameFlowEventType.GO_TO_NEXT_LEVEL) {
+        // NPC reached end of level - advance to next level
+        const levelSystem = levelSystemRef.current;
+        const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
+        if (levelSystem && gameObjectManager) {
+          const nextLevelId = levelSystem.getNextLevelId();
+          console.warn('[Game] NPC triggered GO_TO_NEXT_LEVEL - advancing to:', nextLevelId);
+          if (nextLevelId !== null) {
+            levelSystem.unlockLevel(nextLevelId);
+            setLevel(nextLevelId);
+            setLevelLoading(true);
+            hasShownIntroDialogRef.current = false;
+            levelSystem.loadLevel(nextLevelId).then(() => {
+              gameObjectManager.commitUpdates();
+              setLevelLoading(false);
+            });
+          }
+        }
+      }
+    };
+    
+    gameFlowEvent.addListener(handleGameFlowEvent);
+    
+    return (): void => {
+      gameFlowEvent.removeListener(handleGameFlowEvent);
+    };
+  }, [isInitialized, setLevel]);
 
   // Track previous level to detect level changes
   const prevLevelRef = useRef(state.currentLevel);
@@ -498,9 +555,44 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           endCutscene();
           gameOver();
         } else if (cutscene.isEnding) {
-          // Ending cutscenes return to main menu
+          // Ending cutscenes show stats then return to main menu
           endCutscene();
-          // TODO: Show ending stats screen before main menu
+          
+          // Show ending stats screen
+          const canvasEndingStats = canvasEndingStatsRef.current;
+          if (canvasEndingStats) {
+            // Get total stats from store
+            const gameState = useGameStore.getState();
+            const totalStats = gameState.progress.totalStats;
+            const inventory = getInventory();
+            
+            // Determine ending type based on cutscene
+            let endingType: 'good' | 'bad' | 'neutral' = 'neutral';
+            if (state.activeCutscene === CutsceneType.WANDA_ENDING) {
+              endingType = 'good';
+            } else if (state.activeCutscene === CutsceneType.KABOCHA_ENDING || 
+                       state.activeCutscene === CutsceneType.ROKUDOU_ENDING) {
+              endingType = 'bad';
+            }
+            
+            canvasEndingStats.show({
+              totalPlayTime: totalStats.totalPlayTime,
+              totalScore: inventory.score,
+              totalCoinsCollected: totalStats.totalCoinsCollected,
+              totalRubiesCollected: totalStats.totalRubiesCollected,
+              totalEnemiesDefeated: totalStats.totalEnemiesDefeated,
+              totalDeaths: totalStats.totalDeaths,
+              diariesCollected: gameState.progress.diariesCollected.length,
+              totalDiaries: 20, // Total diaries in the game
+              ending: endingType,
+            }, () => {
+              // Return to main menu after stats
+              goToMainMenu();
+            });
+          } else {
+            // Fallback: just return to main menu
+            goToMainMenu();
+          }
         } else {
           endCutscene();
         }
@@ -510,7 +602,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     } else {
       canvasCutscene.stop();
     }
-  }, [state.gameState, state.activeCutscene, endCutscene, gameOver]);
+  }, [state.gameState, state.activeCutscene, endCutscene, gameOver, goToMainMenu]);
 
   // Handle Canvas Pause Menu when game state changes
   useEffect(() => {
@@ -767,6 +859,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const hotSpotSystem = new HotSpotSystem();
     systemRegistry.register(hotSpotSystem, 'hotSpot');
 
+    // Game flow event system (for NPC dialogs, level transitions, etc.)
+    systemRegistry.register(gameFlowEvent, 'gameFlowEvent');
+
     // Animation system
     const animationSystem = new AnimationSystem();
     animationSystem.registerPlayerAnimations();
@@ -864,6 +959,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Canvas Diary Overlay
       const canvasDiary = new CanvasDiaryOverlay(ctx, canvas, width, height);
       canvasDiaryRef.current = canvasDiary;
+      
+      // Canvas Ending Stats Screen
+      const canvasEndingStats = new CanvasEndingStatsScreen(ctx, canvas, width, height);
+      canvasEndingStatsRef.current = canvasEndingStats;
       
       // Setup controls callbacks
       canvasControls.setCallbacks(
@@ -1321,7 +1420,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         canvasPauseMenuRef.current?.isShowing() ||
         canvasGameOverRef.current?.isShowing() ||
         canvasLevelCompleteRef.current?.isShowing() ||
-        canvasDiaryRef.current?.isVisible();
+        canvasDiaryRef.current?.isVisible() ||
+        canvasEndingStatsRef.current?.isShowing();
       
       // Use empty input when blocked, otherwise use real input
       const input = isInputBlocked 
@@ -2872,6 +2972,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (canvasDiary && canvasDiary.isVisible()) {
         canvasDiary.update(1 / 60);
         canvasDiary.render();
+      }
+      
+      // Update and render Canvas Ending Stats Screen (if active)
+      const canvasEndingStats = canvasEndingStatsRef.current;
+      if (canvasEndingStats && canvasEndingStats.isShowing()) {
+        canvasEndingStats.update(1 / 60);
+        canvasEndingStats.render();
       }
     });
 
