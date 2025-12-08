@@ -71,7 +71,7 @@ export class ChannelSystem {
 
     // Add new channel if there's room
     if (this.registeredChannelCount >= MAX_CHANNELS) {
-      console.warn('ChannelSystem: Channel pool exhausted!');
+      console.log('ChannelSystem: Channel pool exhausted!');
       return null;
     }
 

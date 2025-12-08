@@ -513,7 +513,7 @@ export const useGameStore = create<GameStore>()(
 
           // Migration complete - no logging needed in production
         } catch (error) {
-          console.warn('[GameStore] Migration failed:', error);
+          console.log('[GameStore] Migration failed:', error);
         }
       },
     }),

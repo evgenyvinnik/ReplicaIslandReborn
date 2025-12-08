@@ -35,6 +35,7 @@ import { DoorAnimationComponent, DoorAnimation } from '../entities/components/Do
 import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { PatrolComponent } from '../entities/components/PatrolComponent';
+import { NPCComponent } from '../entities/components/NPCComponent';
 import { LevelSystem } from '../levels/LevelSystemNew';
 import { TileMapRenderer } from '../levels/TileMapRenderer';
 import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
@@ -113,7 +114,7 @@ const PLAYER = {
 };
 
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
-  console.warn('[Game] Component rendering, width:', width, 'height:', height);
+  console.log('[Game] Component rendering, width:', width, 'height:', height);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, endCutscene, goToMainMenu } = useGameContext();
@@ -286,9 +287,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const player = gameObjectManager.getPlayer();
         if (!player) {
           // Cutscene level - dialog will be triggered by NPC via GameFlowEvent
-          console.warn('[Game] Cutscene level - waiting for NPC to trigger dialog via hotspot, level:', state.currentLevel);
+          console.log('[Game] Cutscene level - waiting for NPC to trigger dialog via hotspot, level:', state.currentLevel);
         } else {
-          console.warn('[Game] Playable level - dialog will be triggered by hotspots, level:', state.currentLevel);
+          console.log('[Game] Playable level - dialog will be triggered by hotspots, level:', state.currentLevel);
         }
       }
     }
@@ -300,7 +301,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     if (!isInitialized) return;
     
     const handleGameFlowEvent = (event: GameFlowEventType, dataIndex: number): void => {
-      console.warn('[Game] GameFlowEvent received:', event, 'dataIndex:', dataIndex);
+      console.log('[Game] GameFlowEvent received:', event, 'dataIndex:', dataIndex);
       
       if (event === GameFlowEventType.SHOW_DIALOG_CHARACTER1 || 
           event === GameFlowEventType.SHOW_DIALOG_CHARACTER2) {
@@ -320,7 +321,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               // dataIndex is the conversation index within the dialog
               const conversationIdx = Math.min(dataIndex, dialog.conversations.length - 1);
               
-              console.warn('[Game] Showing NPC dialog - character:', dialogIndex + 1, 
+              console.log('[Game] Showing NPC dialog - character:', dialogIndex + 1, 
                 'conversation:', conversationIdx, 'level:', levelInfo.file);
               
               hasShownIntroDialogRef.current = true;
@@ -337,7 +338,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
         if (levelSystem && gameObjectManager) {
           const nextLevelId = levelSystem.getNextLevelId();
-          console.warn('[Game] NPC triggered GO_TO_NEXT_LEVEL - advancing to:', nextLevelId);
+          console.log('[Game] NPC triggered GO_TO_NEXT_LEVEL - advancing to:', nextLevelId);
           if (nextLevelId !== null) {
             levelSystem.unlockLevel(nextLevelId);
             setLevel(nextLevelId);
@@ -455,12 +456,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     if (activeDialog) {
       // Define dialog completion handler
       const handleDialogComplete = (): void => {
-        console.warn('[Game] Dialog complete');
+        console.log('[Game] Dialog complete');
         setActiveDialog(null);
         // If this is a cutscene-only level (no player), advance to next level after dialog
         const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
         const player = gameObjectMgr?.getPlayer();
-        console.warn('[Game] Player exists:', !!player);
+        console.log('[Game] Player exists:', !!player);
         if (!player) {
           // No player means this is a story/cutscene level - advance to next
           const levelSys = levelSystemRef.current;
@@ -470,7 +471,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             const wasInThePast = currentLevelInfo?.inThePast ?? false;
             
             const nextLevelId = levelSys.getNextLevelId();
-            console.warn('[Game] Cutscene level - advancing to next level:', nextLevelId);
+            console.log('[Game] Cutscene level - advancing to next level:', nextLevelId);
             if (nextLevelId !== null) {
               levelSys.unlockLevel(nextLevelId);
               setLevel(nextLevelId);
@@ -698,7 +699,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (state.currentLevel === 41) {
         storeUnlockExtra('linearMode');
         storeUnlockExtra('levelSelect');
-        console.warn('[Game] Final boss defeated! Unlocking extras (Linear Mode, Level Select)');
+        console.log('[Game] Final boss defeated! Unlocking extras (Linear Mode, Level Select)');
       }
       
       // Update total stats
@@ -905,7 +906,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           playCutscene(CutsceneType.ROKUDOU_ENDING);
           break;
         default:
-          console.warn(`Unknown ending type: ${endingType}`);
+          console.log(`Unknown ending type: ${endingType}`);
       }
     });
     
@@ -1032,7 +1033,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       const loadPromises = sprites.map(sprite =>
         renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), 64, 64)
-          .catch(err => console.warn(`Failed to load sprite ${sprite.name}:`, err))
+          .catch(err => console.log(`Failed to load sprite ${sprite.name}:`, err))
       );
 
       await Promise.all(loadPromises);
@@ -1062,7 +1063,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       const loadPromises = sprites.map(sprite =>
         renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), sprite.w, sprite.h)
-          .catch(err => console.warn(`Failed to load sprite ${sprite.name}:`, err))
+          .catch(err => console.log(`Failed to load sprite ${sprite.name}:`, err))
       );
 
       await Promise.all(loadPromises);
@@ -1169,7 +1170,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       const loadPromises = sprites.map(sprite =>
         renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), sprite.w, sprite.h)
-          .catch(err => console.warn(`Failed to load sprite ${sprite.name}:`, err))
+          .catch(err => console.log(`Failed to load sprite ${sprite.name}:`, err))
       );
 
       await Promise.all(loadPromises);
@@ -1221,11 +1222,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Get the current level from ref (or default to 1)
         const levelToLoad = currentLevelRef.current || 1;
-        console.warn('[Game] Loading level:', levelToLoad);
+        console.log('[Game] Loading level:', levelToLoad);
         
         // Try to load the level (JSON format)
         const levelLoaded = await levelSystem.loadLevel(levelToLoad);
-        console.warn('[Game] Level loaded:', levelLoaded);
+        console.log('[Game] Level loaded:', levelLoaded);
         
         if (levelLoaded) {
           // Commit pending object additions immediately so they're available for rendering
@@ -1236,17 +1237,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           // Initialize tile map renderer from parsed level
           const parsedLevel = levelSystem.getParsedLevel();
-          console.warn('[Game] parsedLevel:', parsedLevel ? { bgLayers: parsedLevel.backgroundLayers.length, w: parsedLevel.widthInTiles, h: parsedLevel.heightInTiles } : null);
+          console.log('[Game] parsedLevel:', parsedLevel ? { bgLayers: parsedLevel.backgroundLayers.length, w: parsedLevel.widthInTiles, h: parsedLevel.heightInTiles } : null);
           if (parsedLevel) {
             tileMapRenderer.initializeFromLevel(parsedLevel);
-            console.warn('[Game] TileMapRenderer initialized, layers:', tileMapRenderer.getLayerCount());
+            console.log('[Game] TileMapRenderer initialized, layers:', tileMapRenderer.getLayerCount());
             
             // Load background image
             try {
               const bgImage = await loadBackgroundImage(parsedLevel.backgroundImage);
               backgroundImageRef.current = bgImage;
             } catch {
-              console.warn('Failed to load background image');
+              console.log('Failed to load background image');
             }
           }
           
@@ -1262,7 +1263,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Handle cutscene levels (no player spawn)
           // If there's no player but there is an NPC, focus camera on the NPC
           const player = gameObjectManager.getPlayer();
-          console.warn('[Game] Player found:', !!player, 'position:', player?.getPosition());
+          console.log('[Game] Player found:', !!player, 'position:', player?.getPosition());
           
           if (player) {
             // Set camera to initially focus on the player
@@ -1274,7 +1275,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               playerPos.x,
               playerPos.y
             );
-            console.warn('[Game] Camera set to player position:', playerPos.x, playerPos.y);
+            console.log('[Game] Camera set to player position:', playerPos.x, playerPos.y);
           } else {
             // Find an NPC to focus on (Wanda, Kyle, Kabocha, or Rokudou)
             let npcTarget: GameObject | null = null;
@@ -1285,7 +1286,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             });
             
             if (npcTarget !== null) {
-              console.warn(`[Game] Found NPC target: ${(npcTarget as GameObject).subType}`);
+              console.log(`[Game] Found NPC target: ${(npcTarget as GameObject).subType}`);
               // Set camera to initially focus on the NPC
               const npc = npcTarget as GameObject;
               cameraSystem.setNPCTarget(npcTarget);
@@ -1296,7 +1297,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 npcPos.x,
                 npcPos.y
               );
-              console.warn('[Game] Camera set to NPC position:', npcPos.x, npcPos.y);
+              console.log('[Game] Camera set to NPC position:', npcPos.x, npcPos.y);
             }
           }
           
@@ -1329,7 +1330,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // Start game loop AFTER initialization completes
       if (gameLoopRef.current && !gameLoopRef.current.isRunning()) {
-        console.warn('[Game] Starting game loop after initialization');
+        console.log('[Game] Starting game loop after initialization');
         gameLoopRef.current.start();
         
         // Start background music if available and music is enabled
@@ -1396,7 +1397,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     gameLoop.setUpdateCallback((deltaTime: number) => {
       frameCount++;
       if (frameCount % 60 === 0) {
-        console.warn('[Game] Update tick - state:', gameStateRef.current, 'PLAYING:', GameState.PLAYING, 'match:', gameStateRef.current === GameState.PLAYING);
+        console.log('[Game] Update tick - state:', gameStateRef.current, 'PLAYING:', GameState.PLAYING, 'match:', gameStateRef.current === GameState.PLAYING);
       }
       if (gameStateRef.current !== GameState.PLAYING) return;
 
@@ -1448,11 +1449,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             npcCount++;
             if (obj.isActive()) {
               activeNpcCount++;
-              console.warn('[Game] NPC found:', obj.subType, 'active:', obj.isActive(), 'visible:', obj.isVisible(), 'pos:', obj.getPosition().x, obj.getPosition().y);
+              console.log('[Game] NPC found:', obj.subType, 'active:', obj.isActive(), 'visible:', obj.isVisible(), 'pos:', obj.getPosition().x, obj.getPosition().y);
             }
           }
         });
-        console.warn('[Game] NPC count:', npcCount, 'active:', activeNpcCount);
+        console.log('[Game] NPC count:', npcCount, 'active:', activeNpcCount);
       }
       
       // Update effects system (explosions, smoke, etc.)
@@ -1598,7 +1599,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       gameObjectManager.forEach((obj) => {
         if (obj.type !== 'npc') return;
         if (!obj.isVisible()) {
-          console.warn(`[NPC Physics] ${obj.name} is not visible, skipping physics`);
+          console.log(`[NPC Physics] ${obj.name} is not visible, skipping physics`);
           return;
         }
         
@@ -1609,7 +1610,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Debug log for Wanda
         if (obj.subType === 'wanda' && Math.random() < 0.02) {
-          console.warn(`[NPC Physics] Wanda pos=(${position.x.toFixed(1)}, ${position.y.toFixed(1)}) vel=(${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)})`);
+          console.log(`[NPC Physics] Wanda pos=(${position.x.toFixed(1)}, ${position.y.toFixed(1)}) vel=(${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)})`);
         }
         
         // Interpolate velocity towards target velocity (based on original MovementComponent)
@@ -1642,7 +1643,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Debug ground check for Wanda
         if (obj.subType === 'wanda' && Math.random() < 0.01) {
-          console.warn(`[NPC Ground] Wanda grounded=${groundCheck.grounded} pos.y=${position.y.toFixed(1)} bottom=${(position.y + obj.height).toFixed(1)} tileRow=${Math.floor((position.y + obj.height) / 32)}`);
+          console.log(`[NPC Ground] Wanda grounded=${groundCheck.grounded} pos.y=${position.y.toFixed(1)} bottom=${(position.y + obj.height).toFixed(1)} tileRow=${Math.floor((position.y + obj.height) / 32)}`);
         }
         
         if (groundCheck.grounded) {
@@ -2385,7 +2386,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     gameLoop.setRenderCallback((): void => {
       renderCount++;
       if (renderCount === 1 || renderCount === 60) {
-        console.warn('[Game Render]', { renderCount, tileMapLayers: tileMapRendererRef.current?.getLayerCount() });
+        console.log('[Game Render]', { renderCount, tileMapLayers: tileMapRendererRef.current?.getLayerCount() });
       }
       
       // Clear canvas

@@ -188,7 +188,7 @@ export class RenderSystem {
     const tileSize = 32;
     const loadPromises = tilesets.map(name =>
       this.loadTileset(name, assetPath(`/assets/sprites/${name}.png`), tileSize).catch(err => {
-        console.warn(`Failed to load tileset ${name}:`, err);
+        console.log(`Failed to load tileset ${name}:`, err);
       })
     );
 

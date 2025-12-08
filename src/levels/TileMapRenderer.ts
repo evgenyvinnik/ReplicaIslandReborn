@@ -178,7 +178,7 @@ export class TileMapRenderer {
     // Get tileset image
     const tilesetImage = renderSystem.getSpriteImage(layer.tileset);
     if (!tilesetImage) {
-      console.warn('[TileMapRenderer] No tileset image for:', layer.tileset);
+      console.log('[TileMapRenderer] No tileset image for:', layer.tileset);
       return;
     }
     
@@ -240,7 +240,7 @@ export class TileMapRenderer {
     
     // Log once per layer to see if tiles are being rendered
     if (tilesRendered === 0) {
-      console.warn('[TileMapRenderer] NO tiles rendered for layer', layer.tileset, 
+      console.log('[TileMapRenderer] NO tiles rendered for layer', layer.tileset, 
         'camera:', cameraX.toFixed(0), cameraY.toFixed(0),
         'tile range x:', startTileX, '-', endTileX,
         'tile range y:', startTileY, '-', endTileY,

@@ -102,7 +102,7 @@ export class CanvasHUD {
         resolve();
       };
       img.onerror = (): void => {
-        console.warn(`Failed to load HUD sprite: ${name}`);
+        console.log(`Failed to load HUD sprite: ${name}`);
         resolve(); // Don't fail on missing sprites
       };
       img.src = assetPath(`/assets/sprites/${name}.png`);

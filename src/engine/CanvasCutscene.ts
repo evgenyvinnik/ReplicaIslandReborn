@@ -200,7 +200,7 @@ export class CanvasCutscene {
         resolve();
       };
       img.onerror = (): void => {
-        console.warn(`Failed to load cutscene image: ${src}`);
+        console.log(`Failed to load cutscene image: ${src}`);
         resolve();
       };
       // Handle both relative and absolute paths

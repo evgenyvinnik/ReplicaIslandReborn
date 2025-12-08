@@ -337,6 +337,6 @@ export function getString(key: string): string {
   if (key in UIStrings) return UIStrings[key as keyof typeof UIStrings];
   
   // Return the key itself if not found
-  console.warn(`String not found: ${key}`);
+  console.log(`String not found: ${key}`);
   return key;
 }

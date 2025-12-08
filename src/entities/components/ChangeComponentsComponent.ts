@@ -49,7 +49,7 @@ export class ChangeComponentsComponent extends GameComponent {
     if (this.componentsToInsert.length < MAX_COMPONENT_SWAPS) {
       this.componentsToInsert.push(component);
     } else {
-      console.warn('ChangeComponentsComponent: Max swap-in components reached');
+      console.log('ChangeComponentsComponent: Max swap-in components reached');
     }
   }
 
@@ -60,7 +60,7 @@ export class ChangeComponentsComponent extends GameComponent {
     if (this.componentsToRemove.length < MAX_COMPONENT_SWAPS) {
       this.componentsToRemove.push(component);
     } else {
-      console.warn('ChangeComponentsComponent: Max swap-out components reached');
+      console.log('ChangeComponentsComponent: Max swap-out components reached');
     }
   }
 

@@ -61,7 +61,7 @@ export class CanvasDiaryOverlay {
   private loadBackground(): void {
     this.bgImage = new Image();
     this.bgImage.onerror = (): void => {
-      console.warn('Failed to load diary background');
+      console.log('Failed to load diary background');
     };
     // Use a dark parchment-like background
     this.bgImage.src = assetPath('/assets/sprites/ui_options_background.png');

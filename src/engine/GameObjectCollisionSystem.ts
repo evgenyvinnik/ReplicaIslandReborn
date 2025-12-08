@@ -110,7 +110,7 @@ export class GameObjectCollisionSystem {
     vulnerabilityVolumes: CollisionVolume[] | null
   ): void {
     if (this.objects.length >= MAX_COLLIDING_OBJECTS) {
-      console.warn('GameObjectCollisionSystem: Max colliding objects reached');
+      console.log('GameObjectCollisionSystem: Max colliding objects reached');
       return;
     }
 

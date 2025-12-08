@@ -121,7 +121,7 @@ export class CanvasControls {
         resolve();
       };
       img.onerror = (): void => {
-        console.warn(`Failed to load control sprite: ${name}`);
+        console.log(`Failed to load control sprite: ${name}`);
         resolve();
       };
       img.src = assetPath(`/assets/sprites/${name}.png`);

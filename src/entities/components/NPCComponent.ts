@@ -160,7 +160,7 @@ export class NPCComponent extends GameComponent {
       const tileY = hotSpotSystem.getHitTileY(checkY);
       const hotSpot = hotSpotSystem.getHotSpotByTile(tileX, tileY);
       // Log every frame for NPCs
-      console.warn(`[NPCComponent] ${parentObject.subType || 'NPC'} at pos(${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}) tile(${tileX}, ${tileY}) hotspot=${hotSpot} targetVel=(${parentObject.getTargetVelocity().x.toFixed(0)}, ${parentObject.getTargetVelocity().y.toFixed(0)}) vel=(${parentObject.getVelocity().x.toFixed(0)}, ${parentObject.getVelocity().y.toFixed(0)})`);
+      console.log(`[NPCComponent] ${parentObject.subType || 'NPC'} at pos(${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}) tile(${tileX}, ${tileY}) hotspot=${hotSpot} targetVel=(${parentObject.getTargetVelocity().x.toFixed(0)}, ${parentObject.getTargetVelocity().y.toFixed(0)}) vel=(${parentObject.getVelocity().x.toFixed(0)}, ${parentObject.getVelocity().y.toFixed(0)})`);
     }
     
     // Handle hit reaction
@@ -218,7 +218,7 @@ export class NPCComponent extends GameComponent {
           
           // Debug: Log when Wanda enters a new tile
           if (parentObject.subType === 'wanda') {
-            console.warn(`[NPCComponent] Wanda NEW TILE: (${hitTileX}, ${hitTileY}) hotSpot=${hotSpot} last=(${this.lastHitTileX}, ${this.lastHitTileY})`);
+            console.log(`[NPCComponent] Wanda NEW TILE: (${hitTileX}, ${hitTileY}) hotSpot=${hotSpot} last=(${this.lastHitTileX}, ${this.lastHitTileY})`);
           }
           
           // Movement-related commands are immediate
@@ -267,6 +267,63 @@ export class NPCComponent extends GameComponent {
     // Store previous position
     this.previousPosition.x = parentObject.getPosition().x;
     this.previousPosition.y = parentObject.getPosition().y;
+  }
+
+  /**
+   * Check hotspots after physics update.
+   * Called from Game.tsx NPC physics loop to ensure NPCs don't skip hotspot tiles during fast falls.
+   * This is a PUBLIC method that can be called externally.
+   */
+  checkHotSpotsPostPhysics(parentObject: GameObject, timeDelta: number): void {
+    if (this.pauseTime > 0) return; // Don't check hotspots while paused
+    
+    const hotSpotSystem = sSystemRegistry.hotSpotSystem;
+    if (!hotSpotSystem) return;
+    
+    const centerX = parentObject.getCenteredPositionX();
+    const checkY = parentObject.getPosition().y + parentObject.height - 10;
+    const hitTileX = hotSpotSystem.getHitTileX(centerX);
+    const hitTileY = hotSpotSystem.getHitTileY(checkY);
+    
+    // Only process if we've moved to a new tile since the last check
+    if (hitTileX === this.lastHitTileX && hitTileY === this.lastHitTileY) {
+      return;
+    }
+    
+    const hotSpot = hotSpotSystem.getHotSpotByTile(hitTileX, hitTileY);
+    
+    // Debug: Log when NPC enters a new tile (post-physics)
+    if (parentObject.subType === 'wanda') {
+      console.log(`[NPCComponent POST-PHYSICS] Wanda NEW TILE: (${hitTileX}, ${hitTileY}) hotSpot=${hotSpot} last=(${this.lastHitTileX}, ${this.lastHitTileY})`);
+    }
+    
+    if (hotSpot > HotSpotType.NONE) {
+      let accepted = true;
+      
+      // Movement-related commands are immediate
+      if (hotSpot >= HotSpotType.NPC_GO_RIGHT && hotSpot <= HotSpotType.NPC_SLOW) {
+        parentObject.setCurrentAction(ActionType.MOVE);
+        accepted = this.executeCommand(hotSpot, parentObject, timeDelta);
+      } else if (hotSpot === HotSpotType.ATTACK && !this.pauseOnAttack) {
+        accepted = this.executeCommand(hotSpot, parentObject, timeDelta);
+      } else if (hotSpot === HotSpotType.NPC_RUN_QUEUED_COMMANDS) {
+        if (!this.executingQueue && this.queueTop !== this.queueBottom) {
+          this.executingQueue = true;
+        }
+      } else {
+        // Queue other commands for later execution
+        this.queueCommand(hotSpot);
+      }
+      
+      if (accepted) {
+        this.lastHitTileX = hitTileX;
+        this.lastHitTileY = hitTileY;
+      }
+    } else {
+      // Update last tile even if no hotspot (to track position)
+      this.lastHitTileX = hitTileX;
+      this.lastHitTileY = hitTileY;
+    }
   }
 
   /**
@@ -322,12 +379,12 @@ export class NPCComponent extends GameComponent {
         
       case HotSpotType.WALK_AND_TALK: {
         // Trigger dialog while walking
-        console.warn(`[NPCComponent] WALK_AND_TALK: dialogEvent=${this.dialogEvent}, dialogIndex=${this.dialogIndex}`);
+        console.log(`[NPCComponent] WALK_AND_TALK: dialogEvent=${this.dialogEvent}, dialogIndex=${this.dialogIndex}`);
         if (this.dialogEvent !== GameFlowEventType.INVALID) {
           const gameFlowEvent = sSystemRegistry.gameFlowEvent;
-          console.warn(`[NPCComponent] gameFlowEvent from registry:`, gameFlowEvent);
+          console.log(`[NPCComponent] gameFlowEvent from registry:`, gameFlowEvent);
           if (gameFlowEvent) {
-            console.warn(`[NPCComponent] Posting dialog event:`, this.dialogEvent, this.dialogIndex);
+            console.log(`[NPCComponent] Posting dialog event:`, this.dialogEvent, this.dialogIndex);
             gameFlowEvent.postImmediate(this.dialogEvent, this.dialogIndex);
             this.dialogEvent = GameFlowEventType.INVALID;
           } else {
@@ -424,7 +481,7 @@ export class NPCComponent extends GameComponent {
         break;
         
       case HotSpotType.NPC_GO_RIGHT:
-        console.warn(`[NPCComponent] NPC_GO_RIGHT: Setting targetVelocity.x = ${this.horizontalImpulse}, acceleration.x = ${this.acceleration}`);
+        console.log(`[NPCComponent] NPC_GO_RIGHT: Setting targetVelocity.x = ${this.horizontalImpulse}, acceleration.x = ${this.acceleration}`);
         parentObject.getTargetVelocity().x = this.horizontalImpulse;
         parentObject.getAcceleration().x = this.acceleration;
         if (this.flying) {

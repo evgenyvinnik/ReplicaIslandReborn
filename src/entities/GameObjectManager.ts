@@ -128,7 +128,7 @@ export class GameObjectManager {
 
     // Log NPC counts every 60 frames
     if (Math.random() < 0.016) { // ~once per second
-      console.warn(`[GameObjectManager] Total objects: ${this.objects.getCount()}, NPCs: ${npcCount}, active NPCs: ${activeNpcCount}`);
+      console.log(`[GameObjectManager] Total objects: ${this.objects.getCount()}, NPCs: ${npcCount}, active NPCs: ${activeNpcCount}`);
     }
   }
 

@@ -181,7 +181,7 @@ export class AssetLoader {
       try {
         await this.loadSprite(sprite);
       } catch {
-        console.warn(`Failed to load essential sprite: ${sprite.name}`);
+        console.log(`Failed to load essential sprite: ${sprite.name}`);
       }
       loaded++;
       progressCallback?.({
@@ -196,7 +196,7 @@ export class AssetLoader {
       try {
         await this.loadAudio(audio);
       } catch {
-        console.warn(`Failed to load essential audio: ${audio.name}`);
+        console.log(`Failed to load essential audio: ${audio.name}`);
       }
       loaded++;
       progressCallback?.({

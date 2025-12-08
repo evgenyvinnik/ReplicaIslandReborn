@@ -204,13 +204,13 @@ export class SoundSystem {
     
     // Ensure gain nodes are initialized
     if (!this.sfxGain) {
-      console.warn('Sound system not properly initialized - gain nodes missing');
+      console.log('Sound system not properly initialized - gain nodes missing');
       return -1;
     }
 
     const sound = this.sounds.get(name);
     if (!sound) {
-      console.warn(`Sound not found: ${name}`);
+      console.log(`Sound not found: ${name}`);
       return -1;
     }
 
@@ -338,26 +338,26 @@ export class SoundSystem {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        console.warn(`Background music not found: ${url}`);
+        console.log(`Background music not found: ${url}`);
         return false;
       }
       
       const contentType = response.headers.get('content-type');
       if (contentType && !contentType.includes('audio') && !contentType.includes('octet-stream')) {
-        console.warn(`Invalid content type for music: ${contentType}`);
+        console.log(`Invalid content type for music: ${contentType}`);
         return false;
       }
       
       const arrayBuffer = await response.arrayBuffer();
       if (arrayBuffer.byteLength < 100) {
-        console.warn('Music file too small or empty');
+        console.log('Music file too small or empty');
         return false;
       }
       
       this.musicBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
       return true;
     } catch (error) {
-      console.warn('Failed to load background music:', error);
+      console.log('Failed to load background music:', error);
       return false;
     }
   }
@@ -526,7 +526,7 @@ export class SoundSystem {
 
     const loadPromises = soundFiles.map(name =>
       this.loadSound(name, assetPath(`/assets/sounds/${name}.ogg`)).catch(err => {
-        console.warn(`Failed to load sound ${name}:`, err);
+        console.log(`Failed to load sound ${name}:`, err);
       })
     );
 
