@@ -135,7 +135,12 @@ export class LifetimeComponent extends GameComponent {
     // Check time-based death
     if (this.timeUntilDeath > 0) {
       this.timeUntilDeath -= dt;
+      // Debug logging for projectiles
+      if (parent.type === 'projectile') {
+        console.log(`[LifetimeComponent] Projectile ${parent.subType} timeUntilDeath=${this.timeUntilDeath.toFixed(2)} dt=${dt.toFixed(4)}`);
+      }
       if (this.timeUntilDeath <= 0) {
+        console.log(`[LifetimeComponent] Projectile ${parent.type}/${parent.subType} DYING - timeUntilDeath expired`);
         this.die(parent);
         return;
       }

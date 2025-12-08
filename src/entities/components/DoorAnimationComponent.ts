@@ -10,6 +10,7 @@ import { GameComponent } from '../GameComponent';
 import { ComponentPhase } from '../../types';
 import type { GameObject } from '../GameObject';
 import { SpriteComponent } from './SpriteComponent';
+import { SolidSurfaceComponent } from './SolidSurfaceComponent';
 import { sSystemRegistry } from '../../engine/SystemRegistry';
 import type { Channel, ChannelFloatValue } from '../../engine/ChannelSystem';
 
@@ -49,6 +50,7 @@ export class DoorAnimationComponent extends GameComponent {
   private stayOpenTime: number = DEFAULT_STAY_OPEN_TIME;
   private openSound: string | null = null;
   private closeSound: string | null = null;
+  private solidSurface: SolidSurfaceComponent | null = null; // Reference to solid surface for collision
   private solidSurfaceEnabled: boolean = true; // Track if collision is enabled
 
   constructor(config?: DoorAnimationConfig) {
@@ -69,10 +71,11 @@ export class DoorAnimationComponent extends GameComponent {
     this.stayOpenTime = DEFAULT_STAY_OPEN_TIME;
     this.openSound = null;
     this.closeSound = null;
+    this.solidSurface = null;
     this.solidSurfaceEnabled = true;
   }
 
-  private open(timeSinceTriggered: number, _parentObject: GameObject): void {
+  private open(timeSinceTriggered: number, parentObject: GameObject): void {
     if (!this.sprite) return;
 
     const openAnimation = this.sprite.findAnimation(DoorAnimation.OPENING);
@@ -85,6 +88,10 @@ export class DoorAnimationComponent extends GameComponent {
       this.sprite.playAnimation(DoorAnimation.OPEN);
       this.state = DoorState.OPEN;
       this.solidSurfaceEnabled = false;
+      // Remove solid surface when door is open
+      if (this.solidSurface) {
+        parentObject.removeComponent(this.solidSurface);
+      }
     } else {
       let timeOffset = timeSinceTriggered;
 
@@ -93,6 +100,10 @@ export class DoorAnimationComponent extends GameComponent {
         timeOffset = openAnimationLength - this.sprite.getCurrentAnimationTime();
       } else {
         this.solidSurfaceEnabled = false;
+        // Remove solid surface when door starts opening
+        if (this.solidSurface) {
+          parentObject.removeComponent(this.solidSurface);
+        }
       }
 
       this.state = DoorState.OPENING;
@@ -109,7 +120,7 @@ export class DoorAnimationComponent extends GameComponent {
     }
   }
 
-  private close(timeSinceTriggered: number, _parentObject: GameObject): void {
+  private close(timeSinceTriggered: number, parentObject: GameObject): void {
     if (!this.sprite) return;
 
     const closeAnimationLength = this.getAnimationLength(DoorAnimation.CLOSING);
@@ -119,6 +130,10 @@ export class DoorAnimationComponent extends GameComponent {
       this.sprite.playAnimation(DoorAnimation.CLOSED);
       this.state = DoorState.CLOSED;
       this.solidSurfaceEnabled = true;
+      // Add solid surface back when door is closed
+      if (this.solidSurface && !parentObject.hasComponent(this.solidSurface)) {
+        parentObject.addComponent(this.solidSurface);
+      }
     } else {
       let timeOffset = timeSinceTriggered - this.stayOpenTime;
 
@@ -239,5 +254,9 @@ export class DoorAnimationComponent extends GameComponent {
   setSounds(openSound: string, closeSound: string): void {
     this.openSound = openSound;
     this.closeSound = closeSound;
+  }
+
+  setSolidSurface(solidSurface: SolidSurfaceComponent): void {
+    this.solidSurface = solidSurface;
   }
 }

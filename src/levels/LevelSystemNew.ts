@@ -368,6 +368,12 @@ export class LevelSystem {
     // This prevents crashes when transitioning between levels
     this.gameObjectManager.clear();
 
+    // Reset channel system to clear stale channel data from previous level
+    // This ensures buttons and doors get fresh channels
+    if (sSystemRegistry.channelSystem) {
+      sSystemRegistry.channelSystem.reset();
+    }
+
     const spawnList: SpawnInfo[] = [];
 
     console.log(`[LevelSystem] spawnObjectsFromLayer: ${objectLayer.width}x${objectLayer.height}, tiles array length: ${objectLayer.tiles?.length}`);
@@ -742,12 +748,16 @@ export class LevelSystem {
             doorAnim.setChannel(channel);
           }
         }
-        obj.addComponent(doorAnim);
         
         // Create solid surface for door collision (rectangular box)
         const solidSurface = new SolidSurfaceComponent();
         solidSurface.createRectangle(objWidth, objHeight);
         obj.addComponent(solidSurface);
+        
+        // Link the solid surface to the door animation component
+        // so it can be removed/added when door opens/closes
+        doorAnim.setSolidSurface(solidSurface);
+        obj.addComponent(doorAnim);
         
         // Create dynamic collision for deadly closing door
         const doorDynCollision = new DynamicCollisionComponent();

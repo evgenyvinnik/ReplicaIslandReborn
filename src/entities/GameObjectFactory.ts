@@ -299,6 +299,7 @@ export class GameObjectFactory {
    * Configure a coin collectible
    */
   private configureCoin(obj: GameObject): void {
+    obj.type = 'coin';
     obj.team = Team.NONE;
     obj.width = 16;
     obj.height = 16;
@@ -327,6 +328,7 @@ export class GameObjectFactory {
    * Configure a pearl collectible
    */
   private configurePearl(obj: GameObject): void {
+    obj.type = 'pearl';
     obj.team = Team.NONE;
     obj.width = 24;
     obj.height = 24;

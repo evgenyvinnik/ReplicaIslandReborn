@@ -187,6 +187,13 @@ export class GameObject implements Poolable {
   }
 
   /**
+   * Check if this object has a specific component instance
+   */
+  hasComponent(component: GameComponent): boolean {
+    return this.allComponents.includes(component);
+  }
+
+  /**
    * Get all components
    */
   getComponents(): GameComponent[] {
