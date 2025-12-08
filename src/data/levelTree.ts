@@ -2,7 +2,8 @@
  * Level Tree - Level progression structure matching the original Replica Island
  * 
  * The level tree defines all levels, their order, timestamps, and unlock logic.
- * Levels are grouped together; completing any level in a group unlocks the next group.
+ * Levels are grouped together; completing ALL levels in a group unlocks the next group.
+ * Within a group, all uncompleted levels are playable in any order.
  */
 
 export interface Level {

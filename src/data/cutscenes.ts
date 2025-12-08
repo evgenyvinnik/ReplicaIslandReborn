@@ -82,6 +82,8 @@ for (let i = 1; i <= 16; i++) {
  */
 export const CUTSCENES: Record<CutsceneType, CutsceneDefinition> = {
   [CutsceneType.KYLE_DEATH]: {
+    // NOTE: This is for the ENEMY Kyle's death animation, NOT player death!
+    // Player death in the original is handled in-game with fade-to-black and level restart
     type: CutsceneType.KYLE_DEATH,
     frameAnimation: {
       frames: KYLE_DEATH_FRAMES,
@@ -90,7 +92,7 @@ export const CUTSCENES: Record<CutsceneType, CutsceneDefinition> = {
     },
     backgroundColor: '#000000',
     totalDuration: 1500, // 16 frames * 83ms + buffer
-    isGameOver: true,
+    isGameOver: false, // Not a game over - this is enemy Kyle death
     isEnding: false,
   },
 

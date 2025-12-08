@@ -40,6 +40,7 @@ import { GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { assetPath } from '../utils/helpers';
 import { useGameStore, isLevelUnlocked } from '../stores/useGameStore';
+import { levelTree, resourceToLevelId } from '../data/levelTree';
 
 // Channel names for buttons and doors (must match original)
 const RED_BUTTON_CHANNEL = 'RED BUTTON';
@@ -51,11 +52,14 @@ export interface LevelInfo {
   name: string;
   file: string;      // Base filename without extension
   binary: boolean;   // True if .bin format, false if .json
-  next: number | null;
+  next: number | null;      // Next level ID (for linear within a group)
+  nextGroup: number | null; // First level ID of the next group (for branching)
+  groupIndex: number;       // Index of this level's group in levelTree
   unlocked: boolean;
   world: number;     // World/chapter number
   stage: number;     // Stage within world
   inThePast: boolean; // True if this level is a memory/flashback sequence
+  restartable: boolean; // Whether the level can be restarted on death
 }
 
 export interface SpawnInfo {
@@ -101,72 +105,72 @@ export class LevelSystem {
   }
 
   /**
-   * Initialize the level progression tree
-   * Based on Original/res/xml/level_tree.xml
+   * Initialize the level progression tree from levelTree.ts
+   * This builds the branching level structure that matches the original game
+   * 
+   * The original game has a non-linear "memory tree" where:
+   * - Levels are organized into groups
+   * - Within a group, all uncompleted levels are available to play in any order
+   * - Completing ALL levels in a group unlocks ALL levels in the next group
    */
   private initializeLevelTree(): void {
-    const levelTree: LevelInfo[] = [
-      // Tutorial (World 0)
-      // Level 0-1 Intro: Cutscene showing Wanda discovering Kyle falling into sewer
-      // This is a story-only level with NPCs, no player spawn
-      { id: 1, name: 'Intro', file: 'level_0_1_sewer', binary: true, next: 2, unlocked: true, world: 0, stage: 1, inThePast: false },
-      // Level 0-1 Playable: First tutorial level after the intro cutscene
-      { id: 2, name: 'Tutorial 1', file: 'level_0_1_sewer_kyle', binary: true, next: 3, unlocked: true, world: 0, stage: 1, inThePast: false },
-      { id: 3, name: 'Tutorial 2', file: 'level_0_2_lab', binary: true, next: 4, unlocked: false, world: 0, stage: 2, inThePast: true },
-      { id: 4, name: 'Tutorial 3', file: 'level_0_3_lab', binary: true, next: 5, unlocked: false, world: 0, stage: 3, inThePast: true },
+    // Build level info from the shared levelTree structure
+    for (let groupIndex = 0; groupIndex < levelTree.length; groupIndex++) {
+      const group = levelTree[groupIndex];
+      const nextGroupIndex = groupIndex + 1;
+      const nextGroup = nextGroupIndex < levelTree.length ? levelTree[nextGroupIndex] : null;
       
-      // Island (World 1) - All island levels are memory flashbacks
-      { id: 5, name: 'Island 1', file: 'level_1_1_island', binary: true, next: 6, unlocked: false, world: 1, stage: 1, inThePast: true },
-      { id: 6, name: 'Island 2', file: 'level_1_2_island', binary: true, next: 7, unlocked: false, world: 1, stage: 2, inThePast: true },
-      { id: 7, name: 'Island 3', file: 'level_1_3_island', binary: true, next: 8, unlocked: false, world: 1, stage: 3, inThePast: true },
-      { id: 8, name: 'Island 4', file: 'level_1_4_island', binary: true, next: 9, unlocked: false, world: 1, stage: 4, inThePast: true },
-      { id: 9, name: 'Island 5', file: 'level_1_5_island', binary: true, next: 10, unlocked: false, world: 1, stage: 5, inThePast: true },
-      { id: 10, name: 'Island 6', file: 'level_1_6_island', binary: true, next: 11, unlocked: false, world: 1, stage: 6, inThePast: true },
-      { id: 11, name: 'Island 8', file: 'level_1_8_island', binary: true, next: 12, unlocked: false, world: 1, stage: 8, inThePast: true },
-      { id: 12, name: 'Island 9', file: 'level_1_9_island', binary: true, next: 13, unlocked: false, world: 1, stage: 9, inThePast: true },
+      // Get the first level ID of the next group (for unlocking)
+      const nextGroupFirstLevelId = nextGroup 
+        ? resourceToLevelId[nextGroup.levels[0].resource] ?? null
+        : null;
       
-      // Grass (World 2) - All forest/grass levels are memory flashbacks
-      { id: 13, name: 'Forest 1', file: 'level_2_1_grass', binary: true, next: 14, unlocked: false, world: 2, stage: 1, inThePast: true },
-      { id: 14, name: 'Forest 2', file: 'level_2_2_grass', binary: true, next: 15, unlocked: false, world: 2, stage: 2, inThePast: true },
-      { id: 15, name: 'Forest 3', file: 'level_2_3_grass', binary: true, next: 16, unlocked: false, world: 2, stage: 3, inThePast: true },
-      { id: 16, name: 'Forest 4', file: 'level_2_4_grass', binary: true, next: 17, unlocked: false, world: 2, stage: 4, inThePast: true },
-      { id: 17, name: 'Forest 5', file: 'level_2_5_grass', binary: true, next: 18, unlocked: false, world: 2, stage: 5, inThePast: true },
-      { id: 18, name: 'Forest 6', file: 'level_2_6_grass', binary: true, next: 19, unlocked: false, world: 2, stage: 6, inThePast: true },
-      { id: 19, name: 'Forest 7', file: 'level_2_7_grass', binary: true, next: 20, unlocked: false, world: 2, stage: 7, inThePast: true },
-      { id: 20, name: 'Forest 8', file: 'level_2_8_grass', binary: true, next: 21, unlocked: false, world: 2, stage: 8, inThePast: true },
-      { id: 21, name: 'Forest 9', file: 'level_2_9_grass', binary: true, next: 22, unlocked: false, world: 2, stage: 9, inThePast: true },
-      
-      // Sewer (World 3) - Sewer levels are present-day, not flashbacks
-      { id: 22, name: 'Sewer 0', file: 'level_3_0_sewer', binary: true, next: 23, unlocked: false, world: 3, stage: 0, inThePast: false },
-      { id: 23, name: 'Sewer 1', file: 'level_3_1_grass', binary: true, next: 24, unlocked: false, world: 3, stage: 1, inThePast: false },
-      { id: 24, name: 'Sewer 2', file: 'level_3_2_sewer', binary: true, next: 25, unlocked: false, world: 3, stage: 2, inThePast: false },
-      { id: 25, name: 'Sewer 3', file: 'level_3_3_sewer', binary: true, next: 26, unlocked: false, world: 3, stage: 3, inThePast: false },
-      { id: 26, name: 'Sewer 4', file: 'level_3_4_sewer', binary: true, next: 27, unlocked: false, world: 3, stage: 4, inThePast: false },
-      { id: 27, name: 'Sewer 5', file: 'level_3_5_sewer', binary: true, next: 28, unlocked: false, world: 3, stage: 5, inThePast: false },
-      { id: 28, name: 'Sewer 6', file: 'level_3_6_sewer', binary: true, next: 29, unlocked: false, world: 3, stage: 6, inThePast: false },
-      { id: 29, name: 'Sewer 7', file: 'level_3_7_sewer', binary: true, next: 30, unlocked: false, world: 3, stage: 7, inThePast: false },
-      { id: 30, name: 'Sewer 8', file: 'level_3_8_sewer', binary: true, next: 31, unlocked: false, world: 3, stage: 8, inThePast: false },
-      { id: 31, name: 'Sewer 9', file: 'level_3_9_sewer', binary: true, next: 32, unlocked: false, world: 3, stage: 9, inThePast: false },
-      { id: 32, name: 'Sewer 10', file: 'level_3_10_sewer', binary: true, next: 33, unlocked: false, world: 3, stage: 10, inThePast: false },
-      { id: 33, name: 'Sewer 11', file: 'level_3_11_sewer', binary: true, next: 34, unlocked: false, world: 3, stage: 11, inThePast: false },
-      
-      // Underground (World 4) - Underground levels are memory flashbacks
-      { id: 34, name: 'Underground 1', file: 'level_4_1_underground', binary: true, next: 35, unlocked: false, world: 4, stage: 1, inThePast: true },
-      { id: 35, name: 'Underground 2', file: 'level_4_2_underground', binary: true, next: 36, unlocked: false, world: 4, stage: 2, inThePast: true },
-      { id: 36, name: 'Underground 3', file: 'level_4_3_underground', binary: true, next: 37, unlocked: false, world: 4, stage: 3, inThePast: true },
-      { id: 37, name: 'Underground 4', file: 'level_4_4_underground', binary: true, next: 38, unlocked: false, world: 4, stage: 4, inThePast: true },
-      { id: 38, name: 'Underground 5', file: 'level_4_5_underground', binary: true, next: 39, unlocked: false, world: 4, stage: 5, inThePast: true },
-      { id: 39, name: 'Underground 7', file: 'level_4_7_underground', binary: true, next: 40, unlocked: false, world: 4, stage: 7, inThePast: true },
-      { id: 40, name: 'Underground 8', file: 'level_4_8_underground', binary: true, next: 41, unlocked: false, world: 4, stage: 8, inThePast: true },
-      { id: 41, name: 'Underground 9', file: 'level_4_9_underground', binary: true, next: 42, unlocked: false, world: 4, stage: 9, inThePast: true },
-      
-      // Final Boss - Present day
-      { id: 42, name: 'Final Boss', file: 'level_final_boss_lab', binary: true, next: null, unlocked: false, world: 5, stage: 1, inThePast: false },
-    ];
-
-    for (const level of levelTree) {
-      this.levels.set(level.id, level);
+      for (let levelIndex = 0; levelIndex < group.levels.length; levelIndex++) {
+        const level = group.levels[levelIndex];
+        const levelId = resourceToLevelId[level.resource];
+        
+        if (levelId === undefined) {
+          console.warn(`[LevelSystem] No level ID for resource: ${level.resource}`);
+          continue;
+        }
+        
+        // Extract world and stage from resource name (e.g., 'level_1_2_island' -> world 1, stage 2)
+        const match = level.resource.match(/level_(\d+)_(\d+)/);
+        const world = match ? parseInt(match[1], 10) : 0;
+        const stage = match ? parseInt(match[2], 10) : 0;
+        
+        // Determine next level (within same group, or first of next group)
+        let nextLevelId: number | null = null;
+        if (levelIndex + 1 < group.levels.length) {
+          // There are more levels in this group - but in the original,
+          // completing any level in a group unlocks the next group
+          // So "next" should point to the next group
+          nextLevelId = nextGroupFirstLevelId;
+        } else {
+          // Last level in group - next is first level of next group
+          nextLevelId = nextGroupFirstLevelId;
+        }
+        
+        const levelInfo: LevelInfo = {
+          id: levelId,
+          name: level.name,
+          file: level.resource,
+          binary: true,
+          next: nextLevelId,
+          nextGroup: nextGroupFirstLevelId,
+          groupIndex: groupIndex,
+          unlocked: groupIndex === 0, // Only first group is unlocked by default
+          world: world,
+          stage: stage,
+          inThePast: level.inThePast,
+          restartable: level.restartable,
+        };
+        
+        this.levels.set(levelId, levelInfo);
+      }
     }
+    
+    console.log(`[LevelSystem] Initialized ${this.levels.size} levels from levelTree`);
   }
 
   /**
@@ -258,6 +262,7 @@ export class LevelSystem {
     }
 
     // Spawn objects from object layer
+    console.log('[LevelSystem] Object layer:', parsed.objectLayer ? `${parsed.objectLayer.width}x${parsed.objectLayer.height}` : 'null');
     if (parsed.objectLayer) {
       this.spawnObjectsFromLayer(parsed.objectLayer);
     }
@@ -342,6 +347,8 @@ export class LevelSystem {
 
     const spawnList: SpawnInfo[] = [];
 
+    console.log(`[LevelSystem] spawnObjectsFromLayer: ${objectLayer.width}x${objectLayer.height}, tiles array length: ${objectLayer.tiles?.length}`);
+
     // Scan the object layer for spawn points
     // tiles[x][y] is column-major where y=0 is top of level
     for (let y = 0; y < objectLayer.height; y++) {
@@ -367,6 +374,8 @@ export class LevelSystem {
       }
     }
 
+    console.log(`[LevelSystem] Found ${spawnList.length} objects to spawn`);
+
     // Sort by type so player spawns first
     spawnList.sort((a, b) => {
       if (a.type === GameObjectTypeIndex.PLAYER) return -1;
@@ -388,6 +397,7 @@ export class LevelSystem {
     if (!this.gameObjectManager) return;
 
     const typeName = getObjectTypeName(spawn.type);
+    console.log(`[LevelSystem] Spawning object: type=${spawn.type} (${typeName}) at tile(${spawn.tileX},${spawn.tileY}) world(${spawn.x},${spawn.y})`);
     
     // Create object 
     const obj = this.gameObjectManager.createObject();
@@ -406,6 +416,7 @@ export class LevelSystem {
         objWidth = 32;    // Collision box width (not sprite width)
         objHeight = 48;   // Collision box height (not sprite height)
         this.gameObjectManager.setPlayer(obj);
+        console.log(`[LevelSystem] PLAYER spawning at tile (${spawn.tileX}, ${spawn.tileY}), pixel (${spawn.x}, ${spawn.y})`);
         break;
 
       case GameObjectTypeIndex.COIN:
@@ -1695,6 +1706,7 @@ export class LevelSystem {
 
   /**
    * Get the ID of the next level (without unlocking)
+   * Returns the first level of the next group
    */
   getNextLevelId(): number | null {
     const current = this.levels.get(this.currentLevelId);
@@ -1702,15 +1714,95 @@ export class LevelSystem {
   }
 
   /**
-   * Complete current level and unlock next
+   * Complete current level and check if the entire group is done.
+   * This implements the original game's behavior:
+   * - Complete ALL levels in a group to unlock the next group
+   * - Returns the next uncompleted level in the current group, or
+   *   the first level of the next group if the current group is fully complete
    */
   completeCurrentLevel(): number | null {
     const current = this.levels.get(this.currentLevelId);
-    if (current && current.next !== null) {
-      this.unlockLevel(current.next);
-      return current.next;
+    if (!current) return null;
+    
+    // Mark current level as completed in the store (with default score/time for now)
+    // The actual score/time tracking happens in Game.tsx
+    const storeState = useGameStore.getState();
+    
+    const currentGroup = levelTree[current.groupIndex];
+    const levelProgressMap = storeState.progress.levels;
+    
+    // Check if ALL levels in the current group are now completed
+    let groupFullyCompleted = true;
+    let firstUncompletedInGroup: number | null = null;
+    
+    for (const level of currentGroup.levels) {
+      const levelId = resourceToLevelId[level.resource];
+      if (levelId !== undefined) {
+        // Check if this level is completed (just marked or previously)
+        const levelProgress = levelProgressMap[levelId];
+        const isCompleted = levelProgress?.completed || levelId === this.currentLevelId;
+        if (!isCompleted) {
+          groupFullyCompleted = false;
+          if (firstUncompletedInGroup === null) {
+            firstUncompletedInGroup = levelId;
+          }
+        }
+      }
     }
-    return null;
+    
+    if (!groupFullyCompleted) {
+      // Group not complete - stay in current group, return first uncompleted level
+      console.log(`[LevelSystem] Group ${current.groupIndex} not fully complete yet`);
+      return firstUncompletedInGroup;
+    }
+    
+    // Group is fully complete - unlock next group
+    const nextGroupIndex = current.groupIndex + 1;
+    if (nextGroupIndex >= levelTree.length) {
+      // No more groups - game complete!
+      console.log('[LevelSystem] Game complete! No more levels.');
+      return null;
+    }
+    
+    // Unlock ALL levels in the next group
+    const nextGroup = levelTree[nextGroupIndex];
+    let firstNextLevelId: number | null = null;
+    
+    for (const level of nextGroup.levels) {
+      const levelId = resourceToLevelId[level.resource];
+      if (levelId !== undefined) {
+        this.unlockLevel(levelId);
+        if (firstNextLevelId === null) {
+          firstNextLevelId = levelId;
+        }
+        console.log(`[LevelSystem] Unlocked level ${level.name} (ID: ${levelId})`);
+      }
+    }
+    
+    return firstNextLevelId;
+  }
+
+  /**
+   * Get all unlocked levels in the current level's group (for branching)
+   */
+  getUnlockedLevelsInCurrentGroup(): number[] {
+    const current = this.levels.get(this.currentLevelId);
+    if (!current) return [];
+    
+    const group = levelTree[current.groupIndex];
+    const unlockedLevels: number[] = [];
+    
+    for (const level of group.levels) {
+      const levelId = resourceToLevelId[level.resource];
+      if (levelId !== undefined) {
+        const levelInfo = this.levels.get(levelId);
+        if (levelInfo?.unlocked) {
+          unlockedLevels.push(levelId);
+        }
+      }
+    }
+    
+    return unlockedLevels;
   }
 
   /**

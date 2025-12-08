@@ -232,6 +232,9 @@ export class NPCComponent extends GameComponent {
             }
             parentObject.setCurrentAction(ActionType.MOVE);
             accepted = this.executeCommand(hotSpot, parentObject, timeDelta);
+            if (parentObject.subType === 'wanda') {
+              console.log(`[NPCComponent] Wanda AFTER EXECUTE: targetVel=(${parentObject.getTargetVelocity().x}, ${parentObject.getTargetVelocity().y}) accel=(${parentObject.getAcceleration().x}, ${parentObject.getAcceleration().y})`);
+            }
           } else if (hotSpot === HotSpotType.ATTACK && !this.pauseOnAttack) {
             // When pauseOnAttack is false, attacks are also immediate
             accepted = this.executeCommand(hotSpot, parentObject, timeDelta);

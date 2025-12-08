@@ -152,6 +152,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const levelStartTimeRef = useRef<number>(0);
   const levelElapsedTimeRef = useRef<number>(0);
   
+  // Decoration smoke effect timing (for ANDOU_DEAD)
+  const decorationSmokeTimerRef = useRef<Map<number, number>>(new Map());
+  
   // Player spawn point (set when level loads)
   const playerSpawnRef = useRef({ x: 100, y: 320 });
   
@@ -198,9 +201,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     sparkFrame: 0,
     sparkTimer: 0,
     
-    // Death/respawn state
+    // Death/respawn state (matching original behavior)
     isDying: false,
     deathTime: 0,
+    fadeToRestart: false, // True when fade-to-black has started
+    fadeTime: 0,          // Time remaining in fade animation
     
     // Win state
     levelWon: false,
@@ -241,6 +246,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     pState.sparkTimer = 0;
     pState.isDying = false;
     pState.deathTime = 0;
+    pState.fadeToRestart = false;
+    pState.fadeTime = 0;
     pState.levelWon = false;
     pState.glowMode = false;
     pState.glowTime = 0;
@@ -326,8 +333,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               
               hasShownIntroDialogRef.current = true;
               setDialogConversationIndex(conversationIdx);
-              // For NPC-triggered dialogs, show all remaining conversations
-              setDialogSingleMode(false);
+              // For NPC-triggered dialogs, only show the single conversation at this hotspot
+              setDialogSingleMode(true);
               setActiveDialog(dialog);
             }
           }
@@ -1195,6 +1202,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'effect_energyball02', file: 'effect_energyball02', w: 32, h: 32 },
         { name: 'effect_energyball03', file: 'effect_energyball03', w: 32, h: 32 },
         { name: 'effect_energyball04', file: 'effect_energyball04', w: 32, h: 32 },
+        // Dead character decorations (broken robots)
+        { name: 'andou_dead', file: 'andou_explode12', w: 64, h: 64 },
+        { name: 'kyle_dead', file: 'enemy_kyle_dead', w: 64, h: 64 },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -1499,6 +1509,29 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Update effects system (explosions, smoke, etc.)
       effectsSystem.update(deltaTime);
 
+      // Spawn smoke effects for decoration objects (ANDOU_DEAD - broken android)
+      const currentTime = performance.now();
+      const smokeTimers = decorationSmokeTimerRef.current;
+      gameObjectManager.forEach((obj) => {
+        if (obj.type !== 'decoration' || !obj.isVisible()) return;
+        
+        if (obj.subType === 'andou_dead') {
+          // Spawn smoke at intervals (matching original: 0.25s for big, 0.35s for small)
+          const objId = obj.id;
+          const lastSmokeTime = smokeTimers.get(objId) ?? 0;
+          
+          // Big smoke every 0.25 seconds
+          if (currentTime - lastSmokeTime > 250) {
+            const pos = obj.getPosition();
+            // Spawn big smoke at offset (32, 15) from original
+            effectsSystem.spawnSmoke(pos.x + 32, pos.y + 15, true);
+            // Spawn small smoke at offset (16, 15) 
+            effectsSystem.spawnSmoke(pos.x + 16, pos.y + 15, false);
+            smokeTimers.set(objId, currentTime);
+          }
+        }
+      });
+
       // Enemy AI and physics
       gameObjectManager.forEach((obj) => {
         if (obj.type !== 'enemy' || !obj.isVisible() || obj.life <= 0) return;
@@ -1650,7 +1683,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Debug log for Wanda
         if (obj.subType === 'wanda' && Math.random() < 0.02) {
-          console.log(`[NPC Physics] Wanda pos=(${position.x.toFixed(1)}, ${position.y.toFixed(1)}) vel=(${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)})`);
+          console.log(`[NPC Physics] Wanda pos=(${position.x.toFixed(1)}, ${position.y.toFixed(1)}) vel=(${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)}) targetVel=(${targetVelocity.x.toFixed(1)}, ${targetVelocity.y.toFixed(1)}) accel=(${acceleration.x.toFixed(1)}, ${acceleration.y.toFixed(1)})`);
         }
         
         // Interpolate velocity towards target velocity (based on original MovementComponent)
@@ -1706,7 +1739,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           console.log(`[NPC Velocity] Wanda vel.x=${velocity.x.toFixed(1)} at pos(${position.x.toFixed(0)}, ${position.y.toFixed(0)})`);
         }
         
-        if (Math.abs(velocity.x) > 50) {
+        if (Math.abs(velocity.x) >= 50) {
           // Debug: Log when Wanda is near breakable block X position
           if (obj.subType === 'wanda' && position.x > 540 && position.x < 620) {
             console.log(`[NPC Block Check] Wanda at (${position.x.toFixed(0)}, ${position.y.toFixed(0)}) checking for breakable blocks`);
@@ -1774,9 +1807,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const pState = playerStateRef.current;
         
         if (hotSpot === HotSpotType.DIE && !pState.isDying) {
-          // Player death from death zone
+          // Player death from death zone - matching original behavior:
+          // 1. Play death animation in-game
+          // 2. After 2 seconds, fade to black
+          // 3. Restart level automatically (no game over screen)
           pState.isDying = true;
-          pState.deathTime = 1.0; // 1 second death animation
+          pState.deathTime = 2.0; // 2 seconds until fade starts (matching original)
+          pState.currentState = PlayerState.DEAD;
+          pState.fadeToRestart = false; // Will be set true after deathTime expires
           soundSystem.playSfx(SoundEffects.EXPLODE);
           
           // Spawn explosion effect at player position
@@ -1785,15 +1823,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Screen shake for death
           cameraSystem.shake(15, 0.5);
           
-          // Decrement lives
-          const inv = getInventory();
-          const newLives = inv.lives - 1;
-          setInventory({ lives: newLives });
+          // Stop player movement
+          player.getVelocity().x = 0;
+          player.getVelocity().y = 0;
           
-          if (newLives <= 0) {
-            // Game over - play death cutscene then show game over
-            playCutscene(CutsceneType.KYLE_DEATH);
-          }
+          // Track death for stats
+          useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
         } else if (hotSpot === HotSpotType.END_LEVEL && !pState.isDying) {
           // Level complete
           soundSystem.playSfx(SoundEffects.DING);
@@ -1846,38 +1881,52 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
       }
       
-      // Handle death animation and respawn
+      // Handle death animation and respawn (matching original behavior)
+      // Original flow: death animation plays for 2s, then fade to black over 1.5s, then restart
       const pState = playerStateRef.current;
       if (pState.isDying) {
         pState.deathTime -= deltaTime;
         
-        if (pState.deathTime <= 0) {
-          // Respawn player
-          pState.isDying = false;
-          pState.deathTime = 0;
+        if (pState.deathTime <= 0 && !pState.fadeToRestart) {
+          // Start fade to black (1.5 seconds, matching original)
+          pState.fadeToRestart = true;
+          pState.fadeTime = 1.5;
+        }
+        
+        if (pState.fadeToRestart) {
+          pState.fadeTime -= deltaTime;
           
-          // Check if we have lives left
-          const inv = getInventory();
-          if (inv.lives > 0) {
-            // Reset player position to spawn point
-            const spawn = playerSpawnRef.current;
-            if (player) {
-              player.setPosition(spawn.x, spawn.y);
-              player.getVelocity().x = 0;
-              player.getVelocity().y = 0;
+          if (pState.fadeTime <= 0) {
+            // Fade complete - restart level
+            pState.isDying = false;
+            pState.deathTime = 0;
+            pState.fadeToRestart = false;
+            pState.fadeTime = 0;
+            
+            // Reload current level
+            const levelSys = levelSystemRef.current;
+            if (levelSys) {
+              levelSys.loadLevel(state.currentLevel).then(() => {
+                // Initialize tile map renderer for level
+                const parsedLevel = levelSys.getParsedLevel();
+                if (parsedLevel && tileMapRendererRef.current) {
+                  tileMapRendererRef.current.initializeFromLevel(parsedLevel);
+                }
+                
+                const spawn = levelSys.playerSpawnPosition;
+                playerSpawnRef.current = { ...spawn };
+                resetPlayerState();
+                
+                const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+                gameObjectMgr?.commitUpdates();
+                const playerObj = gameObjectMgr?.getPlayer();
+                if (playerObj) {
+                  playerObj.setPosition(spawn.x, spawn.y);
+                  playerObj.getVelocity().x = 0;
+                  playerObj.getVelocity().y = 0;
+                }
+              });
             }
-            
-            // Reset state machine to MOVE
-            pState.currentState = PlayerState.MOVE;
-            pState.stomping = false;
-            pState.stompHangTime = 0;
-            pState.stompLanded = false;
-            pState.ghostChargeTime = 0;
-            pState.ghostActive = false;
-            
-            // Give invincibility frames after respawn (using constant)
-            pState.invincible = true;
-            pState.invincibleTime = PLAYER.INVINCIBILITY_TIME;
           }
         }
       }
@@ -1979,7 +2028,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               const pState = playerStateRef.current;
               
               if (obj.type === 'coin') {
-                setInventory({ coinCount: inv.coinCount + 1, score: inv.score + 1 });
+                // Coins don't add to score in the original game - only track count
+                setInventory({ coinCount: inv.coinCount + 1 });
                 soundSystem.playSfx(SoundEffects.GEM1, 0.5);
                 
                 // Track coins toward glow mode powerup
@@ -1990,13 +2040,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 const coinsNeeded = difficultyConfig.coinsPerPowerup;
                 const glowDuration = difficultyConfig.glowDuration;
                 
-                if (pState.coinsForPowerup >= coinsNeeded && !pState.glowMode) {
+                if (pState.coinsForPowerup >= coinsNeeded) {
                   // Activate glow mode!
                   pState.glowMode = true;
                   pState.glowTime = glowDuration;
                   pState.invincible = true;  // Glow mode grants invincibility
                   pState.invincibleTime = glowDuration;
                   pState.coinsForPowerup = 0;  // Reset counter
+                  
+                  // Restore player health to max (original game behavior)
+                  setInventory({ lives: difficultyConfig.playerMaxLife });
+                  
                   soundSystem.playSfx(SoundEffects.DING, 1.0);  // Power-up sound
                 }
               } else if (obj.type === 'ruby') {
@@ -2101,36 +2155,54 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 // Award points
                 const inv = getInventory();
                 setInventory({ score: inv.score + 25 });
-              } else if (!pState.invincible && pState.currentState !== PlayerState.HIT_REACT) {
-                // Enemy damages player (only if not invincible and not in hit reaction)
+              } else if (!pState.invincible && pState.currentState !== PlayerState.HIT_REACT && !pState.isDying) {
+                // Enemy damages player (only if not invincible, not in hit reaction, and not dying)
+                // Original game has 2 health points (MAX_PLAYER_LIFE = 2)
                 const inv = getInventory();
-                if (inv.lives > 0) {
-                  const newLives = inv.lives - 1;
-                  setInventory({ lives: newLives });
-                  soundSystem.playSfx(SoundEffects.THUMP);
+                const newHealth = inv.lives - 1; // Using 'lives' as health for now
+                setInventory({ lives: newHealth });
+                soundSystem.playSfx(SoundEffects.THUMP);
+                
+                // Screen shake for damage feedback
+                cameraSystem.shake(8, 0.3);
+                
+                if (newHealth <= 0) {
+                  // Player dies - matching original death flow:
+                  // 1. Play death animation in-game
+                  // 2. After 2 seconds, fade to black
+                  // 3. Restart level automatically
+                  pState.currentState = PlayerState.DEAD;
+                  pState.isDying = true;
+                  pState.deathTime = 2.0; // 2 seconds until fade starts
+                  pState.fadeToRestart = false;
                   
-                  // Enter HIT_REACT state (matching original HIT_REACT_TIME = 0.5s)
-                  pState.currentState = PlayerState.HIT_REACT;
-                  pState.hitReactTimer = PLAYER.HIT_REACT_TIME;
+                  // Stop player movement
+                  player.getVelocity().x = 0;
+                  player.getVelocity().y = 0;
                   
-                  // Screen shake for damage feedback
-                  cameraSystem.shake(8, 0.3);
+                  // Spawn explosion effect
+                  effectsSystem.spawnExplosion(
+                    playerPos.x + player.width / 2,
+                    playerPos.y + player.height / 2,
+                    'large'
+                  );
                   
-                  if (newLives <= 0) {
-                    // Enter DEAD state, then game over
-                    pState.currentState = PlayerState.DEAD;
-                    playCutscene(CutsceneType.KYLE_DEATH);
-                    return;
-                  }
-                  
-                  // Grant invincibility frames (INVINCIBILITY_TIME from original)
-                  pState.invincible = true;
-                  pState.invincibleTime = PLAYER.INVINCIBILITY_TIME;
-                  
-                  // Knock player back
-                  const knockbackDir = playerPos.x < objPos.x ? -1 : 1;
-                  player.setVelocity(knockbackDir * 200, -150);
+                  // Track death for stats
+                  useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
+                  return;
                 }
+                
+                // Enter HIT_REACT state (matching original HIT_REACT_TIME = 0.5s)
+                pState.currentState = PlayerState.HIT_REACT;
+                pState.hitReactTimer = PLAYER.HIT_REACT_TIME;
+                  
+                // Grant invincibility frames (INVINCIBILITY_TIME from original)
+                pState.invincible = true;
+                pState.invincibleTime = PLAYER.INVINCIBILITY_TIME;
+                
+                // Knock player back
+                const knockbackDir = playerPos.x < objPos.x ? -1 : 1;
+                player.setVelocity(knockbackDir * 200, -150);
               }
             }
           }
@@ -3019,6 +3091,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               spriteOffset.y = 16; // Offset to bottom of collision box
               break;
             }
+            case 'decoration': {
+              // Decoration objects (dead robots, etc.)
+              const decorationType = obj.subType || 'andou_dead';
+              if (decorationType === 'andou_dead') {
+                spriteName = 'andou_dead';
+              } else if (decorationType === 'kyle_dead') {
+                spriteName = 'kyle_dead';
+              }
+              spriteOffset.x = 0;
+              spriteOffset.y = 0;
+              break;
+            }
           }
           
           // Try to draw sprite, fall back to colored rectangle
@@ -3045,6 +3129,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               case 'enemy': color = '#ff4444'; break;
               case 'npc': color = '#44aaff'; break;
               case 'door': color = '#8844ff'; break;
+              case 'decoration': color = '#666666'; break;
             }
             renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, color, 5);
           }
@@ -3065,14 +3150,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // === Canvas UI Layer (rendered after swap, in screen space) ===
       
-      // Update and render Canvas HUD (hide during cutscenes)
+      // Update and render Canvas HUD (hide during cutscenes and cutscene-only levels without player)
       const canvasHUD = canvasHUDRef.current;
       const isCutsceneActive = canvasCutsceneRef.current?.isActive() ?? false;
-      if (canvasHUD && !isCutsceneActive) {
+      const hasPlayer = !!systemRegistryRef.current?.gameObjectManager?.getPlayer();
+      if (canvasHUD && !isCutsceneActive && hasPlayer) {
         const pState = playerStateRef.current;
         const inventory = getInventory();
         canvasHUD.setFuel(pState.fuel / PLAYER.FUEL_AMOUNT);
-        canvasHUD.setInventory(inventory.coinCount, inventory.rubyCount);
+        // Display coinsForPowerup (progress toward glow mode) not total coinCount
+        canvasHUD.setInventory(pState.coinsForPowerup, inventory.rubyCount);
         canvasHUD.setShowFPS(currentSettings.showFPS);
         canvasHUD.setFPS(gameLoop.getFPS());
         canvasHUD.update(1 / 60); // ~60fps deltaTime
@@ -3112,6 +3199,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const canvasPauseMenu = canvasPauseMenuRef.current;
       if (canvasPauseMenu && canvasPauseMenu.isShowing()) {
         canvasPauseMenu.render();
+      }
+      
+      // Render death fade-to-black overlay (matching original behavior)
+      const pState = playerStateRef.current;
+      if (pState.fadeToRestart && pState.fadeTime > 0) {
+        // Calculate fade progress (0 = start, 1 = fully black)
+        const fadeProgress = 1 - (pState.fadeTime / 1.5); // 1.5s fade duration
+        const opacity = Math.min(1, Math.max(0, fadeProgress));
+        ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+        ctx.fillRect(0, 0, width, height);
       }
       
       // Update and render Canvas Game Over Screen (if active)

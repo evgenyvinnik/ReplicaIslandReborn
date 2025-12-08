@@ -581,22 +581,76 @@ export function getCharacterName(character: Character): string {
   return CharacterNames[character] || character;
 }
 
+/**
+ * Level-to-dialog mapping based on Original/res/xml/level_tree.xml
+ * Each level resource explicitly maps to character1 and optionally character2 dialogs
+ * The order matters: character1 is index 0, character2 is index 1
+ */
+const LevelDialogMapping: Record<string, string[]> = {
+  // Tutorial levels
+  'level_0_1_sewer': ['level_0_1_dialog_wanda'],
+  'level_0_2_lab': ['level_0_2_dialog_kabocha'],  // Has character2 but we only have one defined
+  'level_0_3_lab': ['level_0_3_dialog_kabocha'],
+  
+  // World 1 - Island (past)
+  'level_1_1_island': ['level_1_1_dialog_wanda'],
+  'level_1_5_island': ['level_1_5_dialog_wanda'],
+  'level_1_6_island': ['level_1_6_dialog_wanda'],
+  'level_1_9_island': ['level_1_9_dialog_wanda'],
+  
+  // World 2 - Grass (past)
+  'level_2_1_grass': ['level_2_1_dialog_kyle'],
+  'level_2_3_grass': ['level_2_3_dialog_kyle'],
+  'level_2_4_grass': ['level_2_4_dialog_kyle'],
+  'level_2_5_grass': ['level_2_5_dialog_kyle'],
+  'level_2_6_grass': ['level_2_6_dialog_wanda'],
+  'level_2_7_grass': ['level_2_7_dialog_kyle'],
+  'level_2_8_grass': ['level_2_8_dialog_kyle'],
+  'level_2_9_grass': ['level_2_9_dialog_kyle'],  // Has both wanda and kyle
+  
+  // World 3 - Sewer (mixed past/present)
+  'level_3_3_sewer': ['level_3_3_dialog_wanda'],
+  'level_3_5_sewer': ['level_3_5_dialog_wanda'],
+  'level_3_7_sewer': ['level_3_7_dialog_wanda'],
+  'level_3_8_sewer': ['level_3_8_dialog_kyle'],
+  'level_3_9_sewer': ['level_3_9_dialog_kyle', 'level_3_9_dialog_rokudou'],
+  'level_3_10_sewer': ['level_3_10_dialog_kyle'],
+  'level_3_11_sewer': ['level_3_11_dialog_wanda'],
+  
+  // Memory flashback levels (special mappings)
+  'level_0_1_sewer_kyle': ['level_3_4_dialog_kyle'],
+  'level_0_1_sewer_wanda': ['level_0_1_dialog_wanda'],
+  
+  // World 4 - Underground (present)
+  'level_4_1_underground': ['level_4_1_dialog_wanda', 'level_4_1_dialog_rokudou'],
+  'level_4_2_underground': ['level_4_2_dialog_wanda'],
+  'level_4_3_underground': ['level_4_3_dialog_kabocha'],
+  'level_4_4_underground': ['level_4_4_dialog_rokudou'],  // Only character2 in original
+  'level_4_5_underground': ['level_4_5_dialog_wanda'],
+  'level_4_7_underground': ['level_4_7_dialog_wanda', 'level_4_7_dialog_rokudou'],
+  'level_4_9_underground': ['level_4_9_dialog_wanda'],
+  
+  // Final boss
+  'level_final_boss_lab': ['level_final_boss_dialog'],
+};
+
 // Get all dialogs for a level (may have multiple characters)
+// Returns dialogs in order: character1 at index 0, character2 at index 1
 export function getDialogsForLevel(levelId: string): Dialog[] {
   const dialogs: Dialog[] = [];
-  // Extract the level prefix like "level_0_1" from "level_0_1_sewer.bin" or "level_0_1_sewer"
-  const cleanId = levelId.replace('.bin', '');
-  // Match pattern: level_X_Y_type -> level_X_Y
-  const match = cleanId.match(/^(level_\d+_\d+)/);
-  if (!match) return dialogs;
   
-  const prefix = match[1];
+  // Clean the level ID - remove .bin/.json extension and normalize
+  const cleanId = levelId.replace(/\.(bin|json)$/, '');
   
-  // Find all dialogs that start with this level prefix
-  for (const key of Object.keys(LevelDialogs)) {
-    // Dialog keys are like "level_0_1_dialog_wanda"
-    if (key.startsWith(prefix + '_dialog')) {
-      dialogs.push(LevelDialogs[key]);
+  // Look up the explicit dialog mapping for this level
+  const dialogKeys = LevelDialogMapping[cleanId];
+  
+  if (dialogKeys) {
+    for (const key of dialogKeys) {
+      const dialog = LevelDialogs[key];
+      if (dialog) {
+        dialogs.push(dialog);
+      }
     }
   }
   

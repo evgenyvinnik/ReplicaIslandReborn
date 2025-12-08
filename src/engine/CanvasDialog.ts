@@ -306,22 +306,35 @@ export class CanvasDialog {
     
     this.ctx.save();
     
-    // Draw semi-transparent backdrop
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    this.ctx.fillRect(0, 0, this.width, this.height);
+    // No backdrop - let the gameplay be visible behind the dialog
     
-    // Calculate dialog box dimensions
-    const boxHeight = PORTRAIT_SIZE + DIALOG_BOX_PADDING * 2 + 40; // Extra for progress/hints
-    // Position dialog at top of screen so it doesn't cover the action below
-    const boxY = DIALOG_BOX_MARGIN;
+    // Calculate text area width first to determine line count
     const boxX = DIALOG_BOX_MARGIN;
     const boxWidth = this.width - DIALOG_BOX_MARGIN * 2;
+    const textWidth = boxWidth - DIALOG_BOX_PADDING * 2 - PORTRAIT_SIZE - TEXT_GAP;
+    
+    // Pre-calculate wrapped text lines to determine box height
+    this.ctx.font = '12px monospace';
+    const fullTextLines = this.wrapText(currentPage.text, textWidth);
+    const textHeight = Math.max(fullTextLines.length * TEXT_LINE_HEIGHT, PORTRAIT_SIZE - 24); // At least portrait height minus name
+    
+    // Calculate dialog box dimensions dynamically based on content
+    // Height = padding + name line + text lines + padding + hint line
+    const minBoxHeight = PORTRAIT_SIZE + DIALOG_BOX_PADDING * 2 + 20; // Minimum height with portrait
+    const contentBoxHeight = DIALOG_BOX_PADDING + 24 + textHeight + DIALOG_BOX_PADDING + 16; // name(24) + text + hint(16)
+    const boxHeight = Math.max(minBoxHeight, contentBoxHeight);
+    
+    // Position dialog at top of screen so it doesn't cover the action below
+    // But cap it so it doesn't exceed a reasonable portion of the screen
+    const maxBoxHeight = this.height * 0.4; // Max 40% of screen height
+    const finalBoxHeight = Math.min(boxHeight, maxBoxHeight);
+    const boxY = DIALOG_BOX_MARGIN;
     
     // Draw dialog box background
     this.ctx.fillStyle = 'rgba(0, 20, 40, 0.95)';
     this.ctx.strokeStyle = '#446688';
     this.ctx.lineWidth = 3;
-    this.roundRect(boxX, boxY, boxWidth, boxHeight, 8);
+    this.roundRect(boxX, boxY, boxWidth, finalBoxHeight, 8);
     this.ctx.fill();
     this.ctx.stroke();
     
@@ -347,7 +360,7 @@ export class CanvasDialog {
     // Text area
     const textX = portraitX + PORTRAIT_SIZE + TEXT_GAP;
     const textY = portraitY;
-    const textWidth = boxWidth - DIALOG_BOX_PADDING * 2 - PORTRAIT_SIZE - TEXT_GAP;
+    // textWidth already calculated above for box height
     
     // Character name
     const characterColor = CHARACTER_COLORS[currentPage.character] || '#ffffff';
@@ -406,11 +419,11 @@ export class CanvasDialog {
     this.ctx.textBaseline = 'bottom';
     
     // Progress (bottom-left of box)
-    this.ctx.fillText(progressText, boxX + DIALOG_BOX_PADDING, boxY + boxHeight - 4);
+    this.ctx.fillText(progressText, boxX + DIALOG_BOX_PADDING, boxY + finalBoxHeight - 4);
     
     // Hint (bottom-right of box)
     const hintWidth = this.ctx.measureText(hintText).width;
-    this.ctx.fillText(hintText, boxX + boxWidth - DIALOG_BOX_PADDING - hintWidth, boxY + boxHeight - 4);
+    this.ctx.fillText(hintText, boxX + boxWidth - DIALOG_BOX_PADDING - hintWidth, boxY + finalBoxHeight - 4);
     
     this.ctx.restore();
   }
