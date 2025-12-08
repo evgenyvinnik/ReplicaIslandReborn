@@ -12,7 +12,7 @@ import { RenderSystem } from '../engine/RenderSystem';
 import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem, SoundEffects } from '../engine/SoundSystem';
 import { CameraSystem } from '../engine/CameraSystem';
-import { CollisionSystem } from '../engine/CollisionSystem';
+import { CollisionSystem } from '../engine/CollisionSystemNew';
 import { TimeSystem } from '../engine/TimeSystem';
 import { HotSpotSystem, HotSpotType } from '../engine/HotSpotSystem';
 import { AnimationSystem } from '../engine/AnimationSystem';
@@ -355,6 +355,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               gameObjectManager.commitUpdates();
               setLevelLoading(false);
             });
+          } else {
+            // No next level available - go to main menu
+            console.log('[Game] No next level available from NPC trigger, returning to main menu');
+            goToMainMenu();
           }
         }
       }
@@ -365,7 +369,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     return (): void => {
       gameFlowEvent.removeListener(handleGameFlowEvent);
     };
-  }, [isInitialized, setLevel]);
+  }, [isInitialized, setLevel, goToMainMenu]);
 
   // Track previous level to detect level changes
   const prevLevelRef = useRef(state.currentLevel);
@@ -533,6 +537,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 }
                 setLevelLoading(false);
               });
+            } else {
+              // No next level available from cutscene - go to main menu
+              console.log('[Game] No next level available from cutscene, returning to main menu');
+              goToMainMenu();
             }
           }
         }
@@ -548,7 +556,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     } else {
       canvasDialog.hide();
     }
-  }, [activeDialog, dialogConversationIndex, dialogSingleMode, setLevel, resetPlayerState]);
+  }, [activeDialog, dialogConversationIndex, dialogSingleMode, setLevel, resetPlayerState, goToMainMenu]);
 
   // Handle Canvas Cutscene when cutscene state changes
   useEffect(() => {
@@ -769,7 +777,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 }
                 resumeGame();
               });
+            } else {
+              // No next level available (e.g., played from debug menu or completed final level)
+              // Go back to main menu
+              console.log('[Game] No next level available, returning to main menu');
+              goToMainMenu();
             }
+          } else {
+            // No level system available, go to main menu
+            goToMainMenu();
           }
         },
         (): void => {
@@ -1069,6 +1085,35 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Breakable block (destructible wall)
         { name: 'debris_block', file: 'object_debris_block', w: 32, h: 32 },
         { name: 'debris_piece', file: 'object_debris_piece', w: 16, h: 16 },
+        // Door sprites - red, blue, green (4 frames each: 01=closed, 02-03=middle, 04=open)
+        { name: 'object_door_red01', file: 'object_door_red01', w: 32, h: 64 },
+        { name: 'object_door_red02', file: 'object_door_red02', w: 32, h: 64 },
+        { name: 'object_door_red03', file: 'object_door_red03', w: 32, h: 64 },
+        { name: 'object_door_red04', file: 'object_door_red04', w: 32, h: 64 },
+        { name: 'object_door_blue01', file: 'object_door_blue01', w: 32, h: 64 },
+        { name: 'object_door_blue02', file: 'object_door_blue02', w: 32, h: 64 },
+        { name: 'object_door_blue03', file: 'object_door_blue03', w: 32, h: 64 },
+        { name: 'object_door_blue04', file: 'object_door_blue04', w: 32, h: 64 },
+        { name: 'object_door_green01', file: 'object_door_green01', w: 32, h: 64 },
+        { name: 'object_door_green02', file: 'object_door_green02', w: 32, h: 64 },
+        { name: 'object_door_green03', file: 'object_door_green03', w: 32, h: 64 },
+        { name: 'object_door_green04', file: 'object_door_green04', w: 32, h: 64 },
+        // Button sprites - red, blue, green (up and pressed states)
+        { name: 'object_button_red', file: 'object_button_red', w: 32, h: 32 },
+        { name: 'object_button_pressed_red', file: 'object_button_pressed_red', w: 32, h: 32 },
+        { name: 'object_button_blue', file: 'object_button_blue', w: 32, h: 32 },
+        { name: 'object_button_pressed_blue', file: 'object_button_pressed_blue', w: 32, h: 32 },
+        { name: 'object_button_green', file: 'object_button_green', w: 32, h: 32 },
+        { name: 'object_button_pressed_green', file: 'object_button_pressed_green', w: 32, h: 32 },
+        // Terminal sprites - Kabocha and Rokudou (3 frames each, 64x64)
+        { name: 'object_terminal_kabocha01', file: 'object_terminal_kabocha01', w: 64, h: 64 },
+        { name: 'object_terminal_kabocha02', file: 'object_terminal_kabocha02', w: 64, h: 64 },
+        { name: 'object_terminal_kabocha03', file: 'object_terminal_kabocha03', w: 64, h: 64 },
+        { name: 'object_terminal01', file: 'object_terminal01', w: 64, h: 64 },
+        { name: 'object_terminal02', file: 'object_terminal02', w: 64, h: 64 },
+        { name: 'object_terminal03', file: 'object_terminal03', w: 64, h: 64 },
+        // Hint sign sprite
+        { name: 'object_sign', file: 'object_sign', w: 32, h: 32 },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -1151,6 +1196,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'enemy_wanda_crouch', file: 'enemy_wanda_crouch', w: 64, h: 128 },
         { name: 'kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 128 },
         { name: 'kabocha_stand', file: 'enemy_kabocha_stand', w: 64, h: 128 },
+        // Kabocha NPC walk sprites (64x128)
+        { name: 'kabocha_walk01', file: 'enemy_kabocha_walk01', w: 64, h: 128 },
+        { name: 'kabocha_walk02', file: 'enemy_kabocha_walk02', w: 64, h: 128 },
+        { name: 'kabocha_walk03', file: 'enemy_kabocha_walk03', w: 64, h: 128 },
+        { name: 'kabocha_walk04', file: 'enemy_kabocha_walk04', w: 64, h: 128 },
+        { name: 'kabocha_walk05', file: 'enemy_kabocha_walk05', w: 64, h: 128 },
+        { name: 'kabocha_walk06', file: 'enemy_kabocha_walk06', w: 64, h: 128 },
         // Evil Kabocha boss (128x128 actual size)
         { name: 'evil_kabocha_stand', file: 'enemy_kabocha_evil_stand', w: 128, h: 128 },
         { name: 'evil_kabocha_walk01', file: 'enemy_kabocha_evil_walk01', w: 128, h: 128 },
@@ -1173,6 +1225,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'snailbomb_shoot01', file: 'snailbomb_shoot01', w: 64, h: 64 },
         { name: 'snailbomb_shoot02', file: 'snailbomb_shoot02', w: 64, h: 64 },
         { name: 'snail_bomb', file: 'snail_bomb', w: 16, h: 16 },
+        // Turret/shot projectiles
+        { name: 'shot01', file: 'object_shot01', w: 16, h: 16 },
+        { name: 'shot02', file: 'object_shot02', w: 16, h: 16 },
         // Rokudou boss enemy (128x128 actual size based on sprites)
         { name: 'rokudou_stand', file: 'enemy_rokudou_fight_stand', w: 128, h: 128 },
         { name: 'rokudou_fly01', file: 'enemy_rokudou_fight_fly01', w: 128, h: 128 },
@@ -1224,6 +1279,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       resetInventory();
       
       try {
+        // Load collision segment data (for proper slope handling)
+        const collisionLoaded = await collisionSystem.loadCollisionData(assetPath('/assets/collision.json'));
+        if (collisionLoaded) {
+          console.log('[Game] Collision segment data loaded successfully');
+        } else {
+          console.warn('[Game] Failed to load collision segment data, using simple tile collision');
+        }
+        
         // Load tilesets
         await renderSystem.loadAllTilesets();
         
@@ -1464,10 +1527,25 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         canvasDiaryRef.current?.isVisible() ||
         canvasEndingStatsRef.current?.isShowing();
       
+      // Check if game physics should be paused (dialog, pause menu, game over, etc.)
+      // Note: Cutscenes should NOT pause physics - NPCs need to move during cutscenes
+      const isGamePaused = 
+        canvasDialogRef.current?.isActive() ||
+        canvasPauseMenuRef.current?.isShowing() ||
+        canvasGameOverRef.current?.isShowing() ||
+        canvasLevelCompleteRef.current?.isShowing() ||
+        canvasDiaryRef.current?.isVisible() ||
+        canvasEndingStatsRef.current?.isShowing();
+      
       // Use empty input when blocked, otherwise use real input
       const input = isInputBlocked 
         ? { left: false, right: false, up: false, down: false, jump: false, attack: false, pause: false }
         : inputSystem.getInputState();
+      
+      // Skip all physics updates when game is paused (dialog active, etc.)
+      if (isGamePaused) {
+        return; // Skip rest of update, but render will still happen
+      }
       
       if (player) {
         // Update player's internal gameTime before physics so touchingGround() works correctly
@@ -2483,23 +2561,47 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         newX, position.y, player.width, player.height, velocity.x, 0
       );
       
-      if (hCollision.leftWall) {
-        // Player's LEFT edge hit a wall (moving left)
-        // Find the tile that the left edge collided with
-        const tileX = Math.floor(newX / tileSize);
-        // Snap player's left edge just past the right edge of the blocking tile
-        position.x = (tileX + 1) * tileSize + 0.1;
-        velocity.x = 0;
-        player.setLastTouchedLeftWallTime(gameTime);
-      } else if (hCollision.rightWall) {
-        // Player's RIGHT edge hit a wall (moving right)
-        // Find the tile that the right edge collided with
-        const tileX = Math.floor((newX + player.width) / tileSize);
-        // Snap player's right edge just before the left edge of the blocking tile
-        position.x = tileX * tileSize - player.width - 0.1;
-        velocity.x = 0;
-        player.setLastTouchedRightWallTime(gameTime);
-      } else {
+      let horizontalBlocked = false;
+      
+      if (hCollision.leftWall || hCollision.rightWall) {
+        // Check if this might be a slope we can climb
+        // Only try slope climbing if we're on or near the ground
+        if (pState.touchingGround || velocity.y >= 0) {
+          const slopeCheck = collisionSys.checkSlopeClimb(
+            newX, position.y, player.width, player.height, velocity.x
+          );
+          
+          if (slopeCheck.canClimb) {
+            // We can climb this slope!
+            position.x = newX;
+            position.y = slopeCheck.newY;
+            velocity.y = 0; // Clear vertical velocity when climbing
+            player.setLastTouchedFloorTime(gameTime);
+          } else {
+            // Can't climb - it's a wall
+            horizontalBlocked = true;
+          }
+        } else {
+          // In the air moving upward - treat as wall
+          horizontalBlocked = true;
+        }
+      }
+      
+      if (horizontalBlocked) {
+        if (hCollision.leftWall) {
+          // Player's LEFT edge hit a wall (moving left)
+          const tileX = Math.floor(newX / tileSize);
+          position.x = (tileX + 1) * tileSize + 0.1;
+          velocity.x = 0;
+          player.setLastTouchedLeftWallTime(gameTime);
+        } else if (hCollision.rightWall) {
+          // Player's RIGHT edge hit a wall (moving right)
+          const tileX = Math.floor((newX + player.width) / tileSize);
+          position.x = tileX * tileSize - player.width - 0.1;
+          velocity.x = 0;
+          player.setLastTouchedRightWallTime(gameTime);
+        }
+      } else if (!hCollision.leftWall && !hCollision.rightWall) {
         position.x = newX;
       }
       
@@ -3023,9 +3125,21 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   // Standing
                   spriteFrames = ['enemy_wanda_stand'];
                 }
-              } else if (npcType === 'kyle' || npcType === 'kabocha') {
-                // Kyle and Kabocha use similar naming conventions
-                spriteFrames = [`enemy_${npcType}_stand`];
+              } else if (npcType === 'kyle') {
+                // Kyle only has stand sprite currently
+                spriteFrames = ['enemy_kyle_stand'];
+              } else if (npcType === 'kabocha') {
+                // Kabocha has: stand, walk (6 frames)
+                if (absVelX > 10) {
+                  // Walking
+                  spriteFrames = [
+                    'kabocha_walk01', 'kabocha_walk02', 'kabocha_walk03',
+                    'kabocha_walk04', 'kabocha_walk05', 'kabocha_walk06'
+                  ];
+                } else {
+                  // Standing
+                  spriteFrames = ['kabocha_stand'];
+                }
               } else {
                 // Generic NPC fallback
                 spriteFrames = [`${npcType}_stand`];
@@ -3102,6 +3216,72 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               }
               spriteOffset.x = 0;
               spriteOffset.y = 0;
+              break;
+            }
+            case 'terminal': {
+              // Terminal objects - static displays showing Kabocha or Rokudou
+              const terminalType = obj.subType || 'kabocha';
+              if (terminalType === 'kabocha') {
+                spriteFrames = ['object_terminal_kabocha01', 'object_terminal_kabocha02', 'object_terminal_kabocha03'];
+              } else {
+                // Rokudou terminal
+                spriteFrames = ['object_terminal01', 'object_terminal02', 'object_terminal03'];
+              }
+              obj.animFrame = obj.animFrame % spriteFrames.length;
+              spriteName = spriteFrames[obj.animFrame];
+              // Terminals are 64x64, center on object
+              spriteOffset.x = (obj.width - 64) / 2;
+              spriteOffset.y = (obj.height - 64) / 2;
+              break;
+            }
+            case 'hint_sign': {
+              // Hint sign - shows tutorial text when touched
+              spriteName = 'object_sign';
+              // Sign is 32x32
+              spriteOffset.x = 0;
+              spriteOffset.y = 0;
+              break;
+            }
+            case 'projectile': {
+              // Projectiles (energy balls, cannon balls, turret bullets)
+              const projectileType = obj.subType || 'energy_ball';
+              let projWidth = 32;
+              let projHeight = 32;
+              
+              switch (projectileType) {
+                case 'energy_ball':
+                case 'wanda_shot':
+                  // Animated energy ball - 4 frames
+                  spriteFrames = ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'];
+                  projWidth = 32;
+                  projHeight = 32;
+                  break;
+                case 'cannon_ball':
+                  // Snailbomb's cannon ball
+                  spriteName = 'snail_bomb';
+                  projWidth = 16;
+                  projHeight = 16;
+                  break;
+                case 'turret_bullet':
+                  // Turret bullet - uses shot sprite
+                  spriteFrames = ['shot01', 'shot02'];
+                  projWidth = 16;
+                  projHeight = 16;
+                  break;
+                default:
+                  spriteFrames = ['energy_ball01'];
+                  projWidth = 32;
+                  projHeight = 32;
+              }
+              
+              if (spriteFrames.length > 0) {
+                obj.animFrame = obj.animFrame % spriteFrames.length;
+                spriteName = spriteFrames[obj.animFrame];
+              }
+              
+              // Center projectile sprite
+              spriteOffset.x = (obj.width - projWidth) / 2;
+              spriteOffset.y = (obj.height - projHeight) / 2;
               break;
             }
           }

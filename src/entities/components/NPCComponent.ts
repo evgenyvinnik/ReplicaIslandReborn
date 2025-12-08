@@ -235,8 +235,11 @@ export class NPCComponent extends GameComponent {
             if (parentObject.subType === 'wanda') {
               console.log(`[NPCComponent] Wanda AFTER EXECUTE: targetVel=(${parentObject.getTargetVelocity().x}, ${parentObject.getTargetVelocity().y}) accel=(${parentObject.getAcceleration().x}, ${parentObject.getAcceleration().y})`);
             }
-          } else if (hotSpot === HotSpotType.ATTACK && !this.pauseOnAttack) {
-            // When pauseOnAttack is false, attacks are also immediate
+          } else if (hotSpot === HotSpotType.ATTACK) {
+            // Handle attack hotspot - either pause+attack or immediate attack
+            if (parentObject.subType === 'wanda') {
+              console.log(`[NPCComponent] Wanda: ATTACK hotspot detected, pauseOnAttack=${this.pauseOnAttack}`);
+            }
             accepted = this.executeCommand(hotSpot, parentObject, timeDelta);
           } else if (hotSpot === HotSpotType.NPC_RUN_QUEUED_COMMANDS) {
             if (!this.executingQueue && this.queueTop !== this.queueBottom) {
@@ -314,7 +317,11 @@ export class NPCComponent extends GameComponent {
       if (hotSpot >= HotSpotType.NPC_GO_RIGHT && hotSpot <= HotSpotType.NPC_SLOW) {
         parentObject.setCurrentAction(ActionType.MOVE);
         accepted = this.executeCommand(hotSpot, parentObject, timeDelta);
-      } else if (hotSpot === HotSpotType.ATTACK && !this.pauseOnAttack) {
+      } else if (hotSpot === HotSpotType.ATTACK) {
+        // Handle attack hotspot - either pause+attack or immediate attack
+        if (parentObject.subType === 'wanda') {
+          console.log(`[NPCComponent POST-PHYSICS] Wanda: ATTACK hotspot detected, pauseOnAttack=${this.pauseOnAttack}`);
+        }
         accepted = this.executeCommand(hotSpot, parentObject, timeDelta);
       } else if (hotSpot === HotSpotType.NPC_RUN_QUEUED_COMMANDS) {
         if (!this.executingQueue && this.queueTop !== this.queueBottom) {

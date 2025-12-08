@@ -95,7 +95,7 @@ export const LevelDialogs: Record<string, Dialog> = {
     ],
   },
 
-  // Tutorial Level 0-2: Kabocha
+  // Tutorial Level 0-2: Kabocha (character 1 - first 5 conversations)
   'level_0_2_dialog_kabocha': {
     conversations: [
       {
@@ -132,6 +132,12 @@ export const LevelDialogs: Record<string, Dialog> = {
           page('Kabocha', 'Kabocha_0_2_5_3', 'kabocha_closeup_normal'),
         ],
       },
+    ],
+  },
+
+  // Tutorial Level 0-2: Kabocha (character 2 - final conversation)
+  'level_0_2_dialog_kabocha_2': {
+    conversations: [
       {
         pages: [
           page('Kabocha', 'Kabocha_0_2_6_1', 'kabocha_closeup_normal'),
@@ -589,7 +595,7 @@ export function getCharacterName(character: Character): string {
 const LevelDialogMapping: Record<string, string[]> = {
   // Tutorial levels
   'level_0_1_sewer': ['level_0_1_dialog_wanda'],
-  'level_0_2_lab': ['level_0_2_dialog_kabocha'],  // Has character2 but we only have one defined
+  'level_0_2_lab': ['level_0_2_dialog_kabocha', 'level_0_2_dialog_kabocha_2'],  // character1 + character2
   'level_0_3_lab': ['level_0_3_dialog_kabocha'],
   
   // World 1 - Island (past)

@@ -5,12 +5,9 @@
  * Matches the original ConversationDialogActivity.java layout from Replica Island
  */
 
-import type { Dialog, DialogPage, Conversation, Character } from '../data/dialogs';
+import type { Dialog, Conversation, Character } from '../data/dialogs';
 import { getCharacterName } from '../data/dialogs';
 import { assetPath } from '../utils/helpers';
-
-// Typewriter speed (characters per second)
-const TYPEWRITER_SPEED = 10;
 
 // Character name colors
 const CHARACTER_COLORS: Record<Character, string> = {
@@ -31,9 +28,6 @@ const CURSOR_BLINK_RATE = 500;
 interface DialogState {
   conversationIndex: number;
   pageIndex: number;
-  charIndex: number;
-  isTyping: boolean;
-  lastTypeTime: number;
 }
 
 export class CanvasDialog {
@@ -47,9 +41,6 @@ export class CanvasDialog {
   private state: DialogState = {
     conversationIndex: 0,
     pageIndex: 0,
-    charIndex: 0,
-    isTyping: true,
-    lastTypeTime: 0,
   };
   
   // Loaded portraits cache
@@ -117,9 +108,6 @@ export class CanvasDialog {
     this.state = {
       conversationIndex: validConvIndex,
       pageIndex: 0,
-      charIndex: 0,
-      isTyping: true,
-      lastTypeTime: performance.now(),
     };
     
     // Preload all portraits in this dialog
@@ -214,23 +202,12 @@ export class CanvasDialog {
     if (!this.dialog) return;
     
     const currentConversation: Conversation | undefined = this.dialog.conversations[this.state.conversationIndex];
-    const currentPage: DialogPage | undefined = currentConversation?.pages[this.state.pageIndex];
     
-    if (!currentPage) return;
-    
-    if (this.state.isTyping) {
-      // Skip typewriter effect
-      this.state.charIndex = currentPage.text.length;
-      this.state.isTyping = false;
-      return;
-    }
+    if (!currentConversation) return;
     
     // Advance to next page
-    if (this.state.pageIndex < (currentConversation?.pages.length ?? 0) - 1) {
+    if (this.state.pageIndex < currentConversation.pages.length - 1) {
       this.state.pageIndex++;
-      this.state.charIndex = 0;
-      this.state.isTyping = true;
-      this.state.lastTypeTime = performance.now();
       return;
     }
     
@@ -247,9 +224,6 @@ export class CanvasDialog {
     if (this.state.conversationIndex < this.dialog.conversations.length - 1) {
       this.state.conversationIndex++;
       this.state.pageIndex = 0;
-      this.state.charIndex = 0;
-      this.state.isTyping = true;
-      this.state.lastTypeTime = performance.now();
       return;
     }
     
@@ -260,36 +234,17 @@ export class CanvasDialog {
   }
   
   /**
-   * Update typewriter animation
+   * Update dialog state
    */
   update(_deltaTime: number): void {
     if (!this.dialog) return;
     
     const now = performance.now();
     
-    // Update cursor blink
+    // Update cursor blink for "tap to continue" indicator
     if (now - this.lastCursorBlink > CURSOR_BLINK_RATE) {
       this.cursorVisible = !this.cursorVisible;
       this.lastCursorBlink = now;
-    }
-    
-    // Update typewriter
-    if (this.state.isTyping) {
-      const currentConversation = this.dialog.conversations[this.state.conversationIndex];
-      const currentPage = currentConversation?.pages[this.state.pageIndex];
-      
-      if (currentPage) {
-        const elapsed = now - this.state.lastTypeTime;
-        const charsToShow = Math.floor(elapsed / (1000 / TYPEWRITER_SPEED));
-        
-        if (charsToShow > this.state.charIndex) {
-          this.state.charIndex = Math.min(charsToShow, currentPage.text.length);
-          
-          if (this.state.charIndex >= currentPage.text.length) {
-            this.state.isTyping = false;
-          }
-        }
-      }
     }
   }
   
@@ -375,51 +330,27 @@ export class CanvasDialog {
     this.ctx.shadowOffsetY = 1;
     this.ctx.fillText(characterName, textX, textY);
     
-    // Dialog text with word wrap
-    const displayedText = currentPage.text.slice(0, this.state.charIndex);
+    // Dialog text with word wrap - show full text immediately
     this.ctx.font = '12px monospace';
     this.ctx.fillStyle = '#ffffff';
     this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
     this.ctx.shadowBlur = 1;
     
-    const lines = this.wrapText(displayedText, textWidth);
+    const lines = this.wrapText(currentPage.text, textWidth);
     let lineY = textY + 24;
     for (const line of lines) {
       this.ctx.fillText(line, textX, lineY);
       lineY += TEXT_LINE_HEIGHT;
     }
     
-    // Typing cursor
-    if (this.state.isTyping && this.cursorVisible) {
-      const lastLine = lines[lines.length - 1] || '';
-      const cursorX = textX + this.ctx.measureText(lastLine).width + 2;
-      const cursorY = lineY - TEXT_LINE_HEIGHT;
-      
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.shadowBlur = 0;
-      this.ctx.fillRect(cursorX, cursorY, 8, 12);
-    }
-    
-    // Progress and hint
+    // "Tap to continue" hint with blinking effect
     this.ctx.shadowBlur = 0;
     
-    // Calculate progress
-    const totalPages = this.dialog.conversations.reduce((sum, conv) => sum + conv.pages.length, 0);
-    let currentPageNum = 0;
-    for (let i = 0; i < this.state.conversationIndex; i++) {
-      currentPageNum += this.dialog.conversations[i].pages.length;
-    }
-    currentPageNum += this.state.pageIndex + 1;
-    
-    const progressText = `${currentPageNum} / ${totalPages}`;
-    const hintText = this.state.isTyping ? 'TAP to skip' : 'TAP to continue';
+    const hintText = 'TAP to continue';
     
     this.ctx.font = '10px monospace';
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    this.ctx.fillStyle = this.cursorVisible ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)';
     this.ctx.textBaseline = 'bottom';
-    
-    // Progress (bottom-left of box)
-    this.ctx.fillText(progressText, boxX + DIALOG_BOX_PADDING, boxY + finalBoxHeight - 4);
     
     // Hint (bottom-right of box)
     const hintWidth = this.ctx.measureText(hintText).width;

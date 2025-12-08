@@ -1,0 +1,1911 @@
+{
+  "version": 1,
+  "tileCount": 53,
+  "tiles": {
+    "0": {
+      "index": 0,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 5,
+          "endX": 3,
+          "endY": 0,
+          "normalX": -0.806,
+          "normalY": -0.591
+        },
+        {
+          "startX": 3,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 5,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "1": {
+      "index": 1,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "2": {
+      "index": 2,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 27,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 27,
+          "startY": 0,
+          "endX": 32,
+          "endY": 5,
+          "normalX": 0.68,
+          "normalY": -0.733
+        },
+        {
+          "startX": 32,
+          "startY": 5,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "3": {
+      "index": 3,
+      "segments": [
+        {
+          "startX": 16,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 15,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 15,
+          "endX": 16,
+          "endY": 0,
+          "normalX": -0.692,
+          "normalY": 0.722
+        }
+      ]
+    },
+    "4": {
+      "index": 4,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 16,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 16,
+          "startY": 32,
+          "endX": 0,
+          "endY": 16,
+          "normalX": -0.707,
+          "normalY": 0.707
+        },
+        {
+          "startX": 0,
+          "startY": 16,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "5": {
+      "index": 5,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 16,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 16,
+          "endX": 16,
+          "endY": 32,
+          "normalX": 0.721,
+          "normalY": 0.693
+        },
+        {
+          "startX": 16,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "6": {
+      "index": 6,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 14,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 14,
+          "startY": 0,
+          "endX": 0,
+          "endY": 16,
+          "normalX": 0.73,
+          "normalY": 0.683
+        },
+        {
+          "startX": 0,
+          "startY": 16,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "7": {
+      "index": 7,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 16,
+          "normalX": -0.447,
+          "normalY": 0.894
+        },
+        {
+          "startX": 32,
+          "startY": 16,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 0,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        }
+      ]
+    },
+    "8": {
+      "index": 8,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 16,
+          "normalX": -0.462,
+          "normalY": 0.887
+        },
+        {
+          "startX": 0,
+          "startY": 16,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "9": {
+      "index": 9,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 16,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 16,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0.455,
+          "normalY": 0.891
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "10": {
+      "index": 10,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 0,
+          "endY": 16,
+          "normalX": 0.44,
+          "normalY": 0.898
+        },
+        {
+          "startX": 0,
+          "startY": 16,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "11": {
+      "index": 11,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 15,
+          "endY": 32,
+          "normalX": -0.895,
+          "normalY": 0.445
+        },
+        {
+          "startX": 15,
+          "startY": 32,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 0,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        }
+      ]
+    },
+    "12": {
+      "index": 12,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 16,
+          "endY": 32,
+          "normalX": 0.894,
+          "normalY": 0.447
+        },
+        {
+          "startX": 16,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "15": {
+      "index": 15,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "16": {
+      "index": 16,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "17": {
+      "index": 17,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "18": {
+      "index": 18,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "19": {
+      "index": 19,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "20": {
+      "index": 20,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -0.707,
+          "normalY": 0.707
+        }
+      ]
+    },
+    "21": {
+      "index": 21,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0.707,
+          "normalY": 0.707
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "22": {
+      "index": 22,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "23": {
+      "index": 23,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "24": {
+      "index": 24,
+      "segments": [
+        {
+          "startX": 16,
+          "startY": 32,
+          "endX": 16,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        },
+        {
+          "startX": 16,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 16,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        }
+      ]
+    },
+    "25": {
+      "index": 25,
+      "segments": [
+        {
+          "startX": 16,
+          "startY": 32,
+          "endX": 16,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        },
+        {
+          "startX": 16,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 16,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        }
+      ]
+    },
+    "26": {
+      "index": 26,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "27": {
+      "index": 27,
+      "segments": [
+        {
+          "startX": 16,
+          "startY": 0,
+          "endX": 32,
+          "endY": 29,
+          "normalX": -0.878,
+          "normalY": 0.478
+        },
+        {
+          "startX": 32,
+          "startY": 29,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 16,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        }
+      ]
+    },
+    "28": {
+      "index": 28,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 15,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 15,
+          "startY": 0,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0.9,
+          "normalY": 0.435
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "31": {
+      "index": 31,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "32": {
+      "index": 32,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 4,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 4,
+          "startY": 32,
+          "endX": 0,
+          "endY": 28,
+          "normalX": -0.733,
+          "normalY": 0.68
+        },
+        {
+          "startX": 0,
+          "startY": 28,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "33": {
+      "index": 33,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "34": {
+      "index": 34,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 27,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 27,
+          "endX": 28,
+          "endY": 32,
+          "normalX": 0.8,
+          "normalY": 0.6
+        },
+        {
+          "startX": 28,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "35": {
+      "index": 35,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "36": {
+      "index": 36,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 32,
+          "endY": 0,
+          "normalX": -0.707,
+          "normalY": -0.707
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        }
+      ]
+    },
+    "37": {
+      "index": 37,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 0.707,
+          "normalY": -0.707
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "38": {
+      "index": 38,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "39": {
+      "index": 39,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "40": {
+      "index": 40,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 16,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 16,
+          "startY": 0,
+          "endX": 16,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 16,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "41": {
+      "index": 41,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 15,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 15,
+          "startY": 0,
+          "endX": 15,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 15,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "42": {
+      "index": 42,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "43": {
+      "index": 43,
+      "segments": [
+        {
+          "startX": 16,
+          "startY": 32,
+          "endX": 32,
+          "endY": 0,
+          "normalX": -0.898,
+          "normalY": -0.44
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 16,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        }
+      ]
+    },
+    "44": {
+      "index": 44,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 15,
+          "endY": 32,
+          "normalX": 0.898,
+          "normalY": -0.44
+        },
+        {
+          "startX": 15,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "48": {
+      "index": 48,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 17,
+          "endX": 32,
+          "endY": 16,
+          "normalX": -0.01,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 16,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 17,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "49": {
+      "index": 49,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 16,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 16,
+          "endX": 0,
+          "endY": 16,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 16,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "51": {
+      "index": 51,
+      "segments": [
+        {
+          "startX": 17,
+          "startY": 32,
+          "endX": 32,
+          "endY": 17,
+          "normalX": -0.707,
+          "normalY": -0.707
+        },
+        {
+          "startX": 32,
+          "startY": 17,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 17,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        }
+      ]
+    },
+    "52": {
+      "index": 52,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 17,
+          "endX": 16,
+          "endY": 0,
+          "normalX": -0.714,
+          "normalY": -0.7
+        },
+        {
+          "startX": 16,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 17,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "53": {
+      "index": 53,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        },
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 16,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 16,
+          "startY": 0,
+          "endX": 32,
+          "endY": 17,
+          "normalX": 0.735,
+          "normalY": -0.678
+        },
+        {
+          "startX": 32,
+          "startY": 17,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        }
+      ]
+    },
+    "54": {
+      "index": 54,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 17,
+          "normalX": -1,
+          "normalY": 0
+        },
+        {
+          "startX": 0,
+          "startY": 17,
+          "endX": 15,
+          "endY": 32,
+          "normalX": 0.715,
+          "normalY": -0.699
+        },
+        {
+          "startX": 15,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        }
+      ]
+    },
+    "55": {
+      "index": 55,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 32,
+          "endY": 16,
+          "normalX": -0.455,
+          "normalY": -0.891
+        },
+        {
+          "startX": 32,
+          "startY": 16,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        }
+      ]
+    },
+    "56": {
+      "index": 56,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 17,
+          "endX": 32,
+          "endY": 0,
+          "normalX": -0.455,
+          "normalY": -0.891
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 17,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "57": {
+      "index": 57,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 32,
+          "endY": 16,
+          "normalX": 0.44,
+          "normalY": -0.898
+        },
+        {
+          "startX": 32,
+          "startY": 16,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "58": {
+      "index": 58,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 16,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 0.447,
+          "normalY": -0.894
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 16,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    },
+    "59": {
+      "index": 59,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 16,
+          "endY": 0,
+          "normalX": -0.893,
+          "normalY": -0.45
+        },
+        {
+          "startX": 16,
+          "startY": 0,
+          "endX": 32,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 32,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 1,
+          "normalY": 0
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        }
+      ]
+    },
+    "60": {
+      "index": 60,
+      "segments": [
+        {
+          "startX": 0,
+          "startY": 0,
+          "endX": 15,
+          "endY": 0,
+          "normalX": 0,
+          "normalY": -1
+        },
+        {
+          "startX": 15,
+          "startY": 0,
+          "endX": 32,
+          "endY": 32,
+          "normalX": 0.893,
+          "normalY": -0.451
+        },
+        {
+          "startX": 32,
+          "startY": 32,
+          "endX": 0,
+          "endY": 32,
+          "normalX": 0,
+          "normalY": 1
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        },
+        {
+          "startX": 0,
+          "startY": 32,
+          "endX": 0,
+          "endY": 0,
+          "normalX": -1,
+          "normalY": 0
+        }
+      ]
+    }
+  }
+}

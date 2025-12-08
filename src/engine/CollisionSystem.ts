@@ -23,6 +23,11 @@ export interface TileCollisionResult {
   normal: Vector2;
 }
 
+export interface SlopeCheckResult {
+  canClimb: boolean;
+  newY: number;
+}
+
 /** Temporary collision surface for moving platforms */
 export interface TemporarySurface {
   startX: number;
@@ -249,6 +254,71 @@ export class CollisionSystem {
     const index = tileY * this.worldWidth + tileX;
     // Tile value > 0 means solid (convention)
     return this.collisionTiles[index] > 0;
+  }
+
+  /**
+   * Check if the player can climb a slope by stepping up.
+   * This is called when horizontal collision is detected while on/near the ground.
+   * It checks if moving up by a small amount would clear the collision.
+   *
+   * @param x - The desired new X position
+   * @param y - The current Y position
+   * @param width - Object width
+   * @param height - Object height
+   * @param velocityX - Horizontal velocity (to determine direction)
+   * @param maxStepHeight - Maximum height the player can step up (default: half tile height)
+   * @returns SlopeCheckResult indicating if climbing is possible and the new Y position
+   */
+  checkSlopeClimb(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    velocityX: number,
+    maxStepHeight: number = this.tileHeight * 0.7
+  ): SlopeCheckResult {
+    const result: SlopeCheckResult = {
+      canClimb: false,
+      newY: y,
+    };
+
+    // Try stepping up in small increments to find a valid position
+    // We start from a small step and work our way up
+    const stepIncrement = 2; // Check every 2 pixels for accuracy
+    
+    for (let stepY = stepIncrement; stepY <= maxStepHeight; stepY += stepIncrement) {
+      const testY = y - stepY; // Move up (decrease Y since Y increases downward)
+
+      // Check if this position has no horizontal collision
+      const collision = this.checkTileCollision(x, testY, width, height, velocityX, 0);
+
+      if (!collision.leftWall && !collision.rightWall) {
+        // Found a clear position horizontally! 
+        // Now we need to find the ground level at this X position
+        
+        // Start from the current test Y and move down to find ground
+        for (let groundY = testY; groundY <= y + stepIncrement; groundY += stepIncrement) {
+          const groundCheck = this.checkTileCollision(x, groundY, width, height, 0, 1);
+          
+          if (groundCheck.grounded) {
+            // Found ground! Snap to it
+            result.canClimb = true;
+            // Snap to the top of the ground tile
+            const bottomTileY = Math.floor((groundY + height) / this.tileHeight);
+            result.newY = bottomTileY * this.tileHeight - height;
+            return result;
+          }
+        }
+        
+        // If we got here, we found a clear horizontal path but no ground
+        // This means it's a valid step up position (the player will be in the air momentarily)
+        result.canClimb = true;
+        result.newY = testY;
+        return result;
+      }
+    }
+
+    return result;
   }
 
   /**

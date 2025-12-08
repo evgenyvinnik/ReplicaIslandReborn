@@ -72,9 +72,9 @@ export const resourceToLevelId: Record<string, number> = {
   'level_4_8_underground': 39,
   'level_4_9_underground': 40,
   'level_final_boss_lab': 41,
-  // Special Kyle/Wanda versions - these might not have separate IDs
-  'level_0_1_sewer_kyle': 1,
-  'level_0_1_sewer_wanda': 1,
+  // Special Kyle/Wanda versions - unique IDs to avoid overwriting level_0_1_sewer
+  'level_0_1_sewer_kyle': 42,
+  'level_0_1_sewer_wanda': 43,
 };
 
 /**

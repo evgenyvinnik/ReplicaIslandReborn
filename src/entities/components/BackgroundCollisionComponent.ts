@@ -11,7 +11,7 @@ import { GameComponent } from '../GameComponent';
 import { ComponentPhase } from '../../types';
 import type { GameObject } from '../GameObject';
 import { Vector2 } from '../../utils/Vector2';
-import type { CollisionSystem } from '../../engine/CollisionSystem';
+import type { CollisionSystem } from '../../engine/CollisionSystemNew';
 import type { LevelSystem } from '../../levels/LevelSystem';
 import type { TimeSystem } from '../../engine/TimeSystem';
 

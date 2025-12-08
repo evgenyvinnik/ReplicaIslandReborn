@@ -110,6 +110,11 @@ export class LaunchProjectileComponent extends GameComponent {
 
     const gameTime = time.getGameTime();
 
+    // Debug: Log when checking for launch
+    if (parentObject.subType === 'wanda') {
+      console.log(`[LaunchProjectile] Wanda action=${parentObject.getCurrentAction()} required=${this.requiredAction} match=${parentObject.getCurrentAction() === this.requiredAction}`);
+    }
+
     if (this.trackedProjectileCount < this.maxTrackedProjectiles || !this.trackProjectiles) {
       if (
         parentObject.getCurrentAction() === this.requiredAction ||
@@ -119,6 +124,9 @@ export class LaunchProjectileComponent extends GameComponent {
           this.launchedCount = 0;
           this.lastProjectileTime = 0;
           this.setStartedTime = gameTime;
+          if (parentObject.subType === 'wanda') {
+            console.log(`[LaunchProjectile] Wanda STARTING launch sequence at gameTime=${gameTime}`);
+          }
         }
 
         const setDelay = this.setCount > 0 ? this.delayBetweenSets : this.delayBeforeFirstSet;
@@ -153,7 +161,10 @@ export class LaunchProjectileComponent extends GameComponent {
 
     const factory = sSystemRegistry.gameObjectFactory;
     const manager = sSystemRegistry.gameObjectManager;
-    if (!factory || !manager) return;
+    if (!factory || !manager) {
+      console.log(`[LaunchProjectile] FAILED: factory=${!!factory} manager=${!!manager}`);
+      return;
+    }
 
     let offsetX = this.offsetX;
     let offsetY = this.offsetY;
@@ -170,9 +181,13 @@ export class LaunchProjectileComponent extends GameComponent {
 
     const x = parentObject.getPosition().x + offsetX;
     const y = parentObject.getPosition().y + offsetY;
+    
+    console.log(`[LaunchProjectile] Launching ${this.objectTypeToSpawn} at (${x}, ${y}) flip=${flip}`);
+    
     const object = factory.spawn(this.objectTypeToSpawn, x, y, flip);
 
     if (object) {
+      console.log(`[LaunchProjectile] Spawned object: type=${object.type} subType=${object.subType} team=${object.team}`);
       this.workingVector.set(1, 1);
 
       if (this.thetaError > 0) {
@@ -202,6 +217,7 @@ export class LaunchProjectileComponent extends GameComponent {
       }
 
       manager.add(object);
+      console.log(`[LaunchProjectile] Object added to manager at pos(${object.getPosition().x}, ${object.getPosition().y}) vel(${object.getVelocity().x}, ${object.getVelocity().y})`);
 
       // Play shoot sound
       if (this.shootSound) {

@@ -6,7 +6,7 @@
 import { GameComponent } from '../GameComponent';
 import { ComponentPhase } from '../../types';
 import type { GameObject } from '../GameObject';
-import type { CollisionSystem } from '../../engine/CollisionSystem';
+import type { CollisionSystem } from '../../engine/CollisionSystemNew';
 
 export class MovementComponent extends GameComponent {
   private collisionSystem: CollisionSystem | null = null;

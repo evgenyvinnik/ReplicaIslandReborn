@@ -8,7 +8,7 @@
 import type { InputSystem } from './InputSystem';
 import type { SoundSystem } from './SoundSystem';
 import type { CameraSystem } from './CameraSystem';
-import type { CollisionSystem } from './CollisionSystem';
+import type { CollisionSystem } from './CollisionSystemNew';
 import type { GameObjectCollisionSystem } from './GameObjectCollisionSystem';
 import type { ChannelSystem } from './ChannelSystem';
 import type { RenderSystem } from './RenderSystem';

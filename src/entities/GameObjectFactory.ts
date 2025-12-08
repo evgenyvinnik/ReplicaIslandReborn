@@ -14,8 +14,9 @@ import { PlayerComponent } from './components/PlayerComponent';
 import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
 import { SnailbombComponent } from './components/SnailbombComponent';
 import { RokudouBossComponent } from './components/RokudouBossComponent';
+import { LifetimeComponent } from './components/LifetimeComponent';
 import type { RenderSystem } from '../engine/RenderSystem';
-import type { CollisionSystem } from '../engine/CollisionSystem';
+import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { InputSystem } from '../engine/InputSystem';
 import type { SystemRegistry } from '../engine/SystemRegistry';
 
@@ -648,7 +649,7 @@ export class GameObjectFactory {
   }
 
   /**
-   * Configure an energy ball projectile (used by Rokudou)
+   * Configure an energy ball projectile (used by Rokudou and Wanda)
    */
   private configureEnergyBall(obj: GameObject): void {
     obj.team = Team.ENEMY;
@@ -657,16 +658,15 @@ export class GameObjectFactory {
     obj.height = 32;
     obj.life = 1;
 
-    // Add sprite
+    // Add sprite - use energy_ball01 as the base sprite (single frame per image)
     const sprite = this.componentPools.sprite.allocate();
     if (sprite && this.renderSystem) {
-      sprite.setSprite('energy_ball');
+      sprite.setSprite('energy_ball01');
       sprite.setRenderSystem(this.renderSystem);
+      // Each energy_ball frame is a separate 32x32 image, so frame 0 is the whole image
       sprite.addAnimation('fly', {
         frames: [
           { x: 0, y: 0, width: 32, height: 32, duration: 0.08 },
-          { x: 32, y: 0, width: 32, height: 32, duration: 0.08 },
-          { x: 64, y: 0, width: 32, height: 32, duration: 0.08 },
         ],
         loop: true,
       });
@@ -674,13 +674,19 @@ export class GameObjectFactory {
       obj.addComponent(sprite);
     }
 
-    // Add physics (with some gravity for arc)
+    // Add physics (no gravity for straight projectile - like Wanda's attack)
     const physics = this.componentPools.physics.allocate();
     if (physics) {
-      physics.setGravity(200);
+      physics.setGravity(0);  // Straight trajectory
       physics.setMaxVelocity(500, 500);
       obj.addComponent(physics);
     }
+
+    // Add lifetime component so projectile disappears after some time
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(3.0);
+    lifetime.setDieOnHitBackground(true);
+    obj.addComponent(lifetime);
   }
 
   /**

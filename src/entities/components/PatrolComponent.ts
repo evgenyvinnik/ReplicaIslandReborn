@@ -211,10 +211,12 @@ export class PatrolComponent extends GameComponent {
       // Handle movement
       if (parent.getCurrentAction() === ActionType.MOVE && this.maxSpeed > 0) {
         // Get hot spot at current position
+        // Check near bottom of sprite (feet): In Y-down canvas coords, this is y + height - 10
+        // Original used y + 10 in Y-up coords which meant 10 pixels above the bottom
         let hotSpot: number = HotSpotType.NONE;
         const hotSpotSystem = sSystemRegistry.hotSpotSystem;
         if (hotSpotSystem) {
-          hotSpot = hotSpotSystem.getHotSpot(this.getCenteredX(parent), parent.getPosition().y + 10);
+          hotSpot = hotSpotSystem.getHotSpot(this.getCenteredX(parent), parent.getPosition().y + parent.height - 10);
         }
 
         const targetVelocityX = parent.getTargetVelocity().x;

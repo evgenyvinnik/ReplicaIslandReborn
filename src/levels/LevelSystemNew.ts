@@ -4,8 +4,8 @@
  */
 
 import type { LevelData, LevelLayer, LevelObject, AnimationDefinition } from '../types';
-import { HitType, Team } from '../types';
-import type { CollisionSystem } from '../engine/CollisionSystem';
+import { HitType, Team, ActionType } from '../types';
+import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { GameObjectManager } from '../entities/GameObjectManager';
 import { LevelParser, type ParsedLevel } from './LevelParser';
 import { HotSpotSystem } from '../engine/HotSpotSystem';
@@ -842,6 +842,21 @@ export class LevelSystem {
         // Add NPC movement component
         const npcComponent = new NPCComponent();
         obj.addComponent(npcComponent);
+        
+        // Add LaunchProjectileComponent for energy blast attack (from original)
+        // Wanda fires energy ball when in ATTACK action
+        const wandaGun = new LaunchProjectileComponent({
+          objectTypeToSpawn: GameObjectType.ENERGY_BALL,
+          projectilesInSet: 1,
+          setsPerActivation: 1,
+          delayBeforeFirstSet: 11 / 24, // Utils.framesToTime(24, 11) = 11 frames at 24fps
+          offsetX: 45,
+          offsetY: 42,
+          requiredAction: ActionType.ATTACK,
+          velocityX: 300.0,
+          shootSound: 'sound_poing'
+        });
+        obj.addComponent(wandaGun);
         break;
       }
         
@@ -1139,11 +1154,11 @@ export class LevelSystem {
 
       case GameObjectTypeIndex.KABOCHA_TERMINAL:
       case GameObjectTypeIndex.ROKUDOU_TERMINAL: {
-        // Story terminals - NPCs that trigger dialogs
-        obj.type = 'npc';
+        // Story terminals - static displays showing Kabocha or Rokudou
+        obj.type = 'terminal';
         obj.subType = spawn.type === GameObjectTypeIndex.KABOCHA_TERMINAL ? 'kabocha' : 'rokudou';
         objWidth = 64;
-        objHeight = 128;
+        objHeight = 64;
         obj.activationRadius = 2000;
         obj.team = Team.NONE;
         

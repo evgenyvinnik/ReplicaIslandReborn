@@ -4,7 +4,7 @@
  */
 
 import type { LevelData, LevelLayer, LevelObject } from '../types';
-import type { CollisionSystem } from '../engine/CollisionSystem';
+import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { GameObjectManager } from '../entities/GameObjectManager';
 import { assetPath } from '../utils/helpers';
 
