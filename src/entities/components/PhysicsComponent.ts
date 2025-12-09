@@ -15,6 +15,7 @@ export class PhysicsComponent extends GameComponent {
   private friction: number = 0.9;
   private airFriction: number = 0.98;
   private bounciness: number = 0;
+  private mass: number = 1;
 
   // Flags
   private useGravity: boolean = true;
@@ -77,6 +78,17 @@ export class PhysicsComponent extends GameComponent {
   /**
    * Update physics
    */
+  /**
+   * Set whether the object is immovable (infinite mass)
+   */
+  setImmovable(immovable: boolean): void {
+    if (immovable) {
+      this.mass = 0; // 0 mass often implies infinite mass in physics engines
+    } else {
+      this.mass = 1;
+    }
+  }
+
   update(deltaTime: number, parent: GameObject): void {
     const velocity = parent.getVelocity();
     const acceleration = parent.getAcceleration();
@@ -87,6 +99,11 @@ export class PhysicsComponent extends GameComponent {
     velocity.x += impulse.x;
     velocity.y += impulse.y;
     impulse.zero();
+
+    // If immovable (mass 0), don't integrate physics
+    if (this.mass === 0) {
+      return;
+    }
 
     // Apply gravity
     if (this.useGravity) {

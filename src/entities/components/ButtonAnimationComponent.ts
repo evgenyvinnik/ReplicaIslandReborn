@@ -89,7 +89,7 @@ export class ButtonAnimationComponent extends GameComponent {
         console.warn('[ButtonAnimationComponent] Button has no channel!');
       }
     } else {
-      // Button is up
+      // Button is not being pressed - return to UP state
       this.sprite.playAnimation(ButtonAnimation.UP);
     }
   }

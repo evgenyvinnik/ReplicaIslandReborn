@@ -14,6 +14,7 @@ import { PlayerComponent } from './components/PlayerComponent';
 import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
 import { SnailbombComponent } from './components/SnailbombComponent';
 import { RokudouBossComponent } from './components/RokudouBossComponent';
+import { TheSourceComponent } from './components/TheSourceComponent';
 import { LifetimeComponent } from './components/LifetimeComponent';
 import { MultiSpriteAnimComponent } from './components/MultiSpriteAnimComponent';
 import { SimpleCollisionComponent } from './components/SimpleCollisionComponent';
@@ -51,6 +52,7 @@ export enum GameObjectType {
   CANNON_BALL = 'cannon_ball',
   ENERGY_BALL = 'energy_ball',
   TURRET_BULLET = 'turret_bullet',
+  THE_SOURCE = 'the_source',
 }
 
 // Component pools
@@ -68,8 +70,6 @@ export class GameObjectFactory {
   private objectManager: GameObjectManager;
   private renderSystem: RenderSystem | null = null;
   private collisionSystem: CollisionSystem | null = null;
-  private inputSystem: InputSystem | null = null;
-
   // Component object pools for recycling
   private componentPools: ComponentPools;
 
@@ -109,8 +109,11 @@ export class GameObjectFactory {
   /**
    * Set input system
    */
-  setInputSystem(inputSystem: InputSystem): void {
-    this.inputSystem = inputSystem;
+  /**
+   * Set input system
+   */
+  setInputSystem(_inputSystem: InputSystem): void {
+    // this.inputSystem = inputSystem; // Unused in factory, injected in Game.tsx
   }
 
   /**
@@ -172,6 +175,9 @@ export class GameObjectFactory {
         break;
       case GameObjectType.GHOST:
         this.configureGhost(obj);
+        break;
+      case GameObjectType.THE_SOURCE:
+        this.configureTheSource(obj);
         break;
       default:
         // Default configuration
@@ -906,5 +912,51 @@ export class GameObjectFactory {
     this.componentPools.movement.clear();
     this.componentPools.player.clear();
     this.objectPool.clear();
+  }
+  /**
+   * Configure The Source (final boss)
+   */
+  private configureTheSource(obj: GameObject): void {
+    obj.team = Team.ENEMY;
+    obj.type = 'the_source';
+    obj.width = 256;  // Large boss
+    obj.height = 256;
+    obj.life = 10;    // It takes many hits
+    obj.maxLife = 10;
+    
+    // Add sprite
+    const sprite = this.componentPools.sprite.allocate();
+    if (sprite && this.renderSystem) {
+      sprite.setSprite('the_source'); // Ensure this sprite exists or is loaded
+      sprite.setRenderSystem(this.renderSystem);
+      
+      // Animations
+      sprite.addAnimation('idle', {
+        frames: [{ x: 0, y: 0, width: 256, height: 256, duration: 1.0 }],
+        loop: true,
+      });
+      
+      sprite.playAnimation('idle');
+      obj.addComponent(sprite);
+    }
+    
+    // Add physics (static, no gravity)
+    const physics = this.componentPools.physics.allocate();
+    if (physics) {
+      physics.setUseGravity(false);
+      physics.setImmovable(true);
+      obj.addComponent(physics);
+    }
+    
+    // Add The Source component
+    const source = new TheSourceComponent();
+    // Configure event triggers if needed (e.g. game ending)
+    // source.setGameEvent(GameFlowEvent.EVENT_END_GAME, 0); 
+    obj.addComponent(source);
+    
+    // Add dynamic collision for hit detection
+    // Note: TheSourceComponent handles hit reactions
+    const collision = new SimpleCollisionComponent();
+    obj.addComponent(collision);
   }
 }

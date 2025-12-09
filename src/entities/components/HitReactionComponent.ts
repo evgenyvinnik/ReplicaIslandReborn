@@ -249,15 +249,24 @@ export class HitReactionComponent extends GameComponent {
   }
 
   /**
-   * Update component - handle invincibility timer
+   * Update component - handle invincibility timer and hit type persistence
    */
   update(deltaTime: number, parent: GameObject): void {
+    const gameTime = this.gameTimeGetter?.() ?? 0;
+    
     // Handle invincibility timer
     if (this.invincible && this.invincibleTime > 0) {
       this.invincibleTime -= deltaTime;
       if (this.invincibleTime <= 0) {
         this.invincible = false;
       }
+    }
+
+    // Clear lastReceivedHitType after it has persisted for 2 frames (giving all systems
+    // a chance to react). This matches the original game behavior.
+    // The hit type will persist for approximately one timeDelta (one frame).
+    if (gameTime - this.lastHitTime > deltaTime) {
+      parent.lastReceivedHitType = HitType.INVALID;
     }
 
     // Check for death

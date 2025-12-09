@@ -1523,6 +1523,43 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // updatePlayerPhysics(player, input, gameDelta, gameTime, collisionSystem, soundSystem);
         
         // Player update is now handled by PlayerComponent via gameObjectManager.update()
+        
+        // Check button collisions BEFORE gameObjectManager.update() so ButtonAnimationComponent
+        // can see the HIT_REACT + DEPRESS state in the same frame
+        const playerPos = player.getPosition();
+        const playerVel = player.getVelocity();
+        const playerBottom = playerPos.y + player.height;
+        const playerLeft = playerPos.x;
+        const playerRight = playerPos.x + player.width;
+        
+        gameObjectManager.forEach((obj) => {
+          if (obj === player || !obj.isVisible() || obj.type !== 'button') return;
+          
+          const objPos = obj.getPosition();
+          // Button pressable area is the top 16px (vulnerability volume is 0,0,32,16)
+          const buttonRect = {
+            x: objPos.x,
+            y: objPos.y,
+            width: obj.width,
+            height: 16,
+          };
+          
+          // Check horizontal overlap
+          const horizontalOverlap = playerRight > buttonRect.x && 
+                                   playerLeft < buttonRect.x + buttonRect.width;
+          
+          // Check if player's feet are touching button's top area
+          const verticalContact = playerBottom >= buttonRect.y && 
+                                 playerBottom <= buttonRect.y + buttonRect.height + 8;
+          
+          // Player must be moving down or stationary (not jumping up through button)
+          const isLanding = playerVel.y >= 0;
+          
+          if (horizontalOverlap && verticalContact && isLanding) {
+            obj.setCurrentAction(ActionType.HIT_REACT);
+            obj.lastReceivedHitType = HitType.DEPRESS;
+          }
+        });
       }
 
       // Update all game objects (use gameDelta so game freezes during pause-on-attack)
@@ -2256,52 +2293,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
         });
         
-        // Check button collisions - player pressing buttons
-        gameObjectManager.forEach((obj) => {
-          if (obj === player || !obj.isVisible()) return;
-          
-          // Check if button - handle press when player lands/stomps on it
-          if (obj.type === 'button') {
-            const objPos = obj.getPosition();
-            // Button collision box - the pressable area is the top portion
-            // Buttons are 32x32 but the pressable area is in the top 16px
-            const buttonRect = {
-              x: objPos.x,
-              y: objPos.y, // Top of button
-              width: obj.width,
-              height: 16, // Only top 16 pixels are pressable
-            };
-            
-            // Check if player's bottom overlaps with button's top
-            const playerBottom = playerPos.y + player.height;
-            const playerLeft = playerPos.x;
-            const playerRight = playerPos.x + player.width;
-            const playerVel = player.getVelocity();
-            
-            // Check horizontal overlap
-            const horizontalOverlap = playerRight > buttonRect.x && 
-                                     playerLeft < buttonRect.x + buttonRect.width;
-            
-            // Check if player is on top of button (feet touching button's top area)
-            const verticalContact = playerBottom >= buttonRect.y && 
-                                   playerBottom <= buttonRect.y + buttonRect.height + 8; // Small tolerance
-            
-            // Player must be landing (coming from above with downward or no velocity)
-            const isLanding = playerVel.y >= 0;
-            
-            if (horizontalOverlap && verticalContact && isLanding) {
-              // Trigger button press via HIT_REACT mechanism
-              // This matches how ButtonAnimationComponent expects to receive the press
-              obj.setCurrentAction(ActionType.HIT_REACT);
-              obj.lastReceivedHitType = HitType.DEPRESS;
-              
-              // Debug logging
-              if (Math.random() < 0.02) { // Log occasionally
-                console.log(`[Button] Pressing ${obj.subType} button at (${objPos.x}, ${objPos.y})`);
-              }
-            }
-          }
-        });
+        // NOTE: Button collision detection moved earlier (before gameObjectManager.update)
+        // so ButtonAnimationComponent sees HIT_REACT + DEPRESS in the same frame
         
         // Check NPC collisions for dialog trigger (e.g., Kyle encounter)
         gameObjectManager.forEach((obj) => {
@@ -2353,7 +2346,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // Update player state machine (using existing playerComponent from death handling above)
       const playerComponent = player?.getComponent(PlayerComponent);
-      if (!playerComponent) return; // Should always exist for player object
+      if (!player || !playerComponent) return; // Should always exist for player object
       
       // Update HIT_REACT state timer
       if (playerComponent.currentState === PlayerState.HIT_REACT) {
