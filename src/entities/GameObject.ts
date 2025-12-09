@@ -215,29 +215,31 @@ export class GameObject implements Poolable {
 
   // Collision surface checks (ported from original)
   touchingGround(): boolean {
+    // Small delay (1 frame at 60fps) to prevent edge cases at game start
+    // Original had 0.1s but that's too long for responsive gameplay
     return (
-      this.gameTime > 0.1 &&
+      this.gameTime > 0.016 &&
       Math.abs(this.lastTouchedFloorTime - this.gameTime) < COLLISION_SURFACE_DECAY_TIME
     );
   }
 
   touchingCeiling(): boolean {
     return (
-      this.gameTime > 0.1 &&
+      this.gameTime > 0.016 &&
       Math.abs(this.lastTouchedCeilingTime - this.gameTime) < COLLISION_SURFACE_DECAY_TIME
     );
   }
 
   touchingLeftWall(): boolean {
     return (
-      this.gameTime > 0.1 &&
+      this.gameTime > 0.016 &&
       Math.abs(this.lastTouchedLeftWallTime - this.gameTime) < COLLISION_SURFACE_DECAY_TIME
     );
   }
 
   touchingRightWall(): boolean {
     return (
-      this.gameTime > 0.1 &&
+      this.gameTime > 0.016 &&
       Math.abs(this.lastTouchedRightWallTime - this.gameTime) < COLLISION_SURFACE_DECAY_TIME
     );
   }

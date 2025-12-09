@@ -38,6 +38,7 @@ import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
 import { OrbitalMagnetComponent } from '../entities/components/OrbitalMagnetComponent';
 import { PhysicsComponent } from '../entities/components/PhysicsComponent';
+import { PlayerComponent } from '../entities/components/PlayerComponent';
 import { GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { assetPath } from '../utils/helpers';
@@ -445,6 +446,44 @@ export class LevelSystem {
         // The collision box dimensions determine collision detection
         objWidth = 32;    // Collision box width (not sprite width)
         objHeight = 48;   // Collision box height (not sprite height)
+        obj.life = 1;     // Player starts with 1 life
+        obj.team = Team.PLAYER;
+        
+        // Add PlayerComponent - CRITICAL: Game.tsx expects this to exist
+        const playerComp = new PlayerComponent();
+        obj.addComponent(playerComp);
+        
+        // Add SpriteComponent for player rendering
+        const playerSprite = new SpriteComponent();
+        playerSprite.setSprite('andou_stand'); // Default sprite
+        obj.addComponent(playerSprite);
+        
+        // Add DynamicCollisionComponent for player attacks and vulnerability
+        const playerDynCollision = new DynamicCollisionComponent();
+        // Player attack volume (for stomping enemies) - matches original
+        const stompAttackVolume = new AABoxCollisionVolume(0, -5, 32, 37, HitType.HIT);
+        // Player DEPRESS volume (for pressing buttons) - matches original
+        const pressVolume = new AABoxCollisionVolume(0, 0, 32, 16, HitType.DEPRESS);
+        // Player COLLECT volume (for picking up items) - matches original  
+        const collectVolume = new AABoxCollisionVolume(0, 0, 32, 48, HitType.COLLECT);
+        // Player vulnerability volume (can be hit by enemies)
+        const vulnerabilityVolume = new SphereCollisionVolume(16, 24, 16); // Center of player
+        playerDynCollision.setCollisionVolumes(
+          [stompAttackVolume, pressVolume, collectVolume],
+          [vulnerabilityVolume]
+        );
+        obj.addComponent(playerDynCollision);
+        
+        // Add HitReactionComponent for damage response
+        const playerHitReact = new HitReactionComponent({
+          bounceOnHit: true,
+          bounceMagnitude: 200,
+          invincibleAfterHitTime: 2.0,
+          forceInvincibility: false
+        });
+        playerDynCollision.setHitReactionComponent(playerHitReact);
+        obj.addComponent(playerHitReact);
+        
         this.gameObjectManager.setPlayer(obj);
         console.log(`[LevelSystem] PLAYER spawning at tile (${spawn.tileX}, ${spawn.tileY}), pixel (${spawn.x}, ${spawn.y})`);
         break;

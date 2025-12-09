@@ -179,7 +179,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
 
           // Check for intro dialog
-          const levelId = levelSystem.getCurrentLevelId();
           console.log('[Game] Playable level - dialog will be triggered by hotspots, level:', state.currentLevel);
         }
       }
@@ -1518,6 +1517,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (player) {
         // Update player's internal gameTime before physics so touchingGround() works correctly
         player.setGameTime(gameTime);
+        
+        // Ensure PlayerComponent has systems injected (in case useEffect didn't run)
+        const playerComp = player.getComponent(PlayerComponent);
+        if (playerComp && !playerComp.hasSystemsInjected()) {
+          playerComp.setSystems(inputSystem, collisionSystem, soundSystem, levelSystemRef.current!);
+        }
         // Player physics update (based on original PlayerComponent.java)
         // Player physics update (based on original PlayerComponent.java)
         // updatePlayerPhysics(player, input, gameDelta, gameTime, collisionSystem, soundSystem);
@@ -1564,6 +1569,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Update all game objects (use gameDelta so game freezes during pause-on-attack)
       gameObjectManager.update(gameDelta, gameTime);
+      
+      // Update temporary collision surfaces (moving platforms, doors, etc.)
+      // This must happen after gameObjectManager.update() so objects can submit their surfaces,
+      // and before collision checks so the surfaces are active
+      collisionSystem.updateTemporarySurfaces();
       
       // Debug: Count NPC objects
       if (frameCount % 120 === 0) {

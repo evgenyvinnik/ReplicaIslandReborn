@@ -125,6 +125,10 @@ export class PlayerComponent extends GameComponent {
     this.levelSystem = level;
   }
 
+  hasSystemsInjected(): boolean {
+    return !!(this.inputSystem && this.collisionSystem && this.soundSystem);
+  }
+
   update(deltaTime: number, parent: GameObject): void {
     if (!this.inputSystem || !this.collisionSystem || !this.soundSystem) return;
 

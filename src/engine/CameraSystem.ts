@@ -269,12 +269,18 @@ export class CameraSystem {
 
   /**
    * Set camera position directly (immediately, no lerping)
+   * x, y are the CENTER point to focus on (e.g., player position)
+   * Internal position/focusPosition store top-left corner of viewport
    */
   setPosition(x: number, y: number): void {
-    this.position.set(x, y);
-    this.targetPosition.set(x, y);
+    // Convert center point to top-left corner
+    const topLeftX = x - this.viewportWidth / 2;
+    const topLeftY = y - this.viewportHeight / 2;
+    
+    this.position.set(topLeftX, topLeftY);
+    this.targetPosition.set(topLeftX, topLeftY);
     // Also set focusPosition immediately so the camera doesn't lerp from (0,0)
-    this.focusPosition.set(x, y);
+    this.focusPosition.set(topLeftX, topLeftY);
   }
 
   /**
