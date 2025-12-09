@@ -441,6 +441,13 @@ EVENT_SEND_DELAY = 5.0f;
 - mSpawnOnDealHit
 ```
 
+### CollisionSystemNew vs Original (line-segment port status)
+- **Original (Java)** `Original/src/com/replica/replicaisland/CollisionSystem.java`: Bresenham ray stepping over tiled line-segment data, `testBox()` collects multiple `HitPoint`s per tile, `update()` swaps/clears temporary surfaces each frame, `loadCollisionTiles()` reads signature-52 binary.
+- **Web port attempt** `src/engine/CollisionSystemNew.ts` + `public/assets/collision.json`: segment data loads in `Game.tsx` before levels, but `checkTileCollision()` is hard-wired to `checkTileCollisionSimple()` so collision.json normals are ignored; `_checkTileCollisionWithSegments()` is marked TODO and never invoked, so slopes still behave as full AABB tiles.
+- **Integration gaps**: temporary surfaces submitted via `SolidSurfaceComponent.addTemporarySurface()` never activate because `updateTemporarySurfaces()` is not called by the game loop (Java’s `update()` handled this automatically), and `raycast()` depends on `collisionDataLoaded`, forcing `BackgroundCollisionComponent` to fall back to coarse tile sampling.
+- **Data/origin differences**: level collision tiles are flattened row-major with y=0 at the top in `src/levels/LevelSystemNew.ts`, unlike Java’s column-major with flipped Y; `reset()` in `CollisionSystemNew` leaves `collisionTileDefinitions`/`collisionDataLoaded` intact, so stale segment defs can leak across levels.
+- **Resulting symptom**: the new line-segment path is effectively disabled—slopes are treated as solid blocks, `checkSlopeClimb()` rarely succeeds, and moving-platform/door surfaces never register—matching the “new implementation not working” report.
+
 ---
 
 ## AI Component Details

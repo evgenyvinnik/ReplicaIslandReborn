@@ -239,14 +239,8 @@ export class GameObjectFactory {
 
     // Add player component
     const player = this.componentPools.player.allocate();
-    if (player && this.inputSystem) {
-      player.setInputSystem(this.inputSystem);
-      player.setConfig({
-        moveSpeed: 200,
-        jumpForce: 450,
-        jumpTime: 0.25,
-        maxJumps: 2,
-      });
+    if (player) {
+      // Systems are injected in Game.tsx via setSystems()
       obj.addComponent(player);
     }
   }

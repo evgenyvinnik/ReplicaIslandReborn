@@ -34,6 +34,7 @@ import { GameObject } from '../entities/GameObject';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
 import { setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
@@ -54,65 +55,8 @@ interface GameProps {
   height?: number;
 }
 
-// Player physics constants (from original PlayerComponent.java)
-// Player state machine (from original PlayerComponent.java)
-enum PlayerState {
-  MOVE = 0,          // Normal movement
-  STOMP = 1,         // Stomp attack in progress
-  HIT_REACT = 2,     // Hit reaction (invulnerability frames)
-  DEAD = 3,          // Death animation
-  WIN = 4,           // Level complete
-  FROZEN = 5,        // Frozen (cutscene, dialog)
-  POST_GHOST_DELAY = 6, // Delay after ghost possession ends
-}
-
 // Note: In canvas coordinates, positive Y is DOWN, negative Y is UP
 // The original Java code used a coordinate system where positive Y was UP
-const PLAYER = {
-  // Movement constants
-  GROUND_IMPULSE_SPEED: 5000,
-  AIR_HORIZONTAL_IMPULSE_SPEED: 4000,
-  AIR_VERTICAL_IMPULSE_SPEED: 1200,
-  AIR_VERTICAL_IMPULSE_FROM_GROUND: 250,
-  MAX_GROUND_HORIZONTAL_SPEED: 500,
-  MAX_AIR_HORIZONTAL_SPEED: 150,
-  MAX_UPWARD_SPEED: 250,
-  JUMP_TO_JETS_DELAY: 0.5,
-  AIR_DRAG_SPEED: 4000,
-  GRAVITY: 500,
-  FUEL_AMOUNT: 1.0,
-  // Collision box dimensions (smaller than sprite)
-  // Original Java: sprite 64x64, collision box 32x48 with offset (16, 0)
-  WIDTH: 32,
-  HEIGHT: 48,
-  
-  // Stomp attack constants (from original)
-  STOMP_VELOCITY: 1000, // Positive = downward in canvas coordinates
-  STOMP_DELAY_TIME: 0.15,     // Hitstop duration on stomp impact
-  STOMP_AIR_HANG_TIME: 0.0,   // Time to hang in air before stomp
-  STOMP_SHAKE_MAGNITUDE: 15,  // Camera shake intensity on stomp land
-  STOMP_VIBRATE_TIME: 0.05,   // Vibration duration
-  ATTACK_PAUSE_DELAY: (1.0 / 60.0) * 4, // ~67ms pause on attack (4 frames at 60fps)
-  
-  // Hit reaction constants
-  HIT_REACT_TIME: 0.5,        // Duration of hit reaction state
-  INVINCIBILITY_TIME: 2.0,    // Post-hit invincibility duration
-  
-  // Ghost/Possession constants
-  GHOST_REACTIVATION_DELAY: 0.3,
-  GHOST_CHARGE_TIME: 0.75,    // Time to hold attack to spawn ghost
-  
-  // Win condition
-  MAX_GEMS_PER_LEVEL: 3,      // Rubies needed to win
-  
-  // Ghost duration by gems
-  NO_GEMS_GHOST_TIME: 3.0,
-  ONE_GEM_GHOST_TIME: 8.0,
-  TWO_GEMS_GHOST_TIME: 0.0,   // Unlimited with 2+ gems
-  
-  // Note: Glow mode constants moved to DifficultySettings in useGameStore.ts
-  // Access via getDifficultySettings().coinsPerPowerup and .glowDuration
-};
 
 export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Element {
   console.log('[Game] Component rendering, width:', width, 'height:', height);
@@ -160,99 +104,23 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const playerSpawnRef = useRef({ x: 100, y: 320 });
   
   // Player state ref for physics (matching original PlayerComponent.java)
-  const playerStateRef = useRef({
-    // State machine
-    currentState: PlayerState.MOVE,
-    stateTimer: 0,
-    
-    // Physics state
-    fuel: PLAYER.FUEL_AMOUNT,
-    jumpTime: 0,
-    touchingGround: false,
-    wasTouchingGround: false, // Track previous frame for landing detection
-    rocketsOn: false,
-    
-    // Stomp attack state
-    stomping: false,
-    stompTime: 0,
-    stompHangTime: 0,         // Air hang time before stomp
-    stompLanded: false,       // True when stomp impacts ground/enemy
-    
-    // Hit reaction state
-    invincible: false,
-    invincibleTime: 0,
-    lastHitTime: 0,
-    hitReactTimer: 0,         // Time remaining in HIT_REACT state
-    
-    // Ghost/Possession state
-    ghostChargeTime: 0,       // Time attack held on ground
-    ghostActive: false,       // True when ghost is spawned
-    postGhostDelay: 0,        // Delay after ghost returns
-    
-    // Animation state
-    animFrame: 0,
-    animTimer: 0,
-    lastAnimState: '',
-    
-    // Jet fire animation (separate from player animation)
-    jetFrame: 0,
-    jetTimer: 0,
-    
-    // Sparks animation (shown when hit)
-    sparkFrame: 0,
-    sparkTimer: 0,
-    
-    // Death/respawn state (matching original behavior)
-    isDying: false,
-    deathTime: 0,
-    fadeToRestart: false, // True when fade-to-black has started
-    fadeTime: 0,          // Time remaining in fade animation
-    
-    // Win state
-    levelWon: false,
-    
-    // Glow mode (invincibility powerup from coins)
-    glowMode: false,
-    glowTime: 0,               // Time remaining in glow mode
-    coinsForPowerup: 0,        // Coins collected toward next powerup
-  });
-  
   // Helper function to reset player state (call when loading/restarting levels)
   const resetPlayerState = useCallback((): void => {
-    const pState = playerStateRef.current;
-    pState.currentState = PlayerState.MOVE;
-    pState.stateTimer = 0;
-    pState.fuel = PLAYER.FUEL_AMOUNT;
-    pState.jumpTime = 0;
-    pState.touchingGround = false;
-    pState.wasTouchingGround = false;
-    pState.rocketsOn = false;
-    pState.stomping = false;
-    pState.stompTime = 0;
-    pState.stompHangTime = 0;
-    pState.stompLanded = false;
-    pState.invincible = false;
-    pState.invincibleTime = 0;
-    pState.lastHitTime = 0;
-    pState.hitReactTimer = 0;
-    pState.ghostChargeTime = 0;
-    pState.ghostActive = false;
-    pState.postGhostDelay = 0;
-    pState.animFrame = 0;
-    pState.animTimer = 0;
-    pState.lastAnimState = '';
-    pState.jetFrame = 0;
-    pState.jetTimer = 0;
-    pState.sparkFrame = 0;
-    pState.sparkTimer = 0;
-    pState.isDying = false;
-    pState.deathTime = 0;
-    pState.fadeToRestart = false;
-    pState.fadeTime = 0;
-    pState.levelWon = false;
-    pState.glowMode = false;
-    pState.glowTime = 0;
-    pState.coinsForPowerup = 0;
+    const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
+    if (gameObjectManager) {
+      const player = gameObjectManager.getPlayer();
+      if (player) {
+         // We need to find the PlayerComponent
+         // Since we don't have a direct reference here, we might need to iterate or assume it's there
+         // But for now, let's assume the player object has a reset method or we reset components
+         // Actually, GameObject doesn't have reset. Components do.
+         // We should iterate components and reset them.
+         player.reset();
+         
+         // Specifically reset PlayerComponent if we can find it
+         // For now, player.reset() resets all components which is correct.
+      }
+    }
   }, []);
   
   const [isInitialized, setIsInitialized] = useState(false);
@@ -298,6 +166,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Cutscene level - dialog will be triggered by NPC via GameFlowEvent
           console.log('[Game] Cutscene level - waiting for NPC to trigger dialog via hotspot, level:', state.currentLevel);
         } else {
+          // Inject systems into PlayerComponent
+          const playerComponent = player.getComponent(PlayerComponent);
+          if (playerComponent) {
+            const inputSystem = systemRegistryRef.current?.inputSystem;
+            const collisionSystem = systemRegistryRef.current?.collisionSystem;
+            const soundSystem = systemRegistryRef.current?.soundSystem;
+            
+            if (inputSystem && collisionSystem && soundSystem) {
+              playerComponent.setSystems(inputSystem, collisionSystem, soundSystem, levelSystem);
+            }
+          }
+
+          // Check for intro dialog
+          const levelId = levelSystem.getCurrentLevelId();
           console.log('[Game] Playable level - dialog will be triggered by hotspots, level:', state.currentLevel);
         }
       }
@@ -1121,7 +1003,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Hit reaction
         { name: 'andou_hit', file: 'andou_hit' },
         // Death animation
-        { name: 'andou_die01', file: 'andou_die01' },
+        { name: 'andou_die01', file: 'andou_die02' },
         { name: 'andou_die02', file: 'andou_die02' },
         // Jet fire (shown when boosting with jetpack)
         { name: 'jetfire01', file: 'jetfire01' },
@@ -1558,8 +1440,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const player = factory.spawn(GameObjectType.PLAYER, 100, 320, false);
       if (player) {
         player.type = 'player';
-        player.width = PLAYER.WIDTH;
-        player.height = PLAYER.HEIGHT;
+        player.width = PlayerComponent.WIDTH;
+        player.height = PlayerComponent.HEIGHT;
         gameObjectManager.setPlayer(player);
       }
 
@@ -1637,8 +1519,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Update player's internal gameTime before physics so touchingGround() works correctly
         player.setGameTime(gameTime);
         // Player physics update (based on original PlayerComponent.java)
-        // Use gameDelta so physics freezes during pause-on-attack
-        updatePlayerPhysics(player, input, gameDelta, gameTime, collisionSystem, soundSystem);
+        // Player physics update (based on original PlayerComponent.java)
+        // updatePlayerPhysics(player, input, gameDelta, gameTime, collisionSystem, soundSystem);
+        
+        // Player update is now handled by PlayerComponent via gameObjectManager.update()
       }
 
       // Update all game objects (use gameDelta so game freezes during pause-on-attack)
@@ -1688,10 +1572,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Big smoke every 0.25 seconds
           if (currentTime - lastSmokeTime > 250) {
             const pos = obj.getPosition();
-            // Spawn big smoke at offset (32, 15) from original
-            effectsSystem.spawnSmoke(pos.x + 32, pos.y + 15, true);
-            // Spawn small smoke at offset (16, 15) 
-            effectsSystem.spawnSmoke(pos.x + 16, pos.y + 15, false);
+            // Spawn dust effect at player's feet
+        effectsSystem.spawnDust(pos.x + PlayerComponent.WIDTH / 2, pos.y + PlayerComponent.HEIGHT);
+        effectsSystem.spawnDust(pos.x + PlayerComponent.WIDTH / 2 - 10, pos.y + PlayerComponent.HEIGHT);
+        effectsSystem.spawnDust(pos.x + PlayerComponent.WIDTH / 2 + 10, pos.y + PlayerComponent.HEIGHT);
             smokeTimers.set(objId, currentTime);
           }
         }
@@ -1969,17 +1853,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const px = player.getPosition().x + player.width / 2;
         const py = player.getPosition().y + player.height / 2;
         const hotSpot = hotSpotSystem.getHotSpot(px, py);
-        const pState = playerStateRef.current;
+        const playerComponent = player.getComponent(PlayerComponent);
+        if (!playerComponent) return; // Should always exist for player object
         
-        if (hotSpot === HotSpotType.DIE && !pState.isDying) {
+        if (hotSpot === HotSpotType.DIE && !playerComponent.isDying) {
           // Player death from death zone - matching original behavior:
           // 1. Play death animation in-game
           // 2. After 2 seconds, fade to black
           // 3. Restart level automatically (no game over screen)
-          pState.isDying = true;
-          pState.deathTime = 2.0; // 2 seconds until fade starts (matching original)
-          pState.currentState = PlayerState.DEAD;
-          pState.fadeToRestart = false; // Will be set true after deathTime expires
+          playerComponent.isDying = true;
+          playerComponent.deathTime = 2.0; // 2 seconds until fade starts (matching original)
+          playerComponent.currentState = PlayerState.DEAD;
+          playerComponent.fadeToRestart = false; // Will be set true after deathTime expires
           soundSystem.playSfx(SoundEffects.EXPLODE);
           
           // Spawn explosion effect at player position
@@ -1994,7 +1879,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           // Track death for stats
           useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
-        } else if (hotSpot === HotSpotType.END_LEVEL && !pState.isDying) {
+        } else if (hotSpot === HotSpotType.END_LEVEL && !playerComponent.isDying) {
           // Level complete
           soundSystem.playSfx(SoundEffects.DING);
           
@@ -2048,49 +1933,51 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // Handle death animation and respawn (matching original behavior)
       // Original flow: death animation plays for 2s, then fade to black over 1.5s, then restart
-      const pState = playerStateRef.current;
-      if (pState.isDying) {
-        pState.deathTime -= deltaTime;
-        
-        if (pState.deathTime <= 0 && !pState.fadeToRestart) {
-          // Start fade to black (1.5 seconds, matching original)
-          pState.fadeToRestart = true;
-          pState.fadeTime = 1.5;
-        }
-        
-        if (pState.fadeToRestart) {
-          pState.fadeTime -= deltaTime;
+      const pComp = player?.getComponent(PlayerComponent);
+      if (pComp) { // Ensure playerComponent exists
+        if (pComp.isDying) {
+          pComp.deathTime -= deltaTime;
           
-          if (pState.fadeTime <= 0) {
-            // Fade complete - restart level
-            pState.isDying = false;
-            pState.deathTime = 0;
-            pState.fadeToRestart = false;
-            pState.fadeTime = 0;
+          if (pComp.deathTime <= 0 && !pComp.fadeToRestart) {
+            // Start fade to black (1.5 seconds, matching original)
+            pComp.fadeToRestart = true;
+            pComp.fadeTime = 1.5;
+          }
+          
+          if (pComp.fadeToRestart) {
+            pComp.fadeTime -= deltaTime;
             
-            // Reload current level
-            const levelSys = levelSystemRef.current;
-            if (levelSys) {
-              levelSys.loadLevel(state.currentLevel).then(() => {
-                // Initialize tile map renderer for level
-                const parsedLevel = levelSys.getParsedLevel();
-                if (parsedLevel && tileMapRendererRef.current) {
-                  tileMapRendererRef.current.initializeFromLevel(parsedLevel);
-                }
-                
-                const spawn = levelSys.playerSpawnPosition;
-                playerSpawnRef.current = { ...spawn };
-                resetPlayerState();
-                
-                const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
-                gameObjectMgr?.commitUpdates();
-                const playerObj = gameObjectMgr?.getPlayer();
-                if (playerObj) {
-                  playerObj.setPosition(spawn.x, spawn.y);
-                  playerObj.getVelocity().x = 0;
-                  playerObj.getVelocity().y = 0;
-                }
-              });
+            if (pComp.fadeTime <= 0) {
+              // Fade complete - restart level
+              pComp.isDying = false;
+              pComp.deathTime = 0;
+              pComp.fadeToRestart = false;
+              pComp.fadeTime = 0;
+              
+              // Reload current level
+              const levelSys = levelSystemRef.current;
+              if (levelSys) {
+                levelSys.loadLevel(state.currentLevel).then(() => {
+                  // Initialize tile map renderer for level
+                  const parsedLevel = levelSys.getParsedLevel();
+                  if (parsedLevel && tileMapRendererRef.current) {
+                    tileMapRendererRef.current.initializeFromLevel(parsedLevel);
+                  }
+                  
+                  const spawn = levelSys.playerSpawnPosition;
+                  playerSpawnRef.current = { ...spawn };
+                  resetPlayerState();
+                  
+                  const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+                  gameObjectMgr?.commitUpdates();
+                  const playerObj = gameObjectMgr?.getPlayer();
+                  if (playerObj) {
+                    playerObj.setPosition(spawn.x, spawn.y);
+                    playerObj.getVelocity().x = 0;
+                    playerObj.getVelocity().y = 0;
+                  }
+                });
+              }
             }
           }
         }
@@ -2166,6 +2053,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           width: player.width,
           height: player.height,
         };
+        const playerComponent = player.getComponent(PlayerComponent);
+        if (!playerComponent) return; // Should always exist for player object
         
         gameObjectManager.forEach((obj) => {
           if (obj === player || !obj.isVisible()) return;
@@ -2191,7 +2080,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               
               // Update inventory and play sound based on type
               const inv = getInventory();
-              const pState = playerStateRef.current;
               
               if (obj.type === 'coin') {
                 // Coins don't add to score in the original game - only track count
@@ -2199,20 +2087,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 soundSystem.playSfx(SoundEffects.GEM1, 0.5);
                 
                 // Track coins toward glow mode powerup
-                pState.coinsForPowerup++;
+                playerComponent.coinsForPowerup++;
                 
                 // Check if enough coins for glow mode (difficulty-based)
                 const difficultyConfig = getDifficultySettings();
                 const coinsNeeded = difficultyConfig.coinsPerPowerup;
                 const glowDuration = difficultyConfig.glowDuration;
                 
-                if (pState.coinsForPowerup >= coinsNeeded) {
+                if (playerComponent.coinsForPowerup >= coinsNeeded) {
                   // Activate glow mode!
-                  pState.glowMode = true;
-                  pState.glowTime = glowDuration;
-                  pState.invincible = true;  // Glow mode grants invincibility
-                  pState.invincibleTime = glowDuration;
-                  pState.coinsForPowerup = 0;  // Reset counter
+                  playerComponent.glowMode = true;
+                  playerComponent.glowTime = glowDuration;
+                  playerComponent.invincible = true;  // Glow mode grants invincibility
+                  playerComponent.invincibleTime = glowDuration;
+                  playerComponent.coinsForPowerup = 0;  // Reset counter
                   
                   // Restore player health to max (original game behavior)
                   setInventory({ lives: difficultyConfig.playerMaxLife });
@@ -2225,11 +2113,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 soundSystem.playSfx(SoundEffects.GEM2, 0.5);
                 
                 // WIN CONDITION: Collecting 3 rubies (MAX_GEMS_PER_LEVEL) completes the level
-                if (newRubyCount >= PLAYER.MAX_GEMS_PER_LEVEL) {
-                  const pState = playerStateRef.current;
-                  if (!pState.levelWon) {
-                    pState.levelWon = true;
-                    pState.currentState = PlayerState.WIN;
+                if (newRubyCount >= PlayerComponent.MAX_GEMS_PER_LEVEL) {
+                  if (!playerComponent.levelWon) {
+                    playerComponent.levelWon = true;
+                    playerComponent.currentState = PlayerState.WIN;
                     soundSystem.playSfx(SoundEffects.DING, 1.0);
                     
                     // Trigger level complete after a short delay
@@ -2259,13 +2146,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 const diaryEntry = getDiaryByCollectionOrder(newDiaryCount);
                 if (canvasDiary && diaryEntry) {
                   // Pause the game while showing diary
-                  const pState = playerStateRef.current;
-                  pState.currentState = PlayerState.FROZEN;
+                  playerComponent.currentState = PlayerState.FROZEN;
                   
                   canvasDiary.show(diaryEntry, () => {
                     // Resume when diary is closed
-                    if (pState.currentState === PlayerState.FROZEN) {
-                      pState.currentState = PlayerState.MOVE;
+                    if (playerComponent.currentState === PlayerState.FROZEN) {
+                      playerComponent.currentState = PlayerState.MOVE;
                     }
                   });
                 }
@@ -2294,11 +2180,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 playerRect.y < objRect.y + objRect.height &&
                 playerRect.y + playerRect.height > objRect.y) {
               
-              const pState = playerStateRef.current;
-              const playerVel = player.getVelocity();
-              
               // Check if player is stomping (coming from above with stomp attack)
-              if (pState.stomping || (playerVel.y > 0 && playerPos.y < objPos.y)) {
+              if (playerComponent.stomping || (player.getVelocity().y > 0 && playerPos.y < objPos.y)) {
                 // Player kills enemy with stomp
                 obj.life = 0;
                 obj.setVisible(false);
@@ -2316,12 +2199,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 soundSystem.playSfx(SoundEffects.STOMP);
                 
                 // Pause-on-attack effect: brief time freeze for impact feedback
-                timeSystem.freeze(PLAYER.ATTACK_PAUSE_DELAY);
+                timeSystem.freeze(PlayerComponent.ATTACK_PAUSE_DELAY);
                 
                 // Award points
                 const inv = getInventory();
                 setInventory({ score: inv.score + 25 });
-              } else if (!pState.invincible && pState.currentState !== PlayerState.HIT_REACT && !pState.isDying) {
+              } else if (!playerComponent.invincible && playerComponent.currentState !== PlayerState.HIT_REACT && !playerComponent.isDying) {
                 // Enemy damages player (only if not invincible, not in hit reaction, and not dying)
                 // Original game has 2 health points (MAX_PLAYER_LIFE = 2)
                 const inv = getInventory();
@@ -2336,11 +2219,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   // Player dies - matching original death flow:
                   // 1. Play death animation in-game
                   // 2. After 2 seconds, fade to black
-                  // 3. Restart level automatically
-                  pState.currentState = PlayerState.DEAD;
-                  pState.isDying = true;
-                  pState.deathTime = 2.0; // 2 seconds until fade starts
-                  pState.fadeToRestart = false;
+                  playerComponent.currentState = PlayerState.DEAD;
+                  playerComponent.isDying = true;
+                  playerComponent.deathTime = 2.0; // 2 seconds until fade starts
+                  playerComponent.fadeToRestart = false;
                   
                   // Stop player movement
                   player.getVelocity().x = 0;
@@ -2359,12 +2241,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 }
                 
                 // Enter HIT_REACT state (matching original HIT_REACT_TIME = 0.5s)
-                pState.currentState = PlayerState.HIT_REACT;
-                pState.hitReactTimer = PLAYER.HIT_REACT_TIME;
+                playerComponent.currentState = PlayerState.HIT_REACT;
+                playerComponent.hitReactTimer = PlayerComponent.HIT_REACT_TIME;
                   
                 // Grant invincibility frames (INVINCIBILITY_TIME from original)
-                pState.invincible = true;
-                pState.invincibleTime = PLAYER.INVINCIBILITY_TIME;
+                playerComponent.invincible = true;
+                playerComponent.invincibleTime = PlayerComponent.INVINCIBILITY_TIME;
                 
                 // Knock player back
                 const knockbackDir = playerPos.x < objPos.x ? -1 : 1;
@@ -2469,32 +2351,121 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         });
       }
       
-      // Update player state machine (using existing pState from death handling above)
+      // Update player state machine (using existing playerComponent from death handling above)
+      const playerComponent = player?.getComponent(PlayerComponent);
+      if (!playerComponent) return; // Should always exist for player object
       
       // Update HIT_REACT state timer
-      if (pState.currentState === PlayerState.HIT_REACT) {
-        pState.hitReactTimer -= deltaTime;
-        if (pState.hitReactTimer <= 0) {
-          pState.currentState = PlayerState.MOVE;
-          pState.hitReactTimer = 0;
+      if (playerComponent.currentState === PlayerState.HIT_REACT) {
+        playerComponent.hitReactTimer -= deltaTime;
+        if (playerComponent.hitReactTimer <= 0) {
+          playerComponent.currentState = PlayerState.MOVE;
+          playerComponent.hitReactTimer = 0;
         }
       }
       
       // Update invincibility timer
-      if (pState.invincible) {
-        pState.invincibleTime -= deltaTime;
-        if (pState.invincibleTime <= 0) {
-          pState.invincible = false;
+      if (playerComponent.invincible) {
+        playerComponent.invincibleTime -= deltaTime;
+        if (playerComponent.invincibleTime <= 0) {
+          playerComponent.invincible = false;
         }
       }
       
       // Update glow mode timer (separate from invincibility in case we extend glow)
-      if (pState.glowMode) {
-        pState.glowTime -= deltaTime;
-        if (pState.glowTime <= 0) {
-          pState.glowMode = false;
-          pState.glowTime = 0;
+      if (playerComponent.glowMode) {
+        playerComponent.glowTime -= deltaTime;
+        if (playerComponent.glowTime <= 0) {
+          playerComponent.glowMode = false;
+          playerComponent.glowTime = 0;
         }
+      }
+
+      // Camera shake on landing from high jump or stomp
+      if (playerComponent.stomping && playerComponent.touchingGround && !playerComponent.stompLanded) {
+        const cameraSys = systemRegistryRef.current?.cameraSystem;
+        if (cameraSys) {
+          cameraSys.shake(PlayerComponent.STOMP_SHAKE_MAGNITUDE, PlayerComponent.STOMP_VIBRATE_TIME);
+        }
+        // Vibrate device - removed as not in SystemRegistry
+        /*
+        const vibrationSys = systemRegistryRef.current?.vibrationSystem;
+        if (vibrationSys) {
+          vibrationSys.vibrate(PlayerComponent.STOMP_VIBRATE_TIME * 1000);
+        }
+        */
+        playerComponent.stompLanded = true; // Mark stomp as landed to prevent repeated shakes
+      }
+
+      // Refuel when on ground
+      if (playerComponent.fuel < PlayerComponent.FUEL_AMOUNT) {
+        if (playerComponent.touchingGround) {
+          playerComponent.fuel += 2.0 * deltaTime;
+        } else {
+          playerComponent.fuel += 0.5 * deltaTime;
+        }
+        playerComponent.fuel = Math.min(PlayerComponent.FUEL_AMOUNT, playerComponent.fuel);
+      }
+
+      // Ghost mechanic
+      if (input.attack && playerComponent.touchingGround && !playerComponent.stomping && !playerComponent.ghostActive) {
+        playerComponent.ghostChargeTime += deltaTime;
+        
+        if (playerComponent.ghostChargeTime >= PlayerComponent.GHOST_CHARGE_TIME) {
+          playerComponent.ghostActive = true;
+          playerComponent.ghostChargeTime = 0;
+          soundSystem.playSfx(SoundEffects.POSSESSION, 0.7);
+          
+          // Spawn ghost logic would go here
+          // For now just freeze player
+          playerComponent.currentState = PlayerState.FROZEN;
+        }
+      } else if (!input.attack) {
+        playerComponent.ghostChargeTime = 0;
+      }
+
+      // Stomp attack
+      const inTheAir = !playerComponent.touchingGround;
+      if (input.attack && inTheAir && !playerComponent.stomping && playerComponent.currentState === PlayerState.MOVE) {
+        playerComponent.currentState = PlayerState.STOMP;
+        playerComponent.stomping = true;
+        playerComponent.stompTime = gameTime;
+        playerComponent.stompHangTime = PlayerComponent.STOMP_AIR_HANG_TIME;
+        playerComponent.stompLanded = false;
+        
+        const velocity = player.getVelocity();
+        if (PlayerComponent.STOMP_AIR_HANG_TIME > 0) {
+          velocity.x = 0;
+          velocity.y = 0;
+        } else {
+          velocity.y = PlayerComponent.STOMP_VELOCITY;
+        }
+        soundSystem.playSfx(SoundEffects.STOMP);
+      }
+
+      // Jump/Fly
+      if (input.jump) {
+        const velocity = player.getVelocity();
+        if (playerComponent.touchingGround && !playerComponent.rocketsOn) {
+          // Initial jump from ground
+          velocity.y = -PlayerComponent.AIR_VERTICAL_IMPULSE_FROM_GROUND;
+          playerComponent.jumpTime = gameTime;
+          soundSystem.playSfx(SoundEffects.POING, 0.5);
+        } else if (gameTime > playerComponent.jumpTime + PlayerComponent.JUMP_TO_JETS_DELAY) {
+          // Jet pack
+          if (playerComponent.fuel > 0) {
+            playerComponent.fuel -= deltaTime;
+            velocity.y += -PlayerComponent.AIR_VERTICAL_IMPULSE_SPEED * deltaTime;
+            playerComponent.rocketsOn = true;
+            
+            // Cap upward speed
+            if (velocity.y < -PlayerComponent.MAX_UPWARD_SPEED) {
+              velocity.y = -PlayerComponent.MAX_UPWARD_SPEED;
+            }
+          }
+        }
+      } else {
+        playerComponent.rocketsOn = false;
       }
 
       // Update camera to follow player
@@ -2503,336 +2474,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       }
       cameraSystem.update(deltaTime);
     });
-
-    // Player physics update function
-    const updatePlayerPhysics = (
-      player: ReturnType<typeof gameObjectManager.getPlayer>,
-      input: ReturnType<typeof inputSystem.getInputState>,
-      deltaTime: number,
-      gameTime: number,
-      collisionSys: CollisionSystem,
-      soundSys: SoundSystem
-    ): void => {
-      if (!player) return;
-
-      const pState = playerStateRef.current;
-      const velocity = player.getVelocity();
-      const position = player.getPosition();
-
-      // Save previous ground state for landing detection
-      pState.wasTouchingGround = pState.touchingGround;
-      
-      // Check if grounded
-      pState.touchingGround = player.touchingGround();
-      
-      // Detect landing (just hit the ground this frame)
-      const justLanded = pState.touchingGround && !pState.wasTouchingGround;
-      if (justLanded) {
-        // Spawn dust effect at player's feet
-        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2, position.y + PLAYER.HEIGHT);
-        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2 - 10, position.y + PLAYER.HEIGHT);
-        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2 + 10, position.y + PLAYER.HEIGHT);
-      }
-
-      // Refuel when on ground
-      if (pState.fuel < PLAYER.FUEL_AMOUNT) {
-        if (pState.touchingGround) {
-          pState.fuel += 2.0 * deltaTime;
-        } else {
-          pState.fuel += 0.5 * deltaTime;
-        }
-        pState.fuel = Math.min(PLAYER.FUEL_AMOUNT, pState.fuel);
-      }
-
-      // Horizontal movement
-      let moveX = 0;
-      if (input.left) moveX -= 1;
-      if (input.right) moveX += 1;
-
-      const inTheAir = !pState.touchingGround;
-      const horizontalSpeed = inTheAir ? PLAYER.AIR_HORIZONTAL_IMPULSE_SPEED : PLAYER.GROUND_IMPULSE_SPEED;
-      const maxHorizontalSpeed = inTheAir ? PLAYER.MAX_AIR_HORIZONTAL_SPEED : PLAYER.MAX_GROUND_HORIZONTAL_SPEED;
-
-      // Apply horizontal impulse
-      if (moveX !== 0) {
-        const impulseX = moveX * horizontalSpeed * deltaTime;
-        const newSpeed = Math.abs(velocity.x + impulseX);
-        
-        if (newSpeed <= maxHorizontalSpeed) {
-          velocity.x += impulseX;
-        } else if (Math.abs(velocity.x) < maxHorizontalSpeed) {
-          velocity.x = maxHorizontalSpeed * moveX;
-        }
-
-        // Update facing direction
-        player.facingDirection.x = moveX;
-      }
-
-      // Air drag
-      if (inTheAir && Math.abs(velocity.x) > maxHorizontalSpeed) {
-        const drag = PLAYER.AIR_DRAG_SPEED * deltaTime * Math.sign(velocity.x);
-        velocity.x -= drag;
-        if (Math.abs(velocity.x) < maxHorizontalSpeed) {
-          velocity.x = maxHorizontalSpeed * Math.sign(velocity.x);
-        }
-      }
-
-      // Jump/Fly (combined in one button)
-      if (input.jump) {
-        if (pState.touchingGround && !pState.rocketsOn) {
-          // Initial jump from ground
-          velocity.y = -PLAYER.AIR_VERTICAL_IMPULSE_FROM_GROUND;
-          pState.jumpTime = gameTime;
-          soundSys.playSfx(SoundEffects.POING, 0.5);
-        } else if (gameTime > pState.jumpTime + PLAYER.JUMP_TO_JETS_DELAY) {
-          // Jet pack
-          if (pState.fuel > 0) {
-            pState.fuel -= deltaTime;
-            velocity.y += -PLAYER.AIR_VERTICAL_IMPULSE_SPEED * deltaTime;
-            pState.rocketsOn = true;
-            
-            // Cap upward speed
-            if (velocity.y < -PLAYER.MAX_UPWARD_SPEED) {
-              velocity.y = -PLAYER.MAX_UPWARD_SPEED;
-            }
-          }
-        }
-      } else {
-        pState.rocketsOn = false;
-      }
-
-      // Stomp attack (with hang time matching original)
-      if (input.attack && inTheAir && !pState.stomping && pState.currentState === PlayerState.MOVE) {
-        // Enter stomp state
-        pState.currentState = PlayerState.STOMP;
-        pState.stomping = true;
-        pState.stompTime = gameTime;
-        pState.stompHangTime = PLAYER.STOMP_AIR_HANG_TIME;
-        pState.stompLanded = false;
-        
-        // Freeze position momentarily for hang time (if STOMP_AIR_HANG_TIME > 0)
-        if (PLAYER.STOMP_AIR_HANG_TIME > 0) {
-          velocity.x = 0;
-          velocity.y = 0;
-        } else {
-          // No hang time, start stomp immediately
-          velocity.y = PLAYER.STOMP_VELOCITY;
-        }
-        soundSys.playSfx(SoundEffects.STOMP);
-      }
-
-      // Handle stomp hang time
-      if (pState.stomping && pState.stompHangTime > 0) {
-        pState.stompHangTime -= deltaTime;
-        // Keep velocity at 0 during hang time
-        velocity.x = 0;
-        velocity.y = 0;
-        
-        // When hang time ends, apply stomp velocity
-        if (pState.stompHangTime <= 0) {
-          velocity.y = PLAYER.STOMP_VELOCITY;
-        }
-      }
-
-      // Reset stomp when landing - with camera shake and effects
-      if (pState.stomping && pState.touchingGround && !pState.stompLanded) {
-        pState.stompLanded = true;
-        
-        // Camera shake on stomp landing (matching original STOMP_SHAKE_MAGNITUDE)
-        const cameraSystem = systemRegistryRef.current?.cameraSystem;
-        if (cameraSystem) {
-          cameraSystem.shake(PLAYER.STOMP_SHAKE_MAGNITUDE, PLAYER.STOMP_DELAY_TIME);
-        }
-        
-        // Spawn dust/impact effects
-        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2, position.y + PLAYER.HEIGHT);
-        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2 - 15, position.y + PLAYER.HEIGHT);
-        effectsSystem.spawnDust(position.x + PLAYER.WIDTH / 2 + 15, position.y + PLAYER.HEIGHT);
-        
-        // Reset stomp state
-        pState.stomping = false;
-        pState.currentState = PlayerState.MOVE;
-      }
-
-      // Ghost mechanic - hold attack on ground to spawn ghost (from original)
-      if (input.attack && pState.touchingGround && !pState.stomping && !pState.ghostActive) {
-        // Charge ghost while holding attack on ground
-        pState.ghostChargeTime += deltaTime;
-        
-        // Visual feedback could be added here (player glowing, etc.)
-        
-        // When fully charged, spawn ghost
-        if (pState.ghostChargeTime >= PLAYER.GHOST_CHARGE_TIME) {
-          pState.ghostActive = true;
-          pState.ghostChargeTime = 0;
-          soundSys.playSfx(SoundEffects.POSSESSION, 0.7);
-          
-          // Spawn ghost entity using GhostComponent
-          const ghostFactory = systemRegistryRef.current?.gameObjectFactory;
-          const inv = getInventory();
-          if (ghostFactory && player) {
-            const playerPos = player.getPosition();
-            const ghost = ghostFactory.spawnGhost(playerPos.x, playerPos.y - 32, inv.rubyCount);
-            
-            if (ghost) {
-              // Camera should follow the ghost
-              const camera = systemRegistryRef.current?.cameraSystem;
-              if (camera) {
-                camera.setTarget(ghost);
-              }
-              
-              // Player is frozen during ghost possession
-              pState.currentState = PlayerState.FROZEN;
-            }
-          }
-        }
-      } else if (!input.attack) {
-        // Reset charge when attack is released
-        pState.ghostChargeTime = 0;
-      }
-      
-      // Check if ghost has been released/destroyed (camera returned to player)
-      if (pState.ghostActive && pState.currentState === PlayerState.FROZEN) {
-        const camera = systemRegistryRef.current?.cameraSystem;
-        const currentTarget = camera?.getTarget();
-        
-        // If camera target is null or player, ghost was released
-        if (!currentTarget || currentTarget === player) {
-          // Transition to post-ghost delay
-          pState.currentState = PlayerState.POST_GHOST_DELAY;
-          pState.postGhostDelay = PLAYER.GHOST_REACTIVATION_DELAY;
-          
-          // Return camera to player
-          if (camera && player) {
-            camera.setTarget(player);
-          }
-        }
-      }
-      
-      // Handle post-ghost delay (after ghost returns to player)
-      if (pState.currentState === PlayerState.POST_GHOST_DELAY) {
-        pState.postGhostDelay -= deltaTime;
-        if (pState.postGhostDelay <= 0) {
-          pState.currentState = PlayerState.MOVE;
-          pState.ghostActive = false;
-        }
-      }
-
-      // Apply gravity (skip during stomp hang time)
-      if (!pState.stomping || pState.stompHangTime <= 0) {
-        velocity.y += PLAYER.GRAVITY * deltaTime;
-      }
-
-      // Clamp velocity
-      velocity.x = Math.max(-PLAYER.MAX_GROUND_HORIZONTAL_SPEED, Math.min(PLAYER.MAX_GROUND_HORIZONTAL_SPEED, velocity.x));
-      velocity.y = Math.max(-PLAYER.MAX_UPWARD_SPEED * 2, Math.min(1000, velocity.y));
-
-      // Friction on ground
-      if (pState.touchingGround && moveX === 0) {
-        velocity.x *= 0.85;
-        if (Math.abs(velocity.x) < 1) velocity.x = 0;
-      }
-
-      // Move player (simple integration with separate X/Y collision handling)
-      const tileSize = 32;
-      
-      // First, try horizontal movement
-      const newX = position.x + velocity.x * deltaTime;
-      const hCollision = collisionSys.checkTileCollision(
-        newX, position.y, player.width, player.height, velocity.x, 0
-      );
-      
-      let horizontalBlocked = false;
-      
-      if (hCollision.leftWall || hCollision.rightWall) {
-        // Check if this might be a slope we can climb
-        // Only try slope climbing if we're on or near the ground
-        if (pState.touchingGround || velocity.y >= 0) {
-          const slopeCheck = collisionSys.checkSlopeClimb(
-            newX, position.y, player.width, player.height, velocity.x
-          );
-          
-          if (slopeCheck.canClimb) {
-            // We can climb this slope!
-            position.x = newX;
-            position.y = slopeCheck.newY;
-            velocity.y = 0; // Clear vertical velocity when climbing
-            player.setLastTouchedFloorTime(gameTime);
-          } else {
-            // Can't climb - it's a wall
-            horizontalBlocked = true;
-          }
-        } else {
-          // In the air moving upward - treat as wall
-          horizontalBlocked = true;
-        }
-      }
-      
-      if (horizontalBlocked) {
-        if (hCollision.leftWall) {
-          // Player's LEFT edge hit a wall (moving left)
-          const tileX = Math.floor(newX / tileSize);
-          position.x = (tileX + 1) * tileSize + 0.1;
-          velocity.x = 0;
-          player.setLastTouchedLeftWallTime(gameTime);
-        } else if (hCollision.rightWall) {
-          // Player's RIGHT edge hit a wall (moving right)
-          const tileX = Math.floor((newX + player.width) / tileSize);
-          position.x = tileX * tileSize - player.width - 0.1;
-          velocity.x = 0;
-          player.setLastTouchedRightWallTime(gameTime);
-        }
-      } else if (!hCollision.leftWall && !hCollision.rightWall) {
-        position.x = newX;
-      }
-      
-      // Then, try vertical movement
-      const newY = position.y + velocity.y * deltaTime;
-      const vCollision = collisionSys.checkTileCollision(
-        position.x, newY, player.width, player.height, 0, velocity.y
-      );
-
-      // Apply vertical collision response
-      if (vCollision.grounded) {
-        // Snap to top of the solid tile (player bottom aligns with tile top)
-        const bottomTileY = Math.floor((newY + player.height) / tileSize);
-        position.y = bottomTileY * tileSize - player.height;
-        velocity.y = 0;
-        player.setLastTouchedFloorTime(gameTime);
-      } else if (vCollision.ceiling) {
-        // Snap to bottom of the solid tile (player top aligns with tile bottom)
-        const topTileY = Math.floor(newY / tileSize);
-        position.y = (topTileY + 1) * tileSize;
-        velocity.y = 0;
-        player.setLastTouchedCeilingTime(gameTime);
-      } else {
-        position.y = newY;
-      }
-      
-      // Clamp to world bounds
-      const levelSystem = levelSystemRef.current;
-      if (levelSystem) {
-        const levelWidth = levelSystem.getLevelWidth();
-        
-        // Horizontal bounds
-        if (position.x < 0) {
-          position.x = 0;
-          velocity.x = 0;
-        } else if (position.x + player.width > levelWidth) {
-          position.x = levelWidth - player.width;
-          velocity.x = 0;
-        }
-        
-        // Vertical bounds - top
-        if (position.y < 0) {
-          position.y = 0;
-          velocity.y = 0;
-        }
-        // Note: Bottom bound is handled by death zones, not clamping
-      }
-
-      player.setBackgroundCollisionNormal(vCollision.normal.y !== 0 ? vCollision.normal : hCollision.normal);
-    };
 
     // Render callback
     let renderCount = 0;
@@ -2853,7 +2494,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const cameraX = cameraSystem.getFocusPositionX();
         const cameraY = cameraSystem.getFocusPositionY();
         
-        // Simple parallax - background scrolls at 0.5x speed
+        // Simple parallax - background scrolls at 0.3x speed
         const bgScrollX = -(cameraX * 0.3) % bgImage.width;
         const bgScrollY = -(cameraY * 0.1);
         
@@ -2881,9 +2522,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const isPlayer = obj === player;
         
         if (isPlayer) {
+          if (!player) return; // Should not happen if isPlayer is true, but satisfies TS
+          const pComp = obj.getComponent(PlayerComponent);
+          if (!pComp) return;
+
           // Check if flashing (invincible) - skip every other frame
-          const pState = playerStateRef.current;
-          if (pState.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
+          if (pComp.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
             return; // Skip rendering this frame for flashing effect
           }
           
@@ -2896,28 +2540,28 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           let looping = false;
           
           // Check state machine first for special states
-          if (pState.currentState === PlayerState.HIT_REACT) {
+          if (pComp.currentState === PlayerState.HIT_REACT) {
             // HIT_REACT animation - hit/damaged pose
             animState = 'hit';
             animFrames = ['andou_hit'];
             looping = false;
-          } else if (pState.currentState === PlayerState.DEAD || pState.isDying) {
+          } else if (pComp.currentState === PlayerState.DEAD || pComp.isDying) {
             // DEAD animation - death sequence
             animState = 'dead';
             animFrames = ['andou_die01', 'andou_die02'];
             looping = false;
-          } else if (pState.stomping) {
+          } else if (pComp.stomping) {
             // STOMP animation - 4 frames, not looping
             animState = 'stomp';
             animFrames = ['andou_stomp01', 'andou_stomp02', 'andou_stomp03', 'andou_stomp04'];
             looping = false;
-          } else if (pState.ghostChargeTime > 0) {
+          } else if (pComp.ghostChargeTime > 0) {
             // Charging ghost - could use a special charging animation
             // For now, use a slight variation (maybe flyup frames to show charging)
             animState = 'charge';
             animFrames = ['andou_flyup01'];
             looping = false;
-          } else if (pState.touchingGround) {
+          } else if (pComp.touchingGround) {
             // On ground
             if (absVelX < 30) {
               // IDLE - standing still
@@ -2934,7 +2578,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
           } else {
             // In air
-            if (pState.rocketsOn) {
+            if (pComp.rocketsOn) {
               // Boosting with jets
               // Note: In canvas, negative vel.y = going up, positive = going down
               if (absVelX < 50 && vel.y < -50) {
@@ -2972,28 +2616,28 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
           
           // Reset animation frame if state changed
-          if (animState !== pState.lastAnimState) {
-            pState.animFrame = 0;
-            pState.animTimer = 0;
-            pState.lastAnimState = animState;
+          if (animState !== pComp.lastAnimState) {
+            pComp.animFrame = 0;
+            pComp.animTimer = 0;
+            pComp.lastAnimState = animState;
           }
           
           // Update animation timer
-          pState.animTimer += 1 / 60; // Assuming 60 FPS game loop
-          if (pState.animTimer >= FRAME_TIME) {
-            pState.animTimer -= FRAME_TIME;
-            pState.animFrame++;
+          pComp.animTimer += 1 / 60; // Assuming 60 FPS game loop
+          if (pComp.animTimer >= FRAME_TIME) {
+            pComp.animTimer -= FRAME_TIME;
+            pComp.animFrame++;
             
-            if (pState.animFrame >= animFrames.length) {
+            if (pComp.animFrame >= animFrames.length) {
               if (looping) {
-                pState.animFrame = 0;
+                pComp.animFrame = 0;
               } else {
-                pState.animFrame = animFrames.length - 1; // Stay on last frame
+                pComp.animFrame = animFrames.length - 1; // Stay on last frame
               }
             }
           }
           
-          const spriteName = animFrames[pState.animFrame] || animFrames[0];
+          const spriteName = animFrames[pComp.animFrame] || animFrames[0];
           
           // Get canvas context for glow effect
           const ctx = renderSystem.getContext();
@@ -3007,15 +2651,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           const scaleX = obj.facingDirection.x < 0 ? -1 : 1;
           
           // Draw jet fire FIRST (behind player) when boosting
-          if (pState.rocketsOn) {
+          if (pComp.rocketsOn) {
             // Update jet fire animation
-            pState.jetTimer += 1 / 60;
-            if (pState.jetTimer >= FRAME_TIME) {
-              pState.jetTimer -= FRAME_TIME;
-              pState.jetFrame = (pState.jetFrame + 1) % 2;
+            pComp.jetTimer += 1 / 60;
+            if (pComp.jetTimer >= FRAME_TIME) {
+              pComp.jetTimer -= FRAME_TIME;
+              pComp.jetFrame = (pComp.jetFrame + 1) % 2;
             }
             
-            const jetSpriteName = pState.jetFrame === 0 ? 'jetfire01' : 'jetfire02';
+            const jetSpriteName = pComp.jetFrame === 0 ? 'jetfire01' : 'jetfire02';
             if (renderSystem.hasSprite(jetSpriteName)) {
               // Jets are drawn below the player (offset Y by +16 in original)
               // In canvas coords, +Y is down, so we add to Y to draw below feet
@@ -3027,7 +2671,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           if (renderSystem.hasSprite(spriteName)) {
             
             // Apply glow effect when in glow mode
-            if (pState.glowMode && ctx) {
+            if (pComp.glowMode && ctx) {
               ctx.save();
               // Pulsating glow effect - oscillates based on time
               const glowIntensity = 15 + 10 * Math.sin(Date.now() / 100);
@@ -3044,16 +2688,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
             
             // Draw sparks ON TOP of player when hit
-            if (pState.currentState === PlayerState.HIT_REACT) {
+            if (pComp.currentState === PlayerState.HIT_REACT) {
               // Update sparks animation
-              pState.sparkTimer += 1 / 60;
-              if (pState.sparkTimer >= FRAME_TIME) {
-                pState.sparkTimer -= FRAME_TIME;
-                pState.sparkFrame = (pState.sparkFrame + 1) % 3;
+              pComp.sparkTimer += 1 / 60;
+              if (pComp.sparkTimer >= FRAME_TIME) {
+                pComp.sparkTimer -= FRAME_TIME;
+                pComp.sparkFrame = (pComp.sparkFrame + 1) % 3;
               }
               
               const sparkFrames = ['spark01', 'spark02', 'spark03'];
-              const sparkSpriteName = sparkFrames[pState.sparkFrame];
+              const sparkSpriteName = sparkFrames[pComp.sparkFrame];
               if (renderSystem.hasSprite(sparkSpriteName)) {
                 // Sparks drawn at player center, slightly higher priority (on top)
                 renderSystem.drawSprite(sparkSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 11, 1, scaleX, 1);
@@ -3061,7 +2705,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
           } else {
             // Fallback green rectangle for player (with glow if needed)
-            if (pState.glowMode && ctx) {
+            if (pComp.glowMode && ctx) {
               ctx.save();
               ctx.shadowColor = '#FFD700';
               ctx.shadowBlur = 20;
@@ -3529,11 +3173,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const isCutsceneActive = canvasCutsceneRef.current?.isActive() ?? false;
       const hasPlayer = !!systemRegistryRef.current?.gameObjectManager?.getPlayer();
       if (canvasHUD && !isCutsceneActive && hasPlayer) {
-        const pState = playerStateRef.current;
-        const inventory = getInventory();
-        canvasHUD.setFuel(pState.fuel / PLAYER.FUEL_AMOUNT);
+        const playerComponent = player?.getComponent(PlayerComponent);
+        if (!playerComponent) return; // Should always exist for player object
+        canvasHUD.setFuel(playerComponent.fuel / PlayerComponent.FUEL_AMOUNT);
         // Display coinsForPowerup (progress toward glow mode) not total coinCount
-        canvasHUD.setInventory(pState.coinsForPowerup, inventory.rubyCount);
+        canvasHUD.setInventory(playerComponent.coinsForPowerup, getInventory().rubyCount);
         canvasHUD.setShowFPS(currentSettings.showFPS);
         canvasHUD.setFPS(gameLoop.getFPS());
         canvasHUD.update(1 / 60); // ~60fps deltaTime
@@ -3575,14 +3219,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         canvasPauseMenu.render();
       }
       
-      // Render death fade-to-black overlay (matching original behavior)
-      const pState = playerStateRef.current;
-      if (pState.fadeToRestart && pState.fadeTime > 0) {
-        // Calculate fade progress (0 = start, 1 = fully black)
-        const fadeProgress = 1 - (pState.fadeTime / 1.5); // 1.5s fade duration
-        const opacity = Math.min(1, Math.max(0, fadeProgress));
-        ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
-        ctx.fillRect(0, 0, width, height);
+      // Render death fade-to-black
+      // Use existing player variable from outer scope
+      const playerCompForFade = player?.getComponent(PlayerComponent);
+      if (playerCompForFade && playerCompForFade.fadeToRestart) {
+        // Calculate alpha based on fade time (1.5s total)
+        // fadeTime goes from 1.5 to 0
+        // alpha should go from 0 to 1
+        const alpha = Math.min(1, Math.max(0, 1 - (playerCompForFade.fadeTime / 1.5)));
+        renderSystem.drawRect(0, 0, width, height, `rgba(0, 0, 0, ${alpha})`, 100);
       }
       
       // Update and render Canvas Game Over Screen (if active)
