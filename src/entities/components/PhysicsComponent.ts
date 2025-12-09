@@ -161,5 +161,13 @@ export class PhysicsComponent extends GameComponent {
    */
   reset(): void {
     this.isGrounded = false;
+    this.mass = 1;
+    this.bounciness = 0;
+    this.friction = 0.9;
+    this.airFriction = 0.98;
+    this.useGravity = true;
+    this.gravity = 1000;
+    this.maxVelocityX = 300;
+    this.maxVelocityY = 600;
   }
 }
