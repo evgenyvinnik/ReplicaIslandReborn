@@ -1413,6 +1413,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Commit pending object additions immediately so they're available for rendering
           gameObjectManager.commitUpdates();
           
+          // Debug: count coins after load
+          let coinCount = 0;
+          gameObjectManager.forEach((obj) => {
+            if (obj.type === 'coin') coinCount++;
+          });
+          console.log('[Game] After level load - coins in active list:', coinCount);
+          
           // Store player spawn position from level system
           playerSpawnRef.current = { ...levelSystem.playerSpawnPosition };
           
@@ -2866,19 +2873,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Render game objects
       const player = gameObjectManager.getPlayer();
       const FRAME_TIME = 1 / 24; // 24 FPS animation, matching original's Utils.framesToTime(24, 1)
-      
-      // Debug: Count coins once per second
-      if (Math.random() < 0.017) {
-        let coinCount = 0;
-        let visibleCoinCount = 0;
-        gameObjectManager.forEach((o) => {
-          if (o.type === 'coin') {
-            coinCount++;
-            if (o.isVisible()) visibleCoinCount++;
-          }
-        });
-        console.log(`[Render] Coins in active list: ${coinCount}, visible: ${visibleCoinCount}`);
-      }
       
       gameObjectManager.forEach((obj) => {
         if (!obj.isVisible()) return;

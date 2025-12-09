@@ -8,7 +8,30 @@ This document tracks what has been implemented and what still needs to be done t
 
 ## 🟢 PROGRESS: ~98% Complete - Fully Playable
 
-**The game is fully playable through all 44 levels with all features working. All sprites, sounds, and systems implemented.**
+**The game is playable, but the codebase has critical architectural issues that make it difficult to maintain and extend.**
+
+## 🚨 CRITICAL ISSUES / REFACTORING NEEDED
+
+**The current implementation in `src/components/Game.tsx` is a monolithic "God Object" (3700+ lines) that bypasses the intended Component/System architecture.**
+
+While the file structure suggests a clean ECS (Entity Component System) architecture, the actual game logic is hard-coded into `Game.tsx`:
+1.  **Physics & Movement**: Implemented inline in `updatePlayerPhysics` instead of `PlayerComponent.ts`.
+2.  **Collision Detection**: Handled via explicit loops in `Game.tsx` (e.g., `gameObjectManager.forEach`) instead of `CollisionSystem` or `GameObjectCollisionSystem`.
+3.  **Rendering**: `Game.tsx` contains manual rendering logic that should be in `RenderSystem`.
+4.  **State Management**: Player state is managed via a local ref (`playerStateRef`) inside the React component, duplicating/ignoring the `PlayerComponent` state.
+5.  **Interaction Logic**: Enemy, NPC, and Button interactions are hard-coded in the main loop rather than being event-driven or component-based.
+
+**Impact:**
+- `PlayerComponent.ts` is largely unused/dead code.
+- Adding new features requires modifying the massive `Game.tsx` file.
+- Debugging is difficult due to mixed concerns (React UI + Game Loop + Physics + Rendering).
+
+### 🛠️ Required Refactoring Tasks
+- [ ] **Refactor Player Physics**: Move `updatePlayerPhysics` logic from `Game.tsx` to `PlayerComponent.ts`.
+- [ ] **Refactor Collision**: Move inline collision loops to `CollisionSystem.ts` or `GameObjectCollisionSystem.ts`.
+- [ ] **Refactor Rendering**: Move sprite/tile rendering logic fully into `RenderSystem.ts`.
+- [ ] **Refactor Interactions**: Create specific systems for Button, NPC, and Enemy interactions.
+- [ ] **Cleanup**: Remove duplicated state in `Game.tsx` and rely on Component state.
 
 ### Core Systems Comparison
 
@@ -64,15 +87,15 @@ This document tracks what has been implemented and what still needs to be done t
 
 ## ✅ What's Fully Implemented
 
-### Core Engine (100%)
+### Core Engine (Implemented but Bypassed)
 - [x] GameLoop.ts - Fixed timestep game loop
 - [x] SystemRegistry.ts - Central system registry
 - [x] TimeSystem.ts - Time management and delta calculation
 - [x] InputSystem.ts - Keyboard and touch input
 - [x] CameraSystem.ts - Camera following with shake effects
-- [x] RenderSystem.ts - Canvas 2D rendering with sprite/tile support
-- [x] CollisionSystem.ts - Tile-based collision detection
-- [x] GameObjectCollisionSystem.ts - Object-to-object collision
+- [~] RenderSystem.ts - Exists, but `Game.tsx` handles much of the rendering manually.
+- [~] CollisionSystem.ts - Exists, but `Game.tsx` implements its own collision loops.
+- [~] GameObjectCollisionSystem.ts - Exists, but bypassed for many interactions.
 - [x] HotSpotSystem.ts - Special tile behaviors
 - [x] AnimationSystem.ts - Sprite animation state machine
 - [x] EffectsSystem.ts - Visual effects (explosions, particles)
@@ -82,15 +105,14 @@ This document tracks what has been implemented and what still needs to be done t
 - [x] DialogSystem.ts - Dialog state management
 - [x] PerformanceMonitor.ts - FPS tracking
 
-### Entity System (100%)
+### Entity System (Implemented but Bypassed)
 - [x] GameObject.ts - Base game object
 - [x] GameComponent.ts - Component base class
 - [x] GameObjectManager.ts - Object lifecycle management
 - [x] GameObjectFactory.ts - Object spawning and configuration
 
-### Components (30/30 = 100%)
-
-All essential gameplay components ported:
+### Components (30/30 - Mostly Dead Code)
+**CRITICAL**: Most of these components are implemented but **NOT USED** by the main game loop in `Game.tsx`. The logic is duplicated inline.
 
 **Core Components:**
 - [x] SpriteComponent - Sprite rendering
@@ -284,7 +306,7 @@ These are intentional differences from the original:
 | **Debug/Utility Sprites** | 24 | 0 | 0% (not needed) |
 | **Cutscenes** | 4 | 4 | 100% |
 
-**Overall: ~98% Complete**
+**Overall: ~98% Feature Complete (but ~40% Architectural Integrity)**
 
 ---
 

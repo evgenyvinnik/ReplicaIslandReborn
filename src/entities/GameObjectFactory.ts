@@ -16,6 +16,7 @@ import { SnailbombComponent } from './components/SnailbombComponent';
 import { RokudouBossComponent } from './components/RokudouBossComponent';
 import { LifetimeComponent } from './components/LifetimeComponent';
 import { MultiSpriteAnimComponent } from './components/MultiSpriteAnimComponent';
+import { SimpleCollisionComponent } from './components/SimpleCollisionComponent';
 import type { RenderSystem } from '../engine/RenderSystem';
 import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { InputSystem } from '../engine/InputSystem';
@@ -681,6 +682,10 @@ export class GameObjectFactory {
       physics.setMaxVelocity(500, 500);
       obj.addComponent(physics);
     }
+
+    // Add simple collision for background collision detection (ray casting)
+    const simpleCollision = new SimpleCollisionComponent();
+    obj.addComponent(simpleCollision);
 
     // Add lifetime component so projectile disappears after some time
     const lifetime = new LifetimeComponent();

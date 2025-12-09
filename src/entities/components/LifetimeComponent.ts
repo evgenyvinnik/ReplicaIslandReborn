@@ -161,6 +161,16 @@ export class LifetimeComponent extends GameComponent {
       }
     }
     
+    // Check background collision death (like original Java)
+    // parentObject.getBackgroundCollisionNormal().length2() > 0.0f
+    if (this._dieOnHitBackground) {
+      const normal = parent.getBackgroundCollisionNormal();
+      if (normal && (normal.x !== 0 || normal.y !== 0)) {
+        console.log(`[LifetimeComponent] ${parent.type}/${parent.subType} hit background, dying`);
+        parent.life = 0;
+      }
+    }
+    
     // Check life
     if (parent.life <= 0) {
       this.die(parent);

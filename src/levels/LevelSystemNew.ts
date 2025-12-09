@@ -453,6 +453,7 @@ export class LevelSystem {
         objWidth = 32;
         objHeight = 32;
         obj.activationRadius = 100;
+        console.log(`[LevelSystem] COIN created: type=${obj.type}, pos=(${spawn.x}, ${spawn.y}), visible=${obj.isVisible()}, active=${obj.isActive()}`);
         break;
 
       case GameObjectTypeIndex.RUBY:

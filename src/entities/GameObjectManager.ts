@@ -139,7 +139,10 @@ export class GameObjectManager {
   commitUpdates(): void {
     // Add pending objects
     for (const object of this.pendingAdditions) {
-      this.objects.add(object);
+      const added = this.objects.add(object);
+      if (!added) {
+        console.error('[GameObjectManager] Failed to add object - capacity exceeded:', object.type, object.id);
+      }
     }
     this.pendingAdditions = [];
 
