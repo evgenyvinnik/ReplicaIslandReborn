@@ -97,6 +97,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const levelStartTimeRef = useRef<number>(0);
   const levelElapsedTimeRef = useRef<number>(0);
   
+  // Track if level completion has been processed (to prevent infinite loops)
+  const levelCompleteProcessedRef = useRef<number | null>(null);
+  
   // Decoration smoke effect timing (for ANDOU_DEAD)
   const decorationSmokeTimerRef = useRef<Map<number, number>>(new Map());
   
@@ -195,7 +198,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       if (event === GameFlowEventType.SHOW_DIALOG_CHARACTER1 || 
           event === GameFlowEventType.SHOW_DIALOG_CHARACTER2) {
-        // NPC triggered a dialog
+        // NPC triggered a dialog - but only if no dialog is currently active
+        if (activeDialogRef.current !== null) {
+          console.log('[Game] Ignoring NPC dialog trigger - dialog already active');
+          return;
+        }
+        
         const levelSystem = levelSystemRef.current;
         if (levelSystem) {
           const levelId = levelSystem.getCurrentLevelId();
@@ -220,6 +228,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setDialogSingleMode(true);
               // Mark as cutscene dialog so physics don't pause - NPC needs to keep walking
               dialogIsCutsceneRef.current = true;
+              // Update ref immediately to prevent duplicate triggers (state update is async)
+              activeDialogRef.current = dialog;
               setActiveDialog(dialog);
             }
           }
@@ -240,7 +250,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             setLevel(nextLevelId);
             setLevelLoading(true);
             hasShownIntroDialogRef.current = false;
-            levelSystem.loadLevel(nextLevelId).then(() => {
+            levelSystem.loadLevel(nextLevelId).then((success) => {
+              if (!success) {
+                console.error('[Game] Failed to load next level (NPC trigger):', nextLevelId);
+                setLevelLoading(false);
+                goToMainMenu();
+                return;
+              }
+              
               // Check if we need to show memory playback toast
               const newLevelInfo = levelSystem.getLevelInfo(nextLevelId);
               const isInThePast = newLevelInfo?.inThePast ?? false;
@@ -292,6 +309,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               }
               
               setLevelLoading(false);
+            }).catch((error) => {
+              console.error('[Game] Error loading next level (NPC trigger):', error);
+              setLevelLoading(false);
+              goToMainMenu();
             });
           } else {
             // No next level available - go to main menu
@@ -404,100 +425,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     
     if (activeDialog) {
       // Define dialog completion handler
+      // IMPORTANT: Dialog completion should NOT auto-advance levels!
+      // Level advancement is handled separately by:
+      // 1. Player hitting END_LEVEL hotspot (playable levels)
+      // 2. NPC hitting END_LEVEL hotspot -> GO_TO_NEXT_LEVEL event (cutscene levels)
+      // This matches the original game where dialogs just close and gameplay resumes
       const handleDialogComplete = (): void => {
-        console.log('[Game] Dialog complete');
+        console.log('[Game] Dialog complete - closing dialog, gameplay resumes');
+        // Update ref immediately (state update is async)
+        activeDialogRef.current = null;
         setActiveDialog(null);
         dialogIsCutsceneRef.current = false; // Reset cutscene flag
-        
-        const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
-        const player = gameObjectMgr?.getPlayer();
-        const levelSys = levelSystemRef.current;
-        console.log('[Game] Player exists:', !!player);
-        
-        // Check if this is a non-restartable level (like level_0_1_sewer_kyle)
-        // These levels should end after dialog completes
-        let shouldAutoAdvance = !player; // Always advance if no player
-        
-        if (levelSys && !shouldAutoAdvance) {
-          const levelInfo = levelSys.getLevelInfo(currentLevelRef.current);
-          if (levelInfo && !levelInfo.restartable) {
-            // Non-restartable levels with dialog should auto-advance after dialog
-            console.log('[Game] Non-restartable level - auto-advancing after dialog');
-            shouldAutoAdvance = true;
-          }
-        }
-        
-        if (shouldAutoAdvance) {
-          // No player means this is a story/cutscene level - advance to next
-          const levelSys = levelSystemRef.current;
-          if (levelSys) {
-            // Get current level's inThePast status before advancing
-            const currentLevelInfo = levelSys.getLevelInfo(currentLevelRef.current);
-            const wasInThePast = currentLevelInfo?.inThePast ?? false;
-            
-            const nextLevelId = levelSys.getNextLevelId();
-            console.log('[Game] Cutscene level - advancing to next level:', nextLevelId);
-            if (nextLevelId !== null) {
-              levelSys.unlockLevel(nextLevelId);
-              setLevel(nextLevelId);
-              setLevelLoading(true);
-              hasShownIntroDialogRef.current = false;
-              levelSys.loadLevel(nextLevelId).then(() => {
-                gameObjectMgr?.commitUpdates();
-                
-                // Check if we need to show memory playback toast
-                const newLevelInfo = levelSys.getLevelInfo(nextLevelId);
-                const isInThePast = newLevelInfo?.inThePast ?? false;
-                if (canvasHUDRef.current) {
-                  if (isInThePast && !wasInThePast) {
-                    canvasHUDRef.current.showToast(UIStrings.memory_playback_start, true);
-                  } else if (!isInThePast && wasInThePast) {
-                    canvasHUDRef.current.showToast(UIStrings.memory_playback_complete, true);
-                  }
-                }
-                prevLevelInThePastRef.current = isInThePast;
-                
-                // Initialize tile map renderer for new level
-                const parsedLevel = levelSys.getParsedLevel();
-                if (parsedLevel && tileMapRendererRef.current) {
-                  tileMapRendererRef.current.initializeFromLevel(parsedLevel);
-                }
-                
-                // Update camera bounds for new level
-                const cameraSystem = systemRegistryRef.current?.cameraSystem;
-                if (cameraSystem) {
-                  cameraSystem.setBounds({
-                    minX: 0,
-                    minY: 0,
-                    maxX: levelSys.getLevelWidth(),
-                    maxY: levelSys.getLevelHeight(),
-                  });
-                }
-                
-                const spawn = levelSys.playerSpawnPosition;
-                playerSpawnRef.current = { ...spawn };
-                resetPlayerState(); // Reset player state for new level
-                const newPlayer = gameObjectMgr?.getPlayer();
-                if (newPlayer) {
-                  newPlayer.setPosition(spawn.x, spawn.y);
-                  newPlayer.getVelocity().x = 0;
-                  newPlayer.getVelocity().y = 0;
-                  
-                  // Set camera to follow the new player
-                  if (cameraSystem) {
-                    cameraSystem.setTarget(newPlayer);
-                    cameraSystem.setPosition(spawn.x, spawn.y);
-                  }
-                }
-                setLevelLoading(false);
-              });
-            } else {
-              // No next level available from cutscene - go to main menu
-              console.log('[Game] No next level available from cutscene, returning to main menu');
-              goToMainMenu();
-            }
-          }
-        }
+        // Do NOT auto-advance level here - NPC will continue walking and hit END_LEVEL hotspot
       };
       
       canvasDialog.show(
@@ -510,7 +449,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     } else {
       canvasDialog.hide();
     }
-  }, [activeDialog, dialogConversationIndex, dialogSingleMode, setLevel, resetPlayerState, goToMainMenu]);
+  }, [activeDialog, dialogConversationIndex, dialogSingleMode]);
 
   // Handle Canvas Cutscene when cutscene state changes
   useEffect(() => {
@@ -650,6 +589,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     if (!canvasLevelComplete) return;
     
     if (state.gameState === GameState.LEVEL_COMPLETE) {
+      // Prevent infinite loop - only process level completion once per level
+      if (levelCompleteProcessedRef.current === state.currentLevel) {
+        return;
+      }
+      levelCompleteProcessedRef.current = state.currentLevel;
+      
       // Calculate elapsed time and save progress to store
       const elapsedTime = (Date.now() - levelStartTimeRef.current) / 1000; // In seconds
       levelElapsedTimeRef.current = elapsedTime;
@@ -689,11 +634,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             const wasInThePast = currentLevelInfo?.inThePast ?? false;
             
             const nextLevelId = levelSys.getNextLevelId();
+            console.log('[Game] Level complete - next level ID:', nextLevelId);
             if (nextLevelId !== null) {
               levelSys.unlockLevel(nextLevelId);
               setLevel(nextLevelId);
+              setLevelLoading(true); // Mark level as loading
               hasShownIntroDialogRef.current = false;
-              levelSys.loadLevel(nextLevelId).then(() => {
+              levelSys.loadLevel(nextLevelId).then((success) => {
+                if (!success) {
+                  console.error('[Game] Failed to load next level:', nextLevelId);
+                  setLevelLoading(false);
+                  goToMainMenu();
+                  return;
+                }
+                
                 // Check if we need to show memory playback toast
                 const newLevelInfo = levelSys.getLevelInfo(nextLevelId);
                 const isInThePast = newLevelInfo?.inThePast ?? false;
@@ -729,7 +683,28 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   player.getVelocity().x = 0;
                   player.getVelocity().y = 0;
                 }
+                
+                // Update camera bounds for new level
+                const cameraSystem = systemRegistryRef.current?.cameraSystem;
+                if (cameraSystem) {
+                  cameraSystem.setBounds({
+                    minX: 0,
+                    minY: 0,
+                    maxX: levelSys.getLevelWidth(),
+                    maxY: levelSys.getLevelHeight(),
+                  });
+                  if (player) {
+                    cameraSystem.setTarget(player);
+                    cameraSystem.setPosition(spawn.x, spawn.y);
+                  }
+                }
+                
+                setLevelLoading(false); // Mark level as loaded
                 resumeGame();
+              }).catch((error) => {
+                console.error('[Game] Error loading next level:', error);
+                setLevelLoading(false);
+                goToMainMenu();
               });
             } else {
               // No next level available (e.g., played from debug menu or completed final level)
@@ -755,8 +730,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       );
     } else {
       canvasLevelComplete.hide();
+      // Reset the processed flag when not in LEVEL_COMPLETE state
+      // This allows processing when the player completes another level
+      if (levelCompleteProcessedRef.current !== null && state.gameState === GameState.PLAYING) {
+        levelCompleteProcessedRef.current = null;
+      }
     }
-  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState, storeCompleteLevel, storeAddToTotalStats, storeRecordLevelAttempt, storeLevelProgress, storeUnlockExtra]);
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState, storeRecordLevelAttempt]);
 
   // Attach/detach Canvas Controls when settings change
   useEffect(() => {
@@ -1336,15 +1316,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           if (player) {
             // Set camera to initially focus on the player
-            const playerPos = player.getPosition();
             cameraSystem.setTarget(player);
-            // Also set camera position directly to player location immediately
+            // Also set camera position directly to player CENTER location immediately
             // This prevents the camera from "lerping" from (0,0) to the player
             cameraSystem.setPosition(
-              playerPos.x,
-              playerPos.y
+              player.getCenteredPositionX(),
+              player.getCenteredPositionY()
             );
-            console.log('[Game] Camera set to player position:', playerPos.x, playerPos.y);
+            console.log('[Game] Camera set to player center:', player.getCenteredPositionX(), player.getCenteredPositionY());
           } else {
             // Find an NPC to focus on (Wanda, Kyle, Kabocha, or Rokudou)
             let npcTarget: GameObject | null = null;
@@ -1356,17 +1335,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             
             if (npcTarget !== null) {
               console.log(`[Game] Found NPC target: ${(npcTarget as GameObject).subType}`);
-              // Set camera to initially focus on the NPC
+              // Set camera to follow the NPC
               const npc = npcTarget as GameObject;
+              console.log(`[Game] NPC position: (${npc.getPosition().x}, ${npc.getPosition().y}), size: ${npc.width}x${npc.height}`);
               cameraSystem.setNPCTarget(npcTarget);
-              // Also set camera position directly to NPC location
-              // setPosition expects the center focus point, not the top-left corner
-              const npcPos = npc.getPosition();
-              cameraSystem.setPosition(
-                npcPos.x,
-                npcPos.y
-              );
-              console.log('[Game] Camera set to NPC position:', npcPos.x, npcPos.y);
+              // For NPC cutscene levels, set camera to bottom of level where action happens
+              // NPCs typically fall from above and land at the bottom
+              // Use the level height to position camera at the bottom
+              const levelHeight = levelSystem.getLevelHeight();
+              const bottomCenterY = levelHeight - height / 2; // Center camera at bottom
+              cameraSystem.setPosition(npc.getCenteredPositionX(), bottomCenterY);
+              console.log('[Game] Camera set to bottom of level:', npc.getCenteredPositionX(), bottomCenterY);
             }
           }
           
@@ -1942,6 +1921,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               // Unlock and go to next level
               levelSys.unlockLevel(nextLevelId);
               setLevel(nextLevelId);
+              setLevelLoading(true); // Mark level as loading
               // Reload the level system
               levelSys.loadLevel(nextLevelId).then(() => {
                 // Check if we need to show memory playback toast
@@ -1966,9 +1946,32 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 playerSpawnRef.current = { ...levelSys.playerSpawnPosition };
                 // Reset player position
                 const spawn = levelSys.playerSpawnPosition;
-                if (player) {
-                  player.setPosition(spawn.x, spawn.y);
+                
+                const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+                gameObjectMgr?.commitUpdates();
+                const newPlayer = gameObjectMgr?.getPlayer();
+                if (newPlayer) {
+                  newPlayer.setPosition(spawn.x, spawn.y);
+                  newPlayer.getVelocity().x = 0;
+                  newPlayer.getVelocity().y = 0;
                 }
+                
+                // Update camera bounds for new level
+                const cameraSystem = systemRegistryRef.current?.cameraSystem;
+                if (cameraSystem) {
+                  cameraSystem.setBounds({
+                    minX: 0,
+                    minY: 0,
+                    maxX: levelSys.getLevelWidth(),
+                    maxY: levelSys.getLevelHeight(),
+                  });
+                  if (newPlayer) {
+                    cameraSystem.setTarget(newPlayer);
+                    cameraSystem.setPosition(spawn.x, spawn.y);
+                  }
+                }
+                
+                setLevelLoading(false); // Mark level as loaded
               });
             } else {
               // No more levels - game complete!
@@ -2080,6 +2083,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   setDialogConversationIndex(conversationIdx);
                   setDialogSingleMode(true); // Only show this one conversation
                   dialogIsCutsceneRef.current = false; // Player-triggered dialog pauses physics
+                  // Update ref immediately to prevent duplicate triggers (state update is async)
+                  activeDialogRef.current = dialog;
                   setActiveDialog(dialog);
                   soundSystem.playSfx(SoundEffects.BUTTON);
                   // Set cooldown to prevent immediate re-trigger
@@ -2342,6 +2347,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                       console.log('[Game] Player touched NPC, triggering dialog');
                       setDialogConversationIndex(0);
                       setDialogSingleMode(false); // Show full dialog
+                      // Update ref immediately to prevent duplicate triggers (state update is async)
+                      activeDialogRef.current = dialog;
                       setActiveDialog(dialog);
                       soundSystem.playSfx(SoundEffects.BUTTON);
                       dialogTriggerCooldownRef.current = 2.0;
@@ -2354,9 +2361,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         });
       }
       
+      // Update camera - must happen even for cutscene levels without player
+      // For player levels, set target to player; for NPC levels, target is already set via setNPCTarget
+      if (player && !cameraSystem.isNPCFocusMode()) {
+        cameraSystem.setTarget(player);
+      }
+      cameraSystem.update(deltaTime);
+      
       // Update player state machine (using existing playerComponent from death handling above)
       const playerComponent = player?.getComponent(PlayerComponent);
-      if (!player || !playerComponent) return; // Should always exist for player object
+      if (!player || !playerComponent) return; // No player = cutscene level, skip player-specific logic
       
       // Update HIT_REACT state timer
       if (playerComponent.currentState === PlayerState.HIT_REACT) {
@@ -2470,12 +2484,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       } else {
         playerComponent.rocketsOn = false;
       }
-
-      // Update camera to follow player
-      if (player) {
-        cameraSystem.setTarget(player);
-      }
-      cameraSystem.update(deltaTime);
     });
 
     // Render callback

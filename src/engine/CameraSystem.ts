@@ -13,6 +13,13 @@ export interface CameraBounds {
   maxY: number;
 }
 
+// Camera target interface - needs position, width, and height to center properly
+export interface CameraTarget {
+  getPosition: () => Vector2;
+  width: number;
+  height: number;
+}
+
 export class CameraSystem {
   private position: Vector2 = new Vector2();
   private targetPosition: Vector2 = new Vector2();
@@ -22,7 +29,7 @@ export class CameraSystem {
   private viewportHeight: number;
 
   private bounds: CameraBounds | null = null;
-  private target: { getPosition: () => Vector2 } | null = null;
+  private target: CameraTarget | null = null;
 
   // Camera smoothing
   private smoothing: number = 5.0;
@@ -42,7 +49,7 @@ export class CameraSystem {
 
   // NPC focus mode - when true, camera is following an NPC for cutscene
   private npcFocusMode: boolean = false;
-  private npcTarget: { getPosition: () => Vector2 } | null = null;
+  private npcTarget: CameraTarget | null = null;
 
   constructor(viewportWidth: number, viewportHeight: number) {
     this.viewportWidth = viewportWidth;
@@ -79,7 +86,7 @@ export class CameraSystem {
    * Set the camera target to follow
    * If npcFocusMode is active, this won't override the NPC target
    */
-  setTarget(target: { getPosition: () => Vector2 } | null): void {
+  setTarget(target: CameraTarget | null): void {
     // Don't override if in NPC focus mode - NPCComponent will release this
     if (!this.npcFocusMode) {
       this.target = target;
@@ -89,18 +96,20 @@ export class CameraSystem {
   /**
    * Set the NPC target (takes camera focus from player)
    */
-  setNPCTarget(target: { getPosition: () => Vector2 } | null): void {
+  setNPCTarget(target: CameraTarget | null): void {
+    console.log('[CameraSystem] setNPCTarget called with:', target ? 'valid target' : 'null');
     if (target) {
       this.npcFocusMode = true;
       this.npcTarget = target;
       this.target = target;
+      console.log('[CameraSystem] NPC target set, npcFocusMode:', this.npcFocusMode);
     }
   }
 
   /**
    * Release NPC focus and return to player
    */
-  releaseNPCFocus(player: { getPosition: () => Vector2 } | null): void {
+  releaseNPCFocus(player: CameraTarget | null): void {
     this.npcFocusMode = false;
     this.npcTarget = null;
     if (player) {
@@ -118,14 +127,14 @@ export class CameraSystem {
   /**
    * Get the NPC target (if in NPC focus mode)
    */
-  getNPCTarget(): { getPosition: () => Vector2 } | null {
+  getNPCTarget(): CameraTarget | null {
     return this.npcTarget;
   }
 
   /**
    * Get the current camera target
    */
-  getTarget(): { getPosition: () => Vector2 } | null {
+  getTarget(): CameraTarget | null {
     return this.target;
   }
 
@@ -136,25 +145,48 @@ export class CameraSystem {
     this.bounds = bounds;
   }
 
+  // Debug frame counter
+  private debugFrameCount: number = 0;
+  
   /**
    * Update the camera
    */
   update(deltaTime: number): void {
+    this.debugFrameCount++;
+    
+    // Always log on frame 1 to confirm update is called
+    if (this.debugFrameCount === 1) {
+      console.log(`[CameraSystem] FIRST UPDATE CALL - target exists: ${!!this.target}, npcFocusMode: ${this.npcFocusMode}`);
+    }
+    
     // Update target position from followed object
     if (this.target) {
       const targetPos = this.target.getPosition();
-      this.targetPosition.set(targetPos.x, targetPos.y);
+      // getPosition() returns top-left of sprite, so add half width/height to get center
+      const centerX = targetPos.x + this.target.width / 2;
+      const centerY = targetPos.y + this.target.height / 2;
+      this.targetPosition.set(centerX, centerY);
+
+      // Apply look-ahead bias
+      this.targetPosition.x += this.lookAheadX + this.biasX;
+      this.targetPosition.y += this.lookAheadY + this.biasY;
+
+      // Convert from center focus point to top-left corner of viewport
+      this.targetPosition.x -= this.viewportWidth / 2;
+      this.targetPosition.y -= this.viewportHeight / 2;
+      
+      // Debug every 60 frames
+      if (this.debugFrameCount % 60 === 1) {
+        console.log(`[CameraSystem] update frame ${this.debugFrameCount}: targetPos=(${targetPos.x.toFixed(1)}, ${targetPos.y.toFixed(1)}) center=(${centerX.toFixed(1)}, ${centerY.toFixed(1)}) cameraTarget=(${this.targetPosition.x.toFixed(1)}, ${this.targetPosition.y.toFixed(1)}) cameraPos=(${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}) focusPos=(${this.focusPosition.x.toFixed(1)}, ${this.focusPosition.y.toFixed(1)})`);
+      }
+    } else {
+      // No target - camera stays where it is
+      if (this.debugFrameCount % 60 === 1) {
+        console.log('[CameraSystem] update: No target set!');
+      }
     }
 
-    // Apply look-ahead bias
-    this.targetPosition.x += this.lookAheadX + this.biasX;
-    this.targetPosition.y += this.lookAheadY + this.biasY;
-
-    // Center the camera on the target
-    this.targetPosition.x -= this.viewportWidth / 2;
-    this.targetPosition.y -= this.viewportHeight / 2;
-
-    // Smooth camera movement
+    // Smooth camera movement toward target
     this.position.x = lerp(
       this.position.x,
       this.targetPosition.x,
@@ -269,13 +301,27 @@ export class CameraSystem {
 
   /**
    * Set camera position directly (immediately, no lerping)
-   * x, y are the CENTER point to focus on (e.g., player position)
-   * Internal position/focusPosition store top-left corner of viewport
+   * x, y are world coordinates where you want the camera centered (e.g., player/NPC position)
+   * Internally converts to top-left corner coordinates for rendering
    */
   setPosition(x: number, y: number): void {
     // Convert center point to top-left corner
-    const topLeftX = x - this.viewportWidth / 2;
-    const topLeftY = y - this.viewportHeight / 2;
+    let topLeftX = x - this.viewportWidth / 2;
+    let topLeftY = y - this.viewportHeight / 2;
+    
+    // Apply bounds clamping (same as update does)
+    if (this.bounds) {
+      topLeftX = clamp(
+        topLeftX,
+        this.bounds.minX,
+        this.bounds.maxX - this.viewportWidth
+      );
+      topLeftY = clamp(
+        topLeftY,
+        this.bounds.minY,
+        this.bounds.maxY - this.viewportHeight
+      );
+    }
     
     this.position.set(topLeftX, topLeftY);
     this.targetPosition.set(topLeftX, topLeftY);

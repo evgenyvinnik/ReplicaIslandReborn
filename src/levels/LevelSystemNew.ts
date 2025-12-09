@@ -218,11 +218,13 @@ export class LevelSystem {
    * Load a level by ID
    */
   async loadLevel(levelId: number): Promise<boolean> {
+    console.log(`[LevelSystem] Loading level ${levelId}...`);
     const levelInfo = this.levels.get(levelId);
     if (!levelInfo) {
-      console.error(`Level ${levelId} not found`);
+      console.error(`[LevelSystem] Level ${levelId} not found in level map`);
       return false;
     }
+    console.log(`[LevelSystem] Level info:`, levelInfo.file, 'binary:', levelInfo.binary);
 
     try {
       // All levels now use JSON format (converted from binary)
@@ -232,7 +234,7 @@ export class LevelSystem {
         return await this.loadJsonLevel(levelId, levelInfo);
       }
     } catch (error) {
-      console.error('Error loading level:', error);
+      console.error('[LevelSystem] Error loading level:', error);
       return false;
     }
   }
@@ -291,6 +293,7 @@ export class LevelSystem {
     // Convert to LevelData for compatibility
     this.currentLevel = this.convertToLevelData(parsed, levelInfo);
 
+    console.log(`[LevelSystem] Level ${levelId} loaded successfully. Player spawn:`, this.playerSpawnPosition);
     return true;
   }
 
