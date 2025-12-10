@@ -115,7 +115,7 @@ export class LevelSystem {
    */
   setLinearMode(linear: boolean): void {
     this.isLinearMode = linear;
-    console.log(`[LevelSystem] Linear mode set to: ${linear}`);
+    // console.log(`[LevelSystem] Linear mode set to: ${linear}`);
   }
   
   /**
@@ -151,7 +151,7 @@ export class LevelSystem {
         const levelId = resourceToLevelId[level.resource];
         
         if (levelId === undefined) {
-          console.warn(`[LevelSystem] No level ID for resource: ${level.resource}`);
+          // console.warn(`[LevelSystem] No level ID for resource: ${level.resource}`);
           continue;
         }
         
@@ -191,7 +191,7 @@ export class LevelSystem {
       }
     }
     
-    console.log(`[LevelSystem] Initialized ${this.levels.size} levels from levelTree`);
+    // console.log(`[LevelSystem] Initialized ${this.levels.size} levels from levelTree`);
   }
 
   /**
@@ -218,13 +218,13 @@ export class LevelSystem {
    * Load a level by ID
    */
   async loadLevel(levelId: number): Promise<boolean> {
-    console.log(`[LevelSystem] Loading level ${levelId}...`);
+    // console.log(`[LevelSystem] Loading level ${levelId}...`);
     const levelInfo = this.levels.get(levelId);
     if (!levelInfo) {
-      console.error(`[LevelSystem] Level ${levelId} not found in level map`);
+      // console.error(`[LevelSystem] Level ${levelId} not found in level map`);
       return false;
     }
-    console.log(`[LevelSystem] Level info:`, levelInfo.file, 'binary:', levelInfo.binary);
+    // console.log(`[LevelSystem] Level info:`, levelInfo.file, 'binary:', levelInfo.binary);
 
     try {
       // All levels now use JSON format (converted from binary)
@@ -234,7 +234,7 @@ export class LevelSystem {
         return await this.loadJsonLevel(levelId, levelInfo);
       }
     } catch (error) {
-      console.error('[LevelSystem] Error loading level:', error);
+      // console.error('[LevelSystem] Error loading level:', error);
       return false;
     }
   }
@@ -249,7 +249,7 @@ export class LevelSystem {
     const parsed = await this.levelParser.parseJsonLevel(url);
     
     if (!parsed) {
-      console.error(`Failed to parse JSON level: ${levelInfo.file}`);
+      // console.error(`Failed to parse JSON level: ${levelInfo.file}`);
       return false;
     }
 
@@ -285,7 +285,7 @@ export class LevelSystem {
     }
 
     // Spawn objects from object layer
-    console.log('[LevelSystem] Object layer:', parsed.objectLayer ? `${parsed.objectLayer.width}x${parsed.objectLayer.height}` : 'null');
+    // console.log('[LevelSystem] Object layer:', parsed.objectLayer ? `${parsed.objectLayer.width}x${parsed.objectLayer.height}` : 'null');
     if (parsed.objectLayer) {
       this.spawnObjectsFromLayer(parsed.objectLayer);
     }
@@ -293,7 +293,7 @@ export class LevelSystem {
     // Convert to LevelData for compatibility
     this.currentLevel = this.convertToLevelData(parsed, levelInfo);
 
-    console.log(`[LevelSystem] Level ${levelId} loaded successfully. Player spawn:`, this.playerSpawnPosition);
+    // console.log(`[LevelSystem] Level ${levelId} loaded successfully. Player spawn:`, this.playerSpawnPosition);
     return true;
   }
 
@@ -381,7 +381,7 @@ export class LevelSystem {
 
     const spawnList: SpawnInfo[] = [];
 
-    console.log(`[LevelSystem] spawnObjectsFromLayer: ${objectLayer.width}x${objectLayer.height}, tiles array length: ${objectLayer.tiles?.length}`);
+    // console.log(`[LevelSystem] spawnObjectsFromLayer: ${objectLayer.width}x${objectLayer.height}, tiles array length: ${objectLayer.tiles?.length}`);
 
     // Scan the object layer for spawn points
     // tiles[x][y] is column-major where y=0 is top of level
@@ -408,7 +408,7 @@ export class LevelSystem {
       }
     }
 
-    console.log(`[LevelSystem] Found ${spawnList.length} objects to spawn`);
+    // console.log(`[LevelSystem] Found ${spawnList.length} objects to spawn`);
 
     // Sort by type so player spawns first
     spawnList.sort((a, b) => {
@@ -431,7 +431,7 @@ export class LevelSystem {
     if (!this.gameObjectManager) return;
 
     const typeName = getObjectTypeName(spawn.type);
-    console.log(`[LevelSystem] Spawning object: type=${spawn.type} (${typeName}) at tile(${spawn.tileX},${spawn.tileY}) world(${spawn.x},${spawn.y})`);
+    // console.log(`[LevelSystem] Spawning object: type=${spawn.type} (${typeName}) at tile(${spawn.tileX},${spawn.tileY}) world(${spawn.x},${spawn.y})`);
     
     // Create object 
     const obj = this.gameObjectManager.createObject();
@@ -488,7 +488,7 @@ export class LevelSystem {
         obj.addComponent(playerHitReact);
         
         this.gameObjectManager.setPlayer(obj);
-        console.log(`[LevelSystem] PLAYER spawning at tile (${spawn.tileX}, ${spawn.tileY}), pixel (${spawn.x}, ${spawn.y})`);
+        // console.log(`[LevelSystem] PLAYER spawning at tile (${spawn.tileX}, ${spawn.tileY}), pixel (${spawn.x}, ${spawn.y})`);
         break;
 
       case GameObjectTypeIndex.COIN:
@@ -496,7 +496,7 @@ export class LevelSystem {
         objWidth = 32;
         objHeight = 32;
         obj.activationRadius = 100;
-        console.log(`[LevelSystem] COIN created: type=${obj.type}, pos=(${spawn.x}, ${spawn.y}), visible=${obj.isVisible()}, active=${obj.isActive()}`);
+        // console.log(`[LevelSystem] COIN created: type=${obj.type}, pos=(${spawn.x}, ${spawn.y}), visible=${obj.isVisible()}, active=${obj.isActive()}`);
         break;
 
       case GameObjectTypeIndex.RUBY:
@@ -866,28 +866,64 @@ export class LevelSystem {
       }
       
       case GameObjectTypeIndex.THE_SOURCE: {
-        obj.type = 'the_source';
-        objWidth = 256;
-        objHeight = 256;
-        obj.activationRadius = 1000; // Always active
+        // The Source - Final boss (type 42)
+        // Multi-layered 512x512 sprite boss with orbital magnet mechanics
+        obj.type = 'enemy';
+        obj.subType = 'the_source';
+        objWidth = 512;   // Large boss sprites are 512x512
+        objHeight = 512;
+        obj.activationRadius = -1; // Always active (final boss)
+        obj.life = 3; // Original: life = 3
+        obj.team = Team.PLAYER; // Team.PLAYER means ENEMY attacks can damage it
         
-        // Sprite
+        // Sprite - using the source body sprite
         const sourceSprite = new SpriteComponent();
-        sourceSprite.setSprite('the_source');
-        sourceSprite.addAnimation('idle', { frames: [{ x: 0, y: 0, width: 256, height: 256, duration: 1.0 }], loop: true });
+        sourceSprite.setSprite('enemy_source_body');
+        sourceSprite.addAnimation('idle', { frames: [{ x: 0, y: 0, width: 512, height: 512, duration: 1.0 }], loop: true });
         sourceSprite.playAnimation('idle');
         obj.addComponent(sourceSprite);
         
-        // The Source Component
-        const source = new TheSourceComponent();
-        // Configure event triggers
-        // source.setGameEvent(GameFlowEvent.EVENT_END_GAME, 0);
-        obj.addComponent(source);
+        // Orbital Magnet - creates orbital attraction effect that pulls player around
+        // Original: orbit.setup(320.0f, 220.0f) - areaRadius, orbitRadius
+        const orbitalMagnet = new OrbitalMagnetComponent();
+        orbitalMagnet.setConfig({
+          areaRadius: 320,
+          magnetRadius: 220,  // Orbital ring radius
+          strength: 15.0     // Default strength from original
+        });
+        // Target will be auto-set to player when available
+        obj.addComponent(orbitalMagnet);
         
-        // Collision
-        const sourceCollision = new SimpleCollisionComponent();
+        // Sphere collision volume for hit detection (256 radius from center)
+        // Original uses SphereCollisionVolume(256, 256, 256, HitType.HIT)
+        const sourceCollision = new DynamicCollisionComponent();
+        const sourceAttackVolume = new SphereCollisionVolume(256, 256, 256, HitType.HIT);
+        const sourceVulnVolume = new SphereCollisionVolume(256, 256, 256, HitType.HIT);
+        sourceCollision.setCollisionVolumes([sourceAttackVolume], [sourceVulnVolume]);
         obj.addComponent(sourceCollision);
         
+        // Hit reaction - manages invincibility after taking damage
+        // Original: hitReact.setInvincibleTime(TheSourceComponent.SHAKE_TIME = 0.6f)
+        const sourceHitReact = new HitReactionComponent({
+          invincibleAfterHitTime: 0.6,
+          forceInvincibility: false
+        });
+        sourceCollision.setHitReactionComponent(sourceHitReact);
+        obj.addComponent(sourceHitReact);
+        
+        // The Source boss component - handles shake, death sequence, explosions
+        const sourceComp = new TheSourceComponent();
+        // Configure to trigger Wanda ending on death (event 6 = SHOW_ANIMATION, index 1 = WANDA_ENDING)
+        sourceComp.setGameEvent(6, 1);
+        // Wire up game event callback to trigger ending cutscene
+        if (this.onBossDeathCallback) {
+          const callback = this.onBossDeathCallback;
+          sourceComp.setOnGameEvent((_event: number, index: number) => {
+            // Map event index to ending type: 1 = WANDA_ENDING
+            callback(index === 1 ? 'WANDA_ENDING' : 'WANDA_ENDING');
+          });
+        }
+        obj.addComponent(sourceComp);
         break;
       }
 
@@ -1123,6 +1159,12 @@ export class LevelSystem {
         objHeight = 128;
         obj.activationRadius = 400; // Boss has larger activation radius
         obj.life = 5; // Mini boss has 5 hit points
+        
+        // Add SpriteComponent for rendering
+        const evilKabochaSprite = new SpriteComponent();
+        evilKabochaSprite.setSprite('enemy_kabocha_evil_stand');
+        obj.addComponent(evilKabochaSprite);
+        
         // Add Evil Kabocha boss component
         const kabochaComp = new EvilKabochaComponent({
           life: 5,
@@ -1148,6 +1190,12 @@ export class LevelSystem {
         objHeight = 128;
         obj.activationRadius = 400; // Boss has larger activation radius
         obj.life = 3; // Boss has 3 hit points
+        
+        // Add SpriteComponent for rendering
+        const rokudouSprite = new SpriteComponent();
+        rokudouSprite.setSprite('enemy_rokudou_fight_stand');
+        obj.addComponent(rokudouSprite);
+        
         // Add Rokudou boss AI component
         const rokudouComp = new RokudouBossComponent({
           life: 3,
@@ -1175,7 +1223,7 @@ export class LevelSystem {
         obj.life = 1;
         obj.team = Team.ENEMY; // Can be damaged by player
         
-        console.log(`[LevelSystem] Spawning breakable_block at tile (${spawn.tileX}, ${spawn.tileY}) world (${spawn.x}, ${spawn.y})`);
+        // console.log(`[LevelSystem] Spawning breakable_block at tile (${spawn.tileX}, ${spawn.tileY}) world (${spawn.x}, ${spawn.y})`);
         
         // Add dynamic collision component for hit detection
         const blockCollision = new DynamicCollisionComponent();
@@ -1196,61 +1244,6 @@ export class LevelSystem {
         // Create a 32x32 rectangular solid
         solidSurface.createRectangle(32, 32);
         obj.addComponent(solidSurface);
-        break;
-      }
-      
-      case GameObjectTypeIndex.THE_SOURCE: {
-        // The Source - Final boss (type 42)
-        // Multi-layered 512x512 sprite boss with orbital magnet mechanics
-        obj.type = 'enemy';
-        obj.subType = 'the_source';
-        objWidth = 512;   // Large boss sprites are 512x512
-        objHeight = 512;
-        obj.activationRadius = -1; // Always active (final boss)
-        obj.life = 3; // Original: life = 3
-        obj.team = Team.PLAYER; // Team.PLAYER means ENEMY attacks can damage it
-        
-        // Orbital Magnet - creates orbital attraction effect that pulls player around
-        // Original: orbit.setup(320.0f, 220.0f) - areaRadius, orbitRadius
-        const orbitalMagnet = new OrbitalMagnetComponent();
-        orbitalMagnet.setConfig({
-          areaRadius: 320,
-          magnetRadius: 220,  // Orbital ring radius
-          strength: 15.0     // Default strength from original
-        });
-        // Target will be auto-set to player when available
-        obj.addComponent(orbitalMagnet);
-        
-        // Sphere collision volume for hit detection (256 radius from center)
-        // Original uses SphereCollisionVolume(256, 256, 256, HitType.HIT)
-        const sourceCollision = new DynamicCollisionComponent();
-        const sourceAttackVolume = new SphereCollisionVolume(256, 256, 256, HitType.HIT);
-        const sourceVulnVolume = new SphereCollisionVolume(256, 256, 256, HitType.HIT);
-        sourceCollision.setCollisionVolumes([sourceAttackVolume], [sourceVulnVolume]);
-        obj.addComponent(sourceCollision);
-        
-        // Hit reaction - manages invincibility after taking damage
-        // Original: hitReact.setInvincibleTime(TheSourceComponent.SHAKE_TIME = 0.6f)
-        const sourceHitReact = new HitReactionComponent({
-          invincibleAfterHitTime: 0.6,
-          forceInvincibility: false
-        });
-        sourceCollision.setHitReactionComponent(sourceHitReact);
-        obj.addComponent(sourceHitReact);
-        
-        // The Source boss component - handles shake, death sequence, explosions
-        const sourceComp = new TheSourceComponent();
-        // Configure to trigger Wanda ending on death (event 6 = SHOW_ANIMATION, index 1 = WANDA_ENDING)
-        sourceComp.setGameEvent(6, 1);
-        // Wire up game event callback to trigger ending cutscene
-        if (this.onBossDeathCallback) {
-          const callback = this.onBossDeathCallback;
-          sourceComp.setOnGameEvent((_event: number, index: number) => {
-            // Map event index to ending type: 1 = WANDA_ENDING
-            callback(index === 1 ? 'WANDA_ENDING' : 'WANDA_ENDING');
-          });
-        }
-        obj.addComponent(sourceComp);
         break;
       }
 
@@ -1304,6 +1297,12 @@ export class LevelSystem {
         objHeight = 64;
         obj.activationRadius = 200;
         obj.team = Team.NONE;
+        
+        // Add SpriteComponent for rendering the machine
+        const spawnerSprite = new SpriteComponent();
+        spawnerSprite.setSprite('object_brobot_machine');
+        obj.addComponent(spawnerSprite);
+        
         const spawnerLauncher = new LaunchProjectileComponent({
           objectTypeToSpawn: GameObjectType.ENEMY_BROBOT,
           delayBeforeFirstSet: 2.0,
@@ -2043,7 +2042,7 @@ export class LevelSystem {
     }
     
     // Current level not found in linear tree, fall back to first level
-    console.warn(`[LevelSystem] Current level ${this.currentLevelId} not found in linear tree`);
+    // console.warn(`[LevelSystem] Current level ${this.currentLevelId} not found in linear tree`);
     return null;
   }
 
@@ -2093,7 +2092,7 @@ export class LevelSystem {
     
     if (!groupFullyCompleted) {
       // Group not complete - stay in current group, return first uncompleted level
-      console.log(`[LevelSystem] Group ${current.groupIndex} not fully complete yet`);
+      // console.log(`[LevelSystem] Group ${current.groupIndex} not fully complete yet`);
       return firstUncompletedInGroup;
     }
     
@@ -2101,7 +2100,7 @@ export class LevelSystem {
     const nextGroupIndex = current.groupIndex + 1;
     if (nextGroupIndex >= levelTree.length) {
       // No more groups - game complete!
-      console.log('[LevelSystem] Game complete! No more levels.');
+      // console.log('[LevelSystem] Game complete! No more levels.');
       return null;
     }
     
@@ -2116,7 +2115,7 @@ export class LevelSystem {
         if (firstNextLevelId === null) {
           firstNextLevelId = levelId;
         }
-        console.log(`[LevelSystem] Unlocked level ${level.name} (ID: ${levelId})`);
+        // console.log(`[LevelSystem] Unlocked level ${level.name} (ID: ${levelId})`);
       }
     }
     

@@ -39,7 +39,7 @@ function readFloat(buffer: Buffer, offset: number): number {
 }
 
 function convertCollisionBin(inputPath: string, outputPath: string): void {
-  console.log(`Reading collision data from: ${inputPath}`);
+  // console.log(`Reading collision data from: ${inputPath}`);
   
   const buffer = fs.readFileSync(inputPath);
   
@@ -50,7 +50,7 @@ function convertCollisionBin(inputPath: string, outputPath: string): void {
   }
   
   const tileCount = buffer.readUInt8(1);
-  console.log(`Found ${tileCount} collision tiles`);
+  // console.log(`Found ${tileCount} collision tiles`);
   
   const collisionData: CollisionData = {
     version: 1,
@@ -104,20 +104,20 @@ function convertCollisionBin(inputPath: string, outputPath: string): void {
       segments: segments
     };
     
-    console.log(`Tile ${tileIndex}: ${segmentCount} segments`);
+    // console.log(`Tile ${tileIndex}: ${segmentCount} segments`);
   }
   
   // Write JSON output
   const jsonOutput = JSON.stringify(collisionData, null, 2);
   fs.writeFileSync(outputPath, jsonOutput);
-  console.log(`\nWritten collision data to: ${outputPath}`);
+  // console.log(`\nWritten collision data to: ${outputPath}`);
   
   // Print some statistics
   let totalSegments = 0;
   for (const tileIndex in collisionData.tiles) {
     totalSegments += collisionData.tiles[tileIndex].segments.length;
   }
-  console.log(`Total segments: ${totalSegments}`);
+  // console.log(`Total segments: ${totalSegments}`);
 }
 
 // Main
@@ -129,6 +129,6 @@ const outputPath = path.join(projectRoot, 'public/assets/collision.json');
 try {
   convertCollisionBin(inputPath, outputPath);
 } catch (error) {
-  console.error('Error converting collision data:', error);
+  // console.error('Error converting collision data:', error);
   process.exit(1);
 }

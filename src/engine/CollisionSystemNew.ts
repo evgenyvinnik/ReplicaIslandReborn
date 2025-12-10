@@ -113,7 +113,7 @@ export class CollisionSystem {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        console.error(`Failed to load collision data: ${response.statusText}`);
+        // console.error(`Failed to load collision data: ${response.statusText}`);
         return false;
       }
       
@@ -127,10 +127,10 @@ export class CollisionSystem {
       }
       
       this.collisionDataLoaded = true;
-      console.warn(`Loaded ${this.collisionTileDefinitions.size} collision tile definitions`);
+      // console.warn(`Loaded ${this.collisionTileDefinitions.size} collision tile definitions`);
       return true;
     } catch (error) {
-      console.error('Error loading collision data:', error);
+      // console.error('Error loading collision data:', error);
       return false;
     }
   }
@@ -179,7 +179,7 @@ export class CollisionSystem {
   setWorldCollision(_segments: { startX: number; startY: number; endX: number; endY: number; normalX: number; normalY: number }[]): void {
     // Legacy method - in the new system, collision segments are loaded per-tile from collision.json
     // We could add support for world-level segments here if needed
-    console.warn('[CollisionSystem] setWorldCollision called - using tile-based collision instead');
+    // console.warn('[CollisionSystem] setWorldCollision called - using tile-based collision instead');
   }
 
   // ==========================================================================

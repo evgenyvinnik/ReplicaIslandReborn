@@ -146,7 +146,7 @@ function byteArrayToFloat(bytes: Uint8Array, offset: number): number {
 function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldData; bytesRead: number } | null {
   const signature = data[offset];
   if (signature !== 42) {
-    console.error(`Invalid TiledWorld signature: ${signature}, expected 42`);
+    // console.error(`Invalid TiledWorld signature: ${signature}, expected 42`);
     return null;
   }
 
@@ -160,7 +160,7 @@ function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldD
 
   // Sanity check to avoid memory issues
   if (width <= 0 || height <= 0 || width > 10000 || height > 10000) {
-    console.error(`Invalid TiledWorld dimensions: ${width}x${height}`);
+    // console.error(`Invalid TiledWorld dimensions: ${width}x${height}`);
     return null;
   }
 
@@ -222,7 +222,7 @@ export class LevelParser {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        console.error(`Failed to fetch level: ${response.status} ${response.statusText}`);
+        // console.error(`Failed to fetch level: ${response.status} ${response.statusText}`);
         return null;
       }
 
@@ -232,7 +232,7 @@ export class LevelParser {
       const result = this.parseLevelData(data);
       return result;
     } catch (error) {
-      console.error('Error parsing level:', error);
+      // console.error('Error parsing level:', error);
       return null;
     }
   }
@@ -246,7 +246,7 @@ export class LevelParser {
     // Check signature
     const signature = data[offset++];
     if (signature !== 96) {
-      console.error(`Invalid level signature: ${signature}, expected 96`);
+      // console.error(`Invalid level signature: ${signature}, expected 96`);
       return null;
     }
 
@@ -278,7 +278,7 @@ export class LevelParser {
       // Parse the TiledWorld for this layer
       const result = parseTiledWorld(data, offset);
       if (!result) {
-        console.error(`Failed to parse TiledWorld for layer ${i}`);
+        // console.error(`Failed to parse TiledWorld for layer ${i}`);
         return null;
       }
 
@@ -344,14 +344,14 @@ export class LevelParser {
     try {
       const response = await fetch(url);
       if (!response.ok) {
-        console.error(`Failed to fetch level: ${response.status} ${response.statusText}`);
+        // console.error(`Failed to fetch level: ${response.status} ${response.statusText}`);
         return null;
       }
 
       const jsonData = await response.json();
       return this.parseJsonLevelData(jsonData);
     } catch (error) {
-      console.error('Error parsing JSON level:', error);
+      // console.error('Error parsing JSON level:', error);
       return null;
     }
   }
@@ -379,7 +379,7 @@ export class LevelParser {
   }): ParsedLevel | null {
     // Validate format
     if (data.format !== 'replica-island-level') {
-      console.error(`Invalid JSON level format: ${data.format}`);
+      // console.error(`Invalid JSON level format: ${data.format}`);
       return null;
     }
 

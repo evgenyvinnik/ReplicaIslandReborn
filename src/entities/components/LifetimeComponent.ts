@@ -137,10 +137,10 @@ export class LifetimeComponent extends GameComponent {
       this.timeUntilDeath -= dt;
       // Debug logging for projectiles
       if (parent.type === 'projectile') {
-        console.log(`[LifetimeComponent] Projectile ${parent.subType} timeUntilDeath=${this.timeUntilDeath.toFixed(2)} dt=${dt.toFixed(4)}`);
+        // console.log(`[LifetimeComponent] Projectile ${parent.subType} timeUntilDeath=${this.timeUntilDeath.toFixed(2)} dt=${dt.toFixed(4)}`);
       }
       if (this.timeUntilDeath <= 0) {
-        console.log(`[LifetimeComponent] Projectile ${parent.type}/${parent.subType} DYING - timeUntilDeath expired`);
+        // console.log(`[LifetimeComponent] Projectile ${parent.type}/${parent.subType} DYING - timeUntilDeath expired`);
         this.die(parent);
         return;
       }
@@ -166,7 +166,7 @@ export class LifetimeComponent extends GameComponent {
     if (this._dieOnHitBackground) {
       const normal = parent.getBackgroundCollisionNormal();
       if (normal && (normal.x !== 0 || normal.y !== 0)) {
-        console.log(`[LifetimeComponent] ${parent.type}/${parent.subType} hit background, dying`);
+        // console.log(`[LifetimeComponent] ${parent.type}/${parent.subType} hit background, dying`);
         parent.life = 0;
       }
     }

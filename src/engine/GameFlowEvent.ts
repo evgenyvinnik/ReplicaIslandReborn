@@ -51,7 +51,7 @@ export class GameFlowEvent {
    * Post an event to be processed on the next frame
    */
   post(event: GameFlowEventType, dataIndex: number = 0): void {
-    // Debug: console.log('GameFlowEvent: Post Game Flow Event:', event, dataIndex);
+    // Debug: // console.log('GameFlowEvent: Post Game Flow Event:', event, dataIndex);
     this.pendingEvents.push({ event, dataIndex });
   }
 
@@ -59,7 +59,7 @@ export class GameFlowEvent {
    * Post an event and process it immediately
    */
   postImmediate(event: GameFlowEventType, dataIndex: number = 0): void {
-    // Debug: console.log('GameFlowEvent: Execute Immediate Game Flow Event:', event, dataIndex);
+    // Debug: // console.log('GameFlowEvent: Execute Immediate Game Flow Event:', event, dataIndex);
     this.dispatchEvent(event, dataIndex);
   }
 
@@ -77,7 +77,7 @@ export class GameFlowEvent {
     while (this.pendingEvents.length > 0) {
       const eventData = this.pendingEvents.shift();
       if (eventData) {
-        // Debug: console.log('GameFlowEvent: Execute Game Flow Event:', eventData.event, eventData.dataIndex);
+        // Debug: // console.log('GameFlowEvent: Execute Game Flow Event:', eventData.event, eventData.dataIndex);
         this.dispatchEvent(eventData.event, eventData.dataIndex);
       }
     }
@@ -93,7 +93,7 @@ export class GameFlowEvent {
       try {
         listener(event, dataIndex);
       } catch (error) {
-        console.error('GameFlowEvent: Error in event listener:', error);
+        // console.error('GameFlowEvent: Error in event listener:', error);
       }
     }
   }

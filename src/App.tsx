@@ -119,7 +119,7 @@ function AppContent(): React.JSX.Element {
 
   // Determine which screen to show
   const renderScreen = (): React.JSX.Element => {
-    console.log('[App] renderScreen, gameState:', state.gameState, 'isLoading:', state.isLoading, 'currentLevel:', state.currentLevel);
+    // console.log('[App] renderScreen, gameState:', state.gameState, 'isLoading:', state.isLoading, 'currentLevel:', state.currentLevel);
     if (state.isLoading) {
       // Original game shows "PLEASE WAIT" (from strings.xml: please_wait)
       return <LoadingScreen />;

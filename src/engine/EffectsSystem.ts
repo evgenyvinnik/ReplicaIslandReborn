@@ -268,7 +268,7 @@ export class EffectsSystem {
           await this.renderSystem!.loadSingleImage(frame, assetPath(`/assets/sprites/${frame}`));
           this.loadedSprites.add(frame);
         } catch (e) {
-          console.log(`Failed to load effect sprite: ${frame}`, e);
+          // console.log(`Failed to load effect sprite: ${frame}`, e);
         }
       })
     );
@@ -282,7 +282,7 @@ export class EffectsSystem {
   spawn(type: EffectType, x: number, y: number, velocityX: number = 0, velocityY: number = 0): void {
     const config = EFFECT_CONFIGS[type];
     if (!config) {
-      console.log(`Unknown effect type: ${type}`);
+      // console.log(`Unknown effect type: ${type}`);
       return;
     }
     

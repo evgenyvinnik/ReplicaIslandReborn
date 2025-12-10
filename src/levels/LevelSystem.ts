@@ -63,7 +63,7 @@ export class LevelSystem {
   async loadLevel(levelId: number): Promise<boolean> {
     const levelInfo = this.levels.get(levelId);
     if (!levelInfo) {
-      console.error(`Level ${levelId} not found`);
+      // console.error(`Level ${levelId} not found`);
       return false;
     }
 
@@ -99,7 +99,7 @@ export class LevelSystem {
 
       return true;
     } catch (error) {
-      console.error('Error loading level:', error);
+      // console.error('Error loading level:', error);
       return false;
     }
   }

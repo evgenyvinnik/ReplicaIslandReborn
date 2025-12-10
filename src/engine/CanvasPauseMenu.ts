@@ -50,7 +50,7 @@ export class CanvasPauseMenu {
       this.imageLoaded = true;
     };
     img.onerror = (): void => {
-      console.log('Failed to load pause image');
+      // console.log('Failed to load pause image');
     };
     img.src = assetPath('/assets/sprites/ui_paused.png');
   }

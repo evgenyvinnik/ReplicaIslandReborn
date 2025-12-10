@@ -128,7 +128,7 @@ export class GameObjectManager {
 
     // Log NPC counts every 60 frames
     if (Math.random() < 0.016) { // ~once per second
-      console.log(`[GameObjectManager] Total objects: ${this.objects.getCount()}, NPCs: ${npcCount}, active NPCs: ${activeNpcCount}`);
+      // console.log(`[GameObjectManager] Total objects: ${this.objects.getCount()}, NPCs: ${npcCount}, active NPCs: ${activeNpcCount}`);
     }
   }
 
@@ -141,7 +141,7 @@ export class GameObjectManager {
     for (const object of this.pendingAdditions) {
       const added = this.objects.add(object);
       if (!added) {
-        console.error('[GameObjectManager] Failed to add object - capacity exceeded:', object.type, object.id);
+        // console.error('[GameObjectManager] Failed to add object - capacity exceeded:', object.type, object.id);
       }
     }
     this.pendingAdditions = [];

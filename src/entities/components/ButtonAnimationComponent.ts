@@ -68,7 +68,7 @@ export class ButtonAnimationComponent extends GameComponent {
         if (sound && this.depressSound) {
           sound.playSfx(this.depressSound);
         }
-        console.log(`[ButtonAnimationComponent] Button pressed! Channel: ${this.channel?.name}`);
+        // console.log(`[ButtonAnimationComponent] Button pressed! Channel: ${this.channel?.name}`);
       }
 
       this.sprite.playAnimation(ButtonAnimation.DOWN);
@@ -82,11 +82,11 @@ export class ButtonAnimationComponent extends GameComponent {
           this.channel.value = this.lastPressedTime;
           // Debug log occasionally
           if (Math.random() < 0.02) {
-            console.log(`[ButtonAnimationComponent] Channel ${this.channel.name} updated to time ${this.lastPressedTime.value}`);
+            // console.log(`[ButtonAnimationComponent] Channel ${this.channel.name} updated to time ${this.lastPressedTime.value}`);
           }
         }
       } else {
-        console.warn('[ButtonAnimationComponent] Button has no channel!');
+        // console.warn('[ButtonAnimationComponent] Button has no channel!');
       }
     } else {
       // Button is not being pressed - return to UP state

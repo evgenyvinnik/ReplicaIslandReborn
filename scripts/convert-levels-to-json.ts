@@ -93,7 +93,7 @@ function byteArrayToFloat(bytes: Uint8Array, offset: number): number {
 function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldJSON; bytesRead: number } | null {
   const signature = data[offset];
   if (signature !== TILED_WORLD_SIGNATURE) {
-    console.error(`Invalid TiledWorld signature: ${signature}, expected ${TILED_WORLD_SIGNATURE}`);
+    // console.error(`Invalid TiledWorld signature: ${signature}, expected ${TILED_WORLD_SIGNATURE}`);
     return null;
   }
 
@@ -105,7 +105,7 @@ function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldJ
   currentOffset += 4;
 
   if (width <= 0 || height <= 0 || width > 10000 || height > 10000) {
-    console.error(`Invalid dimensions: ${width}x${height}`);
+    // console.error(`Invalid dimensions: ${width}x${height}`);
     return null;
   }
 
@@ -138,7 +138,7 @@ function parseBinaryLevel(data: Uint8Array): LevelJSON | null {
 
   const signature = data[offset++];
   if (signature !== LEVEL_SIGNATURE) {
-    console.error(`Invalid level signature: ${signature}, expected ${LEVEL_SIGNATURE}`);
+    // console.error(`Invalid level signature: ${signature}, expected ${LEVEL_SIGNATURE}`);
     return null;
   }
 
@@ -155,7 +155,7 @@ function parseBinaryLevel(data: Uint8Array): LevelJSON | null {
 
     const result = parseTiledWorld(data, offset);
     if (!result) {
-      console.error(`Failed to parse TiledWorld for layer ${i}`);
+      // console.error(`Failed to parse TiledWorld for layer ${i}`);
       return null;
     }
     offset += result.bytesRead;
@@ -236,12 +236,12 @@ async function convertLevels(): Promise<void> {
   const __dirname = dirname(__filename);
   const levelsDir = join(__dirname, '../public/assets/levels');
   
-  console.log(`\nConverting levels in: ${levelsDir}\n`);
+  // console.log(`\nConverting levels in: ${levelsDir}\n`);
   
   const files = await readdir(levelsDir);
   const binFiles = files.filter((f: string) => f.endsWith('.bin'));
   
-  console.log(`Found ${binFiles.length} .bin files to convert\n`);
+  // console.log(`Found ${binFiles.length} .bin files to convert\n`);
   
   let successCount = 0;
   let errorCount = 0;
@@ -267,24 +267,24 @@ async function convertLevels(): Promise<void> {
         const jsonSize = jsonContent.length;
         const ratio = (jsonSize / binSize).toFixed(1);
         
-        console.log(`✓ ${binFile} → ${jsonFile}`);
-        console.log(`  Layers: ${levelJson.layers.length}, Background: ${levelJson.background}`);
-        console.log(`  Size: ${binSize} bytes → ${jsonSize} bytes (${ratio}x)\n`);
+        // console.log(`✓ ${binFile} → ${jsonFile}`);
+        // console.log(`  Layers: ${levelJson.layers.length}, Background: ${levelJson.background}`);
+        // console.log(`  Size: ${binSize} bytes → ${jsonSize} bytes (${ratio}x)\n`);
         successCount++;
       } else {
-        console.error(`✗ Failed to parse: ${binFile}\n`);
+        // console.error(`✗ Failed to parse: ${binFile}\n`);
         errorCount++;
       }
     } catch (err) {
-      console.error(`✗ Error converting ${binFile}:`, err);
+      // console.error(`✗ Error converting ${binFile}:`, err);
       errorCount++;
     }
   }
   
-  console.log(`\n${'='.repeat(50)}`);
-  console.log(`Conversion complete: ${successCount} succeeded, ${errorCount} failed`);
-  console.log(`${'='.repeat(50)}\n`);
+  // console.log(`\n${'='.repeat(50)}`);
+  // console.log(`Conversion complete: ${successCount} succeeded, ${errorCount} failed`);
+  // console.log(`${'='.repeat(50)}\n`);
 }
 
 // Run the conversion
-convertLevels().catch(console.error);
+convertLevels().catch(// console.error);

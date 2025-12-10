@@ -98,7 +98,7 @@ export class HotSpotSystem {
   setWorld(world: TiledWorldData): void {
     this.world = world;
     // Debug: log a few sample hotspot values
-    console.log('[HotSpotSystem] setWorld:', {
+    // console.log('[HotSpotSystem] setWorld:', {
       width: world.width,
       height: world.height,
       tilesIsArray: Array.isArray(world.tiles),
@@ -123,9 +123,9 @@ export class HotSpotSystem {
   ): void {
     this.levelWidth = levelWidth;
     this.levelHeight = levelHeight;
-    console.log(`[HotSpotSystem] setLevelDimensions: levelWidth=${levelWidth}, levelHeight=${levelHeight}, tileWidth=${_tileWidth}, tileHeight=${_tileHeight}`);
+    // console.log(`[HotSpotSystem] setLevelDimensions: levelWidth=${levelWidth}, levelHeight=${levelHeight}, tileWidth=${_tileWidth}, tileHeight=${_tileHeight}`);
     if (this.world) {
-      console.log(`[HotSpotSystem] world: width=${this.world.width}, height=${this.world.height}`);
+      // console.log(`[HotSpotSystem] world: width=${this.world.width}, height=${this.world.height}`);
     }
   }
 
@@ -149,7 +149,7 @@ export class HotSpotSystem {
    */
   getHotSpotByTile(tileX: number, tileY: number): number {
     if (!this.world) {
-      console.log(`[HotSpotSystem] getHotSpotByTile: no world!`);
+      // console.log(`[HotSpotSystem] getHotSpotByTile: no world!`);
       return HotSpotType.NONE;
     }
 
@@ -161,7 +161,7 @@ export class HotSpotSystem {
     const value = this.world.tiles[tileX]?.[tileY];
     // Debug: Log when checking key hotspot tiles
     if (tileX === 1 && (tileY >= 10 && tileY <= 18)) {
-      console.log(`[HotSpotSystem] getHotSpotByTile(${tileX}, ${tileY}) = ${value}`);
+      // console.log(`[HotSpotSystem] getHotSpotByTile(${tileX}, ${tileY}) = ${value}`);
     }
     return value ?? HotSpotType.NONE;
   }
@@ -172,7 +172,7 @@ export class HotSpotSystem {
    */
   getHitTileX(worldX: number): number {
     if (!this.world || this.levelWidth === 0) {
-      console.log(`[HotSpotSystem] getHitTileX: no world or levelWidth=0! levelWidth=${this.levelWidth}, world=${!!this.world}`);
+      // console.log(`[HotSpotSystem] getHitTileX: no world or levelWidth=0! levelWidth=${this.levelWidth}, world=${!!this.world}`);
       return 0;
     }
     return Math.floor((worldX / this.levelWidth) * this.world.width);
@@ -183,7 +183,7 @@ export class HotSpotSystem {
    */
   getHitTileY(worldY: number): number {
     if (!this.world || this.levelHeight === 0) {
-      console.log(`[HotSpotSystem] getHitTileY: no world or levelHeight=0! levelHeight=${this.levelHeight}, world=${!!this.world}`);
+      // console.log(`[HotSpotSystem] getHitTileY: no world or levelHeight=0! levelHeight=${this.levelHeight}, world=${!!this.world}`);
       return 0;
     }
     return Math.floor((worldY / this.levelHeight) * this.world.height);

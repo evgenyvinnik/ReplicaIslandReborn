@@ -62,7 +62,7 @@ export class DialogSystem {
   startDialog(dialogId: string): boolean {
     const dialog = getDialog(dialogId);
     if (!dialog) {
-      console.log(`Dialog not found: ${dialogId}`);
+      // console.log(`Dialog not found: ${dialogId}`);
       return false;
     }
     

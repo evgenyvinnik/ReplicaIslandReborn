@@ -185,11 +185,11 @@ export class DoorAnimationComponent extends GameComponent {
         
         // Debug log occasionally
         if (Math.random() < 0.01) {
-          console.log(`[DoorAnimationComponent] Channel ${this.channel.name}, delta=${delta.toFixed(2)}, state=${this.state}, stayOpenTime=${this.stayOpenTime}`);
+          // console.log(`[DoorAnimationComponent] Channel ${this.channel.name}, delta=${delta.toFixed(2)}, state=${this.state}, stayOpenTime=${this.stayOpenTime}`);
         }
 
         if (delta < this.stayOpenTime && (this.state === DoorState.CLOSED || this.state === DoorState.CLOSING)) {
-          console.log(`[DoorAnimationComponent] Opening door! Channel: ${this.channel.name}`);
+          // console.log(`[DoorAnimationComponent] Opening door! Channel: ${this.channel.name}`);
           this.open(delta, parentObject);
         } else if (
           delta > this.stayOpenTime &&

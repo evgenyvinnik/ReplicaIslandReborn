@@ -97,12 +97,12 @@ export class CameraSystem {
    * Set the NPC target (takes camera focus from player)
    */
   setNPCTarget(target: CameraTarget | null): void {
-    console.log('[CameraSystem] setNPCTarget called with:', target ? 'valid target' : 'null');
+    // console.log('[CameraSystem] setNPCTarget called with:', target ? 'valid target' : 'null');
     if (target) {
       this.npcFocusMode = true;
       this.npcTarget = target;
       this.target = target;
-      console.log('[CameraSystem] NPC target set, npcFocusMode:', this.npcFocusMode);
+      // console.log('[CameraSystem] NPC target set, npcFocusMode:', this.npcFocusMode);
     }
   }
 
@@ -156,7 +156,7 @@ export class CameraSystem {
     
     // Always log on frame 1 to confirm update is called
     if (this.debugFrameCount === 1) {
-      console.log(`[CameraSystem] FIRST UPDATE CALL - target exists: ${!!this.target}, npcFocusMode: ${this.npcFocusMode}`);
+      // console.log(`[CameraSystem] FIRST UPDATE CALL - target exists: ${!!this.target}, npcFocusMode: ${this.npcFocusMode}`);
     }
     
     // Update target position from followed object
@@ -177,12 +177,12 @@ export class CameraSystem {
       
       // Debug every 60 frames
       if (this.debugFrameCount % 60 === 1) {
-        console.log(`[CameraSystem] update frame ${this.debugFrameCount}: targetPos=(${targetPos.x.toFixed(1)}, ${targetPos.y.toFixed(1)}) center=(${centerX.toFixed(1)}, ${centerY.toFixed(1)}) cameraTarget=(${this.targetPosition.x.toFixed(1)}, ${this.targetPosition.y.toFixed(1)}) cameraPos=(${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}) focusPos=(${this.focusPosition.x.toFixed(1)}, ${this.focusPosition.y.toFixed(1)})`);
+        // console.log(`[CameraSystem] update frame ${this.debugFrameCount}: targetPos=(${targetPos.x.toFixed(1)}, ${targetPos.y.toFixed(1)}) center=(${centerX.toFixed(1)}, ${centerY.toFixed(1)}) cameraTarget=(${this.targetPosition.x.toFixed(1)}, ${this.targetPosition.y.toFixed(1)}) cameraPos=(${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}) focusPos=(${this.focusPosition.x.toFixed(1)}, ${this.focusPosition.y.toFixed(1)})`);
       }
     } else {
       // No target - camera stays where it is
       if (this.debugFrameCount % 60 === 1) {
-        console.log('[CameraSystem] update: No target set!');
+        // console.log('[CameraSystem] update: No target set!');
       }
     }
 

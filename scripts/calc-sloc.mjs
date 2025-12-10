@@ -102,13 +102,13 @@ function main() {
   const root = rootArg ? path.resolve(rootArg) : path.resolve(__dirname, '..');
   const { total, perExtension } = walk(root);
 
-  console.log(`Calculating SLOC from ${root}`);
-  console.log('SLOC by extension (non-empty lines):');
+  // console.log(`Calculating SLOC from ${root}`);
+  // console.log('SLOC by extension (non-empty lines):');
   const sorted = [...perExtension.entries()].sort((a, b) => b[1] - a[1]);
   for (const [ext, count] of sorted) {
-    console.log(`${ext.padEnd(6)}: ${count.toLocaleString('en-US')}`);
+    // console.log(`${ext.padEnd(6)}: ${count.toLocaleString('en-US')}`);
   }
-  console.log('\nTotal SLOC:', total.toLocaleString('en-US'));
+  // console.log('\nTotal SLOC:', total.toLocaleString('en-US'));
 }
 
 main();

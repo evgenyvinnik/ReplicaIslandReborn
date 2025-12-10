@@ -155,7 +155,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
   const [state, dispatch] = useReducer(gameReducer, initialState);
 
   const startGame = useCallback((level?: number): void => {
-    console.log('[GameContext] startGame: Starting with level', level);
+    // console.log('[GameContext] startGame: Starting with level', level);
     if (level !== undefined) {
       dispatch({ type: 'SET_CURRENT_LEVEL', payload: level });
     }
@@ -164,7 +164,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
   }, []);
 
   const startNewGame = useCallback((): void => {
-    console.log('[GameContext] startNewGame: Setting level to 1 (intro cutscene)');
+    // console.log('[GameContext] startNewGame: Setting level to 1 (intro cutscene)');
     // Reset save data for a new game
     dispatch({ type: 'SET_SAVE_DATA', payload: { ...defaultSaveData } });
     dispatch({ type: 'SET_CURRENT_LEVEL', payload: 1 });
