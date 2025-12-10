@@ -383,7 +383,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Load background image
         const backgroundImage = parsedLevel.backgroundImage;
-        const bgPath = `/assets/sprites/${backgroundImage}.png`;
+        const bgPath = assetPath(`/assets/sprites/${backgroundImage}.png`);
         const bgImg = new Image();
         bgImg.onload = (): void => {
           backgroundImageRef.current = bgImg;
