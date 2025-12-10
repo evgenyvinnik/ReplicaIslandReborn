@@ -7,7 +7,6 @@
 
 import type { Dialog, Conversation, Character } from '../data/dialogs';
 import { getCharacterName } from '../data/dialogs';
-import { assetPath } from '../utils/helpers';
 
 // Character name colors
 const CHARACTER_COLORS: Record<Character, string> = {
@@ -148,7 +147,8 @@ export class CanvasDialog {
     for (const portraitPath of portraitsToLoad) {
       if (!this.portraits.has(portraitPath)) {
         const img = new Image();
-        img.src = assetPath(portraitPath);
+        // portraitPath already has base URL from dialogs.ts getPortrait()
+        img.src = portraitPath;
         img.onload = (): void => {
           this.portraits.set(portraitPath, img);
         };
