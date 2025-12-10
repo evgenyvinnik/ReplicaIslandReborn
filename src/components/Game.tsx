@@ -220,7 +220,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               const conversationIdx = Math.min(dataIndex, dialog.conversations.length - 1);
               
               // console.log('[Game] Showing NPC dialog - character:', dialogIndex + 1, 
-                'conversation:', conversationIdx, 'level:', levelInfo.file);
+              //  'conversation:', conversationIdx, 'level:', levelInfo.file);
               
               hasShownIntroDialogRef.current = true;
               setDialogConversationIndex(conversationIdx);
@@ -309,8 +309,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               }
               
               setLevelLoading(false);
-            }).catch((error) => {
-              // console.error('[Game] Error loading next level (NPC trigger):', error);
+            }).catch(() => {
               setLevelLoading(false);
               goToMainMenu();
             });
@@ -701,8 +700,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 
                 setLevelLoading(false); // Mark level as loaded
                 resumeGame();
-              }).catch((error) => {
-                // console.error('[Game] Error loading next level:', error);
+              }).catch(() => {
                 setLevelLoading(false);
                 goToMainMenu();
               });
@@ -997,7 +995,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       const loadPromises = sprites.map(sprite =>
         renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), 64, 64)
-          .catch(err => // console.log(`Failed to load sprite ${sprite.name}:`, err))
+          .catch(() => { /* Failed to load sprite - silently ignore */ })
       );
 
       await Promise.all(loadPromises);
@@ -1056,7 +1054,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       const loadPromises = sprites.map(sprite =>
         renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), sprite.w, sprite.h)
-          .catch(err => // console.log(`Failed to load sprite ${sprite.name}:`, err))
+          .catch(() => { /* Failed to load sprite - silently ignore */ })
       );
 
       await Promise.all(loadPromises);
@@ -1204,7 +1202,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       const loadPromises = sprites.map(sprite =>
         renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), sprite.w, sprite.h)
-          .catch(err => // console.log(`Failed to load sprite ${sprite.name}:`, err))
+          .catch(() => { /* Failed to load sprite - silently ignore */ })
       );
 
       await Promise.all(loadPromises);
@@ -1273,13 +1271,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         if (levelLoaded) {
           // Commit pending object additions immediately so they're available for rendering
           gameObjectManager.commitUpdates();
-          
-          // Debug: count coins after load
-          let coinCount = 0;
-          gameObjectManager.forEach((obj) => {
-            if (obj.type === 'coin') coinCount++;
-          });
-          // console.log('[Game] After level load - coins in active list:', coinCount);
           
           // Store player spawn position from level system
           playerSpawnRef.current = { ...levelSystem.playerSpawnPosition };
@@ -1368,8 +1359,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Fallback: create test level
           createTestLevel(factory, gameObjectManager, collisionSystem);
         }
-      } catch (error) {
-        // console.error('[InitializeGame] Failed to load level:', error);
+      } catch {
         // Create test level as fallback
         createTestLevel(factory, gameObjectManager, collisionSystem);
       }
@@ -1431,7 +1421,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     // Start initialization
     initializeGame().catch((error) => {
-      // console.error('[InitializeGame] Unhandled error:', error);
+      console.error('[InitializeGame] Unhandled error:', error);
       setLevelLoading(false);
     });
 
@@ -1553,33 +1543,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // This must happen after gameObjectManager.update() so objects can submit their surfaces,
       // and before collision checks so the surfaces are active
       collisionSystem.updateTemporarySurfaces();
-      
-      // Debug: Count NPC objects
-      if (frameCount % 120 === 0) {
-        let npcCount = 0;
-        let activeNpcCount = 0;
-        let breakableBlockCount = 0;
-        let activeBreakableBlockCount = 0;
-        gameObjectManager.forEach((obj) => {
-          if (obj.type === 'npc') {
-            npcCount++;
-            if (obj.isActive()) {
-              activeNpcCount++;
-              // console.log('[Game] NPC found:', obj.subType, 'active:', obj.isActive(), 'visible:', obj.isVisible(), 'pos:', obj.getPosition().x, obj.getPosition().y);
-            }
-          }
-          if (obj.type === 'breakable_block') {
-            breakableBlockCount++;
-            if (obj.isActive()) {
-              activeBreakableBlockCount++;
-              const pos = obj.getPosition();
-              // console.log(`[Game] Breakable block at (${pos.x}, ${pos.y}) active=${obj.isActive()} visible=${obj.isVisible()} life=${obj.life}`);
-            }
-          }
-        });
-        // console.log('[Game] NPC count:', npcCount, 'active:', activeNpcCount);
-        // console.log('[Game] Breakable block count:', breakableBlockCount, 'active:', activeBreakableBlockCount);
-      }
       
       // Update effects system (explosions, smoke, etc.)
       effectsSystem.update(deltaTime);
@@ -1822,12 +1785,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           gameObjectManager.forEach((other) => {
             if (other.type === 'breakable_block') {
-              // Debug: Log breakable block state when Wanda is nearby
-              if (obj.subType === 'wanda' && position.x > 540 && position.x < 620) {
-                const otherPos = other.getPosition();
-                // console.log(`[NPC Block Check] Found breakable_block at (${otherPos.x}, ${otherPos.y}) visible=${other.isVisible()} life=${other.life}`);
-              }
-              
               if (other.isVisible() && other.life > 0) {
                 const otherPos = other.getPosition();
                 // Check for collision between NPC and breakable block
@@ -2935,8 +2892,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             case 'npc': {
               // NPCs use their subtype to determine sprite
               const npcType = obj.subType || 'wanda';
-              let npcSpriteWidth = 64;
-              let npcSpriteHeight = 128;
+              const npcSpriteWidth = 64;
+              const npcSpriteHeight = 128;
               
               // Determine animation based on movement state
               const npcVel = obj.getVelocity();

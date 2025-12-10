@@ -184,9 +184,6 @@ export class TileMapRenderer {
     
     // Calculate tileset grid dimensions
     const tilesPerRow = Math.floor(tilesetImage.width / this.tileWidth);
-    
-    // Count rendered tiles for debugging
-    let tilesRendered = 0;
 
     // Render visible tiles - tiles[x][y] is column-major
     for (let tileY = startTileY; tileY < endTileY; tileY++) {
@@ -233,19 +230,8 @@ export class TileMapRenderer {
           this.tileHeight
         );
 
-        tilesRendered++;
         tileX++;
       }
-    }
-    
-    // Log once per layer to see if tiles are being rendered
-    if (tilesRendered === 0) {
-      // console.log('[TileMapRenderer] NO tiles rendered for layer', layer.tileset, 
-        'camera:', cameraX.toFixed(0), cameraY.toFixed(0),
-        'tile range x:', startTileX, '-', endTileX,
-        'tile range y:', startTileY, '-', endTileY,
-        'world size:', world.width, 'x', world.height,
-        'tiles array:', world.tiles?.length, 'x', world.tiles?.[0]?.length);
     }
   }
 

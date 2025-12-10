@@ -92,8 +92,8 @@ export class GameFlowEvent {
     for (const listener of this.listeners) {
       try {
         listener(event, dataIndex);
-      } catch (error) {
-        // console.error('GameFlowEvent: Error in event listener:', error);
+      } catch {
+        // Error in event listener - silently ignore
       }
     }
   }

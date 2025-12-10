@@ -231,8 +231,8 @@ export class LevelParser {
 
       const result = this.parseLevelData(data);
       return result;
-    } catch (error) {
-      // console.error('Error parsing level:', error);
+    } catch {
+      // Error parsing level - return null
       return null;
     }
   }
@@ -350,8 +350,8 @@ export class LevelParser {
 
       const jsonData = await response.json();
       return this.parseJsonLevelData(jsonData);
-    } catch (error) {
-      // console.error('Error parsing JSON level:', error);
+    } catch {
+      // Error parsing JSON level - return null
       return null;
     }
   }

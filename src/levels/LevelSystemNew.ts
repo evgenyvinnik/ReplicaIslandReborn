@@ -37,7 +37,6 @@ import { SimpleCollisionComponent } from '../entities/components/SimpleCollision
 import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
 import { OrbitalMagnetComponent } from '../entities/components/OrbitalMagnetComponent';
-import { PhysicsComponent } from '../entities/components/PhysicsComponent';
 import { PlayerComponent } from '../entities/components/PlayerComponent';
 import { GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
@@ -233,8 +232,8 @@ export class LevelSystem {
       } else {
         return await this.loadJsonLevel(levelId, levelInfo);
       }
-    } catch (error) {
-      // console.error('[LevelSystem] Error loading level:', error);
+    } catch {
+      // Error loading level - return false
       return false;
     }
   }
@@ -443,7 +442,7 @@ export class LevelSystem {
 
     // Configure based on type
     switch (spawn.type) {
-      case GameObjectTypeIndex.PLAYER:
+      case GameObjectTypeIndex.PLAYER: {
         obj.type = 'player';
         // Original Java: sprite is 64x64, collision box is 32x48 with offset (16, 0)
         // The collision box dimensions determine collision detection
@@ -488,8 +487,8 @@ export class LevelSystem {
         obj.addComponent(playerHitReact);
         
         this.gameObjectManager.setPlayer(obj);
-        // console.log(`[LevelSystem] PLAYER spawning at tile (${spawn.tileX}, ${spawn.tileY}), pixel (${spawn.x}, ${spawn.y})`);
         break;
+      }
 
       case GameObjectTypeIndex.COIN:
         obj.type = 'coin';
@@ -713,155 +712,6 @@ export class LevelSystem {
           requireFacing: false // Turret shoots in any direction
         });
         obj.addComponent(turretAttack);
-        break;
-      }
-
-      case GameObjectTypeIndex.ROKUDOU: {
-        obj.type = 'rokudou';
-        objWidth = 128;
-        objHeight = 128;
-        obj.activationRadius = 500; // Always active when on screen
-        // Rokudou is spawned via factory method which adds components
-        // We just need to call the right spawn method, but here we are configuring an already created object
-        // So we should probably delegate to factory or manually configure
-        // Actually, GameObjectFactory.spawn handles configuration based on type.
-        // But here we are inside LevelSystem which calls GameObjectManager.createObject directly
-        // and then configures it.
-        // Wait, LevelSystem calls `this.gameObjectManager.createObject()`.
-        // GameObjectFactory is separate.
-        // The original `LevelSystem` used `GameObjectFactory` to spawn specific types.
-        // In this port, `LevelSystemNew` seems to be doing manual configuration for many types,
-        // effectively duplicating factory logic or bypassing it?
-        // Let's look at `spawnObjectByType` again.
-        // It creates an object and then adds components.
-        // BUT `GameObjectFactory` has `configureEnemyRokudou`.
-        // We should use `GameObjectFactory` if possible, but `LevelSystemNew` doesn't seem to use it directly for spawning?
-        // Ah, `LevelSystemNew` DOES NOT have a reference to `GameObjectFactory`.
-        // It uses `GameObjectManager`.
-        // However, `GameObjectFactory` is usually used to spawn objects *during gameplay* (projectiles).
-        // For level loading, `LevelSystem` seems to be the factory.
-        // This is a bit of a mess. Ideally `LevelSystem` should use `GameObjectFactory`.
-        // But since I can't easily refactor the whole spawning system right now, I will duplicate the configuration logic
-        // OR see if I can use the factory logic.
-        // `GameObjectFactory` has `configureEnemyRokudou(obj)`.
-        // I can't access `GameObjectFactory` instance here easily.
-        // Wait, `GameObjectFactory` is not a singleton.
-        // But `LevelSystemNew` imports `RokudouBossComponent`.
-        // I will replicate the configuration logic here, similar to other enemies.
-        
-        // Actually, looking at `GameObjectFactory.ts`, it has `configureEnemyRokudou`.
-        // And `LevelSystemNew.ts` has `spawnObjectByType` which manually adds components.
-        // I should just add the components here.
-        
-        // Sprite
-        const sprite = new SpriteComponent();
-        sprite.setSprite('rokudou');
-        // ... animations ... (omitted for brevity, will use what's in Factory as reference)
-        // Actually, to avoid massive code duplication, I should check if I can use the Factory.
-        // `LevelSystemNew` doesn't seem to use Factory.
-        // BUT, `GameObjectFactory` is used by `Game.tsx` to spawn the player.
-        // And `GameObjectFactory` is passed to `LevelSystem`? No.
-        
-        // Let's look at `LevelSystemNew.ts` imports.
-        // It imports `RokudouBossComponent`.
-        
-        // I will implement the configuration here.
-        
-        // Add sprite
-        const rokudouSprite = new SpriteComponent();
-        rokudouSprite.setSprite('rokudou');
-        // Add animations (simplified for now, or full if needed)
-        // ...
-        // Actually, I'll just use the `RokudouBossComponent` and basic sprite for now to ensure it spawns.
-        // The `GameObjectFactory` has the full animation setup.
-        // It would be better to refactor `LevelSystemNew` to use `GameObjectFactory` for complex objects.
-        // But for now, I'll copy the setup.
-        
-        // Sprite
-        rokudouSprite.setSprite('rokudou');
-        // Idle
-        rokudouSprite.addAnimation('idle', { frames: [{ x: 0, y: 0, width: 128, height: 128, duration: 0.2 }], loop: true });
-        // Fly
-        rokudouSprite.addAnimation('fly', { frames: [
-          { x: 0, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 128, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 256, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 384, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 512, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 640, y: 0, width: 128, height: 128, duration: 0.1 },
-        ], loop: true });
-        // Shoot
-        rokudouSprite.addAnimation('shoot', { frames: [
-          { x: 0, y: 128, width: 128, height: 128, duration: 0.15 },
-          { x: 128, y: 128, width: 128, height: 128, duration: 0.15 },
-        ], loop: true });
-        // Surprised
-        rokudouSprite.addAnimation('surprised', { frames: [{ x: 256, y: 128, width: 128, height: 128, duration: 0.2 }], loop: true });
-        // Hit
-        rokudouSprite.addAnimation('hit', { frames: [
-          { x: 0, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 128, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 256, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 384, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 512, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 640, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 768, y: 256, width: 128, height: 128, duration: 0.08 },
-        ], loop: false });
-        // Death
-        rokudouSprite.addAnimation('death', { frames: [
-          { x: 0, y: 384, width: 128, height: 128, duration: 0.12 },
-          { x: 128, y: 384, width: 128, height: 128, duration: 0.12 },
-          { x: 256, y: 384, width: 128, height: 128, duration: 0.12 },
-          { x: 384, y: 384, width: 128, height: 128, duration: 0.12 },
-          { x: 512, y: 384, width: 128, height: 128, duration: 0.12 },
-        ], loop: false });
-        
-        rokudouSprite.playAnimation('idle');
-        obj.addComponent(rokudouSprite);
-        
-        // Physics (no gravity)
-        const rokudouPhysics = new PhysicsComponent();
-        rokudouPhysics.setUseGravity(false);
-        obj.addComponent(rokudouPhysics);
-        // Wait, LevelSystemNew doesn't import PhysicsComponent.
-        // It seems other enemies use PatrolComponent which handles movement?
-        // No, `configureEnemyBrobot` in Factory adds PhysicsComponent.
-        // `LevelSystemNew` seems to rely on components being added here.
-        // But `PhysicsComponent` is NOT imported in `LevelSystemNew`.
-        // Let's check imports.
-        // It imports `MovementComponent` but not `PhysicsComponent`.
-        // This confirms `LevelSystemNew` is incomplete for complex objects.
-        
-        // I MUST import PhysicsComponent.
-        
-        // ... (I will add import in a separate block if needed, or assume I can add it)
-        
-        // Boss Component
-        const rokudou = new RokudouBossComponent({
-          life: 3,
-          attackRange: 300,
-          movementSpeed: 100,
-        });
-        
-        // Projectile Spawner
-        rokudou.setProjectileSpawner((type, x, y, vx, vy) => {
-           // We need to spawn projectiles.
-           // LevelSystem doesn't have a spawn method for projectiles easily accessible?
-           // It has `spawnObjectByType`.
-           // We can use `gameObjectManager.add()` if we create it manually.
-           // Or we can use `sSystemRegistry.gameObjectFactory` if it was set?
-           // `SystemRegistry` has `gameObjectFactory`?
-           // Let's check `SystemRegistry`.
-           if (sSystemRegistry.gameObjectFactory) {
-             const pType = type === 'energy_ball' ? GameObjectType.ENERGY_BALL : GameObjectType.TURRET_BULLET;
-             const proj = sSystemRegistry.gameObjectFactory.spawn(pType, x, y);
-             if (proj) {
-               proj.setVelocity(vx, vy);
-             }
-           }
-        });
-        
-        obj.addComponent(rokudou);
         break;
       }
       

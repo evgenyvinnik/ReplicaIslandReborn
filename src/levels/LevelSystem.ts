@@ -98,8 +98,8 @@ export class LevelSystem {
       this.spawnLevelObjects(levelData.objects);
 
       return true;
-    } catch (error) {
-      // console.error('Error loading level:', error);
+    } catch {
+      // Error loading level - return false
       return false;
     }
   }

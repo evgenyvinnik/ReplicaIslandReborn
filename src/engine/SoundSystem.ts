@@ -130,8 +130,8 @@ export class SoundSystem {
       if (this.audioContext.state === 'suspended') {
         await this.audioContext.resume();
       }
-    } catch (error) {
-      // console.error('Failed to initialize audio context:', error);
+    } catch {
+      // Failed to initialize audio context - silently ignore
     }
   }
 
@@ -181,12 +181,8 @@ export class SoundSystem {
         buffer: audioBuffer,
         name,
       });
-    } catch (error) {
-      // Only log errors for required sounds, not optional ones
-      if (!optional) {
-        // console.error(`Failed to load sound: ${name}`, error);
-      }
-      // Optional sounds fail silently - no console spam
+    } catch {
+      // Failed to load sound - silently ignore (both required and optional)
     }
   }
 
@@ -239,8 +235,8 @@ export class SoundSystem {
 
       source.start(0);
       return id;
-    } catch (error) {
-      // console.error('Failed to play sound:', name, error);
+    } catch {
+      // Failed to play sound - silently ignore
       return -1;
     }
   }
@@ -356,8 +352,8 @@ export class SoundSystem {
       
       this.musicBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
       return true;
-    } catch (error) {
-      // console.log('Failed to load background music:', error);
+    } catch {
+      // Failed to load background music - silently ignore
       return false;
     }
   }
@@ -525,8 +521,8 @@ export class SoundSystem {
     ];
 
     const loadPromises = soundFiles.map(name =>
-      this.loadSound(name, assetPath(`/assets/sounds/${name}.ogg`)).catch(err => {
-        // console.log(`Failed to load sound ${name}:`, err);
+      this.loadSound(name, assetPath(`/assets/sounds/${name}.ogg`)).catch(_err => {
+        // Failed to load sound - silently ignore
       })
     );
 

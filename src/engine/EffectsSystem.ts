@@ -267,8 +267,8 @@ export class EffectsSystem {
         try {
           await this.renderSystem!.loadSingleImage(frame, assetPath(`/assets/sprites/${frame}`));
           this.loadedSprites.add(frame);
-        } catch (e) {
-          // console.log(`Failed to load effect sprite: ${frame}`, e);
+        } catch {
+          // Failed to load effect sprite - silently ignore
         }
       })
     );

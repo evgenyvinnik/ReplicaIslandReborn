@@ -104,16 +104,6 @@ export class GameObjectManager {
     // Update activation based on camera
     this.updateActivation();
 
-    // Debug: count objects by type
-    let npcCount = 0;
-    let activeNpcCount = 0;
-    this.objects.forEach((obj) => {
-      if (obj.type === 'npc') {
-        npcCount++;
-        if (obj.isActive()) activeNpcCount++;
-      }
-    });
-
     // Update all active objects
     this.objects.forEach((object) => {
       if (object.isActive()) {

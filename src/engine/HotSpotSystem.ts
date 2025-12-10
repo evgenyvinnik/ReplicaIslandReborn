@@ -97,19 +97,6 @@ export class HotSpotSystem {
    */
   setWorld(world: TiledWorldData): void {
     this.world = world;
-    // Debug: log a few sample hotspot values
-    // console.log('[HotSpotSystem] setWorld:', {
-      width: world.width,
-      height: world.height,
-      tilesIsArray: Array.isArray(world.tiles),
-      tilesLength: world.tiles?.length,
-      // Check column 1 specifically (where Wanda starts)
-      'tiles[1] exists': !!world.tiles[1],
-      'tiles[1].length': world.tiles[1]?.length,
-      'tiles[1][11]': world.tiles[1]?.[11], // Should be 11 (TAKE_CAMERA_FOCUS)
-      'tiles[1][12]': world.tiles[1]?.[12], // Should be 15 (NPC_RUN_QUEUED_COMMANDS)
-      'tiles[1][17]': world.tiles[1]?.[17], // Should be 16 (NPC_GO_RIGHT)
-    });
   }
 
   /**

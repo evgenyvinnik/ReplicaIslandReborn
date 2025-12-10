@@ -153,19 +153,6 @@ export class NPCComponent extends GameComponent {
   override update(timeDelta: number, parent: object): void {
     const parentObject = parent as GameObject;
     
-    // Debug: Log NPC position and hotspot detection for ALL NPCs
-    const pos = parentObject.getPosition();
-    const hotSpotSystem = sSystemRegistry.hotSpotSystem;
-    if (hotSpotSystem) {
-      const centerX = parentObject.getCenteredPositionX();
-      const checkY = pos.y + parentObject.height - 10;
-      const tileX = hotSpotSystem.getHitTileX(centerX);
-      const tileY = hotSpotSystem.getHitTileY(checkY);
-      const hotSpot = hotSpotSystem.getHotSpotByTile(tileX, tileY);
-      // Log every frame for NPCs
-      // console.log(`[NPCComponent] ${parentObject.subType || 'NPC'} at pos(${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}) tile(${tileX}, ${tileY}) hotspot=${hotSpot} targetVel=(${parentObject.getTargetVelocity().x.toFixed(0)}, ${parentObject.getTargetVelocity().y.toFixed(0)}) vel=(${parentObject.getVelocity().x.toFixed(0)}, ${parentObject.getVelocity().y.toFixed(0)})`);
-    }
-    
     // Handle hit reaction
     if (this.reactToHits && 
         this.pauseTime <= 0 && 

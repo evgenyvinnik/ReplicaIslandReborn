@@ -127,10 +127,9 @@ export class CollisionSystem {
       }
       
       this.collisionDataLoaded = true;
-      // console.warn(`Loaded ${this.collisionTileDefinitions.size} collision tile definitions`);
       return true;
-    } catch (error) {
-      // console.error('Error loading collision data:', error);
+    } catch {
+      // Failed to load collision data
       return false;
     }
   }
@@ -614,7 +613,6 @@ export class CollisionSystem {
    * to determine collision type (wall vs slope).
    */
   // @ts-ignore - Kept for future slope support, not currently used
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private _checkTileCollisionWithSegments(
     x: number,
     y: number,
