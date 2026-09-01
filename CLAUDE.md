@@ -58,14 +58,43 @@ These are real, and are the honest backlog for "finishing" the port:
 
 | Gap | Impact | Notes |
 |-----|--------|-------|
-| Player damage is still inline | Medium | `GameObjectCollisionSystem` now resolves the hits the player *deals*, but damage *to* the player stays in `Game.tsx`'s `damagePlayer`, which owns the lives counter and the invincibility window. The player therefore registers no vulnerability volume — adding one before moving player damage onto the pipeline would count each projectile twice. See `src/entities/playerCollisionVolumes.ts`. |
-| Ordinary enemies are not on the pipeline | Medium | Regular enemies (brobot, mudman, skeleton, …) carry neither `DynamicCollisionComponent` nor `HitReactionComponent`, so they still die in one hit through the inline stomp path rather than through their own volumes. |
-| No per-frame animation volumes | Medium | The original stores attack/vulnerability volumes on each `AnimationFrame`; this port's `SpriteComponent` does not. The player works around it by swapping volume sets from `PlayerComponent` state. |
+| No per-frame animation volumes | Medium | The original stores attack/vulnerability volumes on each `AnimationFrame`; this port's `SpriteComponent` does not. Both the player and the enemies work around it by selecting volume sets from state/action (`playerCollisionVolumes.ts`, `enemyCollisionProfiles.ts`). Faithful per-frame data would need `SpriteComponent` to carry volumes. |
+| Collectibles are still inline | Low | Coins, rubies, pearls and diaries are picked up by an AABB check in `Game.tsx` rather than through the player's COLLECT volume, even though the volume exists. `HitPlayerComponent` is the original's mechanism and remains unattached. |
 | Orphaned components | Low–Medium | `HitPlayerComponent`, `SimplePhysicsComponent`, `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent`, `CrusherAndouComponent` are ported and exported but never attached to anything; their behavior is either reimplemented inline or absent. |
 | Line-segment slope collision | Low | `CollisionSystemNew.checkTileCollision()` always delegates to `checkTileCollisionSimple()`; `_checkTileCollisionWithSegments()` is dead code. Slopes are traversable via `checkSlopeClimb()` step-up, but not with the original's exact surface normals. |
 | Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
 | `GameObject.currentAction` for the player | Low | Never leaves `INVALID`. Components that gate on `requiredAction` therefore never fire for the player. |
 | `Game.tsx` size | Medium (maintainability) | ~3700 lines holding gameplay logic that duplicates the component system. This is why components drift into being unused. |
+
+### Combat
+
+All damage flows through `GameObjectCollisionSystem`, the original's
+sweep-and-prune object-to-object collision. Objects submit attack and
+vulnerability volumes through `DynamicCollisionComponent` during the
+`FRAME_END` phase; the system resolves overlaps and dispatches to
+`HitReactionComponent`, which decrements life and grants invincibility.
+`Game.tsx`'s `resolveCollisionOutcomes()` then turns that into lives, score,
+effects and death sequences.
+
+The original keeps volumes on animation frames, so an enemy's hitboxes change
+with what it is doing. This port has no per-frame volume data, so volumes are
+selected from state instead — which reproduces the behaviour that matters:
+
+- **The player** (`src/entities/playerCollisionVolumes.ts`) only has a HIT
+  attack volume while stomping or glowing, and *no* vulnerability volume in
+  those states. That is what makes a stomp beat an enemy's contact damage and
+  what makes the glow powerup invincible. DEPRESS and COLLECT are always live.
+- **Enemies** (`src/entities/enemyCollisionProfiles.ts`) carry the original's
+  volumes per subType. Two consequences worth knowing:
+  - Mudman and Pink Namazu have **no vulnerability volume** — they cannot be
+    stomped at all, only avoided or possessed.
+  - Skeleton, Mudman and Pink Namazu only present an attack volume while their
+    action is `ATTACK`, so they are harmless mid-patrol. Brobots and the flying
+    enemies hurt on contact.
+  `EnemyCollisionComponent` re-selects the set whenever the action changes.
+
+Do not add inline AABB combat checks back into `Game.tsx`. If something needs to
+deal or take damage, give it volumes and a `HitReactionComponent`.
 
 ### Boss fights
 
@@ -92,8 +121,14 @@ components have been removed; do not reintroduce that pattern.
 ### How to verify gameplay changes
 
 - `bun test` runs a headless gameplay simulation (`src/levels/campaignGameplay.test.ts`)
-  that loads every playable level, runs the real frame loop, and asserts the
-  player moves, flies, stomps, and doesn't fall out of the world.
+  that loads every playable level, runs the real frame loop with the collision
+  pipeline wired exactly as `Game.tsx` wires it, and asserts the player moves,
+  flies, stomps, keeps its difficulty hit points, doesn't fall out of the world,
+  and that every enemy the campaign spawns is wired for combat.
+- Combat rules are pinned by `src/entities/enemyCollisionProfiles.test.ts`,
+  `src/entities/playerCollisionVolumes.test.ts`,
+  `src/engine/GameObjectCollisionSystem.test.ts` and
+  `src/levels/bossFights.test.ts`.
 - In `bun run dev`, `window.__ri` exposes the live object manager, camera, level
   system and a `step(n)` function that advances the simulation deterministically.
   This is dev-only (`import.meta.env.DEV`) and is the fastest way to reproduce a
@@ -128,7 +163,7 @@ components have been removed; do not reintroduce that pattern.
 | **Music** | ✅ | `bwv_115.mid` → JSON score (`bun run convert:music`), synthesized at runtime |
 | **Cutscenes** | ✅ | Both `CanvasCutscene` and the NPC-driven intro |
 | **Extras Menu** | ✅ | Unlocks on game completion |
-| **Object collision pipeline** | ⚠️ | `GameObjectCollisionSystem` is live and owns boss damage; ordinary enemies and damage to the player are still inline AABB in `Game.tsx` |
+| **Object collision pipeline** | ✅ | `GameObjectCollisionSystem` owns all combat: player attacks, enemy contact damage, bosses, projectiles and breakable blocks |
 | **Boss fights** | ✅ | Evil Kabocha and Rokudou are composed the way the original composes them (see below) |
 
 ### Implemented Engine Systems (15 total)

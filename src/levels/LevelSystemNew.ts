@@ -7,6 +7,7 @@ import type { LevelData, LevelLayer, LevelObject, AnimationDefinition } from '..
 import { HitType, Team, ActionType } from '../types';
 import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { GameObjectManager } from '../entities/GameObjectManager';
+import type { GameObject } from '../entities/GameObject';
 import { LevelParser, type ParsedLevel } from './LevelParser';
 import { HotSpotSystem } from '../engine/HotSpotSystem';
 import { GameObjectTypeIndex, getObjectTypeName } from '../types/GameObjectTypes';
@@ -43,6 +44,8 @@ import { levelTree, linearLevelTree, resourceToLevelId } from '../data/levelTree
 import { resetInventory } from '../entities/components/InventoryComponent';
 import { GameFlowEventType } from '../engine/GameFlowEvent';
 import { CutsceneType } from '../data/cutscenes';
+import { EnemyCollisionComponent } from '../entities/components/EnemyCollisionComponent';
+import { createEnemyCollisionProfile } from '../entities/enemyCollisionProfiles';
 
 /** Original: GameObjectFactory.sSurprisedNPCChannel. */
 const SURPRISED_NPC_CHANNEL = 'SURPRISED';
@@ -1237,10 +1240,6 @@ export class LevelSystem {
           velocityY: -300,
           shootSound: 'sound_gun',
         }));
-
-        // The original nudges him down 23px because he has no gravity and is
-        // aligned to the floor by hand.
-        obj.getPosition().y -= 23;
         break;
       }
       
@@ -1857,6 +1856,8 @@ export class LevelSystem {
     if (obj.type === 'enemy' && obj.team === Team.NONE) {
       obj.team = Team.ENEMY;
     }
+
+    this.attachEnemyCollision(obj);
     
     // Calculate position to match original Java behavior
     // Original used Y-up coords with position at bottom-left of sprite
@@ -1906,6 +1907,40 @@ export class LevelSystem {
   /**
    * Convert parsed level to LevelData format for compatibility
    */
+  /**
+   * Give an ordinary enemy the collision volumes and hit reaction the original
+   * gives it, so damage flows through GameObjectCollisionSystem rather than the
+   * inline AABB checks Game.tsx used to run.
+   *
+   * Bosses and scripted characters configure their own volumes in the switch
+   * above and are skipped here (createEnemyCollisionProfile returns null).
+   */
+  private attachEnemyCollision(obj: GameObject): void {
+    const profile = createEnemyCollisionProfile(obj.subType);
+    if (!profile) return;
+    // Never clobber a hand-built configuration.
+    if (obj.getComponent(DynamicCollisionComponent)) return;
+
+    const collision = new DynamicCollisionComponent();
+    const hitReact = new HitReactionComponent({
+      // Ordinary enemies die in one hit; the invincibility window keeps a
+      // single stomp from being counted on consecutive frames.
+      invincibleAfterHitTime: 0.5,
+      pauseOnAttack: true,
+    });
+    hitReact.setSoundPlayer((sound) => {
+      sSystemRegistry.soundSystem?.playSfx(sound);
+    });
+    collision.setHitReactionComponent(hitReact);
+
+    const selector = new EnemyCollisionComponent(profile);
+    selector.setCollisionComponent(collision);
+
+    obj.addComponent(collision);
+    obj.addComponent(hitReact);
+    obj.addComponent(selector);
+  }
+
   private convertToLevelData(parsed: ParsedLevel, info: LevelInfo): LevelData {
     const layers: LevelLayer[] = [];
 

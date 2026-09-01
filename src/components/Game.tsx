@@ -33,12 +33,12 @@ import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { GameObject } from '../entities/GameObject';
 import { resetPlayerRuntimeState } from '../entities/resetPlayerRuntimeState';
-import { applyPlayerAttack, canPlayerAttackTarget } from '../entities/applyPlayerAttack';
+import { applyPlayerAttack } from '../entities/applyPlayerAttack';
 import { applyHostileProjectileToSource } from '../entities/applyHostileProjectile';
-import { enemyCanDamagePlayer } from '../entities/enemyCanDamagePlayer';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
@@ -1562,6 +1562,97 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     gameLoop.setSystemRegistry(systemRegistry);
 
+    /**
+     * Player hit points as of the previous frame, so a decrease can be
+     * attributed to a hit resolved by GameObjectCollisionSystem. -1 means "not
+     * yet sampled" (fresh level or respawn).
+     */
+    let lastPlayerLife = -1;
+
+    /**
+     * Translate the hits GameObjectCollisionSystem just applied into game
+     * outcomes.
+     *
+     * HitReactionComponent only decrements life and grants invincibility; lives,
+     * score, effects, sounds and the death sequence live here, the way the
+     * original splits them between HitReactionComponent and HudSystem.
+     */
+    const resolveCollisionOutcomes = (player: GameObject | null, gameTime: number): void => {
+      if (player) {
+        const playerComponent = player.getComponent(PlayerComponent);
+        if (playerComponent) {
+          if (lastPlayerLife < 0 || player.life > lastPlayerLife) {
+            // First sample, or the player respawned / gained life.
+            lastPlayerLife = player.life;
+          } else if (player.life < lastPlayerLife) {
+            lastPlayerLife = player.life;
+            onPlayerHit(player, playerComponent);
+          }
+        }
+      }
+
+      // Ordinary enemies die in one hit and are cleared away here. Bosses and
+      // scripted characters own their own death sequence (NPCComponent plays
+      // the animation and posts the ending cutscene), so they are left alone.
+      gameObjectManager.forEach((obj) => {
+        if (obj.type !== 'enemy' || !obj.isVisible() || obj.life > 0) return;
+        const scripted = obj.getComponent(
+          NPCComponent as unknown as new (...args: unknown[]) => NPCComponent
+        );
+        if (scripted || obj.subType === 'the_source') return;
+        if (obj.isMarkedForRemoval()) return;
+
+        const objPos = obj.getPosition();
+        effectsSystem.spawnCrushFlash(objPos.x + obj.width / 2, objPos.y + obj.height / 2);
+        soundSystem.playSfx(SoundEffects.STOMP);
+        timeSystem.freeze(PlayerComponent.ATTACK_PAUSE_DELAY);
+
+        obj.setVisible(false);
+        obj.markForRemoval();
+
+        const inv = getInventory();
+        setInventory({ score: inv.score + 25 });
+        useGameStore.getState().addToTotalStats({ totalEnemiesDefeated: 1 });
+
+        // The original bounces Andou off whatever he just stomped.
+        if (player) {
+          player.getVelocity().y = -200;
+        }
+      });
+
+      void gameTime;
+    };
+
+    /**
+     * The player just lost a hit point to something in the collision world.
+     */
+    const onPlayerHit = (player: GameObject, playerComponent: PlayerComponent): void => {
+      const playerPos = player.getPosition();
+      setInventory({ lives: player.life });
+      soundSystem.playSfx(SoundEffects.THUMP);
+      cameraSystem.shake(8, 0.3);
+
+      if (player.life <= 0) {
+        playerComponent.currentState = PlayerState.DEAD;
+        playerComponent.isDying = true;
+        playerComponent.deathTime = 2.0;
+        playerComponent.fadeToRestart = false;
+        player.getVelocity().zero();
+        effectsSystem.spawnExplosion(
+          playerPos.x + player.width / 2,
+          playerPos.y + player.height / 2,
+          'large'
+        );
+        useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
+        return;
+      }
+
+      playerComponent.currentState = PlayerState.HIT_REACT;
+      playerComponent.hitReactTimer = PlayerComponent.HIT_REACT_TIME;
+      playerComponent.invincible = true;
+      playerComponent.invincibleTime = PlayerComponent.INVINCIBILITY_TIME;
+    };
+
     // Update callback - Full game physics
     let frameCount = 0;
     gameLoop.setUpdateCallback((deltaTime: number) => {
@@ -1683,6 +1774,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // object's volumes during the FRAME_END phase above, so this has to run
       // after the object update and before the next frame's registrations.
       gameObjectCollisionSystem.update(gameDelta);
+
+      // Turn the hits the collision system just applied into game outcomes.
+      // HitReactionComponent decrements life; this is where that becomes a lost
+      // life, a dead enemy, score and effects.
+      resolveCollisionOutcomes(player, gameTime);
 
       // PlayerComponent owns the charge timing. Once charged, materialize the
       // controllable ghost and hand camera/input control to it.
@@ -2363,41 +2459,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const playerComponent = player.getComponent(PlayerComponent);
         if (!playerComponent) return; // Should always exist for player object
 
-        const damagePlayer = (sourceX: number): void => {
-          if (playerComponent.invincible ||
-              playerComponent.currentState === PlayerState.HIT_REACT ||
-              playerComponent.isDying) {
-            return;
-          }
-
-          const inv = getInventory();
-          const newHealth = inv.lives - 1;
-          setInventory({ lives: newHealth });
-          soundSystem.playSfx(SoundEffects.THUMP);
-          cameraSystem.shake(8, 0.3);
-
-          if (newHealth <= 0) {
-            playerComponent.currentState = PlayerState.DEAD;
-            playerComponent.isDying = true;
-            playerComponent.deathTime = 2.0;
-            playerComponent.fadeToRestart = false;
-            player.getVelocity().zero();
-            effectsSystem.spawnExplosion(
-              playerPos.x + player.width / 2,
-              playerPos.y + player.height / 2,
-              'large'
-            );
-            useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
-            return;
-          }
-
-          playerComponent.currentState = PlayerState.HIT_REACT;
-          playerComponent.hitReactTimer = PlayerComponent.HIT_REACT_TIME;
-          playerComponent.invincible = true;
-          playerComponent.invincibleTime = PlayerComponent.INVINCIBILITY_TIME;
-          const knockbackDirection = playerPos.x < sourceX ? -1 : 1;
-          player.setVelocity(knockbackDirection * 200, -150);
-        };
         
         gameObjectManager.forEach((obj) => {
           if (obj === player || !obj.isVisible()) return;
@@ -2549,6 +2610,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
           }
 
+          // Damage to the player is applied by GameObjectCollisionSystem against
+          // the projectile's HIT volume; this only despatches the spent
+          // projectile once it has actually connected.
           const overlaps = playerRect.x < projectilePosition.x + obj.width &&
             playerRect.x + playerRect.width > projectilePosition.x &&
             playerRect.y < projectilePosition.y + obj.height &&
@@ -2558,7 +2622,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           obj.life = 0;
           obj.setVisible(false);
           obj.markForRemoval();
-          damagePlayer(projectilePosition.x);
         });
         
         // Check enemy collisions in separate loop
@@ -2587,56 +2650,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             return;
           }
           
-          // Check if enemy - handle stomp/damage
+          // Enemy contact and stomps are resolved by GameObjectCollisionSystem
+          // against the volumes in enemyCollisionProfiles.ts, and turned into
+          // deaths, score and lost lives by resolveCollisionOutcomes().
+          // A possessed enemy is under the player's control and simply stops
+          // presenting its volumes.
           if (obj.type === 'enemy' && obj.life > 0) {
             const possessed = obj.getComponent(
               GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
             );
-            if (possessed && !possessed.isReleased()) return;
-
-            const objPos = obj.getPosition();
-            const objRect = {
-              x: objPos.x,
-              y: objPos.y,
-              width: obj.width,
-              height: obj.height,
-            };
-            
-            // Simple AABB collision
-            if (playerRect.x < objRect.x + objRect.width &&
-                playerRect.x + playerRect.width > objRect.x &&
-                playerRect.y < objRect.y + objRect.height &&
-                playerRect.y + playerRect.height > objRect.y) {
-              
-              // Check if player is stomping (coming from above with stomp attack)
-              if (playerComponent.stomping || (player.getVelocity().y > 0 && playerPos.y < objPos.y)) {
-                if (!canPlayerAttackTarget(player, obj)) return;
-                const attackResult = applyPlayerAttack(obj);
-                
-                // Spawn crush flash effect at enemy position
-                effectsSystem.spawnCrushFlash(
-                  objPos.x + obj.width / 2,
-                  objPos.y + obj.height / 2
-                );
-                
-                // Bounce player up
-                player.getVelocity().y = -200;
-                
-                soundSystem.playSfx(SoundEffects.STOMP);
-                
-                // Pause-on-attack effect: brief time freeze for impact feedback
-                timeSystem.freeze(PlayerComponent.ATTACK_PAUSE_DELAY);
-                
-                // Ordinary enemies are defeated in one hit. Bosses keep their
-                // own multi-hit and delayed ending sequences alive.
-                if (!attackResult.isBoss && attackResult.defeated) {
-                  const inv = getInventory();
-                  setInventory({ score: inv.score + 25 });
-                  useGameStore.getState().addToTotalStats({ totalEnemiesDefeated: 1 });
-                }
-              } else if (enemyCanDamagePlayer(obj.subType, obj.getCurrentAction())) {
-                damagePlayer(objPos.x);
-              }
+            if (possessed && !possessed.isReleased()) {
+              const possessedCollision = obj.getComponent(
+                DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
+              );
+              possessedCollision?.setCollisionVolumes(null, null);
             }
           }
         });

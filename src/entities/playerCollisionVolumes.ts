@@ -12,13 +12,10 @@
  * anything it touched. Selecting the set from PlayerComponent's state
  * reproduces the original's behaviour without the per-frame animation data.
  *
- * Deliberate deviation: the player carries no vulnerability volume in any
- * state. Damage *to* the player is still resolved by Game.tsx's inline
- * `damagePlayer`, which decrements the inventory's lives and owns the
- * invincibility window. Registering a vulnerability volume as well would let a
- * single projectile be counted twice - once by GameObjectCollisionSystem
- * through HitReactionComponent, once inline. Moving player damage onto the
- * component pipeline is the next step here, and wants its own pass.
+ * The vulnerability volume is present only in the normal state. The original's
+ * STOMP and glow frames pass null for vulnerability volumes, which is exactly
+ * what makes a stomp beat an enemy's contact damage and what makes the glow
+ * powerup invincible.
  *
  * Ported from: Original/src/com/replica/replicaisland/GameObjectFactory.java
  * (spawnPlayer)
@@ -63,7 +60,9 @@ export function createPlayerVolumeSets(): Record<PlayerVolumeState, PlayerVolume
   return {
     normal: {
       attack: [press, collect],
-      vulnerability: null,
+      // Original: SphereCollisionVolume(16, 32, 16) on a 64x64 sprite; this
+      // port's player object is 32x48, so the sphere is centred on that body.
+      vulnerability: [new SphereCollisionVolume(16, 16, 24, HitType.HIT)],
     },
     stomping: {
       // Original: AABoxCollisionVolume(16, -5, 32, 37, HIT) on a 64-wide sprite;

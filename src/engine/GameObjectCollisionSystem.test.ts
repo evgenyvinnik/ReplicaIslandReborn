@@ -120,6 +120,38 @@ describe('GameObjectCollisionSystem wiring', () => {
     expect(victim.object.life).toBe(3);
   });
 
+  test("a stomping player breaks a breakable block", () => {
+    // Blocks take their damage from the pipeline now, and applyPlayerAttack
+    // clears them away once life runs out. The player's HIT volume only exists
+    // while stomping, so walking past a block must leave it standing.
+    const makeBlock = (): { object: GameObject; reaction: HitReactionComponent } => {
+      const object = new GameObject();
+      object.type = 'breakable_block';
+      object.team = Team.ENEMY;
+      object.width = 32;
+      object.height = 32;
+      object.life = 1;
+      object.getPosition().set(100, 100);
+
+      const reaction = new HitReactionComponent();
+      const collision = new DynamicCollisionComponent();
+      collision.setCollisionVolumes(
+        null,
+        [new AABoxCollisionVolume(7, 0, 32 - 7, 42, HitType.HIT)]
+      );
+      collision.setHitReactionComponent(reaction);
+      object.addComponent(collision);
+      object.addComponent(reaction);
+      return { object, reaction };
+    };
+
+    const stomper = makeAttacker(100, 100);
+    const block = makeBlock();
+    runFrame(system, [stomper, block.object], 1);
+
+    expect(block.object.life).toBe(0);
+  });
+
   test('an invincible target refuses the hit', () => {
     const attacker = makeAttacker(100, 100);
     const victim = makeVictim(100, 100, 3);

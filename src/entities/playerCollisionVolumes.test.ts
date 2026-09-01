@@ -25,12 +25,15 @@ describe('player collision volume selection', () => {
     expect(hitVolumes).toHaveLength(0);
   });
 
-  test('the player registers no vulnerability volume in any state', () => {
-    // Damage to the player stays with Game.tsx's inline damagePlayer, which
-    // owns the lives counter and the invincibility window. A vulnerability
-    // volume here would let one projectile be counted twice.
+  test('normal movement is vulnerable', () => {
     const sets = createPlayerVolumeSets();
-    expect(sets.normal.vulnerability).toBeNull();
+    expect(sets.normal.vulnerability).not.toBeNull();
+  });
+
+  test('stomping and glowing drop vulnerability', () => {
+    // The original's STOMP and glow frames pass null vulnerability volumes;
+    // that is what lets a stomp beat an enemy's contact damage.
+    const sets = createPlayerVolumeSets();
     expect(sets.stomping.vulnerability).toBeNull();
     expect(sets.glowing.vulnerability).toBeNull();
   });

@@ -16,11 +16,14 @@ import { HotSpotSystem } from '../engine/HotSpotSystem';
 import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem } from '../engine/SoundSystem';
 import { CameraSystem } from '../engine/CameraSystem';
+import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
+import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
+import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
 import type { GameObject } from '../entities/GameObject';
 
@@ -71,6 +74,7 @@ function createHarness(): Harness {
   const camera = new CameraSystem(480, 320);
   const input = new InputSystem();
   const sound = new SoundSystem();
+  const objectCollision = new GameObjectCollisionSystem();
 
   const levelSystem = new LevelSystem();
   levelSystem.setSystems(collision, manager, hotSpots);
@@ -82,6 +86,7 @@ function createHarness(): Harness {
   sSystemRegistry.register(camera, 'camera');
   sSystemRegistry.register(input, 'input');
   sSystemRegistry.register(sound, 'sound');
+  sSystemRegistry.register(objectCollision, 'gameObjectCollision');
 
   let gameTime = 0;
   const run = (frames: number): void => {
@@ -103,6 +108,8 @@ function createHarness(): Harness {
         );
       }
       manager.update(FRAME, gameTime);
+      // Mirrors Game.tsx: volumes are submitted at FRAME_END, resolved here.
+      objectCollision.update(FRAME);
     }
   };
 
@@ -168,6 +175,39 @@ describe('campaign gameplay simulation', () => {
     }
 
     expect(failures).toEqual([]);
+  }, 60_000);
+
+  test('every enemy the campaign spawns is wired into the collision pipeline', async () => {
+    const levels = await playableLevels();
+    const seen = new Set<string>();
+    const unwired: string[] = [];
+
+    for (const { resource, levelId } of levels) {
+      const harness = createHarness();
+      expect(await harness.levelSystem.loadLevel(levelId), resource).toBe(true);
+      harness.manager.commitUpdates();
+
+      for (const object of harness.manager.getActiveObjects()) {
+        if (object.type !== 'enemy') continue;
+        seen.add(object.subType);
+
+        // Either the shared profile wired it, or it is a boss that configures
+        // its own volumes. Anything else can neither hit nor be hit.
+        const collision = object.getComponent(
+          DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
+        );
+        const reaction = object.getComponent(
+          HitReactionComponent as unknown as new (...args: unknown[]) => HitReactionComponent
+        );
+        if (!collision || !reaction) {
+          const key = `${object.subType} (${resource})`;
+          if (!unwired.includes(key)) unwired.push(key);
+        }
+      }
+    }
+
+    expect(seen.size).toBeGreaterThan(5);
+    expect(unwired).toEqual([]);
   }, 60_000);
 
   test('a grounded player walks when the movement axis is held', async () => {
