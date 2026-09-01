@@ -14,10 +14,8 @@ import { PlayerComponent } from './components/PlayerComponent';
 import { PatrolComponent } from './components/PatrolComponent';
 import { LaunchProjectileComponent } from './components/LaunchProjectileComponent';
 import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
-import { setEvilKabochaSystemRegistry } from './components/EvilKabochaComponent';
 import { setCameraBiasSystemRegistry } from './components/CameraBiasComponent';
 import { setSelectDialogSystemRegistry } from './components/SelectDialogComponent';
-import { RokudouBossComponent } from './components/RokudouBossComponent';
 import { TheSourceComponent } from './components/TheSourceComponent';
 import { LifetimeComponent } from './components/LifetimeComponent';
 import { MultiSpriteAnimComponent } from './components/MultiSpriteAnimComponent';
@@ -141,7 +139,6 @@ export class GameObjectFactory {
   setSystemRegistry(registry: SystemRegistry): void {
     setGhostSystemRegistry(registry);
     setSimpleCollisionSystemRegistry(registry);
-    setEvilKabochaSystemRegistry(registry);
     setCameraBiasSystemRegistry(registry);
     setSelectDialogSystemRegistry(registry.hotSpotSystem, registry.gameFlowEvent);
   }
@@ -606,25 +603,9 @@ export class GameObjectFactory {
       obj.addComponent(movement);
     }
 
-    // Add Rokudou boss AI component
-    const rokudou = new RokudouBossComponent({
-      life: 3,
-      attackRange: 300,
-      movementSpeed: 100,
-    });
-    
-    // Set up projectile spawner callback
-    rokudou.setProjectileSpawner((type, x, y, vx, vy) => {
-      const projectileType = type === 'energy_ball' 
-        ? GameObjectType.ENERGY_BALL 
-        : GameObjectType.TURRET_BULLET;
-      const projectile = this.spawn(projectileType, x, y);
-      if (projectile) {
-        projectile.setVelocity(vx, vy);
-      }
-    });
-    
-    obj.addComponent(rokudou);
+    // Behaviour (hot-spot flight, guns, hit reaction) is assembled by
+    // LevelSystemNew's ROKUDOU case the way the original assembles it; this
+    // factory path only builds the body.
   }
 
   /**

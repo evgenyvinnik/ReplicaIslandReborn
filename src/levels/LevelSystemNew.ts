@@ -15,9 +15,7 @@ import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
 import { SleeperComponent } from '../entities/components/SleeperComponent';
 import { PopOutComponent } from '../entities/components/PopOutComponent';
-import { EvilKabochaComponent } from '../entities/components/EvilKabochaComponent';
 import { TheSourceComponent } from '../entities/components/TheSourceComponent';
-import { RokudouBossComponent } from '../entities/components/RokudouBossComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimationComponent, ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
@@ -45,6 +43,9 @@ import { levelTree, linearLevelTree, resourceToLevelId } from '../data/levelTree
 import { resetInventory } from '../entities/components/InventoryComponent';
 import { GameFlowEventType } from '../engine/GameFlowEvent';
 import { CutsceneType } from '../data/cutscenes';
+
+/** Original: GameObjectFactory.sSurprisedNPCChannel. */
+const SURPRISED_NPC_CHANNEL = 'SURPRISED';
 
 // Channel names for buttons and doors (must match original)
 const RED_BUTTON_CHANNEL = 'RED BUTTON';
@@ -481,20 +482,11 @@ export class LevelSystem {
         playerSprite.setSprite('andou_stand'); // Default sprite
         obj.addComponent(playerSprite);
         
-        // Add DynamicCollisionComponent for player attacks and vulnerability
+        // Dynamic collision for player attacks and vulnerability. The volume
+        // sets themselves are owned by PlayerComponent, which swaps them per
+        // state the way the original swaps them per animation frame - the HIT
+        // attack volume must only be live while stomping or glowing.
         const playerDynCollision = new DynamicCollisionComponent();
-        // Player attack volume (for stomping enemies) - matches original
-        const stompAttackVolume = new AABoxCollisionVolume(0, -5, 32, 37, HitType.HIT);
-        // Player DEPRESS volume (for pressing buttons) - matches original
-        const pressVolume = new AABoxCollisionVolume(0, 0, 32, 16, HitType.DEPRESS);
-        // Player COLLECT volume (for picking up items) - matches original  
-        const collectVolume = new AABoxCollisionVolume(0, 0, 32, 48, HitType.COLLECT);
-        // Player vulnerability volume (can be hit by enemies)
-        const vulnerabilityVolume = new SphereCollisionVolume(16, 24, 16); // Center of player
-        playerDynCollision.setCollisionVolumes(
-          [stompAttackVolume, pressVolume, collectVolume],
-          [vulnerabilityVolume]
-        );
         obj.addComponent(playerDynCollision);
         
         // Add HitReactionComponent for damage response
@@ -843,17 +835,13 @@ export class LevelSystem {
         // The Source boss component - handles shake, death sequence, explosions
         const sourceComp = new TheSourceComponent();
         sourceComp.setOnDeathChannel(() => {
-          // The Android game broadcasts a shared "surprised NPC" channel
-          // when The Source begins collapsing. Preserve that final-arena beat
-          // by notifying whichever rival bosses are present in this level.
-          this.gameObjectManager?.forEach((candidate) => {
-            candidate.getComponent(
-              EvilKabochaComponent as unknown as new (...args: unknown[]) => EvilKabochaComponent
-            )?.triggerSurprise();
-            candidate.getComponent(
-              RokudouBossComponent as unknown as new (...args: unknown[]) => RokudouBossComponent
-            )?.triggerSurprise();
-          });
+          // The original broadcasts the shared "SURPRISED" channel when The
+          // Source begins collapsing; the rival bosses' NPCAnimationComponents
+          // watch that channel and switch to their surprised pose.
+          const channel = sSystemRegistry.channelSystem?.registerChannel(SURPRISED_NPC_CHANNEL);
+          if (channel) {
+            channel.value = { value: true };
+          }
         });
         // Configure to trigger Wanda ending on death (event 6 = SHOW_ANIMATION, index 1 = WANDA_ENDING)
         sourceComp.setGameEvent(6, 1);
@@ -1126,31 +1114,43 @@ export class LevelSystem {
         evilKabochaSprite.setSprite('enemy_kabocha_evil_stand');
         obj.addComponent(evilKabochaSprite);
         
-        // Kabocha is driven through the arena's NPC hotspot track in the
-        // original, even though it is also a damageable boss.
-        obj.addComponent(new NPCComponent({
+        // Kabocha is an NPC that walks the arena's hot-spot track, reacts to
+        // hits, and posts the ending animation when it dies. Original:
+        // spawnEnemyEvilKabocha() - patrol.setSpeeds(50, 50, 0, -10, 200),
+        // setReactToHits(true), setGameEvent(SHOW_ANIMATION, ROKUDOU_ENDING).
+        const kabochaPatrol = new NPCComponent({
           horizontalImpulse: 50,
           slowHorizontalImpulse: 50,
           upImpulse: 0,
           downImpulse: 10,
           acceleration: 200,
-        }));
-
-        // Add Evil Kabocha boss component
-        const kabochaComp = new EvilKabochaComponent({
-          life: 3,
-          hitPauseDuration: 1.0,
-          knockbackImpulse: 300,
-          deathDelay: 4.0,
-          triggerEnding: true,
+          reactToHits: true,
+          gameEvent: GameFlowEventType.SHOW_ANIMATION,
           // Defeating Kabocha leaves Rokudou in control in the original.
-          endingType: 'ROKUDOU_ENDING'
+          gameEventIndex: CutsceneType.ROKUDOU_ENDING,
+          spawnGameEventOnDeath: true,
         });
-        // Wire up boss death callback to trigger ending cutscene
-        if (this.onBossDeathCallback) {
-          kabochaComp.setOnDeathCallback(this.onBossDeathCallback);
-        }
-        obj.addComponent(kabochaComp);
+        obj.addComponent(kabochaPatrol);
+
+        // Damage is resolved by GameObjectCollisionSystem against this volume.
+        // Original: AABoxCollisionVolume(52, 5, 26, 80) in Y-up sprite space;
+        // this port measures offsetY from the top of the 128px sprite.
+        const kabochaCollision = new DynamicCollisionComponent();
+        kabochaCollision.setCollisionVolumes(
+          null,
+          [new AABoxCollisionVolume(52, 43, 26, 80, HitType.HIT)]
+        );
+        const kabochaHitReact = new HitReactionComponent({
+          invincibleAfterHitTime: 1.0,
+          onHitSound: 'sound_kabocha_hit',
+        });
+        kabochaHitReact.setSoundPlayer((sound) => {
+          sSystemRegistry.soundSystem?.playSfx(sound);
+        });
+        kabochaCollision.setHitReactionComponent(kabochaHitReact);
+        kabochaPatrol.setHitReactionComponent(kabochaHitReact);
+        obj.addComponent(kabochaCollision);
+        obj.addComponent(kabochaHitReact);
         break;
       }
         
@@ -1170,34 +1170,77 @@ export class LevelSystem {
         rokudouSprite.setSprite('enemy_rokudou_fight_stand');
         obj.addComponent(rokudouSprite);
         
-        // Add Rokudou boss AI component
-        const rokudouComp = new RokudouBossComponent({
-          life: 3,
-          attackRange: 300,
-          movementSpeed: 100,
+        // Rokudou flies the arena's hot-spot track and fires while an ATTACK
+        // hot spot holds him in ActionType.ATTACK. Original:
+        // spawnEnemyRokudou() - patrol.setSpeeds(500, 100, 100, -100, 400),
+        // setFlying(true), setReactToHits(true), setPauseOnAttack(false),
+        // setGameEvent(SHOW_ANIMATION, KABOCHA_ENDING).
+        const rokudouPatrol = new NPCComponent({
+          horizontalImpulse: 500,
+          slowHorizontalImpulse: 100,
+          upImpulse: -100,
+          downImpulse: 100,
+          acceleration: 400,
+          flying: true,
+          reactToHits: true,
+          pauseOnAttack: false,
+          gameEvent: GameFlowEventType.SHOW_ANIMATION,
+          // Defeating Rokudou leaves Kabocha in control in the original.
+          gameEventIndex: CutsceneType.KABOCHA_ENDING,
+          spawnGameEventOnDeath: true,
         });
-        rokudouComp.setProjectileSpawner((type, x, y, vx, vy) => {
-          const factory = sSystemRegistry.gameObjectFactory;
-          if (!factory) return;
+        obj.addComponent(rokudouPatrol);
 
-          const projectileType = type === 'energy_ball'
-            ? GameObjectType.ENERGY_BALL
-            : GameObjectType.TURRET_BULLET;
-          const projectile = factory.spawn(projectileType, x, y);
-          projectile?.setVelocity(vx, vy);
+        // Original: AABoxCollisionVolume(45, 23, 42, 75) in Y-up sprite space.
+        const rokudouCollision = new DynamicCollisionComponent();
+        rokudouCollision.setCollisionVolumes(
+          null,
+          [new AABoxCollisionVolume(45, 30, 42, 75, HitType.HIT)]
+        );
+        const rokudouHitReact = new HitReactionComponent({
+          invincibleAfterHitTime: 1.0,
+          onHitSound: 'sound_rokudou_hit',
         });
-        rokudouComp.setSoundPlayer((sound) => {
+        rokudouHitReact.setSoundPlayer((sound) => {
           sSystemRegistry.soundSystem?.playSfx(sound);
         });
-        // Wire up boss death callback to trigger ending cutscene (ROKUDOU_ENDING)
-        if (this.onBossDeathCallback) {
-          const callback = this.onBossDeathCallback;
-          rokudouComp.setGameEventTrigger((_event: string, _index: number) => {
-            // Defeating Rokudou leaves Kabocha in control in the original.
-            callback('KABOCHA_ENDING');
-          });
-        }
-        obj.addComponent(rokudouComp);
+        rokudouCollision.setHitReactionComponent(rokudouHitReact);
+        rokudouPatrol.setHitReactionComponent(rokudouHitReact);
+        obj.addComponent(rokudouCollision);
+        obj.addComponent(rokudouHitReact);
+
+        // Two guns, both gated on ActionType.ATTACK so they only fire while the
+        // hot-spot script has him attacking: a slow energy ball and a faster
+        // five-round burst.
+        obj.addComponent(new LaunchProjectileComponent({
+          objectTypeToSpawn: GameObjectType.ENERGY_BALL,
+          projectilesInSet: 1,
+          setsPerActivation: -1,
+          delayBetweenSets: 1.5,
+          offsetX: 75,
+          offsetY: 42,
+          requiredAction: ActionType.ATTACK,
+          velocityX: 300,
+          velocityY: -300,
+          shootSound: 'sound_poing',
+        }));
+        obj.addComponent(new LaunchProjectileComponent({
+          objectTypeToSpawn: GameObjectType.TURRET_BULLET,
+          projectilesInSet: 5,
+          delayBetweenShots: 0.1,
+          setsPerActivation: -1,
+          delayBetweenSets: 2.5,
+          offsetX: 75,
+          offsetY: 42,
+          requiredAction: ActionType.ATTACK,
+          velocityX: 300,
+          velocityY: -300,
+          shootSound: 'sound_gun',
+        }));
+
+        // The original nudges him down 23px because he has no gravity and is
+        // aligned to the floor by hand.
+        obj.getPosition().y -= 23;
         break;
       }
       

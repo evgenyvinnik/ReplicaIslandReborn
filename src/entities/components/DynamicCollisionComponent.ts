@@ -17,6 +17,7 @@ import type { GameObject } from '../GameObject';
 import { CollisionVolume, SphereCollisionVolume } from '../../engine/collision';
 import type { HitReactionComponent } from './HitReactionComponent';
 import type { GameObjectCollisionSystem } from '../../engine/GameObjectCollisionSystem';
+import { sSystemRegistry } from '../../engine/SystemRegistry';
 
 /**
  * Dynamic collision component for object-to-object collision detection
@@ -54,11 +55,15 @@ export class DynamicCollisionComponent extends GameComponent {
   }
 
   /**
-   * Update - register for collision detection this frame
+   * Update - register for collision detection this frame.
+   *
+   * Falls back to the global registry so spawn sites do not each have to inject
+   * the system by hand; an explicit setCollisionSystem() still wins.
    */
   update(_deltaTime: number, parent: GameObject): void {
-    if (this.collisionSystem && this.boundingVolume.getRadius() > 0) {
-      this.collisionSystem.registerForCollisions(
+    const system = this.collisionSystem ?? sSystemRegistry.gameObjectCollisionSystem;
+    if (system && this.boundingVolume.getRadius() > 0) {
+      system.registerForCollisions(
         parent,
         this.hitReactionComponent,
         this.boundingVolume,

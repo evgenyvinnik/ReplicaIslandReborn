@@ -58,12 +58,36 @@ These are real, and are the honest backlog for "finishing" the port:
 
 | Gap | Impact | Notes |
 |-----|--------|-------|
-| `GameObjectCollisionSystem` unused | Medium | The faithful sweep-and-prune object collision system is fully ported but never instantiated. `Game.tsx` does object-vs-object collision with inline AABB loops instead. Combat works, but `DynamicCollisionComponent` volumes and `HitPlayerComponent` are inert. Swapping to the component pipeline is a large refactor — do it behind tests. |
+| Player damage is still inline | Medium | `GameObjectCollisionSystem` now resolves the hits the player *deals*, but damage *to* the player stays in `Game.tsx`'s `damagePlayer`, which owns the lives counter and the invincibility window. The player therefore registers no vulnerability volume — adding one before moving player damage onto the pipeline would count each projectile twice. See `src/entities/playerCollisionVolumes.ts`. |
+| Ordinary enemies are not on the pipeline | Medium | Regular enemies (brobot, mudman, skeleton, …) carry neither `DynamicCollisionComponent` nor `HitReactionComponent`, so they still die in one hit through the inline stomp path rather than through their own volumes. |
+| No per-frame animation volumes | Medium | The original stores attack/vulnerability volumes on each `AnimationFrame`; this port's `SpriteComponent` does not. The player works around it by swapping volume sets from `PlayerComponent` state. |
 | Orphaned components | Low–Medium | `HitPlayerComponent`, `SimplePhysicsComponent`, `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent`, `CrusherAndouComponent` are ported and exported but never attached to anything; their behavior is either reimplemented inline or absent. |
 | Line-segment slope collision | Low | `CollisionSystemNew.checkTileCollision()` always delegates to `checkTileCollisionSimple()`; `_checkTileCollisionWithSegments()` is dead code. Slopes are traversable via `checkSlopeClimb()` step-up, but not with the original's exact surface normals. |
 | Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
 | `GameObject.currentAction` for the player | Low | Never leaves `INVALID`. Components that gate on `requiredAction` therefore never fire for the player. |
 | `Game.tsx` size | Medium (maintainability) | ~3700 lines holding gameplay logic that duplicates the component system. This is why components drift into being unused. |
+
+### Boss fights
+
+The original has no "boss AI". Evil Kabocha and Rokudou are ordinary NPCs:
+
+- `NPCComponent` walks/flies them along the arena's hot-spot script, and posts
+  `SHOW_ANIMATION` with the ending's index when they die (`GameFlowEvent` →
+  `CutsceneType`, which share the original's numbering).
+- A vulnerability volume on `DynamicCollisionComponent` plus a
+  `HitReactionComponent` is what makes them damageable; the three-hit fight is
+  just `life = 3` plus the post-hit invincibility window.
+- Rokudou additionally carries two `LaunchProjectileComponent`s (a 1.5s energy
+  ball and a five-round burst), both gated on `ActionType.ATTACK` so they only
+  fire while an ATTACK hot spot holds him in that action.
+
+Killing Kabocha plays the Rokudou ending; killing Rokudou plays the Kabocha
+ending. `src/levels/bossFights.test.ts` pins this against the shipped
+`level_final_boss_lab` data.
+
+Earlier revisions instead gave both bosses bespoke state-machine components and
+resolved their damage with `subType` string checks in `applyPlayerAttack`. Those
+components have been removed; do not reintroduce that pattern.
 
 ### How to verify gameplay changes
 
@@ -92,7 +116,7 @@ These are real, and are the honest backlog for "finishing" the port:
 | Category | Status | Details |
 |----------|--------|---------|
 | **Playable end-to-end** | ✅ | Title → level → completion → next level |
-| **Core Engine** | ✅ | All 15 systems implemented and wired, except `GameObjectCollisionSystem` |
+| **Core Engine** | ✅ | All 15 systems implemented and wired |
 | **Player State Machine** | ✅ | All 7 states implemented in `PlayerComponent` |
 | **Ghost Mechanic** | ✅ | Charge, spawn, camera handoff, release |
 | **NPC Cutscene System** | ✅ | `NPCComponent` drives hot-spot scripts; level 0-1 completes |
@@ -104,7 +128,8 @@ These are real, and are the honest backlog for "finishing" the port:
 | **Music** | ✅ | `bwv_115.mid` → JSON score (`bun run convert:music`), synthesized at runtime |
 | **Cutscenes** | ✅ | Both `CanvasCutscene` and the NPC-driven intro |
 | **Extras Menu** | ✅ | Unlocks on game completion |
-| **Object collision pipeline** | ⚠️ | Inline AABB in `Game.tsx`; `GameObjectCollisionSystem` unused |
+| **Object collision pipeline** | ⚠️ | `GameObjectCollisionSystem` is live and owns boss damage; ordinary enemies and damage to the player are still inline AABB in `Game.tsx` |
+| **Boss fights** | ✅ | Evil Kabocha and Rokudou are composed the way the original composes them (see below) |
 
 ### Implemented Engine Systems (15 total)
 
@@ -154,7 +179,6 @@ These are real, and are the honest backlog for "finishing" the port:
 | LifetimeComponent | THINK | LifetimeComponent.java | ✅ |
 | TheSourceComponent | THINK | TheSourceComponent.java | ✅ |
 | GhostComponent | THINK | GhostComponent.java | ✅ |
-| EvilKabochaComponent | THINK | N/A (boss variant) | ✅ |
 | CameraBiasComponent | POST_COLLISION | CameraBiasComponent.java | ✅ |
 | GravityComponent | PHYSICS | GravityComponent.java | ✅ |
 | SimpleCollisionComponent | COLLISION_DETECTION | SimpleCollisionComponent.java | ✅ |
@@ -172,7 +196,7 @@ grep -rL "ComponentName" src --include="*.ts" --include="*.tsx"
 
 | Component | Original use | Notes |
 |-----------|--------------|-------|
-| HitPlayerComponent | `spawnCoin` and friends | Needs `GameObjectCollisionSystem` to be live to matter |
+| HitPlayerComponent | `spawnCoin` and friends | The collision pipeline is live now, but nothing attaches this; collectibles are still picked up inline |
 | SimplePhysicsComponent | 16 spawn sites (bouncing objects) | Bounce/inertia for simple objects |
 | FadeDrawableComponent | 16 spawn sites | Per-object fade |
 | PlaySingleSoundComponent | Explosion effects | Sound plays via `EffectsSystem` instead |
@@ -1537,8 +1561,9 @@ without code changes.
 
 - **Ghost/Possession Mechanic**: `GhostComponent.ts`
 - **Cutscene Player**: `CanvasCutscene.ts` + `src/data/cutscenes.ts`
-- **Evil Kabocha Boss**: `EvilKabochaComponent.ts`
-- **Rokudou Boss**: `RokudouBossComponent.ts`
+- **Evil Kabocha / Rokudou bosses**: composed from `NPCComponent` +
+  `DynamicCollisionComponent` + `HitReactionComponent` (+ two
+  `LaunchProjectileComponent`s for Rokudou), as in the original
 - **Diary System**: `CanvasDiaryOverlay.ts`
 
 ### ⚠️ Animation System - Implementation Notes

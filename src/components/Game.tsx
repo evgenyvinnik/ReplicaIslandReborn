@@ -13,6 +13,7 @@ import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem, SoundEffects } from '../engine/SoundSystem';
 import { CameraSystem } from '../engine/CameraSystem';
 import { CollisionSystem } from '../engine/CollisionSystemNew';
+import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { TimeSystem } from '../engine/TimeSystem';
 import { HotSpotSystem, HotSpotType } from '../engine/HotSpotSystem';
 import { AnimationSystem } from '../engine/AnimationSystem';
@@ -43,8 +44,6 @@ import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
 import { LauncherComponent } from '../entities/components/LauncherComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
-import { RokudouAnimation, RokudouBossComponent } from '../entities/components/RokudouBossComponent';
-import { EvilKabochaComponent } from '../entities/components/EvilKabochaComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
 import { setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
 import { LevelSystem } from '../levels/LevelSystemNew';
@@ -876,6 +875,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const collisionSystem = new CollisionSystem();
     systemRegistry.register(collisionSystem, 'collision');
 
+    // Object-to-object collision (attack volumes vs vulnerability volumes).
+    // DynamicCollisionComponent resolves this through the registry, so it must
+    // be registered before any level spawns.
+    const gameObjectCollisionSystem = new GameObjectCollisionSystem();
+    systemRegistry.register(gameObjectCollisionSystem, 'gameObjectCollision');
+
     // Set up SolidSurfaceComponent to use the system registry
     // This allows door collision surfaces to work properly
     setSolidSurfaceSystemRegistry(systemRegistry);
@@ -1674,6 +1679,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Update all game objects (use gameDelta so game freezes during pause-on-attack)
       gameObjectManager.update(gameDelta, gameTime);
 
+      // Resolve object-vs-object hits. DynamicCollisionComponent submits each
+      // object's volumes during the FRAME_END phase above, so this has to run
+      // after the object update and before the next frame's registrations.
+      gameObjectCollisionSystem.update(gameDelta);
+
       // PlayerComponent owns the charge timing. Once charged, materialize the
       // controllable ghost and hand camera/input control to it.
       if (player) {
@@ -1833,14 +1843,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Shadow Slimes intentionally have no gravity or locomotion. Their
         // PopOut and projectile components have already updated above.
         if (obj.subType === 'shadowslime') return;
-
-        const rokudouBoss = obj.getComponent(
-          RokudouBossComponent as unknown as new (...args: unknown[]) => RokudouBossComponent
-        );
-        if (rokudouBoss && player) {
-          const playerPosition = player.getPosition();
-          rokudouBoss.setTarget(playerPosition.x, playerPosition.y);
-        }
 
         // Check if enemy has PatrolComponent (proper AI)
         const hasPatrolComponent = obj.getComponent(PatrolComponent as unknown as new (...args: unknown[]) => PatrolComponent) !== null;
@@ -2751,6 +2753,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     });
 
+    /**
+     * The original's rival bosses watch a shared "SURPRISED" channel and switch
+     * to their surprised pose when The Source starts collapsing.
+     */
+    const isSurprisedChannelSet = (): boolean => {
+      const channel = channelSystem.registerChannel('SURPRISED');
+      const value = channel?.value as { value?: boolean } | null;
+      return value?.value === true;
+    };
+
     // Render callback
     let renderCount = 0;
     gameLoop.setRenderCallback((): void => {
@@ -3168,9 +3180,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   // Evil Kabocha boss has walk, hit, surprised, and death animations
                   if (obj.life <= 0) {
                     spriteFrames = ['evil_kabocha_die01', 'evil_kabocha_die02', 'evil_kabocha_die03', 'evil_kabocha_die04'];
-                  } else if (obj.getComponent(
-                    EvilKabochaComponent as unknown as new (...args: unknown[]) => EvilKabochaComponent
-                  )?.isSurprised()) {
+                  } else if (isSurprisedChannelSet()) {
                     spriteFrames = ['evil_kabocha_surprised'];
                   } else if (obj.getCurrentAction() === ActionType.HIT_REACT) {
                     spriteFrames = ['evil_kabocha_hit01', 'evil_kabocha_hit02'];
@@ -3186,9 +3196,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   // Rokudou boss has fly, shoot, surprise, hit, and death animations
                   if (obj.life <= 0) {
                     spriteFrames = ['rokudou_die01', 'rokudou_die02', 'rokudou_die03', 'rokudou_die04'];
-                  } else if (obj.getComponent(
-                    RokudouBossComponent as unknown as new (...args: unknown[]) => RokudouBossComponent
-                  )?.getCurrentAnimation() === RokudouAnimation.SURPRISED) {
+                  } else if (isSurprisedChannelSet()) {
                     spriteFrames = ['rokudou_surprise'];
                   } else if (obj.getCurrentAction() === ActionType.HIT_REACT) {
                     spriteFrames = ['rokudou_hit01', 'rokudou_hit02', 'rokudou_hit03'];

@@ -67,8 +67,6 @@ export type { NPCComponentConfig } from './NPCComponent';
 export { GhostComponent, setGhostSystemRegistry } from './GhostComponent';
 export type { GhostConfig } from './GhostComponent';
 
-export { EvilKabochaComponent, setEvilKabochaSystemRegistry, EvilKabochaAnimation } from './EvilKabochaComponent';
-export type { EvilKabochaConfig } from './EvilKabochaComponent';
 
 export { CameraBiasComponent, setCameraBiasSystemRegistry } from './CameraBiasComponent';
 

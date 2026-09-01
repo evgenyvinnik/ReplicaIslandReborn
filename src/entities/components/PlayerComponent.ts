@@ -11,6 +11,12 @@ import type { CollisionSystem } from '../../engine/CollisionSystemNew';
 import type { SoundSystem } from '../../engine/SoundSystem';
 import type { LevelSystem } from '../../levels/LevelSystemNew';
 import { SoundEffects } from '../../engine/SoundSystem';
+import { DynamicCollisionComponent } from './DynamicCollisionComponent';
+import {
+  createPlayerVolumeSets,
+  selectPlayerVolumeState,
+  type PlayerVolumeState,
+} from '../playerCollisionVolumes';
 
 export enum PlayerState {
   MOVE = 0,          // Normal movement
@@ -108,6 +114,10 @@ export class PlayerComponent extends GameComponent {
   public glowMode: boolean = false;
   public glowTime: number = 0;
   public coinsForPowerup: number = 0;
+
+  /** Volume sets keyed by state; allocated once so array identity stays stable. */
+  private readonly volumeSets = createPlayerVolumeSets();
+  private volumeState: PlayerVolumeState | null = null;
 
   constructor() {
     super(ComponentPhase.THINK);
@@ -390,10 +400,33 @@ export class PlayerComponent extends GameComponent {
     }
 
     parent.setBackgroundCollisionNormal(vCollision.normal.y !== 0 ? vCollision.normal : hCollision.normal);
+
+    this.updateCollisionVolumes(parent);
+  }
+
+  /**
+   * Swap the player's collision volumes to match the current state.
+   *
+   * The original drives these from the current animation frame; see
+   * playerCollisionVolumes.ts. Without this the player's HIT volume would be
+   * permanently active and would kill enemies on contact rather than on stomp.
+   */
+  private updateCollisionVolumes(parent: GameObject): void {
+    const collision = parent.getComponent(DynamicCollisionComponent);
+    if (!collision) return;
+
+    const state = selectPlayerVolumeState(this.stomping, this.glowMode);
+    if (state === this.volumeState) return;
+
+    this.volumeState = state;
+    const set = this.volumeSets[state];
+    collision.setCollisionVolumes(set.attack, set.vulnerability);
   }
 
   reset(): void {
     this.currentState = PlayerState.MOVE;
+    // Force the volume set to be reapplied on the next update.
+    this.volumeState = null;
     this.stateTimer = 0;
     this.fuel = PlayerComponent.FUEL_AMOUNT;
     this.jumpTime = 0;

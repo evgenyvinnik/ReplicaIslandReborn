@@ -11,7 +11,7 @@ import { ComponentPhase, ActionType } from '../../types';
 import type { GameObject } from '../GameObject';
 import { HotSpotType } from '../../engine/HotSpotSystem';
 import { sSystemRegistry } from '../../engine/SystemRegistry';
-import { GameFlowEventType } from '../../engine/GameFlowEvent';
+import { GameFlowEventType, gameFlowEvent } from '../../engine/GameFlowEvent';
 import type { HitReactionComponent } from './HitReactionComponent';
 
 // Speed and timing constants (from original)
@@ -167,10 +167,13 @@ export class NPCComponent extends GameComponent {
       if (this.spawnGameEventOnDeath && this.gameEvent !== -1) {
         const velocity = parentObject.getVelocity();
         if (Math.abs(velocity.x) < 1 && parentObject.touchingGround()) {
-          if (this.deathTime < this.deathFadeDelay && 
+          if (this.deathTime < this.deathFadeDelay &&
               this.deathTime + timeDelta >= this.deathFadeDelay) {
-            // Trigger game event after death fade delay
-            // This would trigger HUD fade in the original
+            // The original fades the HUD and sends the event on fade complete
+            // (HudSystem.sendGameEventOnFadeComplete). This port has no HUD
+            // fade, so post the event directly - without this the boss ending
+            // cutscenes never fire when a scripted NPC dies.
+            gameFlowEvent.post(this.gameEvent, this.gameEventIndex);
             this.gameEvent = -1;
           }
           this.deathTime += timeDelta;
