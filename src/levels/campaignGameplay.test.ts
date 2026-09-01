@@ -24,6 +24,7 @@ import { DifficultySettings } from '../stores/useGameStore';
 import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { ActionType } from '../types';
+import { GravityComponent } from '../entities/components/GravityComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
@@ -262,6 +263,57 @@ describe('campaign gameplay simulation', () => {
     component.currentState = PlayerState.FROZEN;
     harness.run(1);
     expect(player.getCurrentAction()).toBe(ActionType.FROZEN);
+  });
+
+  test('a scripted NPC walks its hot-spot route under component physics', async () => {
+    // Wanda's intro run used to be driven by an inline copy of gravity,
+    // velocity interpolation and tile snapping in Game.tsx. She now moves on
+    // GravityComponent + MovementComponent like everything else, so this pins
+    // that the cutscene still plays.
+    const harness = createHarness();
+    expect(await harness.levelSystem.loadLevel(resourceToLevelId.level_0_1_sewer)).toBe(true);
+    harness.manager.commitUpdates();
+
+    const wanda = harness.manager
+      .getActiveObjects()
+      .find((object) => object.subType === 'wanda') as GameObject;
+    expect(wanda).toBeDefined();
+
+    const startX = wanda.getPosition().x;
+    const startY = wanda.getPosition().y;
+    harness.run(60);
+    // Gravity should have dropped her out of her spawn perch.
+    expect(wanda.getPosition().y).toBeGreaterThan(startY);
+
+    harness.run(360);
+    // The NPC_GO_RIGHT hot spot on her landing tile should have her walking.
+    expect(wanda.getPosition().x).toBeGreaterThan(startX + 100);
+  });
+
+  test('an enemy falls and rests on the ground under component physics', async () => {
+    const levels = await playableLevels();
+    for (const { resource, levelId } of levels) {
+      const harness = createHarness();
+      expect(await harness.levelSystem.loadLevel(levelId), resource).toBe(true);
+      harness.manager.commitUpdates();
+
+      const grounded = harness.manager
+        .getActiveObjects()
+        .find((object) => object.type === 'enemy'
+          && object.getComponent(
+            GravityComponent as unknown as new (...args: unknown[]) => GravityComponent
+          ) !== null);
+      if (!grounded) continue;
+
+      const startY = grounded.getPosition().y;
+      harness.run(120);
+      // It either fell to the floor or was already standing on it, but it must
+      // not have sunk through the world.
+      expect(grounded.getPosition().y, resource).toBeGreaterThanOrEqual(startY);
+      expect(grounded.getPosition().y, resource)
+        .toBeLessThan(harness.levelSystem.getLevelHeight() + 64);
+      return;
+    }
   });
 
   test('a grounded player walks when the movement axis is held', async () => {

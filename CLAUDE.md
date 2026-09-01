@@ -65,7 +65,33 @@ These are real, and are the honest backlog for "finishing" the port:
 | Orphaned components | Low–Medium | `HitPlayerComponent`, `SimplePhysicsComponent`, `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent`, `CrusherAndouComponent` are ported and exported but never attached to anything; their behavior is either reimplemented inline or absent. |
 | Line-segment tile collision | Low | Grounding now resolves against the real segments from `collision.json` (`getGroundSurfaceY()`), so slopes are walked smoothly. `checkTileCollision()` itself still delegates to `checkTileCollisionSimple()` for wall/ceiling tests, so those remain tile-granular; `_checkTileCollisionWithSegments()` is still unused. |
 | Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
-| `Game.tsx` size | Medium (maintainability) | ~3700 lines holding gameplay logic that duplicates the component system. This is why components drift into being unused. |
+| `Game.tsx` size | Medium (maintainability) | ~3550 lines. The inline enemy and NPC physics are gone (they now run on GravityComponent + MovementComponent), but the file still holds level orchestration, sprite loading, collectible pickup and the Canvas UI wiring. |
+
+### Movement
+
+Enemies and NPCs move on `GravityComponent` + `MovementComponent`, attached at
+spawn by `LevelSystem.attachPhysics()`. Their AI components (`PatrolComponent`,
+`NPCComponent`, `SleeperComponent`, `PopOutComponent`,
+`AttackAtDistanceComponent`) only set `targetVelocity`; `MovementComponent`
+interpolates towards it and resolves tile collision, and `PatrolComponent` turns
+around off the wall-touch stamps that leaves behind.
+
+Three tables in `LevelSystemNew.ts` carry the original's per-object setup, all
+transcribed from `GameObjectFactory.java`:
+
+- `FLYING_SUBTYPES` — given a `MovementComponent` but no gravity. Rokudou is
+  here because his gravity is swapped in on death by `ChangeComponentsComponent`.
+- `NO_PHYSICS_SUBTYPES` — given neither component (The Source, Shadow Slime,
+  turret).
+- `COLLISION_BOXES` — the `bgcollision.setSize()/setOffset()` box. These matter:
+  a character's sprite is far wider than the space it occupies (Wanda is a
+  64x128 sprite standing in a 32x82 box), and colliding with the whole sprite
+  wedges her into walls she should walk past.
+
+`Game.tsx` used to run its own copy of all this, with `subType` special cases
+that silently overrode component behaviour — it zeroed Evil Kabocha's velocity
+every frame, so the boss could never walk its hot-spot script. Do not
+reintroduce per-object physics there.
 
 ### Combat
 

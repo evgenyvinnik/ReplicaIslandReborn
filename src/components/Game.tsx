@@ -1577,6 +1577,36 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     gameLoop.setSystemRegistry(systemRegistry);
 
     /**
+     * Wanda smashes through breakable walls on her scripted run.
+     *
+     * She carries no attack volume in the original either, so this stays a
+     * scripted beat rather than going through the collision pipeline.
+     */
+    const smashBreakableBlocks = (npc: GameObject): void => {
+      const position = npc.getPosition();
+      gameObjectManager.forEach((block) => {
+        if (block.type !== 'breakable_block' || !block.isVisible() || block.life <= 0) return;
+
+        const blockPosition = block.getPosition();
+        const overlaps =
+          position.x + npc.width > blockPosition.x &&
+          position.x < blockPosition.x + block.width &&
+          position.y + npc.height > blockPosition.y &&
+          position.y < blockPosition.y + block.height;
+        if (!overlaps) return;
+
+        block.life = 0;
+        block.setVisible(false);
+        effectsSystem.spawnExplosion(
+          blockPosition.x + block.width / 2,
+          blockPosition.y + block.height / 2,
+          'small'
+        );
+        soundSystem.playSfx(SoundEffects.EXPLODE);
+      });
+    };
+
+    /**
      * Player hit points as of the previous frame, so a decrease can be
      * attributed to a hit resolved by GameObjectCollisionSystem. -1 means "not
      * yet sampled" (fresh level or respawn).
@@ -1931,294 +1961,28 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
       });
 
-      // Enemy AI and physics
+      // Enemies and NPCs are moved by GravityComponent and MovementComponent,
+      // attached at spawn by LevelSystem.attachPhysics(). Their AI
+      // (PatrolComponent, NPCComponent, SleeperComponent, PopOutComponent,
+      // AttackAtDistanceComponent) sets targetVelocity; MovementComponent
+      // interpolates towards it and resolves tile collision, and PatrolComponent
+      // turns around off the wall-touch stamps it leaves behind.
       gameObjectManager.forEach((obj) => {
-        if (obj.type !== 'enemy' || !obj.isVisible() || obj.life <= 0) return;
-        
-        // Initialize patrol direction if not set
-        if (obj.facingDirection.x === 0) {
-          obj.facingDirection.x = 1;
-        }
-        
-        const velocity = obj.getVelocity();
-        const targetVelocity = obj.getTargetVelocity();
-        const acceleration = obj.getAcceleration();
-        const position = obj.getPosition();
+        if (obj.type !== 'npc' || !obj.isVisible()) return;
 
-        const possession = obj.getComponent(
-          GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
+        // Wanda smashes through breakable walls on her scripted run. She has no
+        // attack volume in the original either; this is a scripted beat rather
+        // than combat.
+        if (Math.abs(obj.getVelocity().x) >= 50) {
+          smashBreakableBlocks(obj);
+        }
+
+        // Hot spots are checked after the physics update so a fast NPC cannot
+        // step over a trigger tile between frames.
+        const npcComponent = obj.getComponent(
+          NPCComponent as unknown as new (...args: unknown[]) => NPCComponent
         );
-        const isPossessed = possession !== null && !possession.isReleased();
-
-        // The Source is an immobile set piece. Its own component handles only
-        // hit shake and the death sink; generic enemy gravity/patrol would make
-        // the 512px boss fall through the arena and drift sideways.
-        if (obj.subType === 'the_source') return;
-
-        // Shadow Slimes intentionally have no gravity or locomotion. Their
-        // PopOut and projectile components have already updated above.
-        if (obj.subType === 'shadowslime') return;
-
-        // Check if enemy has PatrolComponent (proper AI)
-        const hasPatrolComponent = obj.getComponent(PatrolComponent as unknown as new (...args: unknown[]) => PatrolComponent) !== null;
-        
-        // If no PatrolComponent, use simplified inline AI (fallback for special enemies)
-        if (!hasPatrolComponent && !isPossessed) {
-          // Behavior based on enemy type - only for enemies without PatrolComponent
-          switch (obj.subType) {
-            case 'pink_namazu': {
-              // The sleeper is stationary while asleep/waking, but its attack
-              // impulse must persist for the full leap. Clearing X every frame
-              // reduced the original 100 px/s jump to a one-frame twitch.
-              if (obj.getCurrentAction() !== ActionType.ATTACK) {
-                velocity.x = 0;
-              }
-              break;
-            }
-            
-            case 'evil_kabocha': {
-              // Evil Kabocha boss - special behavior
-              velocity.x = 0;
-              velocity.y = 0;
-              break;
-            }
-
-            case 'rokudou':
-              // Dedicated AI components own these velocities.
-              break;
-            
-            default: {
-              // Default simple patrol for any enemy without PatrolComponent
-              const DEFAULT_SPEED = 50;
-              targetVelocity.x = obj.facingDirection.x * DEFAULT_SPEED;
-              acceleration.x = 1000;
-            }
-          }
-        }
-
-        const impulse = obj.getImpulse();
-        velocity.x += impulse.x;
-        velocity.y += impulse.y;
-        impulse.zero();
-        
-        // === Movement Component Logic ===
-        // Interpolate velocity toward target velocity (from original MovementComponent.java)
-        if (acceleration.x > 0) {
-          const diff = targetVelocity.x - velocity.x;
-          if (Math.abs(diff) < 0.1) {
-            velocity.x = targetVelocity.x;
-          } else {
-            const direction = Math.sign(diff);
-            velocity.x += direction * acceleration.x * deltaTime;
-            // Clamp to target
-            if ((direction > 0 && velocity.x > targetVelocity.x) ||
-                (direction < 0 && velocity.x < targetVelocity.x)) {
-              velocity.x = targetVelocity.x;
-            }
-          }
-        }
-        
-        // Flying vs ground enemy physics
-        const isFlying = obj.subType === 'bat' ||
-          obj.subType === 'sting' ||
-          obj.subType === 'karaguin' ||
-          (obj.subType === 'rokudou' && obj.life > 0);
-        
-        if (!isFlying) {
-          // Gravity for ground enemies
-          velocity.y += 500 * deltaTime;
-          
-          // Wall collision check
-          const nextX = position.x + velocity.x * deltaTime;
-          const collision = collisionSystem.checkTileCollision(
-            nextX, position.y, obj.width, obj.height, velocity.x, velocity.y
-          );
-          
-          if (collision.leftWall || collision.rightWall) {
-            // Hit wall - reverse direction
-            obj.facingDirection.x *= -1;
-            velocity.x = -velocity.x;
-            targetVelocity.x = -targetVelocity.x;
-            
-            // Update touching flags for PatrolComponent
-            if (collision.leftWall) {
-              obj.setLastTouchedLeftWallTime(gameTime);
-            }
-            if (collision.rightWall) {
-              obj.setLastTouchedRightWallTime(gameTime);
-            }
-          }
-        } else {
-          // Flying enemy - interpolate Y velocity too
-          if (acceleration.y > 0) {
-            const diffY = targetVelocity.y - velocity.y;
-            if (Math.abs(diffY) < 0.1) {
-              velocity.y = targetVelocity.y;
-            } else {
-              const directionY = Math.sign(diffY);
-              velocity.y += directionY * acceleration.y * deltaTime;
-              if ((directionY > 0 && velocity.y > targetVelocity.y) ||
-                  (directionY < 0 && velocity.y < targetVelocity.y)) {
-                velocity.y = targetVelocity.y;
-              }
-            }
-          }
-          
-          // Flying enemies reverse at level bounds
-          if (position.x < 20 || position.x > (levelSystemRef.current?.getLevelWidth() ?? 960) - 50) {
-            obj.facingDirection.x *= -1;
-            targetVelocity.x = -targetVelocity.x;
-          }
-        }
-        
-        // Update position
-        position.x += velocity.x * deltaTime;
-        position.y += velocity.y * deltaTime;
-        
-        // Ground collision for non-flying enemies and turrets
-        if (!isFlying && obj.subType !== 'turret') {
-          const groundCheck = collisionSystem.checkTileCollision(
-            position.x, position.y, obj.width, obj.height, velocity.x, velocity.y
-          );
-          
-          if (groundCheck.grounded) {
-            const tileSize = 32;
-            const groundY = Math.floor((position.y + obj.height) / tileSize) * tileSize - obj.height;
-            position.y = groundY;
-            velocity.y = 0;
-            obj.setLastTouchedFloorTime(gameTime);
-          }
-        }
-        
-        // Update facing direction based on velocity
-        if (velocity.x !== 0) {
-          obj.facingDirection.x = Math.sign(velocity.x);
-        }
-      });
-
-      // NPC movement and physics
-      gameObjectManager.forEach((obj) => {
-        if (obj.type !== 'npc') return;
-        if (!obj.isVisible()) {
-          // console.log(`[NPC Physics] ${obj.name} is not visible, skipping physics`);
-          return;
-        }
-        
-        const velocity = obj.getVelocity();
-        const targetVelocity = obj.getTargetVelocity();
-        const acceleration = obj.getAcceleration();
-        const position = obj.getPosition();
-        
-        // Debug log for Wanda
-        if (obj.subType === 'wanda' && Math.random() < 0.02) {
-          // console.log(`[NPC Physics] Wanda pos=(${position.x.toFixed(1)}, ${position.y.toFixed(1)}) vel=(${velocity.x.toFixed(1)}, ${velocity.y.toFixed(1)}) targetVel=(${targetVelocity.x.toFixed(1)}, ${targetVelocity.y.toFixed(1)}) accel=(${acceleration.x.toFixed(1)}, ${acceleration.y.toFixed(1)})`);
-        }
-        
-        // Interpolate velocity towards target velocity (based on original MovementComponent)
-        if (acceleration.x > 0) {
-          if (Math.abs(targetVelocity.x - velocity.x) < 0.1) {
-            velocity.x = targetVelocity.x;
-          } else if (targetVelocity.x > velocity.x) {
-            velocity.x += acceleration.x * deltaTime;
-            if (velocity.x > targetVelocity.x) velocity.x = targetVelocity.x;
-          } else if (targetVelocity.x < velocity.x) {
-            velocity.x -= acceleration.x * deltaTime;
-            if (velocity.x < targetVelocity.x) velocity.x = targetVelocity.x;
-          }
-        }
-        
-        // Apply gravity to NPCs (unless flying)
-        velocity.y += 400 * deltaTime;
-        
-        // Update position
-        position.x += velocity.x * deltaTime;
-        position.y += velocity.y * deltaTime;
-        
-        // Ground collision for NPCs
-        // Use a narrower collision width to avoid detecting side walls as ground
-        // NPCs are 64px wide, but we check collision with a centered 32px width
-        const collisionMargin = (obj.width - 32) / 2; // Center a 32px wide collision box
-        const groundCheck = collisionSystem.checkTileCollision(
-          position.x + collisionMargin, position.y, 32, obj.height, velocity.x, velocity.y
-        );
-        
-        // Debug ground check for Wanda
-        if (obj.subType === 'wanda' && Math.random() < 0.01) {
-          // console.log(`[NPC Ground] Wanda grounded=${groundCheck.grounded} pos.y=${position.y.toFixed(1)} bottom=${(position.y + obj.height).toFixed(1)} tileRow=${Math.floor((position.y + obj.height) / 32)}`);
-        }
-        
-        if (groundCheck.grounded) {
-          const tileSize = 32;
-          const groundY = Math.floor((position.y + obj.height) / tileSize) * tileSize - obj.height;
-          position.y = groundY;
-          velocity.y = 0;
-          // Update floor touch time so touchingGround() returns true
-          obj.lastTouchedFloorTime = gameTime;
-        }
-        
-        // Update facing direction based on velocity
-        if (Math.abs(velocity.x) > 1) {
-          obj.facingDirection.x = velocity.x > 0 ? 1 : -1;
-        }
-        
-        // NPC collision with breakable blocks (Wanda smashing through walls)
-        // Debug: Log Wanda's velocity periodically
-        if (obj.subType === 'wanda' && Math.random() < 0.02) {
-          // console.log(`[NPC Velocity] Wanda vel.x=${velocity.x.toFixed(1)} at pos(${position.x.toFixed(0)}, ${position.y.toFixed(0)})`);
-        }
-        
-        if (Math.abs(velocity.x) >= 50) {
-          // Debug: Log when Wanda is near breakable block X position
-          if (obj.subType === 'wanda' && position.x > 540 && position.x < 620) {
-            // console.log(`[NPC Block Check] Wanda at (${position.x.toFixed(0)}, ${position.y.toFixed(0)}) checking for breakable blocks`);
-          }
-          
-          gameObjectManager.forEach((other) => {
-            if (other.type === 'breakable_block') {
-              if (other.isVisible() && other.life > 0) {
-                const otherPos = other.getPosition();
-                // Check for collision between NPC and breakable block
-                const npcLeft = position.x;
-                const npcRight = position.x + obj.width;
-                const npcTop = position.y;
-                const npcBottom = position.y + obj.height;
-                
-                const blockLeft = otherPos.x;
-                const blockRight = otherPos.x + other.width;
-                const blockTop = otherPos.y;
-                const blockBottom = otherPos.y + other.height;
-                
-                // Check for overlap
-                if (npcRight > blockLeft && npcLeft < blockRight &&
-                    npcBottom > blockTop && npcTop < blockBottom) {
-                  // Destroy the breakable block
-                  other.life = 0;
-                  other.setVisible(false);
-                  
-                  // Spawn explosion effect at block position
-                  effectsSystem.spawnExplosion(
-                    otherPos.x + other.width / 2,
-                    otherPos.y + other.height / 2,
-                    'small'
-                  );
-                  
-                  // Play smash sound
-                  soundSystem.playSfx(SoundEffects.EXPLODE);
-                  
-                  // console.log(`[NPC] ${obj.subType} smashed through breakable block at (${otherPos.x}, ${otherPos.y})`);
-                }
-              }
-            }
-          });
-        }
-        
-        // IMPORTANT: Check hotspots AFTER physics update so NPCs don't skip hotspot tiles
-        // Get NPCComponent and trigger its hotspot check with updated position
-        const npcComponent = obj.getComponent(NPCComponent as unknown as new (...args: unknown[]) => NPCComponent);
-        if (npcComponent && hotSpotSystem) {
-          // Call the post-physics hotspot check
-          npcComponent.checkHotSpotsPostPhysics(obj, deltaTime);
-        }
+        npcComponent?.checkHotSpotsPostPhysics(obj, deltaTime);
       });
 
       // Check hot spots

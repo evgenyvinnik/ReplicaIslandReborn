@@ -29,6 +29,7 @@ import { NPCComponent } from '../entities/components/NPCComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { LaunchProjectileComponent } from '../entities/components/LaunchProjectileComponent';
+import { MovementComponent } from '../entities/components/MovementComponent';
 import { createPlayerVolumeSets } from '../entities/playerCollisionVolumes';
 import { applyPlayerAttack } from '../entities/applyPlayerAttack';
 import { GameObject } from '../entities/GameObject';
@@ -72,13 +73,17 @@ async function loadBossLevel(): Promise<Arena> {
   const manager = new GameObjectManager();
   const objectCollision = new GameObjectCollisionSystem();
   const camera = new CameraSystem(480, 320);
+  const hotSpots = new HotSpotSystem();
   const levelSystem = new LevelSystem();
-  levelSystem.setSystems(new CollisionSystem(), manager, new HotSpotSystem());
+  levelSystem.setSystems(new CollisionSystem(), manager, hotSpots);
   manager.setCamera(camera);
 
   sSystemRegistry.register(manager, 'gameObject');
   sSystemRegistry.register(camera, 'camera');
   sSystemRegistry.register(objectCollision, 'gameObjectCollision');
+  // NPCComponent reads the arena's script from here; without it the bosses
+  // never get a target velocity.
+  sSystemRegistry.register(hotSpots, 'hotSpot');
   sSystemRegistry.channelSystem = new ChannelSystem();
 
   expect(await levelSystem.loadLevel(resourceToLevelId[BOSS_LEVEL])).toBe(true);
@@ -180,6 +185,29 @@ describe('boss fight composition', () => {
       expect(boss.life).toBe(afterCollision);
       expect(result.isBoss).toBe(true);
       expect(boss.isMarkedForRemoval()).toBe(false);
+    });
+  }
+
+  for (const [subType, label] of [['evil_kabocha', 'Evil Kabocha'], ['rokudou', 'Rokudou']] as const) {
+    test(`${label} can actually move`, async () => {
+      // Game.tsx's inline enemy physics used to zero evil_kabocha's velocity
+      // every frame, so the boss could never walk its hot-spot script. Both
+      // bosses are moved by MovementComponent now.
+      const arena = await loadBossLevel();
+      const boss = findBoss(arena.manager, subType);
+      expect(componentOf<MovementComponent>(boss, MovementComponent)).not.toBeNull();
+
+      let time = 0;
+      for (let frame = 0; frame < 10; frame++) {
+        time += 1 / 60;
+        boss.setGameTime(time);
+        boss.update(1 / 60, time);
+      }
+
+      // NPCComponent sets a target velocity from the arena's hot spots and
+      // MovementComponent interpolates towards it.
+      expect(Math.abs(boss.getTargetVelocity().x)).toBeGreaterThan(0);
+      expect(Math.abs(boss.getVelocity().x)).toBeGreaterThan(0);
     });
   }
 

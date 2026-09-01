@@ -50,6 +50,52 @@ import { createEnemyCollisionProfile } from '../entities/enemyCollisionProfiles'
 /** Original: GameObjectFactory.sSurprisedNPCChannel. */
 const SURPRISED_NPC_CHANNEL = 'SURPRISED';
 
+/**
+ * Objects the original gives a MovementComponent but no GravityComponent: the
+ * flyers hold altitude, and Rokudou only falls once his death swap adds gravity
+ * (ChangeComponentsComponent with swapAction DEATH).
+ */
+const FLYING_SUBTYPES = new Set(['bat', 'sting', 'karaguin', 'rokudou']);
+
+/**
+ * The original gives these no BackgroundCollisionComponent at all, so they pass
+ * straight through terrain.
+ */
+const NO_BACKGROUND_COLLISION_SUBTYPES = new Set(['bat', 'sting', 'karaguin']);
+
+/**
+ * Objects the original gives neither component, so generic physics must not
+ * touch them: The Source is a 512px immobile boss that would fall through its
+ * arena, Shadow Slimes are driven entirely by PopOutComponent, and turrets are
+ * fixed emplacements.
+ */
+const NO_PHYSICS_SUBTYPES = new Set(['the_source', 'shadowslime', 'turret']);
+
+/**
+ * Background collision boxes, from the original's
+ * `bgcollision.setSize(w, h)` / `setOffset(x, y)`.
+ *
+ * These sprites are much wider than the space the character occupies - Wanda is
+ * a 64x128 sprite standing in a 32x82 box - so colliding with the whole sprite
+ * wedges characters into walls they should walk past.
+ *
+ * offsetY is converted from the original's Y-up sprite space:
+ *   offsetY_down = spriteHeight - (offsetY_up + boxHeight)
+ */
+const COLLISION_BOXES: Record<string, { width: number; height: number; offsetX: number; offsetY: number }> = {
+  brobot: { width: 32, height: 48, offsetX: 16, offsetY: 16 },
+  snailbomb: { width: 32, height: 48, offsetX: 16, offsetY: 11 },
+  skeleton: { width: 32, height: 48, offsetX: 16, offsetY: 11 },
+  onion: { width: 32, height: 48, offsetX: 16, offsetY: 11 },
+  mudman: { width: 80, height: 90, offsetX: 32, offsetY: 33 },
+  pink_namazu: { width: 100, height: 75, offsetX: 12, offsetY: 48 },
+  wanda: { width: 32, height: 82, offsetX: 20, offsetY: 41 },
+  kyle: { width: 32, height: 90, offsetX: 20, offsetY: 33 },
+  kabocha: { width: 38, height: 82, offsetX: 16, offsetY: 41 },
+  evil_kabocha: { width: 38, height: 82, offsetX: 45, offsetY: 41 },
+  rokudou: { width: 45, height: 75, offsetX: 45, offsetY: 30 },
+};
+
 // Channel names for buttons and doors (must match original)
 const RED_BUTTON_CHANNEL = 'RED BUTTON';
 const BLUE_BUTTON_CHANNEL = 'BLUE BUTTON';
@@ -1863,6 +1909,7 @@ export class LevelSystem {
     }
 
     this.attachEnemyCollision(obj);
+    this.attachPhysics(obj);
     
     // Calculate position to match original Java behavior
     // Original used Y-up coords with position at bottom-left of sprite
@@ -1944,6 +1991,37 @@ export class LevelSystem {
     obj.addComponent(collision);
     obj.addComponent(hitReact);
     obj.addComponent(selector);
+  }
+
+  /**
+   * Give enemies and NPCs the movement components the original gives them.
+   *
+   * Game.tsx used to run its own gravity, velocity interpolation and tile
+   * snapping for every enemy and NPC, duplicating GravityComponent and
+   * MovementComponent. That copy also had special cases keyed off subType which
+   * silently overrode component behaviour - it zeroed Evil Kabocha's velocity
+   * every frame, so the boss could never walk its hot-spot script.
+   */
+  private attachPhysics(obj: GameObject): void {
+    if (obj.type !== 'enemy' && obj.type !== 'npc') return;
+    // Something already gave this object its own movement setup.
+    if (obj.getComponent(MovementComponent)) return;
+    // Set pieces that must not be moved by generic physics.
+    if (NO_PHYSICS_SUBTYPES.has(obj.subType)) return;
+
+    if (!FLYING_SUBTYPES.has(obj.subType)) {
+      obj.addComponent(new GravityComponent());
+    }
+
+    const movement = new MovementComponent();
+    const box = COLLISION_BOXES[obj.subType];
+    if (this.collisionSystem && !NO_BACKGROUND_COLLISION_SUBTYPES.has(obj.subType)) {
+      movement.setCollisionSystem(this.collisionSystem);
+      if (box) {
+        movement.setCollisionBox(box.width, box.height, box.offsetX, box.offsetY);
+      }
+    }
+    obj.addComponent(movement);
   }
 
   private convertToLevelData(parsed: ParsedLevel, info: LevelInfo): LevelData {

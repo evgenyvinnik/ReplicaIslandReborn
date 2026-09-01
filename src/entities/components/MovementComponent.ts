@@ -8,7 +8,31 @@ import { ComponentPhase } from '../../types';
 import type { GameObject } from '../GameObject';
 import type { CollisionSystem } from '../../engine/CollisionSystemNew';
 
+/**
+ * Move `current` towards `target` at `acceleration` per second, without
+ * overshooting. Mirrors the original's Interpolator: zero acceleration means no
+ * change, so an object that sets its velocity directly keeps it.
+ */
+function interpolate(
+  current: number,
+  target: number,
+  acceleration: number,
+  deltaTime: number
+): number {
+  if (acceleration <= 0 || current === target) return current;
+
+  const step = acceleration * deltaTime;
+  if (Math.abs(target - current) <= step) return target;
+  return current + Math.sign(target - current) * step;
+}
+
 export class MovementComponent extends GameComponent {
+  /** Background collision box; null means use the object's full size. */
+  private boxWidth: number | null = null;
+  private boxHeight: number | null = null;
+  private boxOffsetX: number = 0;
+  private boxOffsetY: number = 0;
+
   private collisionSystem: CollisionSystem | null = null;
   private tileWidth: number = 32;
   private tileHeight: number = 32;
@@ -35,11 +59,44 @@ export class MovementComponent extends GameComponent {
   /**
    * Update position based on velocity
    */
+  /**
+   * Restrict background collision to a box inside the sprite.
+   *
+   * The original keeps this on BackgroundCollisionComponent (setSize/setOffset)
+   * because a character's sprite is much wider than the space it occupies -
+   * Wanda is a 64x128 sprite standing in a 32x82 box. Colliding with the full
+   * sprite wedges her into walls she should walk past.
+   *
+   * Offsets are in this port's Y-down sprite space.
+   */
+  setCollisionBox(width: number, height: number, offsetX: number, offsetY: number): void {
+    this.boxWidth = width;
+    this.boxHeight = height;
+    this.boxOffsetX = offsetX;
+    this.boxOffsetY = offsetY;
+  }
+
+  /** Move without ever colliding with the background, as the flyers do. */
+  disableBackgroundCollision(): void {
+    this.collisionSystem = null;
+  }
+
   update(deltaTime: number, parent: GameObject): void {
     if (parent.positionLocked) return;
 
     const position = parent.getPosition();
     const velocity = parent.getVelocity();
+    const targetVelocity = parent.getTargetVelocity();
+    const acceleration = parent.getAcceleration();
+
+    // Interpolate velocity towards the target using acceleration, exactly as
+    // the original's MovementComponent does through its Interpolator. With zero
+    // acceleration this leaves velocity alone, so objects that set velocity
+    // directly (projectiles) are unaffected.
+    velocity.x = interpolate(velocity.x, targetVelocity.x, acceleration.x, deltaTime);
+    velocity.y = interpolate(velocity.y, targetVelocity.y, acceleration.y, deltaTime);
+
+    const gameTime = parent.getGameTime();
 
     // Calculate new position
     let newX = position.x + velocity.x * deltaTime;
@@ -47,12 +104,19 @@ export class MovementComponent extends GameComponent {
 
     // Check collision if collision system is available
     if (this.collisionSystem) {
+      // The collision box may be smaller than the sprite; work in box space and
+      // convert back when writing the position.
+      const boxWidth = this.boxWidth ?? parent.width;
+      const boxHeight = this.boxHeight ?? parent.height;
+      const offsetX = this.boxWidth === null ? 0 : this.boxOffsetX;
+      const offsetY = this.boxHeight === null ? 0 : this.boxOffsetY;
+
       // Handle horizontal movement first
       const horizontalCollision = this.collisionSystem.checkTileCollision(
-        newX,
-        position.y,
-        parent.width,
-        parent.height,
+        newX + offsetX,
+        position.y + offsetY,
+        boxWidth,
+        boxHeight,
         velocity.x,
         0
       );
@@ -60,49 +124,47 @@ export class MovementComponent extends GameComponent {
       if (horizontalCollision.leftWall || horizontalCollision.rightWall) {
         // Snap to tile edge
         if (horizontalCollision.leftWall) {
-          // Object's left edge hit a wall (moving left)
-          // Find the tile that the left edge collided with
-          const tileX = Math.floor(newX / this.tileWidth);
+          // Box's left edge hit a wall (moving left)
+          const tileX = Math.floor((newX + offsetX) / this.tileWidth);
           // Snap left edge just past the right edge of the blocking tile
-          newX = (tileX + 1) * this.tileWidth + 0.1;
+          newX = (tileX + 1) * this.tileWidth + 0.1 - offsetX;
           velocity.x = Math.max(0, velocity.x);
-          parent.setLastTouchedLeftWallTime(performance.now() / 1000);
+          parent.setLastTouchedLeftWallTime(gameTime);
         }
         if (horizontalCollision.rightWall) {
-          // Object's right edge hit a wall (moving right)
-          // Find the tile that the right edge collided with
-          const tileX = Math.floor((newX + parent.width) / this.tileWidth);
+          // Box's right edge hit a wall (moving right)
+          const tileX = Math.floor((newX + offsetX + boxWidth) / this.tileWidth);
           // Snap right edge just before the left edge of the blocking tile
-          newX = tileX * this.tileWidth - parent.width - 0.1;
+          newX = tileX * this.tileWidth - boxWidth - 0.1 - offsetX;
           velocity.x = Math.min(0, velocity.x);
-          parent.setLastTouchedRightWallTime(performance.now() / 1000);
+          parent.setLastTouchedRightWallTime(gameTime);
         }
       }
 
       // Now handle vertical movement with the adjusted X position
       const verticalCollision = this.collisionSystem.checkTileCollision(
-        newX,
-        newY,
-        parent.width,
-        parent.height,
+        newX + offsetX,
+        newY + offsetY,
+        boxWidth,
+        boxHeight,
         0,
         velocity.y
       );
 
       if (verticalCollision.grounded) {
-        // Snap to top of tile
-        const tileY = Math.floor((newY + parent.height) / this.tileHeight);
-        newY = tileY * this.tileHeight - parent.height;
+        // Snap the box's feet to the top of the tile
+        const tileY = Math.floor((newY + offsetY + boxHeight) / this.tileHeight);
+        newY = tileY * this.tileHeight - boxHeight - offsetY;
         velocity.y = 0;
-        parent.setLastTouchedFloorTime(performance.now() / 1000);
+        parent.setLastTouchedFloorTime(gameTime);
       }
 
       if (verticalCollision.ceiling) {
-        // Snap to bottom of tile
-        const tileY = Math.floor(newY / this.tileHeight);
-        newY = (tileY + 1) * this.tileHeight;
+        // Snap the box's head to the bottom of the tile
+        const tileY = Math.floor((newY + offsetY) / this.tileHeight);
+        newY = (tileY + 1) * this.tileHeight - offsetY;
         velocity.y = Math.max(0, velocity.y);
-        parent.setLastTouchedCeilingTime(performance.now() / 1000);
+        parent.setLastTouchedCeilingTime(gameTime);
       }
 
       // Merge normals for background collision
