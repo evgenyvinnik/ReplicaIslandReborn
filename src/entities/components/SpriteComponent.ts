@@ -220,7 +220,7 @@ export class SpriteComponent extends GameComponent {
    * Update animation
    */
   update(deltaTime: number, parent: GameObject): void {
-    if (!this.currentAnimation || !this.renderSystem) return;
+    if (!this.currentAnimation) return;
 
     // Update animation frame
     this.frameTimer += deltaTime;
@@ -239,6 +239,10 @@ export class SpriteComponent extends GameComponent {
         }
       }
     }
+
+    // Some campaign objects are rendered by Game's atlas-aware renderer, but
+    // their SpriteComponent still owns animation timing/state.
+    if (!this.renderSystem) return;
 
     // Only render if the sprite is actually loaded (don't use placeholders)
     // This allows Game.tsx to handle fallback rendering with colored rectangles

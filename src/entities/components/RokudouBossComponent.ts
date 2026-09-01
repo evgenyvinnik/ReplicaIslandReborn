@@ -14,6 +14,7 @@ import { GameComponent } from '../GameComponent';
 import type { GameObject } from '../GameObject';
 import { ComponentPhase, ActionType } from '../../types';
 import { Vector2 } from '../../utils/Vector2';
+import { sSystemRegistry } from '../../engine/SystemRegistry';
 
 // Animation states matching NPCAnimationComponent
 export enum RokudouAnimation {
@@ -48,8 +49,9 @@ const MOVEMENT_SPEED = 100;
 const VERTICAL_SPEED = 50;
 
 // Projectile configurations
-const ENERGY_BALL_VELOCITY = { x: 300, y: -300 };
-const BULLET_VELOCITY = { x: 300, y: -300 };
+// Android's -Y projectiles travel downward; Canvas uses positive Y for down.
+const ENERGY_BALL_VELOCITY = { x: 300, y: 300 };
+const BULLET_VELOCITY = { x: 300, y: 300 };
 const PROJECTILE_OFFSET = { x: 75, y: 42 };
 
 export interface RokudouBossConfig {
@@ -187,7 +189,9 @@ export class RokudouBossComponent extends GameComponent {
     this.stateTimer -= deltaTime;
     
     // Check for death
-    if (parent.life <= 0 && this.state !== RokudouState.DEAD) {
+    if (parent.life <= 0 &&
+        this.state !== RokudouState.DYING &&
+        this.state !== RokudouState.DEAD) {
       this.enterDeath(parent);
       return;
     }
@@ -331,10 +335,35 @@ export class RokudouBossComponent extends GameComponent {
   }
 
   private updateDying(deltaTime: number, parent: GameObject): void {
-    // Apply gravity during death fall
+    // Apply gravity and movement during the death fall. Living bosses are
+    // advanced by Game's enemy loop, but that loop intentionally ignores
+    // life-zero objects, so the death sequence must own this integration.
     const vel = parent.getVelocity();
     vel.y += 500 * deltaTime; // Gravity
-    parent.setVelocity(vel.x, vel.y);
+    const position = parent.getPosition();
+    const nextY = position.y + vel.y * deltaTime;
+    const collisionSystem = sSystemRegistry.collisionSystem;
+
+    if (collisionSystem) {
+      const collision = collisionSystem.checkTileCollision(
+        position.x,
+        nextY,
+        parent.width,
+        parent.height,
+        0,
+        vel.y
+      );
+      if (collision.grounded) {
+        const tileSize = 32;
+        position.y = Math.floor((nextY + parent.height) / tileSize) * tileSize - parent.height;
+        vel.y = 0;
+        parent.setLastTouchedFloorTime(sSystemRegistry.timeSystem?.getGameTime() ?? 0);
+      } else {
+        position.y = nextY;
+      }
+    } else {
+      position.y = nextY;
+    }
     
     // Check if touched ground (death animation complete)
     if (parent.touchingGround()) {
@@ -352,7 +381,7 @@ export class RokudouBossComponent extends GameComponent {
   private enterDeath(parent: GameObject): void {
     this.state = RokudouState.DYING;
     parent.setCurrentAction(ActionType.DEATH);
-    // Enable gravity for death fall
+    parent.getTargetVelocity().zero();
   }
 
   private fireEnergyBall(parent: GameObject): void {
@@ -361,13 +390,15 @@ export class RokudouBossComponent extends GameComponent {
     const pos = parent.getPosition();
     const facingX = parent.facingDirection.x;
     
-    const spawnX = pos.x + PROJECTILE_OFFSET.x * facingX;
-    const spawnY = pos.y + PROJECTILE_OFFSET.y;
+    const muzzleX = pos.x + (facingX < 0
+      ? parent.width - PROJECTILE_OFFSET.x
+      : PROJECTILE_OFFSET.x);
+    const muzzleY = pos.y + PROJECTILE_OFFSET.y;
     
     this.projectileSpawner(
       'energy_ball',
-      spawnX,
-      spawnY,
+      muzzleX - 16,
+      muzzleY - 16,
       ENERGY_BALL_VELOCITY.x * facingX,
       ENERGY_BALL_VELOCITY.y
     );
@@ -383,13 +414,15 @@ export class RokudouBossComponent extends GameComponent {
     const pos = parent.getPosition();
     const facingX = parent.facingDirection.x;
     
-    const spawnX = pos.x + PROJECTILE_OFFSET.x * facingX;
-    const spawnY = pos.y + PROJECTILE_OFFSET.y;
+    const muzzleX = pos.x + (facingX < 0
+      ? parent.width - PROJECTILE_OFFSET.x
+      : PROJECTILE_OFFSET.x);
+    const muzzleY = pos.y + PROJECTILE_OFFSET.y;
     
     this.projectileSpawner(
       'bullet',
-      spawnX,
-      spawnY,
+      muzzleX - 8,
+      muzzleY - 8,
       BULLET_VELOCITY.x * facingX,
       BULLET_VELOCITY.y
     );

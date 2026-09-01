@@ -5,6 +5,8 @@
 import React, { createContext, useContext, useReducer, useCallback, useMemo, ReactNode } from 'react';
 import { GameState, type GameConfig, type SaveData } from '../types';
 import { CutsceneType } from '../data/cutscenes';
+import { useGameStore } from '../stores/useGameStore';
+import { getCompletedLevelIds, inferCurrentLevel } from '../stores/progressUtils';
 
 // Game context state
 interface GameContextState {
@@ -34,6 +36,7 @@ type GameAction =
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_ACTIVE_CUTSCENE'; payload: CutsceneType | null }
   | { type: 'SET_LINEAR_MODE'; payload: boolean }
+  | { type: 'MARK_LEVEL_COMPLETE'; payload: number }
   | { type: 'COMPLETE_CURRENT_LEVEL' }
   | { type: 'GAME_OVER' }
   | { type: 'RESET' };
@@ -60,19 +63,28 @@ const defaultSaveData: SaveData = {
   lastPlayed: new Date().toISOString(),
 };
 
-// Initial state - start at level 1 (Wanda intro dialog)
-const initialState: GameContextState = {
-  gameState: GameState.LOADING,
-  config: defaultConfig,
-  saveData: defaultSaveData,
-  currentLevel: 1, // level_0_1_sewer - Wanda intro level
-  isPaused: false,
-  isLoading: true,
-  loadingProgress: 0,
-  error: null,
-  activeCutscene: null,
-  isLinearMode: false,
-};
+function createInitialState(): GameContextState {
+  const progress = useGameStore.getState().progress;
+  const currentLevel = progress.currentLevel ?? inferCurrentLevel(progress.levels);
+
+  return {
+    gameState: GameState.LOADING,
+    config: defaultConfig,
+    saveData: {
+      ...defaultSaveData,
+      currentLevel,
+      completedLevels: getCompletedLevelIds(progress.levels),
+      totalDeaths: progress.totalStats.totalDeaths,
+    },
+    currentLevel,
+    isPaused: false,
+    isLoading: true,
+    loadingProgress: 0,
+    error: null,
+    activeCutscene: null,
+    isLinearMode: false,
+  };
+}
 
 // Reducer
 function gameReducer(state: GameContextState, action: GameAction): GameContextState {
@@ -97,6 +109,15 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       return { ...state, activeCutscene: action.payload };
     case 'SET_LINEAR_MODE':
       return { ...state, isLinearMode: action.payload };
+    case 'MARK_LEVEL_COMPLETE': {
+      const newCompletedLevels = state.saveData.completedLevels.includes(action.payload)
+        ? state.saveData.completedLevels
+        : [...state.saveData.completedLevels, action.payload];
+      return {
+        ...state,
+        saveData: { ...state.saveData, completedLevels: newCompletedLevels },
+      };
+    }
     case 'COMPLETE_CURRENT_LEVEL': {
       const newCompletedLevels = [...state.saveData.completedLevels];
       if (!newCompletedLevels.includes(state.currentLevel)) {
@@ -115,7 +136,7 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
         gameState: GameState.GAME_OVER,
       };
     case 'RESET':
-      return initialState;
+      return createInitialState();
     default:
       return state;
   }
@@ -136,6 +157,7 @@ interface GameContextValue {
   goToOptions: () => void;
   goToExtras: () => void;
   setLevel: (level: number) => void;
+  markLevelComplete: (level: number) => void;
   completeLevel: () => void;
   gameOver: () => void;
   /** Start a cutscene */
@@ -152,11 +174,12 @@ interface GameProviderProps {
 }
 
 export function GameProvider({ children }: GameProviderProps): React.JSX.Element {
-  const [state, dispatch] = useReducer(gameReducer, initialState);
+  const [state, dispatch] = useReducer(gameReducer, undefined, createInitialState);
 
   const startGame = useCallback((level?: number): void => {
     // console.log('[GameContext] startGame: Starting with level', level);
     if (level !== undefined) {
+      useGameStore.getState().setCurrentLevel(level);
       dispatch({ type: 'SET_CURRENT_LEVEL', payload: level });
     }
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.PLAYING });
@@ -167,6 +190,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     // console.log('[GameContext] startNewGame: Setting level to 1 (intro cutscene)');
     // Reset save data for a new game
     dispatch({ type: 'SET_SAVE_DATA', payload: { ...defaultSaveData } });
+    useGameStore.getState().setCurrentLevel(1);
     dispatch({ type: 'SET_CURRENT_LEVEL', payload: 1 });
     // Ensure linear mode is reset unless explicitly set before this call
     // (Linear mode is set separately by App.tsx startLinearMode)
@@ -207,7 +231,12 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
   }, []);
 
   const setLevel = useCallback((level: number): void => {
+    useGameStore.getState().setCurrentLevel(level);
     dispatch({ type: 'SET_CURRENT_LEVEL', payload: level });
+  }, []);
+
+  const markLevelComplete = useCallback((level: number): void => {
+    dispatch({ type: 'MARK_LEVEL_COMPLETE', payload: level });
   }, []);
 
   const completeLevel = useCallback((): void => {
@@ -242,6 +271,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     goToOptions,
     goToExtras,
     setLevel,
+    markLevelComplete,
     completeLevel,
     gameOver,
     playCutscene,
@@ -258,6 +288,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     goToOptions,
     goToExtras,
     setLevel,
+    markLevelComplete,
     completeLevel,
     gameOver,
     playCutscene,

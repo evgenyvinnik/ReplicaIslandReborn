@@ -11,7 +11,8 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "sloc": "bun scripts/calc-sloc.mjs"
+    "sloc": "bun scripts/calc-sloc.mjs",
+    "convert:music": "bun run scripts/convert-midi-to-json.ts"
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
+    "@types/bun": "^1.4.0",
     "@types/node": "^24.10.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

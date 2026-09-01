@@ -28,41 +28,52 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 
 ---
 
-## 🚨 CRITICAL: GAME PARTIALLY OPERATIONAL
+## ✅ Game Status: Playable End-to-End
 
-**The game is now approximately 60% faithful to the original.** `Game.tsx` has most core mechanics but integration issues remain.
+**The game is playable from the title screen through to level completion and
+progression.** Earlier revisions of this file described the intro cutscene, the
+extras menu and the NPC system as broken; those have since been fixed. Verify
+against the code and the test suite before trusting any status claim here.
 
-### Current Status
+Verified working (exercised in the browser and by `bun test`):
 
-| Feature | Original | Current | Status |
-|---------|----------|---------|--------|
-| Player State Machine | 7 states (MOVE, STOMP, HIT_REACT, DEAD, WIN, FROZEN, POST_GHOST_DELAY) | ✅ Full enum implemented | ✅ WORKING |
-| Ghost Mechanic | Hold attack → spawn ghost | ✅ Spawns ghost, camera follows | ✅ WORKING |
-| Stomp Mechanics | Hang time + camera shake | ✅ Camera shake, dust effects | ✅ WORKING |
-| Hit Reaction | HIT_REACT state, 0.5s timer | ✅ Implemented with timer | ✅ WORKING |
-| Win Condition | 3 rubies = WIN | ✅ Triggers level complete | ✅ WORKING |
-| Invincibility | Coins → glow powerup | ✅ Glow mode with duration | ✅ WORKING |
-| Enemy AI | Component-based | Inline switch in Game.tsx | ⚠️ SIMPLIFIED |
-| Object Pooling | 384+ pooled objects | None | ❌ MISSING |
-| **NPC Cutscene System** | NPCs follow hot spots | ⚠️ NPCComponent exists but not used | ❌ BROKEN |
-| **Level 0-1 Intro** | Wanda walks to Kyle | ❌ Camera focuses NPC but no movement | ❌ BROKEN |
-| **Erase Progress** | Clears save data | ⚠️ Function exists but UI may not refresh | ⚠️ BUGGY |
-| **Extras Menu** | Unlocks after game complete | ❌ Always locked, no unlock mechanism | ❌ BROKEN |
+| Area | Status | Notes |
+|------|--------|-------|
+| Title / Level Select / Options menus | ✅ | Level Select scrolls the unlocked level into view |
+| Level 0-1 intro cutscene | ✅ | Wanda walks the hot-spot script, triggers dialog, ends the level |
+| Level progression | ✅ | Level complete → next level loads, non-linear tree honoured |
+| Player movement / jump / jetpack | ✅ | Matches the original's PlayerComponent constants |
+| Stomp attack + enemy kills | ✅ | STOMP state drives the player down; overlap kills enemies |
+| Collectibles & win condition | ✅ | 3 rubies triggers LEVEL_COMPLETE |
+| Player lives | ✅ | Sourced from the selected difficulty (Baby 5 / Kids 3 / Adults 2) |
+| Dialog & character portraits | ✅ | Both scripted and hot-spot triggered |
+| Sound effects | ✅ | 22 OGG effects |
+| Background music | ✅ | bwv_115.mid converted to a note score, synthesized via Web Audio |
+| Extras menu | ✅ | Unlocks on game completion |
+| All 40 shipped levels | ✅ | Every object type in level data has a spawn implementation |
 
-### Why The Intro Cutscene Doesn't Work
+### Known remaining gaps
 
-The first level (`level_0_1_sewer`) is a cutscene-only level where Wanda discovers Kyle. The original game:
-1. Spawns Wanda NPC (not player)
-2. NPCComponent reads hot spots to move Wanda
-3. Hot spots trigger WALK_AND_TALK, TAKE_CAMERA_FOCUS, etc.
-4. Dialog triggers via hot spots
-5. Level ends with transition to playable level
+These are real, and are the honest backlog for "finishing" the port:
 
-**Current state**: 
-- Camera correctly focuses on NPC (Wanda)
-- NPCComponent.ts exists and is fully ported
-- BUT: Game.tsx doesn't use NPCComponent - it has inline NPC physics that ignores hot spots
-- NPCs just fall and stand still instead of following the scripted path
+| Gap | Impact | Notes |
+|-----|--------|-------|
+| `GameObjectCollisionSystem` unused | Medium | The faithful sweep-and-prune object collision system is fully ported but never instantiated. `Game.tsx` does object-vs-object collision with inline AABB loops instead. Combat works, but `DynamicCollisionComponent` volumes and `HitPlayerComponent` are inert. Swapping to the component pipeline is a large refactor — do it behind tests. |
+| Orphaned components | Low–Medium | `HitPlayerComponent`, `SimplePhysicsComponent`, `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent`, `CrusherAndouComponent` are ported and exported but never attached to anything; their behavior is either reimplemented inline or absent. |
+| Line-segment slope collision | Low | `CollisionSystemNew.checkTileCollision()` always delegates to `checkTileCollisionSimple()`; `_checkTileCollisionWithSegments()` is dead code. Slopes are traversable via `checkSlopeClimb()` step-up, but not with the original's exact surface normals. |
+| Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
+| `GameObject.currentAction` for the player | Low | Never leaves `INVALID`. Components that gate on `requiredAction` therefore never fire for the player. |
+| `Game.tsx` size | Medium (maintainability) | ~3700 lines holding gameplay logic that duplicates the component system. This is why components drift into being unused. |
+
+### How to verify gameplay changes
+
+- `bun test` runs a headless gameplay simulation (`src/levels/campaignGameplay.test.ts`)
+  that loads every playable level, runs the real frame loop, and asserts the
+  player moves, flies, stomps, and doesn't fall out of the world.
+- In `bun run dev`, `window.__ri` exposes the live object manager, camera, level
+  system and a `step(n)` function that advances the simulation deterministically.
+  This is dev-only (`import.meta.env.DEV`) and is the fastest way to reproduce a
+  gameplay bug without fighting `requestAnimationFrame` throttling.
 
 ---
 
@@ -80,20 +91,20 @@ The first level (`level_0_1_sewer`) is a cutscene-only level where Wanda discove
 
 | Category | Status | Details |
 |----------|--------|---------|
-| **Game.tsx Faithfulness** | ⚠️ 60% | Core mechanics work, but components not properly integrated |
-| **Core Engine** | ⚠️ 70% | Systems exist, some integration issues |
-| **Player State Machine** | ✅ 100% | All 7 states implemented in Game.tsx |
-| **Ghost Mechanic** | ✅ 90% | Works, minor polish needed |
-| **Components** | ⚠️ 40% | 30+ components exist but Game.tsx uses inline code |
-| **NPC Cutscene System** | ❌ 10% | NPCComponent exists but NOT used by Game.tsx |
-| **UI/Screens** | ✅ 95% | 11 React menu components + 7 Canvas gameplay systems |
-| **Canvas Gameplay UI** | ✅ 100% | HUD, Controls, Dialog, Cutscene, Pause, GameOver, LevelComplete |
-| **Levels** | ✅ 100% | 42 levels load correctly |
-| **Sound** | ✅ 100% | All SFX loaded and playing |
-| **Music** | ❌ 0% | MIDI needs conversion |
-| **Cutscenes** | ⚠️ 80% | CanvasCutscene works, but intro cutscene (NPC-driven) broken |
-| **Extras Menu** | ❌ 0% | UI exists but extras never unlock |
-| **Erase Progress** | ⚠️ 70% | Function works but UI doesn't always refresh |
+| **Playable end-to-end** | ✅ | Title → level → completion → next level |
+| **Core Engine** | ✅ | All 15 systems implemented and wired, except `GameObjectCollisionSystem` |
+| **Player State Machine** | ✅ | All 7 states implemented in `PlayerComponent` |
+| **Ghost Mechanic** | ✅ | Charge, spawn, camera handoff, release |
+| **NPC Cutscene System** | ✅ | `NPCComponent` drives hot-spot scripts; level 0-1 completes |
+| **Components** | ⚠️ | ~30 ported; 7 are attached to nothing (see "Known remaining gaps") |
+| **UI/Screens** | ✅ | 11 React menu components + Canvas gameplay UI |
+| **Canvas Gameplay UI** | ✅ | HUD, Controls, Dialog, Cutscene, Pause, GameOver, LevelComplete |
+| **Levels** | ✅ | 40 levels load; every object type has a spawn implementation |
+| **Sound** | ✅ | 22 SFX loaded and playing |
+| **Music** | ✅ | `bwv_115.mid` → JSON score (`bun run convert:music`), synthesized at runtime |
+| **Cutscenes** | ✅ | Both `CanvasCutscene` and the NPC-driven intro |
+| **Extras Menu** | ✅ | Unlocks on game completion |
+| **Object collision pipeline** | ⚠️ | Inline AABB in `Game.tsx`; `GameObjectCollisionSystem` unused |
 
 ### Implemented Engine Systems (15 total)
 
@@ -149,14 +160,26 @@ The first level (`level_0_1_sewer`) is a cutscene-only level where Wanda discove
 | SimpleCollisionComponent | COLLISION_DETECTION | SimpleCollisionComponent.java | ✅ |
 | SolidSurfaceComponent | COLLISION_RESPONSE | SolidSurfaceComponent.java | ✅ |
 
-### NOT Yet Implemented Components
+### Ported But Not Wired Up
 
-| Component | Original | Priority | Notes |
-|-----------|----------|----------|-------|
-| ChangeComponentsComponent | ChangeComponentsComponent.java | LOW | Dynamic component swapping |
-| OrbitalMagnetComponent | OrbitalMagnetComponent.java | LOW | Collectible attraction |
-| MotionBlurComponent | MotionBlurComponent.java | LOW | Visual effect |
-| FadeDrawableComponent | FadeDrawableComponent.java | LOW | Per-object fade |
+Every component below exists under `src/entities/components/` and typechecks,
+but nothing constructs or attaches it. Their behavior is either reimplemented
+inline in `Game.tsx` or simply absent. Check with:
+
+```bash
+grep -rL "ComponentName" src --include="*.ts" --include="*.tsx"
+```
+
+| Component | Original use | Notes |
+|-----------|--------------|-------|
+| HitPlayerComponent | `spawnCoin` and friends | Needs `GameObjectCollisionSystem` to be live to matter |
+| SimplePhysicsComponent | 16 spawn sites (bouncing objects) | Bounce/inertia for simple objects |
+| FadeDrawableComponent | 16 spawn sites | Per-object fade |
+| PlaySingleSoundComponent | Explosion effects | Sound plays via `EffectsSystem` instead |
+| MotionBlurComponent | `spawnEnemyKyle` | Visual trail |
+| FixedAnimationComponent | 1 spawn site | Static animation selection |
+| CrusherAndouComponent | `spawnObjectCrusherAndou` | Object type is not used by any shipped level |
+| SnailbombComponent | Snail enemy behavior | Snailbomb is instead assembled from Patrol + LaunchProjectile |
 
 ### React UI Components (Menu Screens Only)
 
@@ -1443,11 +1466,13 @@ bun run dev
 ### Available Scripts
 
 ```bash
-bun run dev        # Start Vite dev server with hot reload
-bun run build      # Build for production (typecheck + bundle)
-bun run preview    # Preview production build locally
-bun run lint       # Run ESLint
-bun run typecheck  # Run TypeScript type checking
+bun run dev            # Start Vite dev server with hot reload
+bun run build          # Build for production (typecheck + bundle)
+bun run preview        # Preview production build locally
+bun run lint           # Run ESLint
+bun run typecheck      # Run TypeScript type checking
+bun test               # Run the test suite (includes headless gameplay simulation)
+bun run convert:music  # Re-convert Original/res/raw/bwv_115.mid to a JSON score
 ```
 
 ### Building for Production
@@ -1493,13 +1518,28 @@ Animation frames can include attack/vulnerability collision volumes.
 - Concurrent sound limit (32 streams)
 - Volume control per category
 
-### ❌ NOT YET IMPLEMENTED
+### Music System (✅ IMPLEMENTED)
 
-1. **Music System**: MIDI file needs conversion to MP3/OGG
-2. **Ghost/Possession Mechanic**: GhostComponent not ported
-3. **Cutscene Player**: AnimationPlayerActivity for endings
-4. **Evil Kabocha Boss**: Separate boss component needed
-5. **Diary System**: DiaryActivity modal overlay
+The original ships `Original/res/raw/bwv_115.mid` and relies on Android's
+built-in General MIDI synthesizer. Browsers have no MIDI synth, so the port:
+
+1. Parses the MIDI once at build time into a note list:
+   `bun run convert:music` → `public/assets/sounds/bwv_115.json`
+2. Renders that score to an `AudioBuffer` at runtime with `OfflineAudioContext`
+   (`SoundSystem.loadBackgroundMusicScore`), using a plucked triangle+sawtooth
+   voice, then loops it through the normal music path.
+
+Dropping a real `public/assets/sounds/music.ogg` in place takes precedence over
+the synthesized score, so a properly rendered recording can replace it later
+without code changes.
+
+### Previously-missing systems, now implemented
+
+- **Ghost/Possession Mechanic**: `GhostComponent.ts`
+- **Cutscene Player**: `CanvasCutscene.ts` + `src/data/cutscenes.ts`
+- **Evil Kabocha Boss**: `EvilKabochaComponent.ts`
+- **Rokudou Boss**: `RokudouBossComponent.ts`
+- **Diary System**: `CanvasDiaryOverlay.ts`
 
 ### ⚠️ Animation System - Implementation Notes
 
@@ -1539,7 +1579,7 @@ The web port uses Canvas coordinates (TOP-LEFT, Y increases DOWN) but handles th
    - Missing sprites are for unimplemented features (cutscenes, ghost, Rokudou boss)
    
 2. **Audio** (✅ 100% SFX): 22 OGG sound effects loaded
-   - Music not implemented (MIDI needs conversion)
+   - Music synthesized from the converted `bwv_115.mid` score
    
 3. **Levels** (✅ 100%): 40+ levels converted to JSON
 
@@ -1700,13 +1740,18 @@ The web port uses Canvas coordinates (TOP-LEFT, Y increases DOWN) but handles th
 | `AttackAtDistanceComponent.java` | `AttackAtDistanceComponent.ts` | ✅ |
 | `LifetimeComponent.java` | `LifetimeComponent.ts` | ✅ |
 | `TheSourceComponent.java` | `TheSourceComponent.ts` | ✅ |
-| `GhostComponent.java` | - | ❌ Not ported |
-| `GravityComponent.java` | - | ❌ Not ported |
-| `CameraBiasComponent.java` | - | ❌ Not ported |
-| `ChangeComponentsComponent.java` | - | ❌ Not ported |
-| `OrbitalMagnetComponent.java` | - | ❌ Not ported |
-| `MotionBlurComponent.java` | - | ❌ Not ported |
-| `FadeDrawableComponent.java` | - | ❌ Not ported |
+| `GhostComponent.java` | `GhostComponent.ts` | ✅ |
+| `GravityComponent.java` | `GravityComponent.ts` | ✅ |
+| `CameraBiasComponent.java` | `CameraBiasComponent.ts` | ✅ |
+| `ChangeComponentsComponent.java` | `ChangeComponentsComponent.ts` | ✅ |
+| `OrbitalMagnetComponent.java` | `OrbitalMagnetComponent.ts` | ✅ |
+| `MotionBlurComponent.java` | `MotionBlurComponent.ts` | ⚠️ ported, not attached |
+| `FadeDrawableComponent.java` | `FadeDrawableComponent.ts` | ⚠️ ported, not attached |
+| `HitPlayerComponent.java` | `HitPlayerComponent.ts` | ⚠️ ported, not attached |
+| `SimplePhysicsComponent.java` | `SimplePhysicsComponent.ts` | ⚠️ ported, not attached |
+| `PlaySingleSoundComponent.java` | `PlaySingleSoundComponent.ts` | ⚠️ ported, not attached |
+| `FixedAnimationComponent.java` | `FixedAnimationComponent.ts` | ⚠️ ported, not attached |
+| `CrusherAndouComponent.java` | `CrusherAndouComponent.ts` | ⚠️ ported, not attached |
 
 ---
 

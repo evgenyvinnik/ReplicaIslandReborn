@@ -31,6 +31,14 @@ export class GameLoop {
   private updateCallback: UpdateCallback | null = null;
   private renderCallback: RenderCallback | null = null;
 
+  // Error reporting. A throw inside update/render used to escape tick() before
+  // the next requestAnimationFrame was scheduled, which killed the loop for the
+  // rest of the session. Callbacks are guarded now, and the first few failures
+  // are logged so the underlying bug is still visible.
+  private static readonly MAX_LOGGED_ERRORS = 5;
+  private loggedErrors: number = 0;
+  private lastError: unknown = null;
+
   // System registry reference
   private systemRegistry: SystemRegistry | null = null;
 
@@ -160,7 +168,7 @@ export class GameLoop {
       // Update game state at fixed intervals
       while (this.accumulator >= this.fixedDeltaTime) {
         if (this.updateCallback) {
-          this.updateCallback(this.fixedDeltaTime);
+          this.guard('update', this.updateCallback, this.fixedDeltaTime);
         }
         this.accumulator -= this.fixedDeltaTime;
       }
@@ -170,12 +178,53 @@ export class GameLoop {
 
       // Render with interpolation
       if (this.renderCallback) {
-        this.renderCallback(interpolation);
+        this.guard('render', this.renderCallback, interpolation);
       }
     }
 
     // Schedule next frame
     this.animationFrameId = requestAnimationFrame(this.tick);
+  }
+
+  /**
+   * Run a frame callback without letting a throw tear down the loop.
+   */
+  private guard(label: string, callback: (arg: number) => void, arg: number): void {
+    try {
+      callback(arg);
+    } catch (error) {
+      this.lastError = error;
+      if (this.loggedErrors < GameLoop.MAX_LOGGED_ERRORS) {
+        this.loggedErrors++;
+        console.error(`[GameLoop] ${label} callback threw:`, error);
+        if (this.loggedErrors === GameLoop.MAX_LOGGED_ERRORS) {
+          console.error('[GameLoop] further frame errors will be suppressed');
+        }
+      }
+    }
+  }
+
+  /**
+   * Most recent error thrown by a frame callback, if any.
+   */
+  getLastError(): unknown {
+    return this.lastError;
+  }
+
+  /**
+   * Advance the simulation by a fixed number of frames without waiting for
+   * requestAnimationFrame. Intended for automated testing and for headless /
+   * background contexts where the browser throttles rAF to a standstill.
+   */
+  step(frames: number = 1, render: boolean = true): void {
+    for (let i = 0; i < frames; i++) {
+      if (this.updateCallback) {
+        this.guard('update', this.updateCallback, this.fixedDeltaTime);
+      }
+    }
+    if (render && this.renderCallback) {
+      this.guard('render', this.renderCallback, 0);
+    }
   }
 
   /**

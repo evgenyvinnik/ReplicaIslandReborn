@@ -21,6 +21,8 @@ import {
   type LevelMetaData,
 } from '../data/levelTree';
 import { assetPath } from '../utils/helpers';
+import { useGameStore } from '../stores/useGameStore';
+import { getCompletedLevelIds } from '../stores/progressUtils';
 
 // Row height in pixels - matches original 70dp at mdpi (1:1 pixel ratio)
 // This means ~4-5 rows visible at a time with scrolling
@@ -165,6 +167,7 @@ function LevelRow({
 
 export function LevelSelect(): React.JSX.Element {
   const { startGame, goToMainMenu, state } = useGameContext();
+  const levelProgress = useGameStore((store) => store.progress.levels);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [flickeringIndex, setFlickeringIndex] = useState<number>(-1);
   const [levelList, setLevelList] = useState<LevelMetaData[]>([]);
@@ -172,19 +175,31 @@ export function LevelSelect(): React.JSX.Element {
 
   // Generate level list based on completed levels and mode
   useEffect(() => {
-    const completedSet = completedLevelIdsToResourceSet(state.saveData.completedLevels);
+    const completedSet = completedLevelIdsToResourceSet(getCompletedLevelIds(levelProgress));
 
     // Generate level list - use linear tree in linear mode (all levels enabled)
     const list = generateLevelList(completedSet, true, state.isLinearMode);
     const sorted = sortLevelsByTime(list);
     setLevelList(sorted);
 
-    // Auto-select first enabled level
+    // Auto-select first enabled level.
     const firstEnabledIndex = sorted.findIndex((l) => l.enabled);
     if (firstEnabledIndex >= 0) {
       setSelectedIndex(firstEnabledIndex);
     }
-  }, [state.saveData.completedLevels, state.isLinearMode]);
+  }, [levelProgress, state.isLinearMode]);
+
+  // The list is sorted chronologically, so the only playable level can sit far
+  // down it (Memory #000 is stamped + 07:12:03 and lands near the bottom).
+  // Scroll it into view once the rows exist, otherwise the screen looks like a
+  // wall of locked levels with nothing clickable.
+  useEffect(() => {
+    if (levelList.length === 0 || !listRef.current) return;
+    const firstEnabledIndex = levelList.findIndex((l) => l.enabled);
+    if (firstEnabledIndex > 0) {
+      listRef.current.scrollTop = firstEnabledIndex * ROW_HEIGHT;
+    }
+  }, [levelList]);
 
   // Handle level selection with flicker animation
   const handleLevelClick = useCallback(

@@ -88,6 +88,18 @@ export class SoundSystem {
   private musicBuffer: AudioBuffer | null = null;
   private musicPlaying: boolean = false;
   private musicVolume: number = 0.5;
+  /**
+   * Set when startBackgroundMusic() is called before the music buffer finishes
+   * loading. Music is fetched (and, for the synthesized score, rendered)
+   * asynchronously during preload, so the game's start request usually arrives
+   * first; without this the track would simply never play.
+   */
+  private musicStartRequested: boolean = false;
+
+  // Envelope shape for the synthesized MIDI score, in seconds.
+  private static readonly NOTE_ATTACK = 0.008;
+  private static readonly NOTE_RELEASE = 0.25;
+  private static readonly NOTE_GAIN = 0.22;
 
   private config: SoundConfig = {
     masterVolume: 1.0,
@@ -351,6 +363,7 @@ export class SoundSystem {
       }
       
       this.musicBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      this.startPendingMusic();
       return true;
     } catch {
       // Failed to load background music - silently ignore
@@ -359,12 +372,120 @@ export class SoundSystem {
   }
 
   /**
+   * Load background music from a converted MIDI score and render it to an
+   * AudioBuffer.
+   *
+   * The original ships bwv_115.mid and leans on Android's General MIDI
+   * synthesizer. Browsers have no MIDI synth, so `scripts/convert-midi-to-json.ts`
+   * turns the score into a note list and this renders it once with a plucked
+   * harpsichord-ish voice. The result is an ordinary AudioBuffer, so looping,
+   * pausing and volume all go through the same path as a normal audio file.
+   */
+  async loadBackgroundMusicScore(url: string): Promise<boolean> {
+    if (!this.audioContext) {
+      await this.initialize();
+    }
+    if (!this.audioContext) return false;
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return false;
+
+      const score = await response.json() as {
+        duration?: number;
+        notes?: Array<{ time: number; duration: number; pitch: number; velocity: number }>;
+      };
+      const notes = score.notes ?? [];
+      if (notes.length === 0) return false;
+
+      const sampleRate = this.audioContext.sampleRate;
+      const lastEnd = notes.reduce((max, note) => Math.max(max, note.time + note.duration), 0);
+      // Release tails run past the last note-off, so leave room for them.
+      const duration = Math.max(score.duration ?? lastEnd, lastEnd) + SoundSystem.NOTE_RELEASE;
+      const offline = new OfflineAudioContext(1, Math.ceil(duration * sampleRate), sampleRate);
+
+      const master = offline.createGain();
+      // Keep the summed polyphony clear of clipping.
+      master.gain.value = 0.5;
+      master.connect(offline.destination);
+
+      for (const note of notes) {
+        this.renderNote(offline, master, note);
+      }
+
+      this.musicBuffer = await offline.startRendering();
+      this.startPendingMusic();
+      return true;
+    } catch {
+      // Music is optional; stay silent rather than breaking startup.
+      return false;
+    }
+  }
+
+  /**
+   * Schedule one note of the score: a triangle fundamental with a quieter
+   * sawtooth octave for bite, under a plucked attack/decay envelope.
+   */
+  private renderNote(
+    context: OfflineAudioContext,
+    destination: GainNode,
+    note: { time: number; duration: number; pitch: number; velocity: number }
+  ): void {
+    const frequency = 440 * Math.pow(2, (note.pitch - 69) / 12);
+    const start = note.time;
+    const end = start + note.duration;
+    const peak = Math.max(0.05, Math.min(1, note.velocity)) * SoundSystem.NOTE_GAIN;
+
+    const envelope = context.createGain();
+    envelope.gain.setValueAtTime(0, start);
+    envelope.gain.linearRampToValueAtTime(peak, start + SoundSystem.NOTE_ATTACK);
+    // Plucked strings decay while held rather than sustaining flat.
+    envelope.gain.exponentialRampToValueAtTime(peak * 0.35, end);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, end + SoundSystem.NOTE_RELEASE);
+    envelope.connect(destination);
+
+    const fundamental = context.createOscillator();
+    fundamental.type = 'triangle';
+    fundamental.frequency.value = frequency;
+    fundamental.connect(envelope);
+    fundamental.start(start);
+    fundamental.stop(end + SoundSystem.NOTE_RELEASE);
+
+    const overtoneGain = context.createGain();
+    overtoneGain.gain.value = 0.18;
+    overtoneGain.connect(envelope);
+
+    const overtone = context.createOscillator();
+    overtone.type = 'sawtooth';
+    overtone.frequency.value = frequency * 2;
+    overtone.connect(overtoneGain);
+    overtone.start(start);
+    overtone.stop(end + SoundSystem.NOTE_RELEASE);
+  }
+
+  /**
+   * Honour a startBackgroundMusic() call that arrived before the buffer loaded.
+   */
+  private startPendingMusic(): void {
+    if (this.musicStartRequested && !this.musicPlaying) {
+      this.startBackgroundMusic();
+    }
+  }
+
+  /**
    * Start playing background music (loops)
    */
   startBackgroundMusic(): void {
-    if (!this.audioContext || !this.musicBuffer || !this.musicGain || !this.config.enabled) {
+    if (!this.audioContext || !this.musicGain || !this.config.enabled) {
       return;
     }
+
+    if (!this.musicBuffer) {
+      // Buffer still loading; play as soon as it is ready.
+      this.musicStartRequested = true;
+      return;
+    }
+    this.musicStartRequested = false;
 
     // Stop existing music if playing
     this.stopBackgroundMusic();
@@ -381,6 +502,7 @@ export class SoundSystem {
    * Stop background music
    */
   stopBackgroundMusic(): void {
+    this.musicStartRequested = false;
     if (this.musicSource) {
       try {
         this.musicSource.stop();
@@ -528,10 +650,12 @@ export class SoundSystem {
 
     await Promise.all(loadPromises);
     
-    // Try to load background music (optional - will fail silently if not available)
-    // The original game uses bwv_115.mid (Bach's Cantata BWV 115)
-    // For web, we need an OGG version. Place it at /assets/sounds/music.ogg
-    await this.loadBackgroundMusic(assetPath('/assets/sounds/music.ogg'));
+    // Background music. Prefer a real audio file if one has been dropped in,
+    // otherwise synthesize the original's bwv_115.mid from its converted score.
+    const loadedAudioFile = await this.loadBackgroundMusic(assetPath('/assets/sounds/music.ogg'));
+    if (!loadedAudioFile) {
+      await this.loadBackgroundMusicScore(assetPath('/assets/sounds/bwv_115.json'));
+    }
   }
 
   /**

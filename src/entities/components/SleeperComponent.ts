@@ -100,9 +100,9 @@ export class SleeperComponent extends GameComponent {
 
       case SleeperState.ATTACKING: {
         // Wait until we hit the ground
-        if (parentObject.touchingGround() && parentObject.getVelocity().y < 0) {
+        if (parentObject.touchingGround() && parentObject.getVelocity().y >= 0) {
           this.state = SleeperState.SLAM;
-          camera.shake(this.slamDuration, this.slamMagnitude);
+          camera.shake(this.slamMagnitude, this.slamDuration);
           parentObject.getVelocity().zero();
         }
         break;

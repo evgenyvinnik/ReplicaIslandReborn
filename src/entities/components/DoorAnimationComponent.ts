@@ -208,6 +208,9 @@ export class DoorAnimationComponent extends GameComponent {
       this.sprite.playAnimation(DoorAnimation.CLOSED);
       this.state = DoorState.CLOSED;
       this.solidSurfaceEnabled = true;
+      if (this.solidSurface && !parentObject.hasComponent(this.solidSurface)) {
+        parentObject.addComponent(this.solidSurface);
+      }
     }
 
     // Handle out-of-sync animation/state

@@ -99,7 +99,7 @@ export class TheSourceComponent extends GameComponent {
         // Still alive - shake
         this.timer = SHAKE_TIME;
         if (cameraSystem) {
-          cameraSystem.shake(SHAKE_TIME, CAMERA_HIT_SHAKE_MAGNITUDE);
+          cameraSystem.shake(CAMERA_HIT_SHAKE_MAGNITUDE, SHAKE_TIME);
         }
         this.shakeStartPosition = parent.getPosition().x;
         parent.setCurrentAction(ActionType.IDLE);

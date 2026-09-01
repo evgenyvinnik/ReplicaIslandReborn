@@ -13,7 +13,6 @@ import { GameObjectTypeIndex, getObjectTypeName } from '../types/GameObjectTypes
 import { NPCComponent } from '../entities/components/NPCComponent';
 import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
-import { SnailbombComponent } from '../entities/components/SnailbombComponent';
 import { SleeperComponent } from '../entities/components/SleeperComponent';
 import { PopOutComponent } from '../entities/components/PopOutComponent';
 import { EvilKabochaComponent } from '../entities/components/EvilKabochaComponent';
@@ -43,6 +42,9 @@ import { sSystemRegistry } from '../engine/SystemRegistry';
 import { assetPath } from '../utils/helpers';
 import { useGameStore, isLevelUnlocked } from '../stores/useGameStore';
 import { levelTree, linearLevelTree, resourceToLevelId } from '../data/levelTree';
+import { resetInventory } from '../entities/components/InventoryComponent';
+import { GameFlowEventType } from '../engine/GameFlowEvent';
+import { CutsceneType } from '../data/cutscenes';
 
 // Channel names for buttons and doors (must match original)
 const RED_BUTTON_CHANNEL = 'RED BUTTON';
@@ -104,6 +106,8 @@ export class LevelSystem {
   
   // Linear mode - when true, uses linearLevelTree for sequential progression
   private isLinearMode: boolean = false;
+  /** Player hit points for this run; overridden per difficulty via setPlayerMaxLife(). */
+  private playerMaxLife: number = 3;
 
   constructor() {
     this.initializeLevelTree();
@@ -115,6 +119,15 @@ export class LevelSystem {
   setLinearMode(linear: boolean): void {
     this.isLinearMode = linear;
     // console.log(`[LevelSystem] Linear mode set to: ${linear}`);
+  }
+
+  /**
+   * Hit points the spawned player starts with. The original reads this from
+   * DifficultyConstants (Baby 5, Kids 3, Adults 2); the caller supplies it so
+   * the level system stays free of settings/store imports.
+   */
+  setPlayerMaxLife(life: number): void {
+    this.playerMaxLife = Math.max(1, Math.floor(life));
   }
   
   /**
@@ -368,6 +381,10 @@ export class LevelSystem {
   private spawnObjectsFromLayer(objectLayer: { width: number; height: number; tiles: number[][] }): void {
     if (!this.gameObjectManager) return;
 
+    // Inventory is per-level in the original game. Because the web port keeps it
+    // in a module singleton, it must be reset explicitly whenever a level loads.
+    resetInventory();
+
     // Clear all existing objects before spawning new level objects
     // This prevents crashes when transitioning between levels
     this.gameObjectManager.clear();
@@ -448,7 +465,11 @@ export class LevelSystem {
         // The collision box dimensions determine collision detection
         objWidth = 32;    // Collision box width (not sprite width)
         objHeight = 48;   // Collision box height (not sprite height)
-        obj.life = 1;     // Player starts with 1 life
+        // Hit points for the run. HitReactionComponent decrements this on every
+        // HIT, and stops reacting entirely once it reaches zero, so it has to
+        // match the difficulty's life count rather than being pinned at 1.
+        obj.life = this.playerMaxLife;
+        obj.maxLife = this.playerMaxLife;
         obj.team = Team.PLAYER;
         
         // Add PlayerComponent - CRITICAL: Game.tsx expects this to exist
@@ -526,6 +547,10 @@ export class LevelSystem {
           turnToFacePlayer: false
         });
         obj.addComponent(batPatrol);
+        // Flying patrols do not self-start from zero. The factory seeded both
+        // vectors in Android so they move before reaching a direction hotspot.
+        obj.setVelocity(75, 0);
+        obj.setTargetVelocity(75, 0);
         break;
       }
         
@@ -543,6 +568,9 @@ export class LevelSystem {
           turnToFacePlayer: false
         });
         obj.addComponent(stingPatrol);
+        // Sting intentionally starts slower than its post-turn patrol speed.
+        obj.setVelocity(25, 0);
+        obj.setTargetVelocity(25, 0);
         break;
       }
         
@@ -595,7 +623,8 @@ export class LevelSystem {
           attack: {
             enabled: true,
             atDistance: 75,
-            duration: 0.5, // Attack animation length
+            // Original attack frames: 5 + 1 + 1 frames at 24 fps.
+            duration: 7 / 24,
             delay: 2.0,
             stopsMovement: true
           }
@@ -607,16 +636,34 @@ export class LevelSystem {
       case GameObjectTypeIndex.SNAILBOMB: {
         obj.type = 'enemy';
         obj.subType = 'snailbomb';
-        objWidth = 64;   // Assumed 64x64
+        objWidth = 64;
         objHeight = 64;
         obj.activationRadius = 200;
-        // Snailbomb has special behavior - uses SnailbombComponent for patrol + shooting
-        const snailbomb = new SnailbombComponent({
-          patrolSpeed: 20.0,
-          attackRange: 300,
-          shotCount: 3
-        });
-        obj.addComponent(snailbomb);
+        obj.addComponent(new PatrolComponent({
+          maxSpeed: 20.0,
+          acceleration: 1000.0,
+          flying: false,
+          turnToFacePlayer: false,
+          attack: {
+            enabled: true,
+            atDistance: 300,
+            duration: 1.0,
+            delay: 4.0,
+            stopsMovement: true,
+          },
+        }));
+        obj.addComponent(new LaunchProjectileComponent({
+          objectTypeToSpawn: GameObjectType.CANNON_BALL,
+          offsetX: 55,
+          offsetY: 21,
+          velocityX: 100,
+          requiredAction: ActionType.ATTACK,
+          delayBetweenShots: 0.25,
+          projectilesInSet: 3,
+          setsPerActivation: 1,
+          // The Android launcher fires after the two attack frames (3 + 2).
+          delayBeforeFirstSet: 5 / 24,
+        }));
         break;
       }
         
@@ -628,13 +675,25 @@ export class LevelSystem {
         obj.activationRadius = 200;
         // Shadowslime uses PopOutComponent - appears/hides based on player distance
         const shadowslimePopOut = new PopOutComponent({
-          appearDistance: 120,
-          hideDistance: 190,
-          attackDistance: 60,
-          attackDelay: 1.0,
-          attackLength: 0.5
+          appearDistance: 2000,
+          hideDistance: 4000,
+          attackDistance: 200,
+          attackDelay: 2.0,
+          attackLength: 23 / 24
         });
         obj.addComponent(shadowslimePopOut);
+
+        // The attack animation launches one slow energy ball halfway through.
+        obj.addComponent(new LaunchProjectileComponent({
+          objectTypeToSpawn: GameObjectType.ENERGY_BALL,
+          offsetX: 44,
+          offsetY: 22,
+          velocityX: 30,
+          requiredAction: ActionType.ATTACK,
+          projectilesInSet: 1,
+          setsPerActivation: 1,
+          delayBeforeFirstSet: (23 / 24) / 2,
+        }));
         break;
       }
         
@@ -653,7 +712,8 @@ export class LevelSystem {
           attack: {
             enabled: true,
             atDistance: 70,
-            duration: 0.5, // Attack animation length
+            // Original attack frames: 2 + 2 + 2 + 2 + 1 + 1 + 8 + 5 at 24 fps.
+            duration: 23 / 24,
             delay: 0.0,
             stopsMovement: true
           }
@@ -676,6 +736,8 @@ export class LevelSystem {
           turnToFacePlayer: false
         });
         obj.addComponent(karaguinPatrol);
+        obj.setVelocity(50, 0);
+        obj.setTargetVelocity(50, 0);
         break;
       }
         
@@ -687,11 +749,11 @@ export class LevelSystem {
         obj.activationRadius = 250;
         // Pink Namazu uses SleeperComponent - sleeps until camera shakes, then jumps/slams
         const namazuSleeper = new SleeperComponent({
-          wakeUpDuration: 2.0,
-          slamDuration: 0.5,
-          slamMagnitude: 15,
-          attackImpulseX: 200,
-          attackImpulseY: -400  // Jump up (negative Y in canvas coords)
+          wakeUpDuration: 1.5,
+          slamDuration: 0.3,
+          slamMagnitude: 25,
+          attackImpulseX: 100,
+          attackImpulseY: -170  // Original uses +170 in its Y-up coordinates
         });
         obj.addComponent(namazuSleeper);
         break;
@@ -701,17 +763,34 @@ export class LevelSystem {
       case GameObjectTypeIndex.TURRET_LEFT: {
         obj.type = 'enemy';
         obj.subType = 'turret';
-        objWidth = 32;
-        objHeight = 32;
+        objWidth = 64;
+        objHeight = 64;
         obj.activationRadius = 300;
+        obj.team = Team.ENEMY;
+        obj.facingDirection.x = spawn.type === GameObjectTypeIndex.TURRET_LEFT ? -1 : 1;
         // Turret uses AttackAtDistanceComponent - stationary, shoots at player
         const turretAttack = new AttackAtDistanceComponent({
-          attackDistance: 200,
-          attackDelay: 1.0,
-          attackLength: 0.5,
-          requireFacing: false // Turret shoots in any direction
+          attackDistance: 300,
+          attackDelay: 0,
+          attackLength: 1.0,
+          requireFacing: true
         });
         obj.addComponent(turretAttack);
+
+        const turretGun = new LaunchProjectileComponent({
+          objectTypeToSpawn: GameObjectType.TURRET_BULLET,
+          offsetX: 54,
+          offsetY: 13,
+          velocityX: 300,
+          // Android Y-up -300 points down; Canvas Y-down uses +300.
+          velocityY: 300,
+          requiredAction: ActionType.ATTACK,
+          projectilesInSet: 1,
+          delayBetweenSets: 0.3,
+          setsPerActivation: -1,
+          shootSound: 'sound_gun',
+        });
+        obj.addComponent(turretGun);
         break;
       }
       
@@ -763,6 +842,19 @@ export class LevelSystem {
         
         // The Source boss component - handles shake, death sequence, explosions
         const sourceComp = new TheSourceComponent();
+        sourceComp.setOnDeathChannel(() => {
+          // The Android game broadcasts a shared "surprised NPC" channel
+          // when The Source begins collapsing. Preserve that final-arena beat
+          // by notifying whichever rival bosses are present in this level.
+          this.gameObjectManager?.forEach((candidate) => {
+            candidate.getComponent(
+              EvilKabochaComponent as unknown as new (...args: unknown[]) => EvilKabochaComponent
+            )?.triggerSurprise();
+            candidate.getComponent(
+              RokudouBossComponent as unknown as new (...args: unknown[]) => RokudouBossComponent
+            )?.triggerSurprise();
+          });
+        });
         // Configure to trigger Wanda ending on death (event 6 = SHOW_ANIMATION, index 1 = WANDA_ENDING)
         sourceComp.setGameEvent(6, 1);
         // Wire up game event callback to trigger ending cutscene
@@ -884,7 +976,7 @@ export class LevelSystem {
         objWidth = 32;
         objHeight = 32; // Use 32 for collision detection
         obj.activationRadius = 200;
-        obj.team = Team.NONE;
+        obj.team = Team.ENEMY;
         
         // Determine color for sprite and channel
         let buttonColor = 'red';
@@ -958,14 +1050,15 @@ export class LevelSystem {
         objWidth = 64;   // Sprite is 64x128
         objHeight = 128;
         obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
+        obj.team = Team.ENEMY;
+        obj.facingDirection.x = -1;
         // Add NPC movement component
         const npcComponent = new NPCComponent();
         obj.addComponent(npcComponent);
         
-        // Add LaunchProjectileComponent for energy blast attack (from original)
-        // Wanda fires energy ball when in ATTACK action
+        // Add LaunchProjectileComponent for Wanda's neutral story projectile.
         const wandaGun = new LaunchProjectileComponent({
-          objectTypeToSpawn: GameObjectType.ENERGY_BALL,
+          objectTypeToSpawn: GameObjectType.WANDA_SHOT,
           projectilesInSet: 1,
           setsPerActivation: 1,
           delayBeforeFirstSet: 11 / 24, // Utils.framesToTime(24, 11) = 11 frames at 24fps
@@ -985,7 +1078,21 @@ export class LevelSystem {
         objWidth = 64;   // Sprite is 64x128
         objHeight = 128;
         obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
-        const npcComponent2 = new NPCComponent();
+        obj.team = Team.NONE;
+        obj.facingDirection.x = -1;
+        // Kyle's final sewer sequence relies on a GAME_EVENT hotspot. Match the
+        // original's faster movement tuning and launch the Kyle death cutscene
+        // when he reaches that hotspot.
+        const npcComponent2 = new NPCComponent({
+          horizontalImpulse: 350,
+          slowHorizontalImpulse: 50,
+          upImpulse: -400,
+          downImpulse: 10,
+          acceleration: 400,
+          gameEvent: GameFlowEventType.SHOW_ANIMATION,
+          gameEventIndex: CutsceneType.KYLE_DEATH,
+          spawnGameEventOnDeath: false,
+        });
         obj.addComponent(npcComponent2);
         break;
       }
@@ -996,6 +1103,8 @@ export class LevelSystem {
         objWidth = 64;   // Sprite is 64x128
         objHeight = 128;
         obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
+        obj.team = Team.ENEMY;
+        obj.facingDirection.x = -1;
         const npcComponent3 = new NPCComponent();
         obj.addComponent(npcComponent3);
         break;
@@ -1008,21 +1117,34 @@ export class LevelSystem {
         objWidth = 128;   // Sprites are 128x128
         objHeight = 128;
         obj.activationRadius = 400; // Boss has larger activation radius
-        obj.life = 5; // Mini boss has 5 hit points
+        obj.life = 3;
+        obj.team = Team.ENEMY;
+        obj.facingDirection.x = -1;
         
         // Add SpriteComponent for rendering
         const evilKabochaSprite = new SpriteComponent();
         evilKabochaSprite.setSprite('enemy_kabocha_evil_stand');
         obj.addComponent(evilKabochaSprite);
         
+        // Kabocha is driven through the arena's NPC hotspot track in the
+        // original, even though it is also a damageable boss.
+        obj.addComponent(new NPCComponent({
+          horizontalImpulse: 50,
+          slowHorizontalImpulse: 50,
+          upImpulse: 0,
+          downImpulse: 10,
+          acceleration: 200,
+        }));
+
         // Add Evil Kabocha boss component
         const kabochaComp = new EvilKabochaComponent({
-          life: 5,
+          life: 3,
           hitPauseDuration: 1.0,
           knockbackImpulse: 300,
           deathDelay: 4.0,
           triggerEnding: true,
-          endingType: 'KABOCHA_ENDING'
+          // Defeating Kabocha leaves Rokudou in control in the original.
+          endingType: 'ROKUDOU_ENDING'
         });
         // Wire up boss death callback to trigger ending cutscene
         if (this.onBossDeathCallback) {
@@ -1040,6 +1162,8 @@ export class LevelSystem {
         objHeight = 128;
         obj.activationRadius = 400; // Boss has larger activation radius
         obj.life = 3; // Boss has 3 hit points
+        obj.team = Team.ENEMY;
+        obj.facingDirection.x = -1;
         
         // Add SpriteComponent for rendering
         const rokudouSprite = new SpriteComponent();
@@ -1052,11 +1176,25 @@ export class LevelSystem {
           attackRange: 300,
           movementSpeed: 100,
         });
+        rokudouComp.setProjectileSpawner((type, x, y, vx, vy) => {
+          const factory = sSystemRegistry.gameObjectFactory;
+          if (!factory) return;
+
+          const projectileType = type === 'energy_ball'
+            ? GameObjectType.ENERGY_BALL
+            : GameObjectType.TURRET_BULLET;
+          const projectile = factory.spawn(projectileType, x, y);
+          projectile?.setVelocity(vx, vy);
+        });
+        rokudouComp.setSoundPlayer((sound) => {
+          sSystemRegistry.soundSystem?.playSfx(sound);
+        });
         // Wire up boss death callback to trigger ending cutscene (ROKUDOU_ENDING)
         if (this.onBossDeathCallback) {
           const callback = this.onBossDeathCallback;
           rokudouComp.setGameEventTrigger((_event: string, _index: number) => {
-            callback('ROKUDOU_ENDING');
+            // Defeating Rokudou leaves Kabocha in control in the original.
+            callback('KABOCHA_ENDING');
           });
         }
         obj.addComponent(rokudouComp);
@@ -1111,10 +1249,13 @@ export class LevelSystem {
         
         // Launcher component - launches player with cannon effect
         const launcherComp = new LauncherComponent({
-          angle: Math.PI / 2, // Launch upward (90 degrees)
-          magnitude: 1500,
-          launchDelay: 0.1,
+          angle: Math.PI, // Canvas Y points down, so PI launches upward
+          magnitude: 2000,
+          launchDelay: 2.0,
           postLaunchDelay: 1.0,
+          launchEffect: GameObjectType.SMOKE_POOF,
+          launchEffectOffsetX: 32,
+          launchEffectOffsetY: 85,
           launchSound: 'sound_cannon'
         });
         obj.addComponent(launcherComp);
@@ -1146,7 +1287,10 @@ export class LevelSystem {
         objWidth = 64;
         objHeight = 64;
         obj.activationRadius = 200;
-        obj.team = Team.NONE;
+        obj.team = Team.ENEMY;
+        // BROBOT_SPAWNER_LEFT is the horizontally flipped variant; the launcher
+        // mirrors its spawn offset and velocity from facingDirection.
+        obj.facingDirection.x = spawn.type === GameObjectTypeIndex.BROBOT_SPAWNER_LEFT ? -1 : 1;
         
         // Add SpriteComponent for rendering the machine
         const spawnerSprite = new SpriteComponent();
@@ -1155,15 +1299,14 @@ export class LevelSystem {
         
         const spawnerLauncher = new LaunchProjectileComponent({
           objectTypeToSpawn: GameObjectType.ENEMY_BROBOT,
-          delayBeforeFirstSet: 2.0,
-          delayBetweenSets: 5.0,
-          setsPerActivation: 0, // Infinite
-          projectilesInSet: 1,
-          velocityX: spawn.type === GameObjectTypeIndex.BROBOT_SPAWNER_LEFT ? -100 : 100,
-          velocityY: -50,
-          trackProjectiles: false,
-          offsetX: spawn.type === GameObjectTypeIndex.BROBOT_SPAWNER_LEFT ? -32 : 32,
-          offsetY: 32
+          delayBeforeFirstSet: 3.0,
+          velocityX: 100,
+          // Android +300 launches upward; Canvas uses negative Y for up.
+          velocityY: -300,
+          trackProjectiles: true,
+          maxTrackedProjectiles: 1,
+          offsetX: 36,
+          offsetY: 50,
         });
         obj.addComponent(spawnerLauncher);
         
@@ -1197,7 +1340,7 @@ export class LevelSystem {
           objectTypeToSpawn: GameObjectType.ENEMY_BROBOT,
           delayBeforeFirstSet: 3.0,
           delayBetweenSets: 4.0,
-          setsPerActivation: 0, // Infinite
+          setsPerActivation: -1, // Infinite
           projectilesInSet: 1,
           velocityX: 0,
           velocityY: 0,
@@ -1339,8 +1482,8 @@ export class LevelSystem {
         // Dead character decorations - static sprites
         obj.type = 'decoration';
         obj.subType = spawn.type === GameObjectTypeIndex.ANDOU_DEAD ? 'andou_dead' : 'kyle_dead';
-        objWidth = 64;
-        objHeight = 64;
+        objWidth = spawn.type === GameObjectTypeIndex.KYLE_DEAD ? 128 : 64;
+        objHeight = spawn.type === GameObjectTypeIndex.KYLE_DEAD ? 32 : 64;
         obj.activationRadius = 100;
         obj.team = Team.NONE;
         // Just a static sprite, no components needed
@@ -1382,9 +1525,27 @@ export class LevelSystem {
           frames: [{ x: 0, y: 0, width: 32, height: 64, duration: 1.0 }],
           loop: false
         };
+        const nbOpeningAnim: AnimationDefinition = {
+          name: 'opening',
+          frames: [
+            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 },
+            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 }
+          ],
+          loop: false
+        };
+        const nbClosingAnim: AnimationDefinition = {
+          name: 'closing',
+          frames: [
+            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 },
+            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 }
+          ],
+          loop: false
+        };
         
         nbDoorSprite.addAnimationAtIndex(DoorAnimation.CLOSED, nbClosedAnim);
         nbDoorSprite.addAnimationAtIndex(DoorAnimation.OPEN, nbOpenAnim);
+        nbDoorSprite.addAnimationAtIndex(DoorAnimation.OPENING, nbOpeningAnim);
+        nbDoorSprite.addAnimationAtIndex(DoorAnimation.CLOSING, nbClosingAnim);
         nbDoorSprite.playAnimation(DoorAnimation.CLOSED);
         obj.addComponent(nbDoorSprite);
         
@@ -1561,18 +1722,17 @@ export class LevelSystem {
       }
 
       case GameObjectTypeIndex.WANDA_SHOT: {
-        // Wanda's projectile attack
+        // Wanda's neutral story projectile (not an enemy attack).
         obj.type = 'projectile';
         obj.subType = 'wanda_shot';
-        objWidth = 16;
-        objHeight = 16;
+        objWidth = 32;
+        objHeight = 32;
         obj.activationRadius = 200;
-        obj.team = Team.ENEMY;
+        obj.team = Team.NONE;
         
         // Lifetime
         const wandaShotLife = new LifetimeComponent();
-        wandaShotLife.setTimeUntilDeath(3.0);
-        wandaShotLife.setDieOnHitBackground(true);
+        wandaShotLife.setTimeUntilDeath(5.0);
         obj.addComponent(wandaShotLife);
         
         // Movement
@@ -1581,7 +1741,7 @@ export class LevelSystem {
         
         // Dynamic collision
         const wandaShotCollision = new DynamicCollisionComponent();
-        const wandaShotAttack = new SphereCollisionVolume(8, 8, 8, HitType.HIT);
+        const wandaShotAttack = new SphereCollisionVolume(16, 16, 16, HitType.HIT);
         wandaShotCollision.setCollisionVolumes([wandaShotAttack], null);
         obj.addComponent(wandaShotCollision);
         
@@ -1651,6 +1811,9 @@ export class LevelSystem {
     // Set object dimensions
     obj.width = objWidth;
     obj.height = objHeight;
+    if (obj.type === 'enemy' && obj.team === Team.NONE) {
+      obj.team = Team.ENEMY;
+    }
     
     // Calculate position to match original Java behavior
     // Original used Y-up coords with position at bottom-left of sprite
@@ -1677,6 +1840,14 @@ export class LevelSystem {
       posX += (this.tileWidth - objWidth) / 2;
     } else if (objWidth > this.tileWidth) {
       posX -= (objWidth - this.tileWidth) / 2;
+    }
+    if (obj.subType === 'shadowslime' || obj.subType === 'kyle_dead') {
+      // Both original objects subtract five in Y-up space to sit below their
+      // tile baseline; the equivalent Y-down conversion moves them down.
+      posY += 5;
+    } else if (obj.subType === 'rokudou') {
+      // The flying boss has no gravity and is manually aligned to the floor.
+      posY += 23;
     }
     
     obj.setPosition(posX, posY);
@@ -1737,6 +1908,8 @@ export class LevelSystem {
    */
   private spawnLevelObjects(objects: LevelObject[]): void {
     if (!this.gameObjectManager) return;
+
+    resetInventory();
 
     // Clear all existing objects before spawning new level objects
     // This prevents crashes when transitioning between levels

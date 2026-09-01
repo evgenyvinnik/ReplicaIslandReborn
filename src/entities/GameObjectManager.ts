@@ -15,6 +15,7 @@ export class GameObjectManager {
   private pendingAdditions: GameObject[] = [];
   private pendingRemovals: GameObject[] = [];
   private nextId: number = 1;
+  private componentReleaseHandler: ((object: GameObject) => void) | null = null;
 
   // For activation based on camera proximity
   private inactiveObjects: FixedSizeArray<GameObject>;
@@ -35,14 +36,21 @@ export class GameObjectManager {
    */
   reset(): void {
     this.objects.forEach((obj) => {
-      this.objectPool.release(obj);
+      this.releaseObject(obj);
     });
     this.objects.clear();
 
     this.inactiveObjects.forEach((obj) => {
-      this.objectPool.release(obj);
+      this.releaseObject(obj);
     });
     this.inactiveObjects.clear();
+
+    // A level transition can happen between update phases, while newly spawned
+    // projectiles or effects are still waiting to be committed. Release those
+    // objects too so they cannot leak into the next level or stay allocated.
+    for (const obj of this.pendingAdditions) {
+      this.releaseObject(obj);
+    }
 
     this.pendingAdditions = [];
     this.pendingRemovals = [];
@@ -55,6 +63,21 @@ export class GameObjectManager {
    */
   setCamera(camera: CameraSystem): void {
     this.camera = camera;
+  }
+
+  /**
+   * Let the factory reclaim any pooled components before an object is reset.
+   * Components created directly by the level loader are intentionally ignored
+   * by the factory's handler and remain normal garbage-collected objects.
+   */
+  setComponentReleaseHandler(handler: (object: GameObject) => void): void {
+    this.componentReleaseHandler = handler;
+  }
+
+  private releaseObject(object: GameObject): void {
+    this.componentReleaseHandler?.(object);
+    object.removeAllComponents();
+    this.objectPool.release(object);
   }
 
   /**
@@ -140,8 +163,7 @@ export class GameObjectManager {
     for (const object of this.pendingRemovals) {
       this.objects.remove(object);
       if (object.destroyOnDeactivation) {
-        object.removeAllComponents();
-        this.objectPool.release(object);
+        this.releaseObject(object);
       } else {
         object.setActive(false);
         this.inactiveObjects.add(object);

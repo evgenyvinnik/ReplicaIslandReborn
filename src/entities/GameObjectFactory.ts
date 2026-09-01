@@ -11,13 +11,20 @@ import { SpriteComponent } from './components/SpriteComponent';
 import { PhysicsComponent } from './components/PhysicsComponent';
 import { MovementComponent } from './components/MovementComponent';
 import { PlayerComponent } from './components/PlayerComponent';
+import { PatrolComponent } from './components/PatrolComponent';
+import { LaunchProjectileComponent } from './components/LaunchProjectileComponent';
 import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
-import { SnailbombComponent } from './components/SnailbombComponent';
+import { setEvilKabochaSystemRegistry } from './components/EvilKabochaComponent';
+import { setCameraBiasSystemRegistry } from './components/CameraBiasComponent';
+import { setSelectDialogSystemRegistry } from './components/SelectDialogComponent';
 import { RokudouBossComponent } from './components/RokudouBossComponent';
 import { TheSourceComponent } from './components/TheSourceComponent';
 import { LifetimeComponent } from './components/LifetimeComponent';
 import { MultiSpriteAnimComponent } from './components/MultiSpriteAnimComponent';
-import { SimpleCollisionComponent } from './components/SimpleCollisionComponent';
+import {
+  SimpleCollisionComponent,
+  setSimpleCollisionSystemRegistry,
+} from './components/SimpleCollisionComponent';
 import type { RenderSystem } from '../engine/RenderSystem';
 import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { InputSystem } from '../engine/InputSystem';
@@ -51,6 +58,7 @@ export enum GameObjectType {
   BUTTON = 'button',
   CANNON_BALL = 'cannon_ball',
   ENERGY_BALL = 'energy_ball',
+  WANDA_SHOT = 'wanda_shot',
   TURRET_BULLET = 'turret_bullet',
   THE_SOURCE = 'the_source',
 }
@@ -73,15 +81,8 @@ export class GameObjectFactory {
   // Component object pools for recycling
   private componentPools: ComponentPools;
 
-  // Game object pool
-  private objectPool: ObjectPool<GameObject>;
-
   constructor(objectManager: GameObjectManager) {
     this.objectManager = objectManager;
-    this.objectPool = new ObjectPool<GameObject>(
-      () => new GameObject(),
-      64
-    );
 
     // Initialize component pools
     this.componentPools = {
@@ -90,6 +91,24 @@ export class GameObjectFactory {
       movement: new ObjectPool(() => new MovementComponent(), 64),
       player: new ObjectPool(() => new PlayerComponent(), 4),
     };
+
+    this.objectManager.setComponentReleaseHandler((object) => {
+      this.releasePooledComponents(object);
+    });
+  }
+
+  private releasePooledComponents(obj: GameObject): void {
+    for (const component of obj.getComponents()) {
+      if (component instanceof SpriteComponent) {
+        this.componentPools.sprite.release(component);
+      } else if (component instanceof PhysicsComponent) {
+        this.componentPools.physics.release(component);
+      } else if (component instanceof MovementComponent) {
+        this.componentPools.movement.release(component);
+      } else if (component instanceof PlayerComponent) {
+        this.componentPools.player.release(component);
+      }
+    }
   }
 
   /**
@@ -121,6 +140,10 @@ export class GameObjectFactory {
    */
   setSystemRegistry(registry: SystemRegistry): void {
     setGhostSystemRegistry(registry);
+    setSimpleCollisionSystemRegistry(registry);
+    setEvilKabochaSystemRegistry(registry);
+    setCameraBiasSystemRegistry(registry);
+    setSelectDialogSystemRegistry(registry.hotSpotSystem, registry.gameFlowEvent);
   }
 
   /**
@@ -132,10 +155,11 @@ export class GameObjectFactory {
     y: number,
     facingLeft: boolean = false
   ): GameObject | null {
-    const obj = this.objectPool.allocate();
-    if (!obj) return null;
-
-    obj.reset();
+    // All managed objects must come from the manager's pool. Using a separate
+    // factory pool meant the manager could never return projectiles/ghosts to
+    // their owner, leaking every dynamically spawned entity.
+    const obj = this.objectManager.createObject();
+    obj.destroyOnDeactivation = true;
     obj.getPosition().set(x, y);
     obj.facingDirection.x = facingLeft ? -1 : 1;
 
@@ -157,6 +181,9 @@ export class GameObjectFactory {
         break;
       case GameObjectType.ENERGY_BALL:
         this.configureEnergyBall(obj);
+        break;
+      case GameObjectType.WANDA_SHOT:
+        this.configureWandaShot(obj);
         break;
       case GameObjectType.TURRET_BULLET:
         this.configureTurretBullet(obj);
@@ -255,45 +282,20 @@ export class GameObjectFactory {
    * Configure a brobot enemy
    */
   private configureEnemyBrobot(obj: GameObject): void {
+    obj.type = 'enemy';
+    obj.subType = 'brobot';
     obj.team = Team.ENEMY;
-    obj.width = 32;
-    obj.height = 32;
+    obj.width = 64;
+    obj.height = 64;
     obj.life = 1;
     obj.maxLife = 1;
-
-    // Add sprite
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('brobot');
-      sprite.setRenderSystem(this.renderSystem);
-      sprite.addAnimation('idle', {
-        frames: [
-          { x: 0, y: 0, width: 32, height: 32, duration: 0.15 },
-          { x: 32, y: 0, width: 32, height: 32, duration: 0.15 },
-        ],
-        loop: true,
-      });
-      sprite.playAnimation('idle');
-      obj.addComponent(sprite);
-    }
-
-    // Add physics
-    const physics = this.componentPools.physics.allocate();
-    if (physics) {
-      physics.setGravity(1200);
-      physics.setMaxVelocity(100, 600);
-      obj.addComponent(physics);
-    }
-
-    // Add movement
-    const movement = this.componentPools.movement.allocate();
-    if (movement && this.collisionSystem) {
-      movement.setCollisionSystem(this.collisionSystem);
-      obj.addComponent(movement);
-    }
-
-    // Set initial patrol velocity
-    obj.getTargetVelocity().x = -50;
+    obj.activationRadius = 200;
+    obj.addComponent(new PatrolComponent({
+      maxSpeed: 50,
+      acceleration: 1000,
+      flying: false,
+      turnToFacePlayer: false,
+    }));
   }
 
   /**
@@ -477,22 +479,30 @@ export class GameObjectFactory {
       obj.addComponent(movement);
     }
 
-    // Add snailbomb AI component
-    const snailbomb = new SnailbombComponent({
-      patrolSpeed: 20,
-      attackRange: 300,
-      shotCount: 3,
-    });
-    
-    // Set up projectile spawner callback
-    snailbomb.setProjectileSpawner((x, y, vx, vy) => {
-      const projectile = this.spawn(GameObjectType.CANNON_BALL, x, y);
-      if (projectile) {
-        projectile.setVelocity(vx, vy);
-      }
-    });
-    
-    obj.addComponent(snailbomb);
+    obj.addComponent(new PatrolComponent({
+      maxSpeed: 20,
+      acceleration: 1000,
+      flying: false,
+      turnToFacePlayer: false,
+      attack: {
+        enabled: true,
+        atDistance: 300,
+        duration: 1,
+        delay: 4,
+        stopsMovement: true,
+      },
+    }));
+    obj.addComponent(new LaunchProjectileComponent({
+      objectTypeToSpawn: GameObjectType.CANNON_BALL,
+      offsetX: 55,
+      offsetY: 21,
+      velocityX: 100,
+      requiredAction: ActionType.ATTACK,
+      delayBetweenShots: 0.25,
+      projectilesInSet: 3,
+      setsPerActivation: 1,
+      delayBeforeFirstSet: 5 / 24,
+    }));
   }
 
   /**
@@ -623,8 +633,10 @@ export class GameObjectFactory {
   private configureCannonBall(obj: GameObject): void {
     obj.team = Team.ENEMY;
     obj.type = 'projectile';
-    obj.width = 16;
-    obj.height = 16;
+    obj.subType = 'cannon_ball';
+    obj.width = 32;
+    obj.height = 32;
+    obj.activationRadius = 200;
     obj.life = 1;
 
     // Add sprite
@@ -633,23 +645,25 @@ export class GameObjectFactory {
       sprite.setSprite('snail_bomb');
       sprite.setRenderSystem(this.renderSystem);
       sprite.addAnimation('fly', {
-        frames: [
-          { x: 0, y: 0, width: 16, height: 16, duration: 0.1 },
-          { x: 16, y: 0, width: 16, height: 16, duration: 0.1 },
-        ],
+        frames: [{ x: 0, y: 0, width: 32, height: 32, duration: 0.1 }],
         loop: true,
       });
       sprite.playAnimation('fly');
       obj.addComponent(sprite);
     }
 
-    // Add physics (no gravity for horizontal travel)
-    const physics = this.componentPools.physics.allocate();
-    if (physics) {
-      physics.setUseGravity(false);
-      physics.setMaxVelocity(300, 300);
-      obj.addComponent(physics);
-    }
+    // Projectiles carry an initial velocity from their launcher. The original
+    // uses MovementComponent directly so shots do not lose speed to friction.
+    const movement = this.componentPools.movement.allocate();
+    obj.addComponent(movement);
+
+    // Cannon balls disappear when they hit level geometry, matching the
+    // original game's SimpleCollision + Lifetime configuration.
+    obj.addComponent(new SimpleCollisionComponent());
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(3.0);
+    lifetime.setDieOnHitBackground(true);
+    obj.addComponent(lifetime);
   }
 
   /**
@@ -658,8 +672,10 @@ export class GameObjectFactory {
   private configureEnergyBall(obj: GameObject): void {
     obj.team = Team.ENEMY;
     obj.type = 'projectile';
+    obj.subType = 'energy_ball';
     obj.width = 32;
     obj.height = 32;
+    obj.activationRadius = 300;
     obj.life = 1;
 
     // Add multi-sprite animated component for energy ball
@@ -675,13 +691,8 @@ export class GameObjectFactory {
       obj.addComponent(multiSprite);
     }
 
-    // Add physics (no gravity for straight projectile - like Wanda's attack)
-    const physics = this.componentPools.physics.allocate();
-    if (physics) {
-      physics.setGravity(0);  // Straight trajectory
-      physics.setMaxVelocity(500, 500);
-      obj.addComponent(physics);
-    }
+    const movement = this.componentPools.movement.allocate();
+    obj.addComponent(movement);
 
     // Add simple collision for background collision detection (ray casting)
     const simpleCollision = new SimpleCollisionComponent();
@@ -689,8 +700,38 @@ export class GameObjectFactory {
 
     // Add lifetime component so projectile disappears after some time
     const lifetime = new LifetimeComponent();
-    lifetime.setTimeUntilDeath(3.0);
+    lifetime.setTimeUntilDeath(5.0);
     lifetime.setDieOnHitBackground(true);
+    obj.addComponent(lifetime);
+  }
+
+  /** Configure Wanda's neutral, straight-traveling story projectile. */
+  private configureWandaShot(obj: GameObject): void {
+    obj.team = Team.NONE;
+    obj.type = 'projectile';
+    obj.subType = 'wanda_shot';
+    obj.width = 32;
+    obj.height = 32;
+    obj.activationRadius = 200;
+    obj.life = 1;
+
+    const multiSprite = new MultiSpriteAnimComponent();
+    if (this.renderSystem) {
+      multiSprite.setRenderSystem(this.renderSystem);
+      multiSprite.setSpriteSequence(
+        ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'],
+        1 / 24,
+        true
+      );
+      obj.addComponent(multiSprite);
+    }
+
+    obj.addComponent(this.componentPools.movement.allocate());
+
+    // Unlike enemy energy balls, the original Wanda shot does not collide
+    // with the background and remains alive for the full story beat.
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(5.0);
     obj.addComponent(lifetime);
   }
 
@@ -700,18 +741,20 @@ export class GameObjectFactory {
   private configureTurretBullet(obj: GameObject): void {
     obj.team = Team.ENEMY;
     obj.type = 'projectile';
-    obj.width = 8;
-    obj.height = 8;
+    obj.subType = 'turret_bullet';
+    obj.width = 16;
+    obj.height = 16;
+    obj.activationRadius = 200;
     obj.life = 1;
 
     // Add sprite
     const sprite = this.componentPools.sprite.allocate();
     if (sprite && this.renderSystem) {
-      sprite.setSprite('bullet');
+      sprite.setSprite('shot01');
       sprite.setRenderSystem(this.renderSystem);
       sprite.addAnimation('fly', {
         frames: [
-          { x: 0, y: 0, width: 8, height: 8, duration: 0.1 },
+          { x: 0, y: 0, width: 16, height: 16, duration: 0.1 },
         ],
         loop: true,
       });
@@ -719,13 +762,12 @@ export class GameObjectFactory {
       obj.addComponent(sprite);
     }
 
-    // Add physics (no gravity)
-    const physics = this.componentPools.physics.allocate();
-    if (physics) {
-      physics.setUseGravity(false);
-      physics.setMaxVelocity(500, 500);
-      obj.addComponent(physics);
-    }
+    const movement = this.componentPools.movement.allocate();
+    obj.addComponent(movement);
+
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(3.0);
+    obj.addComponent(lifetime);
   }
 
   /**
@@ -735,8 +777,8 @@ export class GameObjectFactory {
   private configureGhost(obj: GameObject): void {
     obj.team = Team.PLAYER;
     obj.type = 'ghost';
-    obj.width = 32;
-    obj.height = 32;
+    obj.width = 64;
+    obj.height = 64;
     obj.life = 1;
 
     // Add sprite component (ghost sprite)
@@ -836,28 +878,11 @@ export class GameObjectFactory {
    * Despawn a game object and return it to the pool
    */
   despawn(obj: GameObject): void {
-    // Return components to pools
-    const components = obj.getComponents();
-    for (const component of components) {
-      if (component instanceof SpriteComponent) {
-        component.reset();
-        this.componentPools.sprite.release(component);
-      } else if (component instanceof PhysicsComponent) {
-        component.reset();
-        this.componentPools.physics.release(component);
-      } else if (component instanceof MovementComponent) {
-        this.componentPools.movement.release(component);
-      } else if (component instanceof PlayerComponent) {
-        this.componentPools.player.release(component);
-      }
-    }
+    obj.destroyOnDeactivation = true;
 
-    // Remove from manager
+    // The manager releases both the object's pooled components and the object
+    // itself when the pending removal is committed.
     this.objectManager.remove(obj);
-
-    // Reset and return to pool
-    obj.reset();
-    this.objectPool.release(obj);
   }
 
   /**
@@ -911,7 +936,6 @@ export class GameObjectFactory {
     this.componentPools.physics.clear();
     this.componentPools.movement.clear();
     this.componentPools.player.clear();
-    this.objectPool.clear();
   }
   /**
    * Configure The Source (final boss)

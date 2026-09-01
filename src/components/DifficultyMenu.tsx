@@ -14,6 +14,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useGameContext } from '../context/GameContext';
 import { GameState } from '../types';
 import { assetPath } from '../utils/helpers';
+import { useGameStore } from '../stores/useGameStore';
 
 export type Difficulty = 'baby' | 'kids' | 'adults';
 
@@ -88,6 +89,8 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
     if (onSelect) {
       onSelect(option.id);
     }
+
+    useGameStore.getState().addToTotalStats({ gamesStarted: 1 });
     
     // Trigger fade out after flicker animation
     setTimeout(() => {

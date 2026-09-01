@@ -10,13 +10,16 @@
 import React, { useState } from 'react';
 import { useGameContext } from '../context/GameContext';
 import { assetPath } from '../utils/helpers';
+import { useGameStore } from '../stores/useGameStore';
+import { hasPersistedGameProgress } from '../stores/progressUtils';
 
 export function MainMenu(): React.JSX.Element {
-  const { startNewGame, startGame, goToLevelSelect, goToOptions, goToExtras, state } = useGameContext();
+  const { startNewGame, startGame, goToLevelSelect, goToOptions, goToExtras } = useGameContext();
   const [imagesLoaded, setImagesLoaded] = useState(false);
+  const progress = useGameStore((store) => store.progress);
 
   // Determine if there's a saved game to continue
-  const hasSavedProgress = state.saveData.completedLevels.length > 0 || state.currentLevel > 1;
+  const hasSavedProgress = hasPersistedGameProgress(progress.levels, progress.currentLevel);
 
   return (
     <div
@@ -97,7 +100,7 @@ export function MainMenu(): React.JSX.Element {
             <ImageButton 
               src={assetPath('/assets/sprites/ui_button_continue.png')} 
               alt="Continue Game"
-              onClick={(): void => startGame(state.currentLevel)} 
+              onClick={(): void => startGame(progress.currentLevel)}
             />
           ) : (
             <ImageButton 

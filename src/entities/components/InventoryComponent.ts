@@ -46,15 +46,23 @@ export function setInventory(updates: Partial<InventoryRecord>): void {
   notifyInventoryListeners();
 }
 
-export function resetInventory(): void {
+/**
+ * Reset the inventory for a new level.
+ *
+ * The original hands out lives from DifficultyConstants (Baby 5, Kids 3,
+ * Adults 2), so the caller passes the difficulty's max. Defaults to the Kids
+ * value when no difficulty is supplied.
+ */
+export function resetInventory(startingLives: number = 3): void {
+  const lives = Math.max(1, Math.floor(startingLives));
   globalInventory = {
     coinCount: 0,
     rubyCount: 0,
     diaryCount: 0,
     pearls: 0,
     totalPearls: 3,
-    lives: 3,
-    maxLives: 5,
+    lives,
+    maxLives: Math.max(lives, 5),
     fuel: 1.0,
     maxFuel: 1.0,
     score: 0,

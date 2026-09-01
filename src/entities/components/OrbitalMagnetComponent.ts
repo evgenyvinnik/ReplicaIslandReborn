@@ -17,6 +17,7 @@ import { GameObject } from '../GameObject';
 import { ComponentPhase } from '../../types';
 import { Vector2 } from '../../utils/Vector2';
 import { GravityComponent } from './GravityComponent';
+import { PlayerComponent } from './PlayerComponent';
 import { sSystemRegistry } from '../../engine/SystemRegistry';
 
 export interface OrbitalMagnetConfig {
@@ -180,6 +181,13 @@ export class OrbitalMagnetComponent extends GameComponent {
         this.velocity.set(gravityVec.x * deltaTime, gravityVec.y * deltaTime);
         targetVelocity.x -= this.velocity.x;
         targetVelocity.y -= this.velocity.y;
+      } else if (this.target.getComponent(
+        PlayerComponent as unknown as new (...args: unknown[]) => PlayerComponent
+      )) {
+        // The web player integrates gravity inside PlayerComponent instead of
+        // carrying the standalone GravityComponent used by Android. Cancel the
+        // same per-frame impulse so The Source's orbit does not drag Andou down.
+        targetVelocity.y -= PlayerComponent.GRAVITY * deltaTime;
       }
       
       // Calculate the next point on the magnet circle in the direction of movement

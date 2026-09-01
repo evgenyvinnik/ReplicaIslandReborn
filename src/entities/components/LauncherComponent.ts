@@ -147,19 +147,15 @@ export class LauncherComponent extends GameComponent {
     // Spawn launch effect
     if (this.launchEffect !== GameObjectType.INVALID) {
       const factory = sSystemRegistry.gameObjectFactory;
-      const manager = sSystemRegistry.gameObjectManager;
-
-      if (factory && manager) {
+      if (factory) {
         const position = parentObject.getPosition();
-        const effect = factory.spawn(
+        factory.spawn(
           this.launchEffect,
           position.x + this.launchEffectOffsetX * parentObject.facingDirection.x,
           position.y + this.launchEffectOffsetY * parentObject.facingDirection.y
         );
 
-        if (effect) {
-          manager.add(effect);
-        }
+        // factory.spawn() already queues the effect with the manager.
       }
     }
   }

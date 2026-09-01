@@ -53,6 +53,7 @@ export class LaunchProjectileComponent extends GameComponent {
   private trackProjectiles: boolean = false;
   private maxTrackedProjectiles: number = 0;
   private trackedProjectileCount: number = 0;
+  private trackedProjectileIds: Set<number> = new Set();
 
   private workingVector: Vector2 = new Vector2();
   private shootSound: string | null = null;
@@ -98,6 +99,7 @@ export class LaunchProjectileComponent extends GameComponent {
     this.trackProjectiles = false;
     this.maxTrackedProjectiles = 0;
     this.trackedProjectileCount = 0;
+    this.trackedProjectileIds.clear();
     this.thetaError = 0;
     this.shootSound = null;
   }
@@ -109,6 +111,10 @@ export class LaunchProjectileComponent extends GameComponent {
     if (!time) return;
 
     const gameTime = time.getGameTime();
+
+    if (this.trackProjectiles) {
+      this.reconcileTrackedProjectiles();
+    }
 
     // Debug: Log when checking for launch
     if (parentObject.subType === 'wanda') {
@@ -212,8 +218,7 @@ export class LaunchProjectileComponent extends GameComponent {
 
       if (this.trackProjectiles) {
         this.trackedProjectileCount++;
-        // Note: In the original, projectiles have LifetimeComponent that calls back
-        // to trackedProjectileDestroyed. This needs a callback mechanism.
+        this.trackedProjectileIds.add(object.id);
       }
 
       // NOTE: Object already added to manager by factory.spawn(), so don't add again
@@ -233,12 +238,42 @@ export class LaunchProjectileComponent extends GameComponent {
    * Called when a tracked projectile is destroyed
    */
   trackedProjectileDestroyed(): void {
+    if (this.trackedProjectileIds.size > 0) {
+      const firstId = this.trackedProjectileIds.values().next().value as number | undefined;
+      if (firstId !== undefined) this.trackedProjectileIds.delete(firstId);
+    }
     if (this.trackedProjectileCount === this.maxTrackedProjectiles) {
       // Restart the set
       this.setStartedTime = -1;
       this.setCount = 0;
     }
-    this.trackedProjectileCount--;
+    this.trackedProjectileCount = this.trackedProjectileIds.size;
+  }
+
+  /**
+   * The Android LifetimeComponent calls trackedProjectileDestroyed directly.
+   * Web deaths can be handled by the frame's explicit collision pipeline, so
+   * reconcile manager IDs here to preserve the same one-at-a-time contract.
+   */
+  private reconcileTrackedProjectiles(): void {
+    if (this.trackedProjectileIds.size === 0) return;
+
+    const manager = sSystemRegistry.gameObjectManager;
+    if (!manager) return;
+    const activeIds = new Set(manager.getActiveObjects().map((object) => object.id));
+    let removedAny = false;
+    for (const id of this.trackedProjectileIds) {
+      if (!activeIds.has(id)) {
+        this.trackedProjectileIds.delete(id);
+        removedAny = true;
+      }
+    }
+
+    this.trackedProjectileCount = this.trackedProjectileIds.size;
+    if (removedAny) {
+      this.setStartedTime = -1;
+      this.setCount = 0;
+    }
   }
 
   // Setters
@@ -294,6 +329,8 @@ export class LaunchProjectileComponent extends GameComponent {
   disableProjectileTracking(): void {
     this.maxTrackedProjectiles = 0;
     this.trackProjectiles = false;
+    this.trackedProjectileCount = 0;
+    this.trackedProjectileIds.clear();
   }
 
   setThetaError(error: number): void {

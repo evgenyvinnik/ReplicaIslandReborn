@@ -137,6 +137,8 @@ export class PlayerComponent extends GameComponent {
     const position = parent.getPosition();
     const gameTime = this.stateTimer; // Using local timer as gameTime approximation
     this.stateTimer += deltaTime;
+    const acceptsPlayerInput = this.currentState === PlayerState.MOVE ||
+      this.currentState === PlayerState.STOMP;
 
     // Save previous ground state for landing detection
     this.wasTouchingGround = this.touchingGround;
@@ -171,7 +173,7 @@ export class PlayerComponent extends GameComponent {
     const maxHorizontalSpeed = inTheAir ? PlayerComponent.MAX_AIR_HORIZONTAL_SPEED : PlayerComponent.MAX_GROUND_HORIZONTAL_SPEED;
 
     // Apply horizontal impulse
-    if (moveX !== 0) {
+    if (acceptsPlayerInput && moveX !== 0) {
       const impulseX = moveX * horizontalSpeed * deltaTime;
       const newSpeed = Math.abs(velocity.x + impulseX);
       
@@ -195,7 +197,7 @@ export class PlayerComponent extends GameComponent {
     }
 
     // Jump/Fly
-    if (input.jump) {
+    if (acceptsPlayerInput && input.jump) {
       if (this.touchingGround && !this.rocketsOn) {
         // Initial jump from ground
         velocity.y = -PlayerComponent.AIR_VERTICAL_IMPULSE_FROM_GROUND;
@@ -219,7 +221,7 @@ export class PlayerComponent extends GameComponent {
     }
 
     // Stomp attack
-    if (input.attack && inTheAir && !this.stomping && this.currentState === PlayerState.MOVE) {
+    if (acceptsPlayerInput && input.attack && inTheAir && !this.stomping && this.currentState === PlayerState.MOVE) {
       this.currentState = PlayerState.STOMP;
       this.stomping = true;
       this.stompTime = gameTime;
@@ -255,19 +257,23 @@ export class PlayerComponent extends GameComponent {
     }
 
     // Ghost mechanic
-    if (input.attack && this.touchingGround && !this.stomping && !this.ghostActive) {
+    if (this.currentState === PlayerState.MOVE && input.attack && this.touchingGround && !this.stomping && !this.ghostActive) {
       this.ghostChargeTime += deltaTime;
       
       if (this.ghostChargeTime >= PlayerComponent.GHOST_CHARGE_TIME) {
         this.ghostActive = true;
         this.ghostChargeTime = 0;
-        this.soundSystem.playSfx(SoundEffects.POSSESSION, 0.7);
-        
         // Ghost spawning handled in Game.tsx via state check
         this.currentState = PlayerState.FROZEN;
       }
     } else if (!input.attack) {
       this.ghostChargeTime = 0;
+    }
+
+    if (this.ghostActive) {
+      velocity.zero();
+      parent.getTargetVelocity().zero();
+      return;
     }
     
     // Post-ghost delay
@@ -420,5 +426,15 @@ export class PlayerComponent extends GameComponent {
     this.glowMode = false;
     this.glowTime = 0;
     this.coinsForPowerup = 0;
+  }
+
+  /** Return control to Andou after a ghost expires or is released. */
+  deactivateGhost(delay: number = 0): void {
+    this.ghostActive = false;
+    this.ghostChargeTime = 0;
+    this.postGhostDelay = Math.max(0, delay);
+    this.currentState = this.postGhostDelay > 0
+      ? PlayerState.POST_GHOST_DELAY
+      : PlayerState.MOVE;
   }
 }

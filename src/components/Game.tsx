@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useGameContext } from '../context/GameContext';
-import { GameState, ActionType, HitType } from '../types';
+import { GameState, ActionType, HitType, Team } from '../types';
 import { GameLoop } from '../engine/GameLoop';
 import { SystemRegistry, sSystemRegistry } from '../engine/SystemRegistry';
 import { RenderSystem } from '../engine/RenderSystem';
@@ -31,12 +31,21 @@ import { CanvasEndingStatsScreen } from '../engine/CanvasEndingStatsScreen';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { GameObject } from '../entities/GameObject';
+import { resetPlayerRuntimeState } from '../entities/resetPlayerRuntimeState';
+import { applyPlayerAttack, canPlayerAttackTarget } from '../entities/applyPlayerAttack';
+import { applyHostileProjectileToSource } from '../entities/applyHostileProjectile';
+import { enemyCanDamagePlayer } from '../entities/enemyCanDamagePlayer';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { PatrolComponent } from '../entities/components/PatrolComponent';
+import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
+import { LauncherComponent } from '../entities/components/LauncherComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
+import { RokudouAnimation, RokudouBossComponent } from '../entities/components/RokudouBossComponent';
+import { EvilKabochaComponent } from '../entities/components/EvilKabochaComponent';
+import { GhostComponent } from '../entities/components/GhostComponent';
 import { setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
 import { LevelSystem } from '../levels/LevelSystemNew';
 import { TileMapRenderer } from '../levels/TileMapRenderer';
@@ -49,6 +58,7 @@ import { assetPath } from '../utils/helpers';
 import { CutsceneType, getCutscene } from '../data/cutscenes';
 import { UIStrings } from '../data/strings';
 import { useGameStore } from '../stores/useGameStore';
+import { resourceToLevelId } from '../data/levelTree';
 
 interface GameProps {
   width?: number;
@@ -62,7 +72,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   // console.log('[Game] Component rendering, width:', width, 'height:', height);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { state, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, endCutscene, goToMainMenu } = useGameContext();
+  const { state, pauseGame, resumeGame, gameOver, completeLevel, markLevelComplete, setLevel, playCutscene, endCutscene, goToMainMenu } = useGameContext();
   
   // Zustand store for persistent progress/scores - use individual selectors to avoid infinite loops
   const storeCompleteLevel = useGameStore((s) => s.completeLevel);
@@ -99,6 +109,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   
   // Track if level completion has been processed (to prevent infinite loops)
   const levelCompleteProcessedRef = useRef<number | null>(null);
+  const endingCompletionProcessedRef = useRef<number | null>(null);
+  const activeGhostRef = useRef<GameObject | null>(null);
+  const possessedPatrolsRef = useRef<Map<number, PatrolComponent>>(new Map());
+  const possessedAttacksRef = useRef<Map<number, AttackAtDistanceComponent>>(new Map());
+
+  // Prevent a hotspot from scheduling the same asynchronous level transition
+  // on several consecutive fixed-update frames.
+  const levelTransitionInProgressRef = useRef(false);
   
   // Decoration smoke effect timing (for ANDOU_DEAD)
   const decorationSmokeTimerRef = useRef<Map<number, number>>(new Map());
@@ -113,15 +131,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     if (gameObjectManager) {
       const player = gameObjectManager.getPlayer();
       if (player) {
-         // We need to find the PlayerComponent
-         // Since we don't have a direct reference here, we might need to iterate or assume it's there
-         // But for now, let's assume the player object has a reset method or we reset components
-         // Actually, GameObject doesn't have reset. Components do.
-         // We should iterate components and reset them.
-         player.reset();
-         
-         // Specifically reset PlayerComponent if we can find it
-         // For now, player.reset() resets all components which is correct.
+        activeGhostRef.current = null;
+        possessedPatrolsRef.current.clear();
+        possessedAttacksRef.current.clear();
+        resetPlayerRuntimeState(player);
       }
     }
   }, []);
@@ -129,6 +142,40 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const [isInitialized, setIsInitialized] = useState(false);
   const [scale, setScale] = useState(1);
   const [levelLoading, setLevelLoading] = useState(true);
+
+  const recordAutomaticLevelCompletion = useCallback((levelId: number): void => {
+    const inventory = getInventory();
+    const elapsedTime = Math.max(0, (Date.now() - levelStartTimeRef.current) / 1000);
+
+    markLevelComplete(levelId);
+    storeCompleteLevel(levelId, inventory.score, elapsedTime);
+    storeAddToTotalStats({
+      totalPlayTime: elapsedTime,
+      totalScore: inventory.score,
+      totalCoinsCollected: inventory.coinCount,
+      totalRubiesCollected: inventory.rubyCount,
+    });
+  }, [markLevelComplete, storeAddToTotalStats, storeCompleteLevel]);
+
+  const recordEndingCompletion = useCallback((): void => {
+    const levelSystem = levelSystemRef.current;
+    const levelId = levelSystem?.getCurrentLevelId() ?? currentLevelRef.current;
+    const finalLevelId = resourceToLevelId.level_final_boss_lab;
+
+    if (levelId !== finalLevelId || endingCompletionProcessedRef.current === levelId) {
+      return;
+    }
+    endingCompletionProcessedRef.current = levelId;
+
+    recordAutomaticLevelCompletion(levelId);
+    levelSystem?.completeCurrentLevel();
+    storeAddToTotalStats({
+      totalEnemiesDefeated: 1,
+      gamesCompleted: 1,
+    });
+    storeUnlockExtra('linearMode');
+    storeUnlockExtra('levelSelect');
+  }, [recordAutomaticLevelCompletion, storeAddToTotalStats, storeUnlockExtra]);
   
   // Use ref for current level to avoid dependency issues
   const currentLevelRef = useRef(state.currentLevel);
@@ -234,8 +281,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
           }
         }
+      } else if (event === GameFlowEventType.SHOW_ANIMATION) {
+        // Scripted NPC events use the original animation indices, which are
+        // kept aligned with CutsceneType in this port.
+        if (dataIndex >= CutsceneType.KYLE_DEATH && dataIndex <= CutsceneType.ROKUDOU_ENDING) {
+          playCutscene(dataIndex as CutsceneType);
+        }
       } else if (event === GameFlowEventType.GO_TO_NEXT_LEVEL) {
         // NPC reached end of level - advance to next level
+        if (levelTransitionInProgressRef.current) return;
+        levelTransitionInProgressRef.current = true;
+
         const levelSystem = levelSystemRef.current;
         const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
         if (levelSystem && gameObjectManager) {
@@ -243,10 +299,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           const currentLevelInfo = levelSystem.getLevelInfo(levelSystem.getCurrentLevelId());
           const wasInThePast = currentLevelInfo?.inThePast ?? false;
           
-          const nextLevelId = levelSystem.getNextLevelId();
+          const completedLevelId = levelSystem.getCurrentLevelId();
+          const nextLevelId = levelSystem.completeCurrentLevel();
+          recordAutomaticLevelCompletion(completedLevelId);
           // console.log('[Game] NPC triggered GO_TO_NEXT_LEVEL - advancing to:', nextLevelId);
           if (nextLevelId !== null) {
             levelSystem.unlockLevel(nextLevelId);
+            prevLevelRef.current = nextLevelId;
             setLevel(nextLevelId);
             setLevelLoading(true);
             hasShownIntroDialogRef.current = false;
@@ -254,6 +313,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               if (!success) {
                 // console.error('[Game] Failed to load next level (NPC trigger):', nextLevelId);
                 setLevelLoading(false);
+                levelTransitionInProgressRef.current = false;
                 goToMainMenu();
                 return;
               }
@@ -309,15 +369,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               }
               
               setLevelLoading(false);
+              levelTransitionInProgressRef.current = false;
             }).catch(() => {
               setLevelLoading(false);
+              levelTransitionInProgressRef.current = false;
               goToMainMenu();
             });
           } else {
             // No next level available - go to main menu
             // console.log('[Game] No next level available from NPC trigger, returning to main menu');
+            levelTransitionInProgressRef.current = false;
             goToMainMenu();
           }
+        } else {
+          levelTransitionInProgressRef.current = false;
         }
       }
     };
@@ -327,7 +392,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     return (): void => {
       gameFlowEvent.removeListener(handleGameFlowEvent);
     };
-  }, [isInitialized, setLevel, goToMainMenu, resetPlayerState, storeRecordLevelAttempt]);
+  }, [isInitialized, setLevel, playCutscene, goToMainMenu, recordAutomaticLevelCompletion, resetPlayerState, storeRecordLevelAttempt]);
 
   // Track previous level to detect level changes
   const prevLevelRef = useRef(state.currentLevel);
@@ -464,6 +529,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           gameOver();
         } else if (cutscene.isEnding) {
           // Ending cutscenes show stats then return to main menu
+          recordEndingCompletion();
           endCutscene();
           
           // Show ending stats screen
@@ -472,7 +538,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             // Get total stats from store
             const gameState = useGameStore.getState();
             const totalStats = gameState.progress.totalStats;
-            const inventory = getInventory();
             
             // Determine ending type based on cutscene
             let endingType: 'good' | 'bad' | 'neutral' = 'neutral';
@@ -485,7 +550,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             
             canvasEndingStats.show({
               totalPlayTime: totalStats.totalPlayTime,
-              totalScore: inventory.score,
+              totalScore: totalStats.totalScore,
               totalCoinsCollected: totalStats.totalCoinsCollected,
               totalRubiesCollected: totalStats.totalRubiesCollected,
               totalEnemiesDefeated: totalStats.totalEnemiesDefeated,
@@ -501,6 +566,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             // Fallback: just return to main menu
             goToMainMenu();
           }
+        } else if (state.activeCutscene === CutsceneType.KYLE_DEATH) {
+          // Android's AnimationPlayerActivity always advanced the story after
+          // this scripted animation returned to the game.
+          endCutscene();
+          gameFlowEvent.postImmediate(GameFlowEventType.GO_TO_NEXT_LEVEL, 0);
         } else {
           endCutscene();
         }
@@ -510,7 +580,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     } else {
       canvasCutscene.stop();
     }
-  }, [state.gameState, state.activeCutscene, endCutscene, gameOver, goToMainMenu]);
+  }, [state.gameState, state.activeCutscene, endCutscene, gameOver, goToMainMenu, recordEndingCompletion]);
 
   // Handle Canvas Pause Menu when game state changes
   useEffect(() => {
@@ -617,6 +687,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // Update total stats
       storeAddToTotalStats({
+        totalPlayTime: elapsedTime,
+        totalScore: inventory.score,
         totalCoinsCollected: inventory.coinCount,
         totalRubiesCollected: inventory.rubyCount,
       });
@@ -632,10 +704,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             const currentLevelInfo = levelSys.getLevelInfo(state.currentLevel);
             const wasInThePast = currentLevelInfo?.inThePast ?? false;
             
-            const nextLevelId = levelSys.getNextLevelId();
+            const nextLevelId = levelSys.completeCurrentLevel();
             // console.log('[Game] Level complete - next level ID:', nextLevelId);
             if (nextLevelId !== null) {
               levelSys.unlockLevel(nextLevelId);
+              prevLevelRef.current = nextLevelId;
               setLevel(nextLevelId);
               setLevelLoading(true); // Mark level as loading
               hasShownIntroDialogRef.current = false;
@@ -734,7 +807,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         levelCompleteProcessedRef.current = null;
       }
     }
-  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState, storeRecordLevelAttempt]);
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState, storeAddToTotalStats, storeCompleteLevel, storeLevelProgress, storeRecordLevelAttempt, storeUnlockExtra]);
 
   // Attach/detach Canvas Controls when settings change
   useEffect(() => {
@@ -851,6 +924,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const levelSystem = new LevelSystem();
     levelSystem.setSystems(collisionSystem, gameObjectManager, hotSpotSystem);
     levelSystem.setLinearMode(state.isLinearMode); // Set linear mode from context
+    levelSystem.setPlayerMaxLife(getDifficultySettings().playerMaxLife);
     
     // Set up boss death callback to trigger ending cutscenes
     levelSystem.setOnBossDeathCallback((endingType: string) => {
@@ -1050,6 +1124,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'object_terminal03', file: 'object_terminal03', w: 64, h: 64 },
         // Hint sign sprite
         { name: 'object_sign', file: 'object_sign', w: 32, h: 32 },
+        // Campaign machinery
+        { name: 'object_cannon', file: 'object_cannon', w: 64, h: 128 },
+        { name: 'object_brobot_machine', file: 'object_brobot_machine', w: 64, h: 64 },
+        { name: 'object_gunturret01', file: 'object_gunturret01', w: 64, h: 64 },
+        { name: 'object_gunturret02', file: 'object_gunturret02', w: 64, h: 64 },
+        { name: 'object_gunturret03', file: 'object_gunturret03', w: 64, h: 64 },
+        { name: 'object_gunturret_idle', file: 'object_gunturret_idle', w: 64, h: 64 },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -1090,6 +1171,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'skeleton_walk03', file: 'enemy_skeleton_walk03', w: 64, h: 64 },
         { name: 'skeleton_walk04', file: 'enemy_skeleton_walk04', w: 64, h: 64 },
         { name: 'skeleton_walk05', file: 'enemy_skeleton_walk05', w: 64, h: 64 },
+        { name: 'skeleton_attack01', file: 'enemy_skeleton_attack01', w: 64, h: 64 },
+        { name: 'skeleton_attack03', file: 'enemy_skeleton_attack03', w: 64, h: 64 },
+        { name: 'skeleton_attack04', file: 'enemy_skeleton_attack04', w: 64, h: 64 },
         // Karaguin enemy - 3 frames (32x32 actual size)
         { name: 'karaguin01', file: 'enemy_karaguin01', w: 32, h: 32 },
         { name: 'karaguin02', file: 'enemy_karaguin02', w: 32, h: 32 },
@@ -1101,6 +1185,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'mudman_walk01', file: 'enemy_mud_walk01', w: 128, h: 128 },
         { name: 'mudman_walk02', file: 'enemy_mud_walk02', w: 128, h: 128 },
         { name: 'mudman_walk03', file: 'enemy_mud_walk03', w: 128, h: 128 },
+        { name: 'mudman_walk04', file: 'enemy_mud_walk04', w: 128, h: 128 },
+        { name: 'mudman_walk05', file: 'enemy_mud_walk05', w: 128, h: 128 },
+        { name: 'mudman_walk06', file: 'enemy_mud_walk06', w: 128, h: 128 },
+        { name: 'mudman_attack01', file: 'enemy_mud_attack01', w: 128, h: 128 },
+        { name: 'mudman_attack02', file: 'enemy_mud_attack02', w: 128, h: 128 },
+        { name: 'mudman_attack03', file: 'enemy_mud_attack03', w: 128, h: 128 },
+        { name: 'mudman_attack04', file: 'enemy_mud_attack04', w: 128, h: 128 },
+        { name: 'mudman_attack05', file: 'enemy_mud_attack05', w: 128, h: 128 },
+        { name: 'mudman_attack06', file: 'enemy_mud_attack06', w: 128, h: 128 },
+        { name: 'mudman_attack07', file: 'enemy_mud_attack07', w: 128, h: 128 },
         // Pink Namazu enemy (128x128 actual size - sleeping enemy that wakes up)
         { name: 'pinknamazu_stand', file: 'enemy_pinkdude_stand', w: 128, h: 128 },
         { name: 'pinknamazu_sleep01', file: 'enemy_pinkdude_sleep01', w: 128, h: 128 },
@@ -1111,6 +1205,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'shadowslime_stand', file: 'enemy_shadowslime_stand', w: 64, h: 64 },
         { name: 'shadowslime_idle01', file: 'enemy_shadowslime_idle01', w: 64, h: 64 },
         { name: 'shadowslime_idle02', file: 'enemy_shadowslime_idle02', w: 64, h: 64 },
+        { name: 'shadowslime_attack01', file: 'enemy_shadowslime_attack01', w: 64, h: 64 },
+        { name: 'shadowslime_attack02', file: 'enemy_shadowslime_attack02', w: 64, h: 64 },
+        { name: 'shadowslime_attack03', file: 'enemy_shadowslime_attack03', w: 64, h: 64 },
+        { name: 'shadowslime_attack04', file: 'enemy_shadowslime_attack04', w: 64, h: 64 },
+        { name: 'shadowslime_flash', file: 'enemy_shadowslime_flash', w: 64, h: 64 },
         // NPC sprites (64x128 actual size for wanda/kyle, 64x128 for kabocha)
         { name: 'wanda_stand', file: 'enemy_wanda_stand', w: 64, h: 128 },
         { name: 'enemy_wanda_stand', file: 'enemy_wanda_stand', w: 64, h: 128 },
@@ -1130,8 +1229,30 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'enemy_wanda_jump01', file: 'enemy_wanda_jump01', w: 64, h: 128 },
         { name: 'enemy_wanda_jump02', file: 'enemy_wanda_jump02', w: 64, h: 128 },
         { name: 'enemy_wanda_crouch', file: 'enemy_wanda_crouch', w: 64, h: 128 },
+        { name: 'enemy_wanda_shoot01', file: 'enemy_wanda_shoot01', w: 64, h: 128 },
+        { name: 'enemy_wanda_shoot02', file: 'enemy_wanda_shoot02', w: 64, h: 128 },
+        { name: 'enemy_wanda_shoot03', file: 'enemy_wanda_shoot03', w: 64, h: 128 },
+        { name: 'enemy_wanda_shoot04', file: 'enemy_wanda_shoot04', w: 64, h: 128 },
+        { name: 'enemy_wanda_shoot05', file: 'enemy_wanda_shoot05', w: 64, h: 128 },
+        { name: 'enemy_wanda_shoot06', file: 'enemy_wanda_shoot06', w: 64, h: 128 },
+        { name: 'enemy_wanda_shoot07', file: 'enemy_wanda_shoot07', w: 64, h: 128 },
+        { name: 'enemy_wanda_shoot08', file: 'enemy_wanda_shoot08', w: 64, h: 128 },
+        { name: 'enemy_wanda_shoot09', file: 'enemy_wanda_shoot09', w: 64, h: 128 },
         { name: 'kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 128 },
         { name: 'enemy_kyle_stand', file: 'enemy_kyle_stand', w: 64, h: 128 },
+        { name: 'enemy_kyle_walk01', file: 'enemy_kyle_walk01', w: 64, h: 128 },
+        { name: 'enemy_kyle_walk02', file: 'enemy_kyle_walk02', w: 64, h: 128 },
+        { name: 'enemy_kyle_walk03', file: 'enemy_kyle_walk03', w: 64, h: 128 },
+        { name: 'enemy_kyle_walk04', file: 'enemy_kyle_walk04', w: 64, h: 128 },
+        { name: 'enemy_kyle_walk05', file: 'enemy_kyle_walk05', w: 64, h: 128 },
+        { name: 'enemy_kyle_walk06', file: 'enemy_kyle_walk06', w: 64, h: 128 },
+        { name: 'enemy_kyle_walk07', file: 'enemy_kyle_walk07', w: 64, h: 128 },
+        { name: 'enemy_kyle_crouch01', file: 'enemy_kyle_crouch01', w: 64, h: 128 },
+        { name: 'enemy_kyle_crouch02', file: 'enemy_kyle_crouch02', w: 64, h: 128 },
+        { name: 'enemy_kyle_dash01', file: 'enemy_kyle_dash01', w: 64, h: 128 },
+        { name: 'enemy_kyle_dash02', file: 'enemy_kyle_dash02', w: 64, h: 128 },
+        { name: 'enemy_kyle_jump01', file: 'enemy_kyle_jump01', w: 64, h: 128 },
+        { name: 'enemy_kyle_jump02', file: 'enemy_kyle_jump02', w: 64, h: 128 },
         { name: 'kabocha_stand', file: 'enemy_kabocha_stand', w: 64, h: 128 },
         // Kabocha NPC walk sprites (64x128)
         { name: 'kabocha_walk01', file: 'enemy_kabocha_walk01', w: 64, h: 128 },
@@ -1161,7 +1282,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'snailbomb_walk02', file: 'snailbomb_walk02', w: 64, h: 64 },
         { name: 'snailbomb_shoot01', file: 'snailbomb_shoot01', w: 64, h: 64 },
         { name: 'snailbomb_shoot02', file: 'snailbomb_shoot02', w: 64, h: 64 },
-        { name: 'snail_bomb', file: 'snail_bomb', w: 16, h: 16 },
+        { name: 'snail_bomb', file: 'snail_bomb', w: 32, h: 32 },
         // Turret/shot projectiles
         { name: 'shot01', file: 'object_shot01', w: 16, h: 16 },
         { name: 'shot02', file: 'object_shot02', w: 16, h: 16 },
@@ -1197,7 +1318,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'effect_energyball04', file: 'effect_energyball04', w: 32, h: 32 },
         // Dead character decorations (broken robots)
         { name: 'andou_dead', file: 'andou_explode12', w: 64, h: 64 },
-        { name: 'kyle_dead', file: 'enemy_kyle_dead', w: 64, h: 64 },
+        { name: 'kyle_dead', file: 'enemy_kyle_dead', w: 128, h: 32 },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -1212,8 +1333,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const initializeGame = async (): Promise<void> => {
       setLevelLoading(true);
       
-      // Reset inventory for new game
-      resetInventory();
+      // Reset inventory for new game. Lives come from the selected difficulty,
+      // matching DifficultyConstants.getMaxPlayerLife() in the original.
+      resetInventory(getDifficultySettings().playerMaxLife);
       
       try {
         // Load collision segment data (for proper slope handling)
@@ -1370,13 +1492,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (gameLoopRef.current && !gameLoopRef.current.isRunning()) {
         // console.log('[Game] Starting game loop after initialization');
         gameLoopRef.current.start();
-        
-        // Start background music if available and music is enabled
-        const settings = gameSettings.getAll();
-        if (settings.musicEnabled && soundSystem.isInitialized()) {
-          soundSystem.setMusicVolume(settings.musicVolume / 100);
-          soundSystem.startBackgroundMusic();
-        }
+      }
+
+      // Start background music independently of who started the loop. Strict
+      // Mode runs this effect twice, and the initializeGame() that wins the
+      // loop-start race belongs to the torn-down first pass, whose SoundSystem
+      // has already been destroyed. Keeping this outside the guard lets the
+      // surviving pass start music with its own live SoundSystem.
+      const settings = gameSettings.getAll();
+      if (settings.musicEnabled && soundSystem.isInitialized()) {
+        soundSystem.setMusicVolume(settings.musicVolume / 100);
+        soundSystem.startBackgroundMusic();
       }
     };
 
@@ -1428,14 +1554,38 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Game loop
     const gameLoop = new GameLoop();
     gameLoopRef.current = gameLoop;
+
     gameLoop.setSystemRegistry(systemRegistry);
 
     // Update callback - Full game physics
     let frameCount = 0;
     gameLoop.setUpdateCallback((deltaTime: number) => {
       frameCount++;
-      if (frameCount % 60 === 0) {
-        // console.log('[Game] Update tick - state:', gameStateRef.current, 'PLAYING:', GameState.PLAYING, 'match:', gameStateRef.current === GameState.PLAYING);
+      // Dev-only inspection hook: lets browser automation read live loop state
+      // (including why the update gated out) without instrumenting the loop.
+      if (import.meta.env.DEV) {
+        (window as unknown as { __ri?: unknown }).__ri = {
+          objects: gameObjectManager,
+          camera: cameraSystem,
+          level: levelSystemRef.current,
+          frame: frameCount,
+          state: gameStateRef.current,
+          loop: gameLoop,
+          registry: systemRegistry,
+          input: inputSystem,
+          step: (n = 1): void => gameLoop.step(n),
+          gates: {
+            dialog: canvasDialogRef.current?.isActive() ?? false,
+            dialogIsCutscene: dialogIsCutsceneRef.current,
+            cutscene: canvasCutsceneRef.current?.isActive() ?? false,
+            pauseMenu: canvasPauseMenuRef.current?.isShowing() ?? false,
+            gameOver: canvasGameOverRef.current?.isShowing() ?? false,
+            levelComplete: canvasLevelCompleteRef.current?.isShowing() ?? false,
+            diary: canvasDiaryRef.current?.isVisible() ?? false,
+            endingStats: canvasEndingStatsRef.current?.isShowing() ?? false,
+          },
+          time: timeSystem.getGameTime(),
+        };
       }
       if (gameStateRef.current !== GameState.PLAYING) return;
 
@@ -1451,32 +1601,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Get player and input state
       const player = gameObjectManager.getPlayer();
       
-      // Check if any blocking UI is active (dialog, cutscene, pause menu, etc.)
-      // When blocking UI is active, we should not pass movement input to player
-      const isInputBlocked = 
-        canvasDialogRef.current?.isActive() ||
+      // Check if game physics should be paused (dialog, pause menu, game over, etc.)
+      // Note: Cutscene dialogs (NPC-triggered) should NOT pause physics - NPCs need to move
+      const isDialogPausingPhysics = canvasDialogRef.current?.isActive() && !dialogIsCutsceneRef.current;
+      const isGamePaused = 
+        isDialogPausingPhysics ||
         canvasCutsceneRef.current?.isActive() ||
         canvasPauseMenuRef.current?.isShowing() ||
         canvasGameOverRef.current?.isShowing() ||
         canvasLevelCompleteRef.current?.isShowing() ||
         canvasDiaryRef.current?.isVisible() ||
         canvasEndingStatsRef.current?.isShowing();
-      
-      // Check if game physics should be paused (dialog, pause menu, game over, etc.)
-      // Note: Cutscene dialogs (NPC-triggered) should NOT pause physics - NPCs need to move
-      const isDialogPausingPhysics = canvasDialogRef.current?.isActive() && !dialogIsCutsceneRef.current;
-      const isGamePaused = 
-        isDialogPausingPhysics ||
-        canvasPauseMenuRef.current?.isShowing() ||
-        canvasGameOverRef.current?.isShowing() ||
-        canvasLevelCompleteRef.current?.isShowing() ||
-        canvasDiaryRef.current?.isVisible() ||
-        canvasEndingStatsRef.current?.isShowing();
-      
-      // Use empty input when blocked, otherwise use real input
-      const input = isInputBlocked 
-        ? { left: false, right: false, up: false, down: false, jump: false, attack: false, pause: false }
-        : inputSystem.getInputState();
       
       // Skip all physics updates when game is paused (dialog active, etc.)
       if (isGamePaused) {
@@ -1538,6 +1673,107 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Update all game objects (use gameDelta so game freezes during pause-on-attack)
       gameObjectManager.update(gameDelta, gameTime);
+
+      // PlayerComponent owns the charge timing. Once charged, materialize the
+      // controllable ghost and hand camera/input control to it.
+      if (player) {
+        const playerComp = player.getComponent(PlayerComponent);
+        const previousGhost = activeGhostRef.current;
+        if (previousGhost) {
+          const previousGhostComponent = previousGhost.getComponent(
+            GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
+          );
+          if (previousGhostComponent?.isReleased() && previousGhost.type === 'enemy') {
+            previousGhost.removeComponent(previousGhostComponent);
+            const previousPatrol = possessedPatrolsRef.current.get(previousGhost.id);
+            if (previousPatrol) {
+              previousGhost.addComponent(previousPatrol);
+              possessedPatrolsRef.current.delete(previousGhost.id);
+            }
+            const previousAttack = possessedAttacksRef.current.get(previousGhost.id);
+            if (previousAttack) {
+              previousGhost.addComponent(previousAttack);
+              possessedAttacksRef.current.delete(previousGhost.id);
+            }
+            activeGhostRef.current = null;
+          } else if (previousGhost.life <= 0 || previousGhost.isMarkedForRemoval()) {
+            activeGhostRef.current = null;
+          }
+        }
+
+        if (playerComp?.ghostActive && activeGhostRef.current === null) {
+          const factory = systemRegistryRef.current?.gameObjectFactory;
+          const position = player.getPosition();
+          const ghost = factory?.spawnGhost(position.x, position.y, getInventory().rubyCount) ?? null;
+          if (ghost) {
+            activeGhostRef.current = ghost;
+            cameraSystem.setTarget(ghost);
+          } else {
+            playerComp.deactivateGhost(0);
+          }
+        }
+
+        const controllableGhost = activeGhostRef.current;
+        if (controllableGhost?.type === 'ghost' && controllableGhost.life > 0) {
+          const ghostPosition = controllableGhost.getPosition();
+          gameObjectManager.forEach((target) => {
+            if (activeGhostRef.current !== controllableGhost ||
+                target.type !== 'enemy' ||
+                (target.subType !== 'brobot' && target.subType !== 'turret') ||
+                target.life <= 0 ||
+                !target.isVisible()) {
+              return;
+            }
+
+            const targetPosition = target.getPosition();
+            const overlaps = ghostPosition.x < targetPosition.x + target.width &&
+              ghostPosition.x + controllableGhost.width > targetPosition.x &&
+              ghostPosition.y < targetPosition.y + target.height &&
+              ghostPosition.y + controllableGhost.height > targetPosition.y;
+            if (!overlaps) return;
+
+            const patrol = target.getComponent(
+              PatrolComponent as unknown as new (...args: unknown[]) => PatrolComponent
+            );
+            if (patrol) {
+              target.removeComponent(patrol);
+              possessedPatrolsRef.current.set(target.id, patrol);
+            }
+            const automaticAttack = target.getComponent(
+              AttackAtDistanceComponent as unknown as new (...args: unknown[]) => AttackAtDistanceComponent
+            );
+            if (automaticAttack) {
+              target.removeComponent(automaticAttack);
+              possessedAttacksRef.current.set(target.id, automaticAttack);
+            }
+
+            const sourceGhostComponent = controllableGhost.getComponent(
+              GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
+            );
+            sourceGhostComponent?.transferControl(controllableGhost);
+
+            const isTurret = target.subType === 'turret';
+            const possession = new GhostComponent({
+              movementSpeed: isTurret ? 0 : 500,
+              jumpImpulse: isTurret ? 0 : 300,
+              acceleration: isTurret ? 0 : 1000,
+              useOrientationSensor: false,
+              delayOnRelease: 1.5,
+              killOnRelease: !isTurret,
+              targetAction: isTurret ? ActionType.IDLE : ActionType.MOVE,
+              lifeTime: 0,
+              changeActionOnButton: isTurret,
+              buttonPressedAction: isTurret ? ActionType.ATTACK : ActionType.INVALID,
+              ambientSound: 'sound_possession',
+            });
+            target.addComponent(possession);
+            target.getVelocity().zero();
+            target.getTargetVelocity().zero();
+            activeGhostRef.current = target;
+            cameraSystem.setTarget(target);
+          });
+        }
+      }
       
       // Update temporary collision surfaces (moving platforms, doors, etc.)
       // This must happen after gameObjectManager.update() so objects can submit their surfaces,
@@ -1583,18 +1819,43 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const targetVelocity = obj.getTargetVelocity();
         const acceleration = obj.getAcceleration();
         const position = obj.getPosition();
-        
+
+        const possession = obj.getComponent(
+          GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
+        );
+        const isPossessed = possession !== null && !possession.isReleased();
+
+        // The Source is an immobile set piece. Its own component handles only
+        // hit shake and the death sink; generic enemy gravity/patrol would make
+        // the 512px boss fall through the arena and drift sideways.
+        if (obj.subType === 'the_source') return;
+
+        // Shadow Slimes intentionally have no gravity or locomotion. Their
+        // PopOut and projectile components have already updated above.
+        if (obj.subType === 'shadowslime') return;
+
+        const rokudouBoss = obj.getComponent(
+          RokudouBossComponent as unknown as new (...args: unknown[]) => RokudouBossComponent
+        );
+        if (rokudouBoss && player) {
+          const playerPosition = player.getPosition();
+          rokudouBoss.setTarget(playerPosition.x, playerPosition.y);
+        }
+
         // Check if enemy has PatrolComponent (proper AI)
         const hasPatrolComponent = obj.getComponent(PatrolComponent as unknown as new (...args: unknown[]) => PatrolComponent) !== null;
         
         // If no PatrolComponent, use simplified inline AI (fallback for special enemies)
-        if (!hasPatrolComponent) {
+        if (!hasPatrolComponent && !isPossessed) {
           // Behavior based on enemy type - only for enemies without PatrolComponent
           switch (obj.subType) {
             case 'pink_namazu': {
-              // Pink Namazu - special sleeper behavior (stationary for now)
-              velocity.x = 0;
-              velocity.y = 0;
+              // The sleeper is stationary while asleep/waking, but its attack
+              // impulse must persist for the full leap. Clearing X every frame
+              // reduced the original 100 px/s jump to a one-frame twitch.
+              if (obj.getCurrentAction() !== ActionType.ATTACK) {
+                velocity.x = 0;
+              }
               break;
             }
             
@@ -1604,6 +1865,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               velocity.y = 0;
               break;
             }
+
+            case 'rokudou':
+              // Dedicated AI components own these velocities.
+              break;
             
             default: {
               // Default simple patrol for any enemy without PatrolComponent
@@ -1613,6 +1878,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
           }
         }
+
+        const impulse = obj.getImpulse();
+        velocity.x += impulse.x;
+        velocity.y += impulse.y;
+        impulse.zero();
         
         // === Movement Component Logic ===
         // Interpolate velocity toward target velocity (from original MovementComponent.java)
@@ -1632,7 +1902,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
         
         // Flying vs ground enemy physics
-        const isFlying = obj.subType === 'bat' || obj.subType === 'sting' || obj.subType === 'karaguin';
+        const isFlying = obj.subType === 'bat' ||
+          obj.subType === 'sting' ||
+          obj.subType === 'karaguin' ||
+          (obj.subType === 'rokudou' && obj.life > 0);
         
         if (!isFlying) {
           // Gravity for ground enemies
@@ -1838,7 +2111,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const hotSpot = hotSpotSystem.getHotSpot(px, py);
         const playerComponent = player.getComponent(PlayerComponent);
         if (!playerComponent) return; // Should always exist for player object
-        
+
         if (hotSpot === HotSpotType.DIE && !playerComponent.isDying) {
           // Player death from death zone - matching original behavior:
           // 1. Play death animation in-game
@@ -1862,8 +2135,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           // Track death for stats
           useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
-        } else if (hotSpot === HotSpotType.END_LEVEL && !playerComponent.isDying) {
+        } else if (
+          hotSpot === HotSpotType.END_LEVEL &&
+          !playerComponent.isDying &&
+          !levelTransitionInProgressRef.current
+        ) {
           // Level complete
+          levelTransitionInProgressRef.current = true;
           soundSystem.playSfx(SoundEffects.DING);
           
           // Get next level info
@@ -1873,14 +2151,24 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             const currentLevelInfo = levelSys.getLevelInfo(levelSys.getCurrentLevelId());
             const wasInThePast = currentLevelInfo?.inThePast ?? false;
             
-            const nextLevelId = levelSys.getNextLevelId();
+            const completedLevelId = levelSys.getCurrentLevelId();
+            const nextLevelId = levelSys.completeCurrentLevel();
             if (nextLevelId !== null) {
+              recordAutomaticLevelCompletion(completedLevelId);
               // Unlock and go to next level
               levelSys.unlockLevel(nextLevelId);
+              prevLevelRef.current = nextLevelId;
               setLevel(nextLevelId);
               setLevelLoading(true); // Mark level as loading
               // Reload the level system
-              levelSys.loadLevel(nextLevelId).then(() => {
+              levelSys.loadLevel(nextLevelId).then((success) => {
+                if (!success) {
+                  setLevelLoading(false);
+                  levelTransitionInProgressRef.current = false;
+                  goToMainMenu();
+                  return;
+                }
+
                 // Check if we need to show memory playback toast
                 const newLevelInfo = levelSys.getLevelInfo(nextLevelId);
                 const isInThePast = newLevelInfo?.inThePast ?? false;
@@ -1929,11 +2217,19 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 }
                 
                 setLevelLoading(false); // Mark level as loaded
+                levelTransitionInProgressRef.current = false;
+              }).catch(() => {
+                setLevelLoading(false);
+                levelTransitionInProgressRef.current = false;
+                goToMainMenu();
               });
             } else {
               // No more levels - game complete!
+              levelTransitionInProgressRef.current = false;
               completeLevel();
             }
+          } else {
+            levelTransitionInProgressRef.current = false;
           }
         }
       }
@@ -1964,7 +2260,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               // Reload current level
               const levelSys = levelSystemRef.current;
               if (levelSys) {
-                levelSys.loadLevel(state.currentLevel).then(() => {
+                levelSys.loadLevel(currentLevelRef.current).then(() => {
                   // Initialize tile map renderer for level
                   const parsedLevel = levelSys.getParsedLevel();
                   if (parsedLevel && tileMapRendererRef.current) {
@@ -2064,6 +2360,42 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         };
         const playerComponent = player.getComponent(PlayerComponent);
         if (!playerComponent) return; // Should always exist for player object
+
+        const damagePlayer = (sourceX: number): void => {
+          if (playerComponent.invincible ||
+              playerComponent.currentState === PlayerState.HIT_REACT ||
+              playerComponent.isDying) {
+            return;
+          }
+
+          const inv = getInventory();
+          const newHealth = inv.lives - 1;
+          setInventory({ lives: newHealth });
+          soundSystem.playSfx(SoundEffects.THUMP);
+          cameraSystem.shake(8, 0.3);
+
+          if (newHealth <= 0) {
+            playerComponent.currentState = PlayerState.DEAD;
+            playerComponent.isDying = true;
+            playerComponent.deathTime = 2.0;
+            playerComponent.fadeToRestart = false;
+            player.getVelocity().zero();
+            effectsSystem.spawnExplosion(
+              playerPos.x + player.width / 2,
+              playerPos.y + player.height / 2,
+              'large'
+            );
+            useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
+            return;
+          }
+
+          playerComponent.currentState = PlayerState.HIT_REACT;
+          playerComponent.hitReactTimer = PlayerComponent.HIT_REACT_TIME;
+          playerComponent.invincible = true;
+          playerComponent.invincibleTime = PlayerComponent.INVINCIBILITY_TIME;
+          const knockbackDirection = playerPos.x < sourceX ? -1 : 1;
+          player.setVelocity(knockbackDirection * 200, -150);
+        };
         
         gameObjectManager.forEach((obj) => {
           if (obj === player || !obj.isVisible()) return;
@@ -2148,7 +2480,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 }
                 
                 // Save diary collection to persistent store
-                storeCollectDiary(state.currentLevel, newDiaryCount);
+                storeCollectDiary(currentLevelRef.current, newDiaryCount);
                 
                 // Show diary overlay with entry content
                 const canvasDiary = canvasDiaryRef.current;
@@ -2168,13 +2500,98 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
           }
         });
+
+        // Cannons use LAUNCH dynamic-collision volumes in the Android game.
+        // The web runtime handles the same overlap explicitly because its
+        // dynamic collision dispatcher is not part of the frame pipeline.
+        gameObjectManager.forEach((obj) => {
+          if (obj.type !== 'cannon' || !obj.isVisible() || obj.life <= 0) return;
+
+          const cannonPosition = obj.getPosition();
+          const launchRect = {
+            x: cannonPosition.x + 16,
+            y: cannonPosition.y + 16,
+            width: 32,
+            height: 80,
+          };
+          const overlaps = playerRect.x < launchRect.x + launchRect.width &&
+            playerRect.x + playerRect.width > launchRect.x &&
+            playerRect.y < launchRect.y + launchRect.height &&
+            playerRect.y + playerRect.height > launchRect.y;
+          if (!overlaps) return;
+
+          obj.getComponent(
+            LauncherComponent as unknown as new (...args: unknown[]) => LauncherComponent
+          )?.prepareToLaunch(player, obj);
+        });
+
+        // Hostile shots previously passed straight through Andou because the
+        // web port never ran its dynamic collision system.
+        const sourceBoss = gameObjectManager.getActiveObjects().find(
+          (obj) => obj.subType === 'the_source' && obj.life > 0 && obj.isVisible()
+        );
+        gameObjectManager.forEach((obj) => {
+          if (obj.type !== 'projectile' || obj.team !== Team.ENEMY || !obj.isVisible() || obj.life <= 0) {
+            return;
+          }
+
+          const projectilePosition = obj.getPosition();
+          if (sourceBoss) {
+            const sourcePosition = sourceBoss.getPosition();
+            const hitsSource = projectilePosition.x < sourcePosition.x + sourceBoss.width &&
+              projectilePosition.x + obj.width > sourcePosition.x &&
+              projectilePosition.y < sourcePosition.y + sourceBoss.height &&
+              projectilePosition.y + obj.height > sourcePosition.y;
+            if (hitsSource && applyHostileProjectileToSource(obj, sourceBoss)) {
+              return;
+            }
+          }
+
+          const overlaps = playerRect.x < projectilePosition.x + obj.width &&
+            playerRect.x + playerRect.width > projectilePosition.x &&
+            playerRect.y < projectilePosition.y + obj.height &&
+            playerRect.y + playerRect.height > projectilePosition.y;
+          if (!overlaps) return;
+
+          obj.life = 0;
+          obj.setVisible(false);
+          obj.markForRemoval();
+          damagePlayer(projectilePosition.x);
+        });
         
         // Check enemy collisions in separate loop
         gameObjectManager.forEach((obj) => {
           if (obj === player || !obj.isVisible()) return;
+
+          if (obj.type === 'breakable_block' && obj.life > 0) {
+            const blockPosition = obj.getPosition();
+            const overlaps = playerRect.x < blockPosition.x + obj.width &&
+              playerRect.x + playerRect.width > blockPosition.x &&
+              playerRect.y < blockPosition.y + obj.height &&
+              playerRect.y + playerRect.height > blockPosition.y;
+            const attackingFromAbove = playerComponent.stomping ||
+              (player.getVelocity().y > 0 && playerPos.y < blockPosition.y);
+            if (overlaps && attackingFromAbove) {
+              applyPlayerAttack(obj);
+              effectsSystem.spawnExplosion(
+                blockPosition.x + obj.width / 2,
+                blockPosition.y + obj.height / 2,
+                'small'
+              );
+              player.getVelocity().y = -200;
+              soundSystem.playSfx(SoundEffects.EXPLODE);
+              timeSystem.freeze(PlayerComponent.ATTACK_PAUSE_DELAY);
+            }
+            return;
+          }
           
           // Check if enemy - handle stomp/damage
           if (obj.type === 'enemy' && obj.life > 0) {
+            const possessed = obj.getComponent(
+              GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
+            );
+            if (possessed && !possessed.isReleased()) return;
+
             const objPos = obj.getPosition();
             const objRect = {
               x: objPos.x,
@@ -2191,10 +2608,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               
               // Check if player is stomping (coming from above with stomp attack)
               if (playerComponent.stomping || (player.getVelocity().y > 0 && playerPos.y < objPos.y)) {
-                // Player kills enemy with stomp
-                obj.life = 0;
-                obj.setVisible(false);
-                obj.markForRemoval();
+                if (!canPlayerAttackTarget(player, obj)) return;
+                const attackResult = applyPlayerAttack(obj);
                 
                 // Spawn crush flash effect at enemy position
                 effectsSystem.spawnCrushFlash(
@@ -2210,56 +2625,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 // Pause-on-attack effect: brief time freeze for impact feedback
                 timeSystem.freeze(PlayerComponent.ATTACK_PAUSE_DELAY);
                 
-                // Award points
-                const inv = getInventory();
-                setInventory({ score: inv.score + 25 });
-              } else if (!playerComponent.invincible && playerComponent.currentState !== PlayerState.HIT_REACT && !playerComponent.isDying) {
-                // Enemy damages player (only if not invincible, not in hit reaction, and not dying)
-                // Original game has 2 health points (MAX_PLAYER_LIFE = 2)
-                const inv = getInventory();
-                const newHealth = inv.lives - 1; // Using 'lives' as health for now
-                setInventory({ lives: newHealth });
-                soundSystem.playSfx(SoundEffects.THUMP);
-                
-                // Screen shake for damage feedback
-                cameraSystem.shake(8, 0.3);
-                
-                if (newHealth <= 0) {
-                  // Player dies - matching original death flow:
-                  // 1. Play death animation in-game
-                  // 2. After 2 seconds, fade to black
-                  playerComponent.currentState = PlayerState.DEAD;
-                  playerComponent.isDying = true;
-                  playerComponent.deathTime = 2.0; // 2 seconds until fade starts
-                  playerComponent.fadeToRestart = false;
-                  
-                  // Stop player movement
-                  player.getVelocity().x = 0;
-                  player.getVelocity().y = 0;
-                  
-                  // Spawn explosion effect
-                  effectsSystem.spawnExplosion(
-                    playerPos.x + player.width / 2,
-                    playerPos.y + player.height / 2,
-                    'large'
-                  );
-                  
-                  // Track death for stats
-                  useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
-                  return;
+                // Ordinary enemies are defeated in one hit. Bosses keep their
+                // own multi-hit and delayed ending sequences alive.
+                if (!attackResult.isBoss && attackResult.defeated) {
+                  const inv = getInventory();
+                  setInventory({ score: inv.score + 25 });
+                  useGameStore.getState().addToTotalStats({ totalEnemiesDefeated: 1 });
                 }
-                
-                // Enter HIT_REACT state (matching original HIT_REACT_TIME = 0.5s)
-                playerComponent.currentState = PlayerState.HIT_REACT;
-                playerComponent.hitReactTimer = PlayerComponent.HIT_REACT_TIME;
-                  
-                // Grant invincibility frames (INVINCIBILITY_TIME from original)
-                playerComponent.invincible = true;
-                playerComponent.invincibleTime = PlayerComponent.INVINCIBILITY_TIME;
-                
-                // Knock player back
-                const knockbackDir = playerPos.x < objPos.x ? -1 : 1;
-                player.setVelocity(knockbackDir * 200, -150);
+              } else if (enemyCanDamagePlayer(obj.subType, obj.getCurrentAction())) {
+                damagePlayer(objPos.x);
               }
             }
           }
@@ -2273,7 +2647,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           if (obj === player || !obj.isVisible()) return;
           
           // Check if NPC - trigger dialog when player touches them
-          if (obj.type === 'npc' && activeDialogRef.current === null && dialogTriggerCooldownRef.current <= 0) {
+          if ((obj.type === 'npc' || obj.subType === 'kyle_dead') &&
+              activeDialogRef.current === null &&
+              dialogTriggerCooldownRef.current <= 0) {
             const objPos = obj.getPosition();
             const objRect = {
               x: objPos.x,
@@ -2296,9 +2672,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 
                 if (levelInfo) {
                   const dialogs = getDialogsForLevel(levelInfo.file);
+                  const dialogIndex = obj.subType === 'kyle_dead' ? 1 : 0;
                   
-                  if (dialogs.length > 0) {
-                    const dialog = dialogs[0]; // Use first dialog for NPC collision
+                  if (dialogs.length > dialogIndex) {
+                    const dialog = dialogs[dialogIndex];
                     
                     if (dialog) {
                       // console.log('[Game] Player touched NPC, triggering dialog');
@@ -2320,7 +2697,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // Update camera - must happen even for cutscene levels without player
       // For player levels, set target to player; for NPC levels, target is already set via setNPCTarget
-      if (player && !cameraSystem.isNPCFocusMode()) {
+      const cameraPlayerComponent = player?.getComponent(PlayerComponent);
+      if (player && !cameraSystem.isNPCFocusMode() && !cameraPlayerComponent?.ghostActive) {
         cameraSystem.setTarget(player);
       }
       cameraSystem.update(deltaTime);
@@ -2371,76 +2749,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         playerComponent.stompLanded = true; // Mark stomp as landed to prevent repeated shakes
       }
 
-      // Refuel when on ground
-      if (playerComponent.fuel < PlayerComponent.FUEL_AMOUNT) {
-        if (playerComponent.touchingGround) {
-          playerComponent.fuel += 2.0 * deltaTime;
-        } else {
-          playerComponent.fuel += 0.5 * deltaTime;
-        }
-        playerComponent.fuel = Math.min(PlayerComponent.FUEL_AMOUNT, playerComponent.fuel);
-      }
-
-      // Ghost mechanic
-      if (input.attack && playerComponent.touchingGround && !playerComponent.stomping && !playerComponent.ghostActive) {
-        playerComponent.ghostChargeTime += deltaTime;
-        
-        if (playerComponent.ghostChargeTime >= PlayerComponent.GHOST_CHARGE_TIME) {
-          playerComponent.ghostActive = true;
-          playerComponent.ghostChargeTime = 0;
-          soundSystem.playSfx(SoundEffects.POSSESSION, 0.7);
-          
-          // Spawn ghost logic would go here
-          // For now just freeze player
-          playerComponent.currentState = PlayerState.FROZEN;
-        }
-      } else if (!input.attack) {
-        playerComponent.ghostChargeTime = 0;
-      }
-
-      // Stomp attack
-      const inTheAir = !playerComponent.touchingGround;
-      if (input.attack && inTheAir && !playerComponent.stomping && playerComponent.currentState === PlayerState.MOVE) {
-        playerComponent.currentState = PlayerState.STOMP;
-        playerComponent.stomping = true;
-        playerComponent.stompTime = gameTime;
-        playerComponent.stompHangTime = PlayerComponent.STOMP_AIR_HANG_TIME;
-        playerComponent.stompLanded = false;
-        
-        const velocity = player.getVelocity();
-        if (PlayerComponent.STOMP_AIR_HANG_TIME > 0) {
-          velocity.x = 0;
-          velocity.y = 0;
-        } else {
-          velocity.y = PlayerComponent.STOMP_VELOCITY;
-        }
-        soundSystem.playSfx(SoundEffects.STOMP);
-      }
-
-      // Jump/Fly
-      if (input.jump) {
-        const velocity = player.getVelocity();
-        if (playerComponent.touchingGround && !playerComponent.rocketsOn) {
-          // Initial jump from ground
-          velocity.y = -PlayerComponent.AIR_VERTICAL_IMPULSE_FROM_GROUND;
-          playerComponent.jumpTime = gameTime;
-          soundSystem.playSfx(SoundEffects.POING, 0.5);
-        } else if (gameTime > playerComponent.jumpTime + PlayerComponent.JUMP_TO_JETS_DELAY) {
-          // Jet pack
-          if (playerComponent.fuel > 0) {
-            playerComponent.fuel -= deltaTime;
-            velocity.y += -PlayerComponent.AIR_VERTICAL_IMPULSE_SPEED * deltaTime;
-            playerComponent.rocketsOn = true;
-            
-            // Cap upward speed
-            if (velocity.y < -PlayerComponent.MAX_UPWARD_SPEED) {
-              velocity.y = -PlayerComponent.MAX_UPWARD_SPEED;
-            }
-          }
-        }
-      } else {
-        playerComponent.rocketsOn = false;
-      }
     });
 
     // Render callback
@@ -2704,6 +3012,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           const spriteOffset = { x: 0, y: 0 };
           
           switch (obj.type) {
+            case 'ghost':
+              spriteName = 'ghost';
+              break;
             case 'coin':
               spriteFrames = ['coin01', 'coin02', 'coin03', 'coin04', 'coin05'];
               obj.animFrame = obj.animFrame % spriteFrames.length;
@@ -2764,7 +3075,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   spriteHeight = 64;
                   break;
                 case 'skeleton':
-                  if (Math.abs(obj.getVelocity().x) > 10) {
+                  if (obj.getCurrentAction() === ActionType.ATTACK) {
+                    spriteFrames = ['skeleton_attack01', 'skeleton_attack03', 'skeleton_attack04'];
+                  } else if (Math.abs(obj.getVelocity().x) > 10) {
                     spriteFrames = ['skeleton_walk01', 'skeleton_walk02', 'skeleton_walk03', 'skeleton_walk04', 'skeleton_walk05'];
                   } else {
                     spriteFrames = ['skeleton_stand'];
@@ -2778,10 +3091,27 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   spriteHeight = 32;
                   break;
                 case 'mudman':
-                  if (Math.abs(obj.getVelocity().x) > 10) {
-                    spriteFrames = ['mudman_walk01', 'mudman_walk02', 'mudman_walk03'];
+                  if (obj.getCurrentAction() === ActionType.ATTACK) {
+                    spriteFrames = [
+                      'mudman_attack01',
+                      'mudman_attack02',
+                      'mudman_attack03',
+                      'mudman_attack04',
+                      'mudman_attack05',
+                      'mudman_attack06',
+                      'mudman_attack07',
+                    ];
+                  } else if (Math.abs(obj.getVelocity().x) > 10) {
+                    spriteFrames = [
+                      'mudman_walk01',
+                      'mudman_walk02',
+                      'mudman_walk03',
+                      'mudman_walk04',
+                      'mudman_walk05',
+                      'mudman_walk06',
+                    ];
                   } else {
-                    spriteFrames = ['mudman_idle01', 'mudman_idle02'];
+                    spriteFrames = ['mudman_stand', 'mudman_idle01', 'mudman_idle02'];
                   }
                   spriteWidth = 128;
                   spriteHeight = 128;
@@ -2799,7 +3129,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   spriteHeight = 128;
                   break;
                 case 'shadowslime':
-                  spriteFrames = ['shadowslime_idle01', 'shadowslime_idle02'];
+                  if (obj.getCurrentAction() === ActionType.ATTACK) {
+                    spriteFrames = [
+                      'shadowslime_attack01',
+                      'shadowslime_attack02',
+                      'shadowslime_attack03',
+                      'shadowslime_attack04',
+                      'shadowslime_flash',
+                    ];
+                  } else {
+                    spriteFrames = ['shadowslime_idle01', 'shadowslime_idle02'];
+                  }
                   spriteWidth = 64;
                   spriteHeight = 64;
                   break;
@@ -2815,10 +3155,23 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   spriteWidth = 64;
                   spriteHeight = 64;
                   break;
+                case 'turret':
+                  if (obj.getCurrentAction() === ActionType.ATTACK) {
+                    spriteFrames = ['object_gunturret02', 'object_gunturret01', 'object_gunturret03'];
+                  } else {
+                    spriteFrames = ['object_gunturret01', 'object_gunturret_idle'];
+                  }
+                  spriteWidth = 64;
+                  spriteHeight = 64;
+                  break;
                 case 'evil_kabocha':
                   // Evil Kabocha boss has walk, hit, surprised, and death animations
                   if (obj.life <= 0) {
                     spriteFrames = ['evil_kabocha_die01', 'evil_kabocha_die02', 'evil_kabocha_die03', 'evil_kabocha_die04'];
+                  } else if (obj.getComponent(
+                    EvilKabochaComponent as unknown as new (...args: unknown[]) => EvilKabochaComponent
+                  )?.isSurprised()) {
+                    spriteFrames = ['evil_kabocha_surprised'];
                   } else if (obj.getCurrentAction() === ActionType.HIT_REACT) {
                     spriteFrames = ['evil_kabocha_hit01', 'evil_kabocha_hit02'];
                   } else if (Math.abs(obj.getVelocity().x) > 10) {
@@ -2833,6 +3186,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   // Rokudou boss has fly, shoot, surprise, hit, and death animations
                   if (obj.life <= 0) {
                     spriteFrames = ['rokudou_die01', 'rokudou_die02', 'rokudou_die03', 'rokudou_die04'];
+                  } else if (obj.getComponent(
+                    RokudouBossComponent as unknown as new (...args: unknown[]) => RokudouBossComponent
+                  )?.getCurrentAnimation() === RokudouAnimation.SURPRISED) {
+                    spriteFrames = ['rokudou_surprise'];
                   } else if (obj.getCurrentAction() === ActionType.HIT_REACT) {
                     spriteFrames = ['rokudou_hit01', 'rokudou_hit02', 'rokudou_hit03'];
                   } else if (obj.getCurrentAction() === ActionType.ATTACK) {
@@ -2902,7 +3259,21 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               
               if (npcType === 'wanda') {
                 // Wanda has: stand, walk (5 frames), run (8 frames), jump (2 frames), crouch, shoot (9 frames)
-                if (absVelY > 50 && !obj.touchingGround()) {
+                if (obj.getCurrentAction() === ActionType.ATTACK) {
+                  spriteFrames = [
+                    'enemy_wanda_shoot01',
+                    'enemy_wanda_shoot02',
+                    'enemy_wanda_shoot03',
+                    'enemy_wanda_shoot04',
+                    'enemy_wanda_shoot05',
+                    'enemy_wanda_shoot06',
+                    'enemy_wanda_shoot07',
+                    'enemy_wanda_shoot08',
+                    'enemy_wanda_shoot09',
+                    'enemy_wanda_shoot02',
+                    'enemy_wanda_shoot01',
+                  ];
+                } else if (absVelY > 50 && !obj.touchingGround()) {
                   // Jumping/falling
                   spriteFrames = ['enemy_wanda_jump01', 'enemy_wanda_jump02'];
                 } else if (absVelX > 100) {
@@ -2922,8 +3293,29 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   spriteFrames = ['enemy_wanda_stand'];
                 }
               } else if (npcType === 'kyle') {
-                // Kyle only has stand sprite currently
-                spriteFrames = ['enemy_kyle_stand'];
+                if (absVelY > 50 && !obj.touchingGround()) {
+                  spriteFrames = ['enemy_kyle_jump01', 'enemy_kyle_jump02'];
+                } else if (absVelX > 100) {
+                  spriteFrames = ['enemy_kyle_dash01', 'enemy_kyle_dash02'];
+                } else if (absVelX > 10) {
+                  // Match the Android walk cycle's forward-and-back ordering.
+                  spriteFrames = [
+                    'enemy_kyle_walk01',
+                    'enemy_kyle_walk02',
+                    'enemy_kyle_walk03',
+                    'enemy_kyle_walk04',
+                    'enemy_kyle_walk03',
+                    'enemy_kyle_walk02',
+                    'enemy_kyle_walk01',
+                    'enemy_kyle_walk05',
+                    'enemy_kyle_walk06',
+                    'enemy_kyle_walk07',
+                    'enemy_kyle_walk06',
+                    'enemy_kyle_walk05',
+                  ];
+                } else {
+                  spriteFrames = ['enemy_kyle_stand'];
+                }
               } else if (npcType === 'kabocha') {
                 // Kabocha has: stand, walk (6 frames)
                 if (absVelX > 10) {
@@ -2952,7 +3344,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             case 'door': {
               // Doors use their subtype (red, blue, green) to determine sprite
               // DoorAnimationComponent handles animation state
-              const doorColor = obj.subType || 'red';
+              const doorColor = (obj.subType || 'red').replace('_nonblocking', '');
               // Use type assertion since getComponent uses strict constructor signature
               const doorAnim = obj.getComponent(DoorAnimationComponent as unknown as new (...args: unknown[]) => DoorAnimationComponent);
               if (doorAnim) {
@@ -3038,8 +3430,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               spriteOffset.y = 0;
               break;
             }
+            case 'cannon':
+              spriteName = 'object_cannon';
+              break;
+            case 'spawner':
+              if (obj.subType === 'brobot_spawner') {
+                spriteName = 'object_brobot_machine';
+              }
+              break;
             case 'projectile': {
-              // Projectiles (energy balls, cannon balls, turret bullets)
+              // Projectiles (energy balls, Wanda shots, cannon balls, turret bullets)
               // Use faster animation for projectiles (80ms per frame instead of 150ms)
               const PROJECTILE_FRAME_TIME = 0.08;
               if (obj.projectileAnimTimer === undefined) obj.projectileAnimTimer = 0;
@@ -3064,8 +3464,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 case 'cannon_ball':
                   // Snailbomb's cannon ball
                   spriteName = 'snail_bomb';
-                  projWidth = 16;
-                  projHeight = 16;
+                  projWidth = 32;
+                  projHeight = 32;
                   break;
                 case 'turret_bullet':
                   // Turret bullet - uses shot sprite
@@ -3239,7 +3639,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       inputSystem.destroy();
       soundSystem.destroy();
     };
-  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.currentLevel, storeRecordLevelAttempt, storeCollectDiary]);
+  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, goToMainMenu, recordAutomaticLevelCompletion, resetPlayerState, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.isLinearMode, storeRecordLevelAttempt, storeCollectDiary]);
 
   // Handle resize
   useEffect(() => {

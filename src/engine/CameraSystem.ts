@@ -225,6 +225,11 @@ export class CameraSystem {
     // Update focus position (position + shake)
     this.focusPosition.x = this.position.x + this.shakeOffset.x;
     this.focusPosition.y = this.position.y + this.shakeOffset.y;
+
+    // Camera-bias objects submit their influence every frame. The original
+    // camera consumed and cleared that accumulated vector after each update.
+    this.biasX = 0;
+    this.biasY = 0;
   }
 
   /**

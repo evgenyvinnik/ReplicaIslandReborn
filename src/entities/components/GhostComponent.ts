@@ -73,6 +73,7 @@ export class GhostComponent extends GameComponent {
   private lifeTimeRemaining: number = 0;
   private ambientSoundId: number = -1;
   private released: boolean = false;
+  private attackReleasedSinceSpawn: boolean = false;
 
   constructor(config?: Partial<GhostConfig>) {
     super(ComponentPhase.THINK);
@@ -253,8 +254,11 @@ export class GhostComponent extends GameComponent {
           }
         }
 
-        // Attack button releases ghost control
-        if (inputState.attack) {
+        // The ghost is spawned by holding attack, so require the button to be
+        // released once before a subsequent press can dismiss it.
+        if (!inputState.attack) {
+          this.attackReleasedSinceSpawn = true;
+        } else if (this.attackReleasedSinceSpawn) {
           timeToRelease = true;
         }
       }
@@ -300,6 +304,8 @@ export class GhostComponent extends GameComponent {
       if (this.config.killOnRelease) {
         // Kill the ghost object
         parent.life = 0;
+        parent.setVisible(false);
+        parent.markForRemoval();
       } else {
         // TODO: Check for ChangeComponentsComponent to swap behaviors
         // const swap = parent.getComponent(ChangeComponentsComponent);
@@ -322,16 +328,24 @@ export class GhostComponent extends GameComponent {
         );
 
         if (playerVisible) {
-          // @ts-expect-error - deactivateGhost may not exist yet
-          playerComponent.deactivateGhost?.(0);
+          playerComponent.deactivateGhost(0);
         } else {
-          // @ts-expect-error - deactivateGhost may not exist yet
-          playerComponent.deactivateGhost?.(this.config.delayOnRelease);
+          playerComponent.deactivateGhost(this.config.delayOnRelease);
         }
       }
     }
 
     // Stop ambient sound
+    this.stopAmbientSound();
+  }
+
+  /** End this ghost shell while keeping player control delegated to a target. */
+  transferControl(parent: GameObject): void {
+    if (this.released) return;
+    this.released = true;
+    parent.life = 0;
+    parent.setVisible(false);
+    parent.markForRemoval();
     this.stopAmbientSound();
   }
 
@@ -369,5 +383,6 @@ export class GhostComponent extends GameComponent {
     this.lifeTimeRemaining = this.config.lifeTime;
     this.ambientSoundId = -1;
     this.released = false;
+    this.attackReleasedSinceSpawn = false;
   }
 }

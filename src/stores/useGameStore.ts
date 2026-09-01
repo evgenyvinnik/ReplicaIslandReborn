@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { inferCurrentLevel } from './progressUtils';
 
 // ============================================================================
 // Types
@@ -67,12 +68,16 @@ export interface LevelProgress {
 
 /** Overall game progress */
 export interface GameProgress {
+  /** Level that Continue Game should resume. */
+  currentLevel: number;
+
   /** Level ID -> Progress data */
   levels: Record<number, LevelProgress>;
   
   /** Total stats across all playthroughs */
   totalStats: {
     totalPlayTime: number; // In seconds
+    totalScore: number;
     totalDeaths: number;
     totalCoinsCollected: number;
     totalRubiesCollected: number;
@@ -125,6 +130,7 @@ export interface GameStoreActions {
   resetKeyBindings: () => void;
   
   // Progress actions
+  setCurrentLevel: (levelId: number) => void;
   unlockLevel: (levelId: number) => void;
   completeLevel: (levelId: number, score: number, time: number) => void;
   recordLevelAttempt: (levelId: number) => void;
@@ -189,6 +195,7 @@ const DEFAULT_LEVEL_PROGRESS: LevelProgress = {
 };
 
 const DEFAULT_PROGRESS: GameProgress = {
+  currentLevel: 1,
   levels: {
     // Level 1 is always unlocked by default
     1: {
@@ -198,6 +205,7 @@ const DEFAULT_PROGRESS: GameProgress = {
   },
   totalStats: {
     totalPlayTime: 0,
+    totalScore: 0,
     totalDeaths: 0,
     totalCoinsCollected: 0,
     totalRubiesCollected: 0,
@@ -213,7 +221,7 @@ const DEFAULT_PROGRESS: GameProgress = {
   },
 };
 
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 3;
 const MAX_HIGH_SCORES = 100;
 
 // ============================================================================
@@ -291,6 +299,15 @@ export const useGameStore = create<GameStore>()(
       // Progress Actions
       // ========================================
 
+      setCurrentLevel: (levelId) => {
+        set((state) => ({
+          progress: {
+            ...state.progress,
+            currentLevel: levelId,
+          },
+        }));
+      },
+
       unlockLevel: (levelId) => {
         set((state) => {
           const existingProgress = state.progress.levels[levelId];
@@ -316,6 +333,7 @@ export const useGameStore = create<GameStore>()(
           return {
             progress: {
               ...state.progress,
+              currentLevel: levelId,
               levels: {
                 ...state.progress.levels,
                 [levelId]: {
@@ -349,6 +367,7 @@ export const useGameStore = create<GameStore>()(
           return {
             progress: {
               ...state.progress,
+              currentLevel: levelId,
               levels: {
                 ...state.progress.levels,
                 [levelId]: {
@@ -397,6 +416,7 @@ export const useGameStore = create<GameStore>()(
             ...state.progress,
             totalStats: {
               totalPlayTime: state.progress.totalStats.totalPlayTime + (stats.totalPlayTime ?? 0),
+              totalScore: state.progress.totalStats.totalScore + (stats.totalScore ?? 0),
               totalDeaths: state.progress.totalStats.totalDeaths + (stats.totalDeaths ?? 0),
               totalCoinsCollected: state.progress.totalStats.totalCoinsCollected + (stats.totalCoinsCollected ?? 0),
               totalRubiesCollected: state.progress.totalStats.totalRubiesCollected + (stats.totalRubiesCollected ?? 0),
@@ -523,11 +543,33 @@ export const useGameStore = create<GameStore>()(
       version: CURRENT_VERSION,
       // Handle migrations between versions
       migrate: (persistedState, version) => {
-        if (version === 0) {
-          // Migration from version 0 to 1
-          // Add any necessary transformations
-        }
-        return persistedState as GameStore;
+        const persisted = persistedState as Partial<GameStoreState>;
+        const persistedProgress = persisted.progress;
+        const levels = persistedProgress?.levels ?? DEFAULT_PROGRESS.levels;
+
+        return {
+          ...persisted,
+          version: CURRENT_VERSION,
+          progress: {
+            ...DEFAULT_PROGRESS,
+            ...persistedProgress,
+            currentLevel: version < 2 || persistedProgress?.currentLevel === undefined
+              ? inferCurrentLevel(levels)
+              : persistedProgress.currentLevel,
+            levels: {
+              ...DEFAULT_PROGRESS.levels,
+              ...levels,
+            },
+            totalStats: {
+              ...DEFAULT_PROGRESS.totalStats,
+              ...persistedProgress?.totalStats,
+            },
+            extrasUnlocked: {
+              ...DEFAULT_PROGRESS.extrasUnlocked,
+              ...persistedProgress?.extrasUnlocked,
+            },
+          },
+        } as GameStore;
       },
       // Only persist specific parts of the state
       partialize: (state) => ({

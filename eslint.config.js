@@ -26,6 +26,7 @@ export default [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         AudioContext: 'readonly',
+        OfflineAudioContext: 'readonly',
         AudioBuffer: 'readonly',
         AudioBufferSourceNode: 'readonly',
         GainNode: 'readonly',
