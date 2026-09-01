@@ -967,7 +967,9 @@ export class LevelSystem {
         objWidth = 32;
         objHeight = 32; // Use 32 for collision detection
         obj.activationRadius = 200;
-        obj.team = Team.ENEMY;
+        // Original: Team.NONE. GameObjectCollisionSystem rejects same-team
+        // hits, so an ENEMY button could not be depressed by a brobot.
+        obj.team = Team.NONE;
         
         // Determine color for sprite and channel
         let buttonColor = 'red';
