@@ -404,7 +404,11 @@ export class CollisionSystem {
     
     let xIncrement = 0;
     let yIncrement = 0;
-    let distance = 0;
+    // A ray that begins and ends inside one tile still has to test that tile.
+    // Leaving this at 0 made the loop below run zero times, so any ray shorter
+    // than a tile silently missed - which is why segment collision looked
+    // broken and was bypassed.
+    let distance = 1;
     
     if (deltaX !== 0) {
       distance = Math.abs(deltaX) + 1;
@@ -1198,6 +1202,46 @@ export class CollisionSystem {
       penetration: hit ? maxDistance - startPoint.distance(hitPoint) : 0,
       point: hit ? hitPoint : endPoint,
     };
+  }
+
+  /**
+   * Exact world Y of the ground surface directly under a point.
+   *
+   * Snapping a grounded object to `floor(feetY / tileHeight) * tileHeight`
+   * treats every collision tile as a full block, so an object standing on one
+   * of the original's sloped tiles sits at the tile's top edge and walks up
+   * slopes in 32px steps. This casts a short ray down through the feet against
+   * the real line segments from collision.json instead, which is what makes
+   * slopes smooth.
+   *
+   * Returns null when there is no segment data or nothing is found, so callers
+   * can fall back to tile-granular snapping.
+   */
+  getGroundSurfaceY(
+    centerX: number,
+    feetY: number,
+    searchAbove: number = 16,
+    searchBelow: number = 8
+  ): number | null {
+    if (!this.collisionDataLoaded) {
+      return null;
+    }
+
+    // Look a little above the feet (a slope rises under a walking object) and a
+    // little below (it may have sunk in). Keeping the window small matters: a
+    // wide one would find a platform overhead and snap the object up onto it.
+    const startY = feetY - searchAbove;
+    const result = this.raycast(centerX, startY, 0, 1, searchAbove + searchBelow);
+    if (!result.hit) {
+      return null;
+    }
+
+    // Ignore surfaces that face downwards - those are ceilings, not ground.
+    if (result.normal.y > 0) {
+      return null;
+    }
+
+    return result.point.y;
   }
 
   resolveCollision(

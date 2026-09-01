@@ -389,8 +389,20 @@ export class PlayerComponent extends GameComponent {
     );
 
     if (vCollision.grounded) {
-      const bottomTileY = Math.floor((newY + parent.height) / tileSize);
-      position.y = bottomTileY * tileSize - parent.height;
+      // Prefer the exact surface from the collision segments so slopes are
+      // walked smoothly instead of in 32px steps; fall back to the tile grid
+      // when there is no segment data for this tile.
+      const feetY = newY + parent.height;
+      const surfaceY = this.collisionSystem.getGroundSurfaceY(
+        position.x + parent.width / 2,
+        feetY
+      );
+      if (surfaceY !== null) {
+        position.y = surfaceY - parent.height;
+      } else {
+        const bottomTileY = Math.floor(feetY / tileSize);
+        position.y = bottomTileY * tileSize - parent.height;
+      }
       velocity.y = 0;
       parent.setLastTouchedFloorTime(gameTime);
     } else if (vCollision.ceiling) {
