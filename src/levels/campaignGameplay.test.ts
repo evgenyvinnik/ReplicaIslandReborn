@@ -20,6 +20,7 @@ import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
+import { DifficultySettings } from '../stores/useGameStore';
 import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
@@ -209,6 +210,34 @@ describe('campaign gameplay simulation', () => {
     expect(seen.size).toBeGreaterThan(5);
     expect(unwired).toEqual([]);
   }, 60_000);
+
+  test('repeated attempts at a level quietly boost the player', async () => {
+    const levels = await playableLevels();
+
+    const spawnWithAttempts = async (attempts: number): Promise<GameObject> => {
+      const harness = createHarness();
+      harness.levelSystem.setPlayerMaxLife(DifficultySettings.kids.playerMaxLife);
+      expect(await harness.levelSystem.loadLevel(levels[0].levelId)).toBe(true);
+      harness.manager.commitUpdates();
+      const player = harness.manager.getPlayer() as GameObject;
+      const component = player.getComponent(PlayerComponent) as PlayerComponent;
+      component.applyDifficulty(DifficultySettings.kids, attempts, player);
+      return player;
+    };
+
+    const firstTry = await spawnWithAttempts(1);
+    expect(firstTry.life).toBe(DifficultySettings.kids.playerMaxLife);
+
+    const struggling = await spawnWithAttempts(DifficultySettings.kids.ddaStage1Attempts);
+    expect(struggling.life).toBe(
+      DifficultySettings.kids.playerMaxLife + DifficultySettings.kids.ddaStage1LifeBoost
+    );
+
+    const reallyStruggling = await spawnWithAttempts(DifficultySettings.kids.ddaStage2Attempts);
+    expect(reallyStruggling.life).toBe(
+      DifficultySettings.kids.playerMaxLife + DifficultySettings.kids.ddaStage2LifeBoost
+    );
+  });
 
   test('a grounded player walks when the movement axis is held', async () => {
     const harness = createHarness();

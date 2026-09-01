@@ -628,6 +628,20 @@ export interface DifficultyConstants {
   // Glow mode / Invincibility powerup
   coinsPerPowerup: number;
   glowDuration: number;
+  // Jetpack fuel, from the original's DifficultyConstants
+  fuelAirRefillSpeed: number;
+  fuelGroundRefillSpeed: number;
+  /**
+   * Dynamic difficulty adjustment. After this many attempts at a level the
+   * player quietly gets extra hit points and faster air refuelling; after the
+   * stage-2 count, more of both. The original calls this "super basic DDA".
+   */
+  ddaStage1Attempts: number;
+  ddaStage2Attempts: number;
+  ddaStage1LifeBoost: number;
+  ddaStage2LifeBoost: number;
+  ddaStage1FuelAirRefillSpeed: number;
+  ddaStage2FuelAirRefillSpeed: number;
 }
 
 export const DifficultySettings: Record<GameSettings['difficulty'], DifficultyConstants> = {
@@ -640,6 +654,14 @@ export const DifficultySettings: Record<GameSettings['difficulty'], DifficultyCo
     enemyDamage: 1,
     coinsPerPowerup: 15,   // Easier to get powerup
     glowDuration: 20.0,    // Longer duration
+    fuelAirRefillSpeed: 0.22,
+    fuelGroundRefillSpeed: 4.0,
+    ddaStage1Attempts: 3,
+    ddaStage2Attempts: 5,
+    ddaStage1LifeBoost: 1,
+    ddaStage2LifeBoost: 3,
+    ddaStage1FuelAirRefillSpeed: 0.30,
+    ddaStage2FuelAirRefillSpeed: 0.40,
   },
   kids: {
     playerMaxLife: 3,
@@ -650,6 +672,14 @@ export const DifficultySettings: Record<GameSettings['difficulty'], DifficultyCo
     enemyDamage: 1,
     coinsPerPowerup: 20,
     glowDuration: 15.0,
+    fuelAirRefillSpeed: 0.15,
+    fuelGroundRefillSpeed: 2.0,
+    ddaStage1Attempts: 3,
+    ddaStage2Attempts: 8,
+    ddaStage1LifeBoost: 1,
+    ddaStage2LifeBoost: 2,
+    ddaStage1FuelAirRefillSpeed: 0.22,
+    ddaStage2FuelAirRefillSpeed: 0.30,
   },
   adults: {
     playerMaxLife: 2,
@@ -660,6 +690,14 @@ export const DifficultySettings: Record<GameSettings['difficulty'], DifficultyCo
     enemyDamage: 2,
     coinsPerPowerup: 30,   // Harder to get powerup
     glowDuration: 10.0,    // Shorter duration
+    fuelAirRefillSpeed: 0.15,
+    fuelGroundRefillSpeed: 2.0,
+    ddaStage1Attempts: 4,
+    ddaStage2Attempts: 8,
+    ddaStage1LifeBoost: 1,
+    ddaStage2LifeBoost: 2,
+    ddaStage1FuelAirRefillSpeed: 0.15,
+    ddaStage2FuelAirRefillSpeed: 0.22,
   },
 };
 

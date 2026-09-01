@@ -42,4 +42,15 @@ describe('resetPlayerRuntimeState', () => {
     expect(playerComponent.ghostActive).toBe(false);
     expect(playerComponent.currentState).toBe(PlayerState.POST_GHOST_DELAY);
   });
+
+  test('refills hit points so a retry does not respawn dead', () => {
+    const player = new GameObject();
+    player.maxLife = 3;
+    player.life = 0;
+
+    resetPlayerRuntimeState(player);
+
+    // Hit points drive the HUD's lives counter now.
+    expect(player.life).toBe(3);
+  });
 });

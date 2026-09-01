@@ -11,6 +11,8 @@ import type { CollisionSystem } from '../../engine/CollisionSystemNew';
 import type { SoundSystem } from '../../engine/SoundSystem';
 import type { LevelSystem } from '../../levels/LevelSystemNew';
 import { SoundEffects } from '../../engine/SoundSystem';
+import { getDifficultyAdjustment } from '../dynamicDifficulty';
+import type { DifficultyConstants } from '../../stores/useGameStore';
 import { DynamicCollisionComponent } from './DynamicCollisionComponent';
 import {
   createPlayerVolumeSets,
@@ -115,6 +117,13 @@ export class PlayerComponent extends GameComponent {
   public glowTime: number = 0;
   public coinsForPowerup: number = 0;
 
+  /**
+   * Jetpack refill rates, from DifficultyConstants. Defaults match Kids, and
+   * applyDifficulty() overrides them (including the DDA boost) at spawn.
+   */
+  private fuelAirRefillSpeed: number = 0.15;
+  private fuelGroundRefillSpeed: number = 2.0;
+
   /** Volume sets keyed by state; allocated once so array identity stays stable. */
   private readonly volumeSets = createPlayerVolumeSets();
   private volumeState: PlayerVolumeState | null = null;
@@ -133,6 +142,22 @@ export class PlayerComponent extends GameComponent {
     this.collisionSystem = collision;
     this.soundSystem = sound;
     this.levelSystem = level;
+  }
+
+  /**
+   * Apply the difficulty's fuel rates plus any DDA boost for this level.
+   *
+   * The original does this in adjustDifficulty(), called once as the player
+   * spawns. `attempts` is how many times this level has been started.
+   */
+  applyDifficulty(constants: DifficultyConstants, attempts: number, parent: GameObject): void {
+    const adjustment = getDifficultyAdjustment(constants, attempts);
+    this.fuelGroundRefillSpeed = constants.fuelGroundRefillSpeed;
+    this.fuelAirRefillSpeed = adjustment.fuelAirRefillSpeed;
+    if (adjustment.lifeBoost > 0) {
+      parent.life += adjustment.lifeBoost;
+      parent.maxLife = Math.max(parent.maxLife, parent.life);
+    }
   }
 
   hasSystemsInjected(): boolean {
@@ -163,12 +188,13 @@ export class PlayerComponent extends GameComponent {
       // For now, we'll skip effects in this component update and handle them via events or callbacks
     }
 
-    // Refuel when on ground
+    // Refuel. Rates come from the difficulty's DifficultyConstants, and the
+    // air rate is what DDA speeds up after repeated attempts at a level.
     if (this.fuel < PlayerComponent.FUEL_AMOUNT) {
       if (this.touchingGround) {
-        this.fuel += 2.0 * deltaTime;
+        this.fuel += this.fuelGroundRefillSpeed * deltaTime;
       } else {
-        this.fuel += 0.5 * deltaTime;
+        this.fuel += this.fuelAirRefillSpeed * deltaTime;
       }
       this.fuel = Math.min(PlayerComponent.FUEL_AMOUNT, this.fuel);
     }

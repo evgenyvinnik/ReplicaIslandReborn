@@ -1481,6 +1481,21 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           // Record level attempt in store
           storeRecordLevelAttempt(levelToLoad);
+
+          // Dynamic difficulty: after several attempts at the same level the
+          // player quietly gets extra hit points and refuels faster in the air.
+          // Original: PlayerComponent.adjustDifficulty().
+          const spawnedPlayer = gameObjectManager.getPlayer();
+          const spawnedPlayerComponent = spawnedPlayer?.getComponent(PlayerComponent);
+          if (spawnedPlayer && spawnedPlayerComponent) {
+            const attempts =
+              useGameStore.getState().progress.levels[levelToLoad]?.timesPlayed ?? 1;
+            spawnedPlayerComponent.applyDifficulty(
+              getDifficultySettings(),
+              attempts,
+              spawnedPlayer
+            );
+          }
         } else {
           // Fallback: create test level
           createTestLevel(factory, gameObjectManager, collisionSystem);
@@ -2510,8 +2525,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   playerComponent.invincibleTime = glowDuration;
                   playerComponent.coinsForPowerup = 0;  // Reset counter
                   
-                  // Restore player health to max (original game behavior)
-                  setInventory({ lives: difficultyConfig.playerMaxLife });
+                  // Restore player health to max. The original assigns
+                  // parentObject.life directly; the object's life is the source
+                  // of truth here too, with the inventory mirroring it for the
+                  // HUD. maxLife already includes any DDA boost, so a
+                  // struggling player is not quietly nerfed by a powerup.
+                  player.life = Math.max(player.life, player.maxLife);
+                  setInventory({ lives: player.life });
                   
                   soundSystem.playSfx(SoundEffects.DING, 1.0);  // Power-up sound
                 }

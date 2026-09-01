@@ -8,6 +8,9 @@ import { PlayerComponent } from './components/PlayerComponent';
  */
 export function resetPlayerRuntimeState(player: GameObject): void {
   player.getComponent(PlayerComponent)?.reset();
+  // Hit points are the source of truth for the HUD's lives now, so a retry on
+  // the same object has to refill them or the player respawns already dead.
+  player.life = player.maxLife;
   player.getVelocity().zero();
   player.getTargetVelocity().zero();
   player.getAcceleration().zero();

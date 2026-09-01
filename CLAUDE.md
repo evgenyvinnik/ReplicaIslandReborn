@@ -46,6 +46,7 @@ Verified working (exercised in the browser and by `bun test`):
 | Stomp attack + enemy kills | ✅ | STOMP state drives the player down; overlap kills enemies |
 | Collectibles & win condition | ✅ | 3 rubies triggers LEVEL_COMPLETE |
 | Player lives | ✅ | Sourced from the selected difficulty (Baby 5 / Kids 3 / Adults 2) |
+| Dynamic difficulty (DDA) | ✅ | Repeated attempts at a level quietly grant extra hit points and faster air refuelling |
 | Dialog & character portraits | ✅ | Both scripted and hot-spot triggered |
 | Sound effects | ✅ | 22 OGG effects |
 | Background music | ✅ | bwv_115.mid converted to a note score, synthesized via Web Audio |
@@ -131,6 +132,19 @@ ending. `src/levels/bossFights.test.ts` pins this against the shipped
 Earlier revisions instead gave both bosses bespoke state-machine components and
 resolved their damage with `subType` string checks in `applyPlayerAttack`. Those
 components have been removed; do not reintroduce that pattern.
+
+### Dynamic difficulty
+
+The original quietly makes a level easier once the player keeps failing it: at
+`ddaStage1Attempts` they get `ddaStage1LifeBoost` extra hit points and a faster
+jetpack refill in the air, and more of both at `ddaStage2Attempts`. Nothing is
+shown in the UI. The thresholds and boosts live in `DifficultySettings`
+(`src/stores/useGameStore.ts`), the rule is
+`src/entities/dynamicDifficulty.ts`, and `PlayerComponent.applyDifficulty()`
+applies it at spawn using the store's recorded `timesPlayed` for that level.
+
+Jetpack refill rates come from the same constants — they are not the hardcoded
+values the port used to carry.
 
 ### How to verify gameplay changes
 
