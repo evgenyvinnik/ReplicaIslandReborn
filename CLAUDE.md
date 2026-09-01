@@ -59,7 +59,8 @@ These are real, and are the honest backlog for "finishing" the port:
 | Gap | Impact | Notes |
 |-----|--------|-------|
 | No per-frame animation volumes | Medium | The original stores attack/vulnerability volumes on each `AnimationFrame`; this port's `SpriteComponent` does not. Both the player and the enemies work around it by selecting volume sets from state/action (`playerCollisionVolumes.ts`, `enemyCollisionProfiles.ts`). Faithful per-frame data would need `SpriteComponent` to carry volumes. |
-| Collectibles are still inline | Low | Coins, rubies, pearls and diaries are picked up by an AABB check in `Game.tsx` rather than through the player's COLLECT volume, even though the volume exists. `HitPlayerComponent` is the original's mechanism and remains unattached. |
+| Collectibles are still inline | Low | Coins, rubies, pearls and diaries are picked up by an AABB check in `Game.tsx` rather than through the player's COLLECT volume, even though the volume exists. The original uses `HitPlayerComponent` (a radius test, not the volume pipeline) plus `HitReactionComponent.setInventoryUpdate`; the port has the component but not the inventory hook. Behaviour is correct either way. |
+| Possession is resolved inline | Low | The ghost takes over a target with an AABB overlap in `Game.tsx` and swaps components by hand. The original dispatches `HitType.POSSESS` through the pipeline into `HitReactionComponent.setPossessionComponent` + `ChangeComponentsComponent`. The possessable set now matches the original either way. |
 | Orphaned components | Low–Medium | `HitPlayerComponent`, `SimplePhysicsComponent`, `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent`, `CrusherAndouComponent` are ported and exported but never attached to anything; their behavior is either reimplemented inline or absent. |
 | Line-segment slope collision | Low | `CollisionSystemNew.checkTileCollision()` always delegates to `checkTileCollisionSimple()`; `_checkTileCollisionWithSegments()` is dead code. Slopes are traversable via `checkSlopeClimb()` step-up, but not with the original's exact surface normals. |
 | Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
@@ -85,13 +86,26 @@ selected from state instead — which reproduces the behaviour that matters:
   those states. That is what makes a stomp beat an enemy's contact damage and
   what makes the glow powerup invincible. DEPRESS and COLLECT are always live.
 - **Enemies** (`src/entities/enemyCollisionProfiles.ts`) carry the original's
-  volumes per subType. Two consequences worth knowing:
+  volumes per subType. Consequences worth knowing:
   - Mudman and Pink Namazu have **no vulnerability volume** — they cannot be
     stomped at all, only avoided or possessed.
+  - The turret's vulnerability volume is typed `POSSESS`, so it cannot be
+    stomped either; it has to be taken over.
   - Skeleton, Mudman and Pink Namazu only present an attack volume while their
     action is `ATTACK`, so they are harmless mid-patrol. Brobots and the flying
     enemies hurt on contact.
   `EnemyCollisionComponent` re-selects the set whenever the action changes.
+
+Hit types matter as much as geometry. A vulnerability volume left **untyped**
+accepts every hit type; a typed one accepts only its own. The original leaves
+most enemy vulnerability volumes untyped (so a brobot can be both stomped and
+possessed) and types only the turret (`POSSESS`) and snailbomb (`HIT`). Andou's
+vulnerability volume is untyped too, which is what lets a cannon's `LAUNCH`
+volume reach him — typing it `HIT` silently makes cannons stop working.
+
+Possession is decided the same way: `Game.tsx` looks for a `POSSESS`-capable
+vulnerability volume rather than a list of subType names, which is what lets the
+ghost take over brobots, turrets and brobot spawners alike.
 
 Do not add inline AABB combat checks back into `Game.tsx`. If something needs to
 deal or take damage, give it volumes and a `HitReactionComponent`.

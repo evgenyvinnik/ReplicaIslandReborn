@@ -55,7 +55,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
           new SphereCollisionVolume(16, 32, 32, HitType.HIT),
           new AABoxCollisionVolume(16, 48, 32, 16, HitType.DEPRESS),
         ],
-        vulnerability: [new SphereCollisionVolume(16, 32, 32, HitType.HIT)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 32)],
         attackOnlyWhileAttacking: false,
       };
 
@@ -71,7 +71,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'shadowslime':
       return {
         attack: [new SphereCollisionVolume(16, 32, 32, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(16, 32, 32, HitType.HIT)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 32)],
         attackOnlyWhileAttacking: false,
       };
 
@@ -79,7 +79,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'skeleton':
       return {
         attack: [new SphereCollisionVolume(16, 48, 32, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(16, 32, 32, HitType.HIT)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 32)],
         attackOnlyWhileAttacking: true,
       };
 
@@ -87,7 +87,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'karaguin':
       return {
         attack: [new SphereCollisionVolume(8, 16, 16, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(8, 16, 16, HitType.HIT)],
+        vulnerability: [new SphereCollisionVolume(8, 16, 16)],
         attackOnlyWhileAttacking: false,
       };
 
@@ -95,7 +95,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'bat':
       return {
         attack: [new SphereCollisionVolume(16, 32, 16, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(16, 32, 16, HitType.HIT)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 16)],
         attackOnlyWhileAttacking: false,
       };
 
@@ -103,7 +103,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'sting':
       return {
         attack: [new SphereCollisionVolume(16, 32, 48, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(16, 32, 48, HitType.HIT)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 48)],
         attackOnlyWhileAttacking: false,
       };
 
@@ -111,7 +111,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'onion':
       return {
         attack: [new SphereCollisionVolume(16, 32, 32, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(16, 32, 32, HitType.HIT)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 32)],
         attackOnlyWhileAttacking: false,
       };
 
@@ -132,12 +132,13 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
         attackOnlyWhileAttacking: true,
       };
 
-    // 64x64. Fires projectiles rather than touching the player, so it has a
-    // vulnerability volume only.
+    // 64x64. Fires projectiles rather than touching the player, and its
+    // vulnerability volume is typed POSSESS in the original - a turret cannot
+    // be stomped, only possessed.
     case 'turret':
       return {
         attack: null,
-        vulnerability: [new SphereCollisionVolume(32, 32, 32, HitType.HIT)],
+        vulnerability: [new SphereCollisionVolume(32, 32, 32, HitType.POSSESS)],
         attackOnlyWhileAttacking: false,
       };
 

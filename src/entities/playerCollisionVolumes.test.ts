@@ -30,6 +30,13 @@ describe('player collision volume selection', () => {
     expect(sets.normal.vulnerability).not.toBeNull();
   });
 
+  test("the player's vulnerability volume accepts every hit type", () => {
+    // Untyped in the original. Typing it HIT would stop a cannon's LAUNCH
+    // volume from ever reaching Andou, so he could never be fired.
+    const sets = createPlayerVolumeSets();
+    expect(sets.normal.vulnerability!.map((v) => v.getHitType())).toEqual([HitType.INVALID]);
+  });
+
   test('stomping and glowing drop vulnerability', () => {
     // The original's STOMP and glow frames pass null vulnerability volumes;
     // that is what lets a stomp beat an enemy's contact damage.

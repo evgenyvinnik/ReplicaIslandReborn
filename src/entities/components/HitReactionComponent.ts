@@ -9,6 +9,7 @@ import { GameComponent } from '../GameComponent';
 import { ComponentPhase, HitType, ActionType, Team } from '../../types';
 import type { GameObject } from '../GameObject';
 import { Vector2 } from '../../utils/Vector2';
+import type { LauncherComponent } from './LauncherComponent';
 
 // Pause-on-attack duration: 4 frames at 60fps
 const ATTACK_PAUSE_DELAY = (1.0 / 60) * 4;
@@ -48,6 +49,14 @@ export class HitReactionComponent extends GameComponent {
   
   // Sound system reference (set externally)
   private soundPlayer: ((sound: string) => void) | null = null;
+
+  /**
+   * Launcher to hand the victim to when this object deals a matching hit.
+   * Cannons use this: their LAUNCH attack volume overlapping Andou is what
+   * fires him, rather than any damage being applied.
+   */
+  private launcherComponent: LauncherComponent | null = null;
+  private launcherHitType: HitType = HitType.LAUNCH;
   
   // Time freeze callback for pause-on-attack effect
   private timeFreezer: ((duration: number) => void) | null = null;
@@ -85,6 +94,14 @@ export class HitReactionComponent extends GameComponent {
   /**
    * Set sound player function
    */
+  /**
+   * Hand victims of `launchHitType` to this launcher instead of damaging them.
+   */
+  setLauncherComponent(component: LauncherComponent, launchHitType: HitType = HitType.LAUNCH): void {
+    this.launcherComponent = component;
+    this.launcherHitType = launchHitType;
+  }
+
   setSoundPlayer(player: (sound: string) => void): void {
     this.soundPlayer = player;
   }
@@ -142,7 +159,7 @@ export class HitReactionComponent extends GameComponent {
   /**
    * Called when this object attacks another object
    */
-  hitVictim(parent: GameObject, _victim: GameObject, hitType: HitType, hitAccepted: boolean): void {
+  hitVictim(parent: GameObject, victim: GameObject, hitType: HitType, hitAccepted: boolean): void {
     if (hitAccepted) {
       // Pause game briefly on successful attack hit
       if (this.pauseOnAttack && hitType === HitType.HIT && this.timeFreezer) {
@@ -151,6 +168,10 @@ export class HitReactionComponent extends GameComponent {
 
       if (this.dieOnAttack) {
         parent.life = 0;
+      }
+
+      if (hitType === this.launcherHitType && this.launcherComponent) {
+        this.launcherComponent.prepareToLaunch(victim, parent);
       }
 
       if (this.onDealHitSound && this.soundPlayer) {
@@ -284,6 +305,8 @@ export class HitReactionComponent extends GameComponent {
     this.bounceOnHit = false;
     this.bounceMagnitude = DEFAULT_BOUNCE_MAGNITUDE;
     this.invincibleAfterHitTime = 0;
+    this.launcherComponent = null;
+    this.launcherHitType = HitType.LAUNCH;
     this.lastHitTime = 0;
     this.invincible = false;
     this.invincibleTime = 0;

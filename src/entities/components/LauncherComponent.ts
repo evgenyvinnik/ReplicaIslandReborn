@@ -124,6 +124,14 @@ export class LauncherComponent extends GameComponent {
     }
   }
 
+  /**
+   * The object currently loaded into the launcher, if any. Set by
+   * prepareToLaunch() and cleared once the shot is fired.
+   */
+  getLoadedShot(): GameObject | null {
+    return this.shot;
+  }
+
   private fire(object: GameObject, parentObject: GameObject, angle: number): void {
     if (this.driveActions) {
       object.setCurrentAction(ActionType.MOVE);

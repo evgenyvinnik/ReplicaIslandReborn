@@ -42,7 +42,6 @@ import { DynamicCollisionComponent } from '../entities/components/DynamicCollisi
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
-import { LauncherComponent } from '../entities/components/LauncherComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
 import { setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
@@ -1823,11 +1822,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         if (controllableGhost?.type === 'ghost' && controllableGhost.life > 0) {
           const ghostPosition = controllableGhost.getPosition();
           gameObjectManager.forEach((target) => {
+            // The original decides this with a POSSESS-typed vulnerability
+            // volume rather than a list of names, which is what lets the ghost
+            // take over brobots, turrets and brobot spawners alike.
             if (activeGhostRef.current !== controllableGhost ||
-                target.type !== 'enemy' ||
-                (target.subType !== 'brobot' && target.subType !== 'turret') ||
+                target === player ||
                 target.life <= 0 ||
-                !target.isVisible()) {
+                !target.isVisible() ||
+                !acceptsPossession(target)) {
               return;
             }
 
@@ -1858,18 +1860,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             );
             sourceGhostComponent?.transferControl(controllableGhost);
 
-            const isTurret = target.subType === 'turret';
+            // Emplacements (turrets, brobot spawners) cannot walk, so the
+            // possessed object only aims and fires.
+            const isEmplacement = target.subType === 'turret' || target.type === 'spawner';
             const possession = new GhostComponent({
-              movementSpeed: isTurret ? 0 : 500,
-              jumpImpulse: isTurret ? 0 : 300,
-              acceleration: isTurret ? 0 : 1000,
+              movementSpeed: isEmplacement ? 0 : 500,
+              jumpImpulse: isEmplacement ? 0 : 300,
+              acceleration: isEmplacement ? 0 : 1000,
               useOrientationSensor: false,
               delayOnRelease: 1.5,
-              killOnRelease: !isTurret,
-              targetAction: isTurret ? ActionType.IDLE : ActionType.MOVE,
+              killOnRelease: !isEmplacement,
+              targetAction: isEmplacement ? ActionType.IDLE : ActionType.MOVE,
               lifeTime: 0,
-              changeActionOnButton: isTurret,
-              buttonPressedAction: isTurret ? ActionType.ATTACK : ActionType.INVALID,
+              changeActionOnButton: isEmplacement,
+              buttonPressedAction: isEmplacement ? ActionType.ATTACK : ActionType.INVALID,
               ambientSound: 'sound_possession',
             });
             target.addComponent(possession);
@@ -2564,30 +2568,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
         });
 
-        // Cannons use LAUNCH dynamic-collision volumes in the Android game.
-        // The web runtime handles the same overlap explicitly because its
-        // dynamic collision dispatcher is not part of the frame pipeline.
-        gameObjectManager.forEach((obj) => {
-          if (obj.type !== 'cannon' || !obj.isVisible() || obj.life <= 0) return;
-
-          const cannonPosition = obj.getPosition();
-          const launchRect = {
-            x: cannonPosition.x + 16,
-            y: cannonPosition.y + 16,
-            width: 32,
-            height: 80,
-          };
-          const overlaps = playerRect.x < launchRect.x + launchRect.width &&
-            playerRect.x + playerRect.width > launchRect.x &&
-            playerRect.y < launchRect.y + launchRect.height &&
-            playerRect.y + playerRect.height > launchRect.y;
-          if (!overlaps) return;
-
-          obj.getComponent(
-            LauncherComponent as unknown as new (...args: unknown[]) => LauncherComponent
-          )?.prepareToLaunch(player, obj);
-        });
-
         // Hostile shots previously passed straight through Andou because the
         // web port never ran its dynamic collision system.
         const sourceBoss = gameObjectManager.getActiveObjects().find(
@@ -2779,6 +2759,25 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       }
 
     });
+
+    /**
+     * Can the ghost take this object over?
+     *
+     * True when the object exposes a POSSESS vulnerability volume, matching the
+     * original: brobots (untyped volume, so any hit type is accepted), turrets
+     * and brobot spawners (both typed POSSESS).
+     */
+    const acceptsPossession = (target: GameObject): boolean => {
+      const collision = target.getComponent(
+        DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
+      );
+      const volumes = collision?.getVulnerabilityVolumes();
+      if (!volumes || volumes.length === 0) return false;
+      return volumes.some((volume) => {
+        const type = volume.getHitType();
+        return type === HitType.POSSESS || type === HitType.INVALID;
+      });
+    };
 
     /**
      * The original's rival bosses watch a shared "SURPRISED" channel and switch

@@ -81,6 +81,23 @@ describe('enemy collision profiles', () => {
     expect(profile.vulnerability).not.toBeNull();
   });
 
+  test('the turret can only be possessed, never stomped', () => {
+    // The original types the turret's vulnerability volume POSSESS, so a HIT
+    // simply does not match it.
+    const profile = createEnemyCollisionProfile('turret')!;
+    expect(profile.vulnerability!.map((v) => v.getHitType())).toEqual([HitType.POSSESS]);
+  });
+
+  test('enemies the original leaves untyped accept any hit', () => {
+    // An untyped vulnerability volume matches every hit type, which is how a
+    // brobot can be both stomped and possessed.
+    for (const subType of ['brobot', 'shadowslime', 'skeleton', 'karaguin', 'bat', 'sting', 'onion']) {
+      const profile = createEnemyCollisionProfile(subType)!;
+      expect(profile.vulnerability!.map((v) => v.getHitType()), subType)
+        .toEqual([HitType.INVALID]);
+    }
+  });
+
   test('a brobot can still depress buttons', () => {
     // The original gives brobots a DEPRESS volume so they trigger buttons.
     const profile = createEnemyCollisionProfile('brobot')!;
@@ -158,6 +175,15 @@ describe('enemy combat through GameObjectCollisionSystem', () => {
     runFrame([player, enemy]);
 
     expect(enemy.life).toBe(0);
+  });
+
+  test('stomping does not kill a turret', () => {
+    const player = makePlayer('stomping');
+    const turret = makeEnemy('turret');
+
+    runFrame([player, turret]);
+
+    expect(turret.life).toBe(1);
   });
 
   test('stomping does not kill a mudman', () => {

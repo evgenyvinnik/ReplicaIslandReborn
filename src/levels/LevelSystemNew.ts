@@ -1313,6 +1313,9 @@ export class LevelSystem {
           forceInvincibility: true
         });
         cannonCollision.setHitReactionComponent(cannonHitReact);
+        // The original fires Andou from HitReactionComponent.hitVictim() when
+        // the cannon's LAUNCH volume overlaps him.
+        cannonHitReact.setLauncherComponent(launcherComp, HitType.LAUNCH);
         obj.addComponent(cannonHitReact);
         
         // Generic animation component

@@ -16,6 +16,8 @@ import { GameObject } from '../entities/GameObject';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { AABoxCollisionVolume } from './collision/AABoxCollisionVolume';
+import { LauncherComponent } from '../entities/components/LauncherComponent';
+import { TimeSystem } from './TimeSystem';
 import { HitType, Team } from '../types';
 
 /** An attacker carrying a single HIT attack volume covering its whole body. */
@@ -39,7 +41,12 @@ interface Victim {
 }
 
 /** A victim carrying a vulnerability volume and a real HitReactionComponent. */
-function makeVictim(x: number, y: number, life: number): Victim {
+function makeVictim(
+  x: number,
+  y: number,
+  life: number,
+  vulnerableTo: HitType = HitType.HIT
+): Victim {
   const object = new GameObject();
   object.type = 'enemy';
   object.team = Team.ENEMY;
@@ -51,7 +58,7 @@ function makeVictim(x: number, y: number, life: number): Victim {
 
   const reaction = new HitReactionComponent();
   const collision = new DynamicCollisionComponent();
-  collision.setCollisionVolumes(null, [new AABoxCollisionVolume(0, 0, 64, 64, HitType.HIT)]);
+  collision.setCollisionVolumes(null, [new AABoxCollisionVolume(0, 0, 64, 64, vulnerableTo)]);
   collision.setHitReactionComponent(reaction);
   object.addComponent(collision);
   object.addComponent(reaction);
@@ -74,6 +81,8 @@ describe('GameObjectCollisionSystem wiring', () => {
     sSystemRegistry.reset();
     system = new GameObjectCollisionSystem();
     sSystemRegistry.register(system, 'gameObjectCollision');
+    // LauncherComponent schedules its shot against game time.
+    sSystemRegistry.register(new TimeSystem(), 'time');
   });
 
   test('is reachable from the global registry', () => {
@@ -150,6 +159,43 @@ describe('GameObjectCollisionSystem wiring', () => {
     runFrame(system, [stomper, block.object], 1);
 
     expect(block.object.life).toBe(0);
+  });
+
+  test('a cannon launches the player instead of damaging them', () => {
+    // The original fires Andou from HitReactionComponent.hitVictim(): the
+    // cannon's LAUNCH volume overlapping him hands him to LauncherComponent.
+    const cannon = new GameObject();
+    cannon.type = 'cannon';
+    cannon.team = Team.NONE;
+    cannon.width = 64;
+    cannon.height = 128;
+    cannon.life = 1;
+    cannon.getPosition().set(100, 100);
+
+    const launcher = new LauncherComponent({ angle: Math.PI, magnitude: 2000 });
+    const cannonReaction = new HitReactionComponent({ forceInvincibility: true });
+    cannonReaction.setLauncherComponent(launcher, HitType.LAUNCH);
+    const cannonCollision = new DynamicCollisionComponent();
+    cannonCollision.setCollisionVolumes(
+      [new AABoxCollisionVolume(16, 16, 32, 80, HitType.LAUNCH)],
+      null
+    );
+    cannonCollision.setHitReactionComponent(cannonReaction);
+    cannon.addComponent(launcher);
+    cannon.addComponent(cannonCollision);
+    cannon.addComponent(cannonReaction);
+
+    // The player's vulnerability volume is untyped in the original, which is
+    // what lets a LAUNCH volume reach him at all.
+    const player = makeVictim(110, 110, 3, HitType.INVALID);
+    player.object.type = 'player';
+    player.object.team = Team.PLAYER;
+
+    runFrame(system, [cannon, player.object], 1);
+
+    // A launch must not cost a life, and the player must be the loaded shot.
+    expect(player.object.life).toBe(3);
+    expect(launcher.getLoadedShot()).toBe(player.object);
   });
 
   test('an invincible target refuses the hit', () => {

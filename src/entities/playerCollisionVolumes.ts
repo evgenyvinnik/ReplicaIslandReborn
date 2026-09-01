@@ -60,9 +60,11 @@ export function createPlayerVolumeSets(): Record<PlayerVolumeState, PlayerVolume
   return {
     normal: {
       attack: [press, collect],
-      // Original: SphereCollisionVolume(16, 32, 16) on a 64x64 sprite; this
-      // port's player object is 32x48, so the sphere is centred on that body.
-      vulnerability: [new SphereCollisionVolume(16, 16, 24, HitType.HIT)],
+      // Original: SphereCollisionVolume(16, 32, 32) on a 64x64 sprite, left
+      // untyped so it accepts every hit type - that is what lets a cannon's
+      // LAUNCH volume fire Andou and a HIT volume hurt him. This port's player
+      // object is 32x48, so the sphere is centred on that body.
+      vulnerability: [new SphereCollisionVolume(16, 16, 24)],
     },
     stomping: {
       // Original: AABoxCollisionVolume(16, -5, 32, 37, HIT) on a 64-wide sprite;
