@@ -23,6 +23,7 @@ import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { DifficultySettings } from '../stores/useGameStore';
 import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
+import { ActionType } from '../types';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
@@ -237,6 +238,30 @@ describe('campaign gameplay simulation', () => {
     expect(reallyStruggling.life).toBe(
       DifficultySettings.kids.playerMaxLife + DifficultySettings.kids.ddaStage2LifeBoost
     );
+  });
+
+  test("the player's GameObject action tracks its state", async () => {
+    // The original sets this in gotoMove/gotoStomp/stateDead/gotoFrozen.
+    // Leaving it at INVALID means anything gating on requiredAction can never
+    // fire for Andou.
+    const levels = await playableLevels();
+    const harness = createHarness();
+    expect(await harness.levelSystem.loadLevel(levels[0].levelId)).toBe(true);
+    harness.manager.commitUpdates();
+
+    const player = harness.manager.getPlayer() as GameObject;
+    const component = player.getComponent(PlayerComponent) as PlayerComponent;
+
+    harness.run(10);
+    expect(player.getCurrentAction()).toBe(ActionType.MOVE);
+
+    component.currentState = PlayerState.STOMP;
+    harness.run(1);
+    expect(player.getCurrentAction()).toBe(ActionType.ATTACK);
+
+    component.currentState = PlayerState.FROZEN;
+    harness.run(1);
+    expect(player.getCurrentAction()).toBe(ActionType.FROZEN);
   });
 
   test('a grounded player walks when the movement axis is held', async () => {

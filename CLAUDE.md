@@ -65,7 +65,6 @@ These are real, and are the honest backlog for "finishing" the port:
 | Orphaned components | Low–Medium | `HitPlayerComponent`, `SimplePhysicsComponent`, `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent`, `CrusherAndouComponent` are ported and exported but never attached to anything; their behavior is either reimplemented inline or absent. |
 | Line-segment tile collision | Low | Grounding now resolves against the real segments from `collision.json` (`getGroundSurfaceY()`), so slopes are walked smoothly. `checkTileCollision()` itself still delegates to `checkTileCollisionSimple()` for wall/ceiling tests, so those remain tile-granular; `_checkTileCollisionWithSegments()` is still unused. |
 | Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
-| `GameObject.currentAction` for the player | Low | Never leaves `INVALID`. Components that gate on `requiredAction` therefore never fire for the player. |
 | `Game.tsx` size | Medium (maintainability) | ~3700 lines holding gameplay logic that duplicates the component system. This is why components drift into being unused. |
 
 ### Combat

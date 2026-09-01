@@ -4,7 +4,7 @@
  */
 
 import { GameComponent } from '../GameComponent';
-import { ComponentPhase } from '../../types';
+import { ComponentPhase, ActionType } from '../../types';
 import type { GameObject } from '../GameObject';
 import type { InputSystem } from '../../engine/InputSystem';
 import type { CollisionSystem } from '../../engine/CollisionSystemNew';
@@ -20,6 +20,13 @@ import {
   type PlayerVolumeState,
 } from '../playerCollisionVolumes';
 
+/**
+ * GameObject action for each player state, matching where the original calls
+ * setCurrentAction(): gotoMove -> MOVE, gotoStomp -> ATTACK, stateDead ->
+ * DEATH, gotoFrozen -> FROZEN.
+ */
+const PLAYER_STATE_ACTIONS: Record<number, ActionType | undefined> = {};
+
 export enum PlayerState {
   MOVE = 0,          // Normal movement
   STOMP = 1,         // Stomp attack in progress
@@ -29,6 +36,14 @@ export enum PlayerState {
   FROZEN = 5,        // Input disabled (cutscenes, ghost)
   POST_GHOST_DELAY = 6, // Delay after ghost possession ends
 }
+
+PLAYER_STATE_ACTIONS[PlayerState.MOVE] = ActionType.MOVE;
+PLAYER_STATE_ACTIONS[PlayerState.STOMP] = ActionType.ATTACK;
+PLAYER_STATE_ACTIONS[PlayerState.HIT_REACT] = ActionType.HIT_REACT;
+PLAYER_STATE_ACTIONS[PlayerState.DEAD] = ActionType.DEATH;
+PLAYER_STATE_ACTIONS[PlayerState.FROZEN] = ActionType.FROZEN;
+PLAYER_STATE_ACTIONS[PlayerState.POST_GHOST_DELAY] = ActionType.FROZEN;
+// WIN has no counterpart in the original's ActionType; leave it alone.
 
 
 
@@ -440,6 +455,22 @@ export class PlayerComponent extends GameComponent {
     parent.setBackgroundCollisionNormal(vCollision.normal.y !== 0 ? vCollision.normal : hCollision.normal);
 
     this.updateCollisionVolumes(parent);
+    this.updateCurrentAction(parent);
+  }
+
+  /**
+   * Mirror the player's state onto GameObject.currentAction.
+   *
+   * The original sets this in gotoMove/gotoStomp/stateDead/gotoFrozen. Without
+   * it the player's action never leaves INVALID, so anything that gates on
+   * `requiredAction` - LaunchProjectileComponent, animation selectors - can
+   * never fire for Andou.
+   */
+  private updateCurrentAction(parent: GameObject): void {
+    const action = PLAYER_STATE_ACTIONS[this.currentState];
+    if (action && parent.getCurrentAction() !== action) {
+      parent.setCurrentAction(action);
+    }
   }
 
   /**
