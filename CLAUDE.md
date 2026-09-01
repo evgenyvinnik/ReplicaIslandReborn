@@ -152,6 +152,9 @@ values the port used to carry.
   pipeline wired exactly as `Game.tsx` wires it, and asserts the player moves,
   flies, stomps, keeps its difficulty hit points, doesn't fall out of the world,
   and that every enemy the campaign spawns is wired for combat.
+- `src/levels/levelCompletable.test.ts` reads the shipped level data and
+  asserts every level reachable through either progression tree has a way to
+  finish it: three rubies, a boss, or an END_LEVEL/GAME_EVENT hot spot.
 - Combat rules are pinned by `src/entities/enemyCollisionProfiles.test.ts`,
   `src/entities/playerCollisionVolumes.test.ts`,
   `src/engine/GameObjectCollisionSystem.test.ts` and
