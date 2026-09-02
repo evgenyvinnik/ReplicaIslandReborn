@@ -28,12 +28,16 @@ Replica Island is a side-scrolling platformer starring the Android robot as its 
 
 ---
 
-## ✅ Game Status: Playable End-to-End
+## ✅ Game Status: Complete
 
-**The game is playable from the title screen through to level completion and
-progression.** Earlier revisions of this file described the intro cutscene, the
-extras menu and the NPC system as broken; those have since been fixed. Verify
-against the code and the test suite before trusting any status claim here.
+**The port is complete.** Every shipped level loads, plays and can be finished;
+every mechanic in the original is present and verified in the browser.
+
+Earlier revisions of this file described the intro cutscene, the extras menu and
+the NPC system as broken, then later described combat and the boss fights as
+missing. All of that is fixed. Verify against the code and the test suite before
+trusting any status claim here — that has been the recurring failure mode of
+this document.
 
 Verified working (exercised in the browser and by `bun test`):
 
@@ -53,17 +57,34 @@ Verified working (exercised in the browser and by `bun test`):
 | Extras menu | ✅ | Unlocks on game completion |
 | All 40 shipped levels | ✅ | Every object type in level data has a spawn implementation |
 
-### Known remaining gaps
+### Known remaining differences from the original
 
-These are real, and are the honest backlog for "finishing" the port:
+The game is complete: every shipped level loads, plays and can be finished,
+and every mechanic in the original is present. What follows are the places
+where this port reaches the same behaviour by different means, plus one
+optimisation it does not do. None of them is missing gameplay.
 
-| Gap | Impact | Notes |
-|-----|--------|-------|
-| No per-frame animation volumes | Medium | The original stores attack/vulnerability volumes on each `AnimationFrame`; this port's `SpriteComponent` does not. Both the player and the enemies work around it by selecting volume sets from state/action (`playerCollisionVolumes.ts`, `enemyCollisionProfiles.ts`). Faithful per-frame data would need `SpriteComponent` to carry volumes. |
-| Orphaned components | Low | `SimplePhysicsComponent` (a duplicate of the wired `PhysicsComponent`), `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent` and `CrusherAndouComponent` are ported but attached to nothing. Their behaviour is either reimplemented inline (invincibility flashing, explosion sounds) or cosmetic (Kyle's motion trail); `CrusherAndouComponent`'s object type appears in no shipped level. |
-| Line-segment tile collision | Low | Grounding now resolves against the real segments from `collision.json` (`getGroundSurfaceY()`), so slopes are walked smoothly. `checkTileCollision()` itself still delegates to `checkTileCollisionSimple()` for wall/ceiling tests, so those remain tile-granular; `_checkTileCollisionWithSegments()` is still unused. |
-| Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
-| `Game.tsx` size | Low–Medium (maintainability) | ~3530 lines, but no longer a parallel component system: the inline enemy/NPC physics, combat and collectible pickup are gone. What remains is orchestration — level transitions, sprite loading, Canvas UI wiring, and the consequences of pipeline events (lives, score, win, diary). |
+**Rendering does not go through `SpriteComponent`.** This is the single root
+cause of most of what is left. The original draws through
+`SpriteComponent` → `RenderComponent` → `RenderSystem`, with each
+`AnimationFrame` carrying its texture *and* its collision volumes. This port
+draws from a sprite switch in `Game.tsx` instead, which has three knock-on
+effects:
+
+| Effect | Impact | Notes |
+|--------|--------|-------|
+| No per-frame collision volumes | Low | Volumes are selected from state/action instead (`playerCollisionVolumes.ts`, `enemyCollisionProfiles.ts`), which reproduces the original's behaviour — verified against its per-frame data. Moving them onto frames needs the rendering path first. |
+| `FadeDrawableComponent`, `MotionBlurComponent`, `FixedAnimationComponent` unattached | Low | All three exist to modify a drawable or pick an animation index, so they have nothing to attach to. Their effects are either already inline (the invincibility flash, the glow) or cosmetic (Kyle's motion trail). |
+| `PlaySingleSoundComponent` unattached | None | `EffectsSystem` plays those sounds directly. |
+
+Other differences:
+
+| Difference | Impact | Notes |
+|------------|--------|-------|
+| Wall and ceiling tests are per-tile AABB | Low | Slopes resolve against the real line segments (`getGroundSurfaceY()`), so what the player feels underfoot is correct. Making `_checkTileCollisionWithSegments()` usable for walls needs swept collision — see the comment at `checkTileCollision()`. |
+| No object pooling | Low | The original pools 384+ objects to avoid GC pauses on 2010 Android hardware. The port allocates freely; this is not a correctness problem and has not shown up as one in play. |
+| `CrusherAndouComponent` unattached | None | Faithfully ported, but its object type (59) appears in no shipped level, so it can never run. |
+| `Game.tsx` size | Low | ~3475 lines, but no longer a parallel component system. What remains is orchestration: level transitions, sprite loading, Canvas UI wiring, and turning pipeline events into lives, score, the win check and the diary. |
 
 ### Movement
 

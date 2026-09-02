@@ -88,8 +88,6 @@ export { PlaySingleSoundComponent } from './PlaySingleSoundComponent';
 export { OrbitalMagnetComponent } from './OrbitalMagnetComponent';
 export type { OrbitalMagnetConfig } from './OrbitalMagnetComponent';
 
-export { SimplePhysicsComponent } from './SimplePhysicsComponent';
-export type { SimplePhysicsConfig } from './SimplePhysicsComponent';
 
 export { FixedAnimationComponent } from './FixedAnimationComponent';
 
