@@ -2196,6 +2196,13 @@ export class LevelSystem {
     const existing = obj.getComponent(SpriteComponent);
     const renderSystem = sSystemRegistry.renderSystem;
 
+    // The player builds his own animations in PlayerComponent (they carry his
+    // collision volumes), so he only needs the render system here.
+    if (obj.type === 'player') {
+      if (existing && renderSystem) existing.setRenderSystem(renderSystem);
+      return;
+    }
+
     // NPCs pick their animation from action, speed and whether they are
     // airborne; NPCAnimationComponent does that selection.
     if (obj.type === 'npc') {

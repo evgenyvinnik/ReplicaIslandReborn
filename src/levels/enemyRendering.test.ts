@@ -28,7 +28,8 @@ import { DynamicCollisionComponent } from '../entities/components/DynamicCollisi
 import type { RenderSystem } from '../engine/RenderSystem';
 import type { GameObject } from '../entities/GameObject';
 import type { GameComponent } from '../entities/GameComponent';
-import { ActionType } from '../types';
+import { ActionType, HitType } from '../types';
+import { createPlayerAnimations } from '../data/playerAnimations';
 
 const originalFetch = globalThis.fetch;
 const publicDirectory = join(import.meta.dir, '../../public');
@@ -235,6 +236,32 @@ describe('enemies render from their components', () => {
     sprite!.update(1 / 60, shot!);
     expect(calls.length).toBe(1);
     expect(calls[0].sprite).toMatch(/^energy_ball0\d$/);
+  });
+
+  test("Andou's stomp frames arm his attack volume and drop his vulnerability", async () => {
+    // The point of moving the player onto SpriteComponent: his volumes ride on
+    // the animation frames, as the original's spawnPlayer() sets them. The
+    // STOMP frames pass null vulnerability volumes, which is what makes a stomp
+    // beat an enemy's contact damage.
+    const idle = createPlayerAnimations(false).get('idle')!;
+    const stomp = createPlayerAnimations(false).get('stomp')!;
+
+    for (const frame of idle.frames) {
+      expect(frame.vulnerabilityVolumes).not.toBeNull();
+      expect(frame.attackVolumes!.some((v) => v.getHitType() === HitType.HIT)).toBe(false);
+    }
+    for (const frame of stomp.frames) {
+      expect(frame.vulnerabilityVolumes).toBeNull();
+      expect(frame.attackVolumes!.some((v) => v.getHitType() === HitType.HIT)).toBe(true);
+    }
+  });
+
+  test('the glow powerup swaps in a bigger attack volume', async () => {
+    const normal = createPlayerAnimations(false).get('idle')!;
+    const glowing = createPlayerAnimations(true).get('idle')!;
+
+    expect(normal.frames[0].attackVolumes!.some((v) => v.getHitType() === HitType.HIT)).toBe(false);
+    expect(glowing.frames[0].attackVolumes!.some((v) => v.getHitType() === HitType.HIT)).toBe(true);
   });
 
   test('the frame volumes reach the collision component as it plays', async () => {

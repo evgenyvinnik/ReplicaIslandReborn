@@ -13,12 +13,13 @@ import type { LevelSystem } from '../../levels/LevelSystemNew';
 import { SoundEffects } from '../../engine/SoundSystem';
 import { getDifficultyAdjustment } from '../dynamicDifficulty';
 import type { DifficultyConstants } from '../../stores/useGameStore';
-import { DynamicCollisionComponent } from './DynamicCollisionComponent';
+import { SpriteComponent } from './SpriteComponent';
 import {
-  createPlayerVolumeSets,
-  selectPlayerVolumeState,
-  type PlayerVolumeState,
-} from '../playerCollisionVolumes';
+  createPlayerAnimations,
+  selectPlayerAnimation,
+  type PlayerAnimationName,
+} from '../../data/playerAnimations';
+import type { AnimationDefinition } from '../../types';
 
 /**
  * GameObject action for each player state, matching where the original calls
@@ -139,9 +140,10 @@ export class PlayerComponent extends GameComponent {
   private fuelAirRefillSpeed: number = 0.15;
   private fuelGroundRefillSpeed: number = 2.0;
 
-  /** Volume sets keyed by state; allocated once so array identity stays stable. */
-  private readonly volumeSets = createPlayerVolumeSets();
-  private volumeState: PlayerVolumeState | null = null;
+  /** Animation set, rebuilt when the glow powerup turns on or off. */
+  private animations: Map<PlayerAnimationName, AnimationDefinition> | null = null;
+  private animationsGlowing: boolean = false;
+  private playingAnimation: PlayerAnimationName | null = null;
 
   constructor() {
     super(ComponentPhase.THINK);
@@ -454,8 +456,47 @@ export class PlayerComponent extends GameComponent {
 
     parent.setBackgroundCollisionNormal(vCollision.normal.y !== 0 ? vCollision.normal : hCollision.normal);
 
-    this.updateCollisionVolumes(parent);
+    this.updateAnimation(parent);
     this.updateCurrentAction(parent);
+  }
+
+  /**
+   * Choose Andou's animation from his state and let SpriteComponent play it.
+   *
+   * The frames carry his collision volumes (see data/playerAnimations.ts), so
+   * selecting the animation is also what selects his hitboxes - which is how
+   * the original does it. The glow powerup swaps the whole animation set for
+   * one whose frames carry the larger HIT sphere.
+   */
+  private updateAnimation(parent: GameObject): void {
+    const sprite = parent.getComponent(SpriteComponent);
+    if (!sprite) return;
+
+    if (this.animations === null || this.animationsGlowing !== this.glowMode) {
+      this.animations = createPlayerAnimations(this.glowMode);
+      this.animationsGlowing = this.glowMode;
+      for (const [name, animation] of this.animations) {
+        sprite.addAnimation(name, animation);
+      }
+      // Force the animation to be re-selected against the new set.
+      this.playingAnimation = null;
+    }
+
+    const next = selectPlayerAnimation({
+      hitReacting: this.currentState === PlayerState.HIT_REACT,
+      dying: this.currentState === PlayerState.DEAD || this.isDying,
+      stomping: this.stomping,
+      charging: this.ghostChargeTime > 0,
+      touchingGround: this.touchingGround,
+      rocketsOn: this.rocketsOn,
+      velocityX: parent.getVelocity().x,
+      velocityY: parent.getVelocity().y,
+    });
+
+    if (next !== this.playingAnimation) {
+      this.playingAnimation = next;
+      sprite.playAnimation(next);
+    }
   }
 
   /**
@@ -473,29 +514,10 @@ export class PlayerComponent extends GameComponent {
     }
   }
 
-  /**
-   * Swap the player's collision volumes to match the current state.
-   *
-   * The original drives these from the current animation frame; see
-   * playerCollisionVolumes.ts. Without this the player's HIT volume would be
-   * permanently active and would kill enemies on contact rather than on stomp.
-   */
-  private updateCollisionVolumes(parent: GameObject): void {
-    const collision = parent.getComponent(DynamicCollisionComponent);
-    if (!collision) return;
-
-    const state = selectPlayerVolumeState(this.stomping, this.glowMode);
-    if (state === this.volumeState) return;
-
-    this.volumeState = state;
-    const set = this.volumeSets[state];
-    collision.setCollisionVolumes(set.attack, set.vulnerability);
-  }
-
   reset(): void {
     this.currentState = PlayerState.MOVE;
-    // Force the volume set to be reapplied on the next update.
-    this.volumeState = null;
+    // Force the animation to be re-selected on the next update.
+    this.playingAnimation = null;
     this.stateTimer = 0;
     this.fuel = PlayerComponent.FUEL_AMOUNT;
     this.jumpTime = 0;

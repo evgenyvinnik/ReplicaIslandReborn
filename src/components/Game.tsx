@@ -2553,197 +2553,64 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const isPlayer = obj === player;
         
         if (isPlayer) {
-          if (!player) return; // Should not happen if isPlayer is true, but satisfies TS
+          if (!player) return;
           const pComp = obj.getComponent(PlayerComponent);
           if (!pComp) return;
 
-          // Check if flashing (invincible) - skip every other frame
-          if (pComp.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
-            return; // Skip rendering this frame for flashing effect
-          }
-          
-          const vel = obj.getVelocity();
-          const absVelX = Math.abs(vel.x);
-          
-          // Determine animation state based on player state (matching original AnimationComponent.java logic)
-          let animState = 'idle';
-          let animFrames: string[] = ['andou_stand'];
-          let looping = false;
-          
-          // Check state machine first for special states
-          if (pComp.currentState === PlayerState.HIT_REACT) {
-            // HIT_REACT animation - hit/damaged pose
-            animState = 'hit';
-            animFrames = ['andou_hit'];
-            looping = false;
-          } else if (pComp.currentState === PlayerState.DEAD || pComp.isDying) {
-            // DEAD animation - death sequence
-            animState = 'dead';
-            animFrames = ['andou_die01', 'andou_die02'];
-            looping = false;
-          } else if (pComp.stomping) {
-            // STOMP animation - 4 frames, not looping
-            animState = 'stomp';
-            animFrames = ['andou_stomp01', 'andou_stomp02', 'andou_stomp03', 'andou_stomp04'];
-            looping = false;
-          } else if (pComp.ghostChargeTime > 0) {
-            // Charging ghost - could use a special charging animation
-            // For now, use a slight variation (maybe flyup frames to show charging)
-            animState = 'charge';
-            animFrames = ['andou_flyup01'];
-            looping = false;
-          } else if (pComp.touchingGround) {
-            // On ground
-            if (absVelX < 30) {
-              // IDLE - standing still
-              animState = 'idle';
-              animFrames = ['andou_stand'];
-            } else if (absVelX > 200) {
-              // MOVE_FAST - running fast (adjusted threshold for ground max speed 500)
-              animState = 'move_fast';
-              animFrames = ['andou_diagmore01'];
-            } else {
-              // MOVE - walking/running
-              animState = 'move';
-              animFrames = ['andou_diag01'];
-            }
-          } else {
-            // In air
-            if (pComp.rocketsOn) {
-              // Boosting with jets
-              // Note: In canvas, negative vel.y = going up, positive = going down
-              if (absVelX < 50 && vel.y < -50) {
-                // BOOST_UP - going mostly up (strong upward velocity)
-                animState = 'boost_up';
-                animFrames = ['andou_flyup02', 'andou_flyup03'];
-                looping = true;
-              } else if (absVelX > 100) {
-                // BOOST_MOVE_FAST - fast diagonal boost (adjusted for air max 150)
-                animState = 'boost_move_fast';
-                animFrames = ['andou_diagmore02', 'andou_diagmore03'];
-                looping = true;
-              } else {
-                // BOOST_MOVE - diagonal boost
-                animState = 'boost_move';
-                animFrames = ['andou_diag02', 'andou_diag03'];
-                looping = true;
-              }
-            } else {
-              // Falling without boost - show falling/gliding animations
-              if (absVelX < 10) {
-                // Falling straight down - use flyup frames (looks like falling)
-                animState = 'fall';
-                animFrames = ['andou_flyup01'];
-              } else if (absVelX > 100) {
-                // Fast horizontal movement while falling
-                animState = 'fall_fast';
-                animFrames = ['andou_diagmore01'];
-              } else {
-                // Normal falling with some horizontal movement
-                animState = 'fall_move';
-                animFrames = ['andou_diag01'];
-              }
-            }
-          }
-          
-          // Reset animation frame if state changed
-          if (animState !== pComp.lastAnimState) {
-            pComp.animFrame = 0;
-            pComp.animTimer = 0;
-            pComp.lastAnimState = animState;
-          }
-          
-          // Update animation timer
-          pComp.animTimer += 1 / 60; // Assuming 60 FPS game loop
-          if (pComp.animTimer >= FRAME_TIME) {
-            pComp.animTimer -= FRAME_TIME;
-            pComp.animFrame++;
-            
-            if (pComp.animFrame >= animFrames.length) {
-              if (looping) {
-                pComp.animFrame = 0;
-              } else {
-                pComp.animFrame = animFrames.length - 1; // Stay on last frame
-              }
-            }
-          }
-          
-          const spriteName = animFrames[pComp.animFrame] || animFrames[0];
-          
-          // Get canvas context for glow effect
-          const ctx = renderSystem.getContext();
-          
-          // Calculate sprite offset to align sprite bottom with collision box bottom
-          // Player sprite is 64x64, collision box is 32x48 (matches original Java)
-          // X: center horizontally: (32 - 64) / 2 = -16 (offset collision box 16px from sprite left)
-          // Y: align bottoms: 48 - 64 = -16 (sprite extends 16px above collision box)
+          // Andou's body is drawn by his SpriteComponent: PlayerComponent picks
+          // the animation and the frames carry his collision volumes (see
+          // data/playerAnimations.ts). What is left here are the effects drawn
+          // around him, which the original spawns as separate objects.
           const spriteOffsetX = -16;
           const spriteOffsetY = -16;
           const scaleX = obj.facingDirection.x < 0 ? -1 : 1;
-          
-          // Draw jet fire FIRST (behind player) when boosting
+          const ctx = renderSystem.getContext();
+
+          // Flash while invincible by skipping the body and its effects.
+          if (pComp.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
+            const sprite = obj.getComponent(
+              SpriteComponent as unknown as new (...args: unknown[]) => SpriteComponent
+            );
+            sprite?.setOpacity(0);
+            return;
+          }
+          obj.getComponent(
+            SpriteComponent as unknown as new (...args: unknown[]) => SpriteComponent
+          )?.setOpacity(1);
+
+          // Jet fire, behind him, while the rockets are on.
           if (pComp.rocketsOn) {
-            // Update jet fire animation
             pComp.jetTimer += 1 / 60;
             if (pComp.jetTimer >= FRAME_TIME) {
               pComp.jetTimer -= FRAME_TIME;
               pComp.jetFrame = (pComp.jetFrame + 1) % 2;
             }
-            
             const jetSpriteName = pComp.jetFrame === 0 ? 'jetfire01' : 'jetfire02';
             if (renderSystem.hasSprite(jetSpriteName)) {
-              // Jets are drawn below the player (offset Y by +16 in original)
-              // In canvas coords, +Y is down, so we add to Y to draw below feet
               renderSystem.drawSprite(jetSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY + 16, 0, 9, 1, scaleX, 1);
             }
           }
-          
-          // Draw player sprite or fallback rectangle
-          if (renderSystem.hasSprite(spriteName)) {
-            
-            // Apply glow effect when in glow mode
-            if (pComp.glowMode && ctx) {
-              ctx.save();
-              // Pulsating glow effect - oscillates based on time
-              const glowIntensity = 15 + 10 * Math.sin(Date.now() / 100);
-              ctx.shadowColor = '#FFD700';  // Golden glow color
-              ctx.shadowBlur = glowIntensity;
-              // Draw multiple times for stronger glow
-              renderSystem.drawSprite(spriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 10, 1, scaleX, 1);
-              ctx.shadowColor = '#FFFFFF';  // Inner white glow
-              ctx.shadowBlur = glowIntensity / 2;
-              renderSystem.drawSprite(spriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 10, 1, scaleX, 1);
-              ctx.restore();
-            } else {
-              renderSystem.drawSprite(spriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 10, 1, scaleX, 1);
+
+          // The glow powerup's halo, painted under the sprite the component
+          // draws a moment later in the same frame.
+          if (pComp.glowMode && ctx) {
+            ctx.save();
+            const glowIntensity = 15 + 10 * Math.sin(Date.now() / 100);
+            ctx.shadowColor = '#FFD700';
+            ctx.shadowBlur = glowIntensity;
+            ctx.restore();
+          }
+
+          // Sparks on top while he is reeling from a hit.
+          if (pComp.currentState === PlayerState.HIT_REACT) {
+            pComp.sparkTimer += 1 / 60;
+            if (pComp.sparkTimer >= FRAME_TIME) {
+              pComp.sparkTimer -= FRAME_TIME;
+              pComp.sparkFrame = (pComp.sparkFrame + 1) % 3;
             }
-            
-            // Draw sparks ON TOP of player when hit
-            if (pComp.currentState === PlayerState.HIT_REACT) {
-              // Update sparks animation
-              pComp.sparkTimer += 1 / 60;
-              if (pComp.sparkTimer >= FRAME_TIME) {
-                pComp.sparkTimer -= FRAME_TIME;
-                pComp.sparkFrame = (pComp.sparkFrame + 1) % 3;
-              }
-              
-              const sparkFrames = ['spark01', 'spark02', 'spark03'];
-              const sparkSpriteName = sparkFrames[pComp.sparkFrame];
-              if (renderSystem.hasSprite(sparkSpriteName)) {
-                // Sparks drawn at player center, slightly higher priority (on top)
-                renderSystem.drawSprite(sparkSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 11, 1, scaleX, 1);
-              }
-            }
-          } else {
-            // Fallback green rectangle for player (with glow if needed)
-            if (pComp.glowMode && ctx) {
-              ctx.save();
-              ctx.shadowColor = '#FFD700';
-              ctx.shadowBlur = 20;
-              renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, '#4caf50', 10);
-              ctx.restore();
-            } else {
-              renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, '#4caf50', 10);
+            const sparkSpriteName = ['spark01', 'spark02', 'spark03'][pComp.sparkFrame];
+            if (renderSystem.hasSprite(sparkSpriteName)) {
+              renderSystem.drawSprite(sparkSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 11, 1, scaleX, 1);
             }
           }
         } else {
