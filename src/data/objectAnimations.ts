@@ -26,6 +26,8 @@ interface ObjectArt {
   centred?: boolean;
   /** Art centred within the object's own box, as the terminals are. */
   centreOnObject?: boolean;
+  /** Seconds per frame; defaults to the 24 FPS the rest of the game uses. */
+  frameTime?: number;
 }
 
 const OBJECT_ART: Record<string, ObjectArt> = {
@@ -56,6 +58,9 @@ const OBJECT_ART: Record<string, ObjectArt> = {
   spawner: { frames: ['object_brobot_machine'], width: 64, height: 64 },
 };
 
+/** Projectiles animate faster than the rest: 80ms a frame, not 3/24s. */
+const PROJECTILE_FRAME = 0.08;
+
 /** Objects whose art depends on their subType, keyed `type:subType`. */
 const SUBTYPE_ART: Record<string, ObjectArt> = {
   'decoration:andou_dead': { frames: ['andou_dead'], width: 64, height: 64 },
@@ -71,6 +76,26 @@ const SUBTYPE_ART: Record<string, ObjectArt> = {
     width: 64,
     height: 64,
     centreOnObject: true,
+  },
+  'projectile:energy_ball': {
+    frames: ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'],
+    width: 32, height: 32, centreOnObject: true, frameTime: PROJECTILE_FRAME,
+  },
+  'projectile:wanda_shot': {
+    frames: ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'],
+    width: 32, height: 32, centreOnObject: true, frameTime: PROJECTILE_FRAME,
+  },
+  'projectile:cannon_ball': {
+    frames: ['snail_bomb'],
+    width: 32, height: 32, centreOnObject: true, frameTime: PROJECTILE_FRAME,
+  },
+  'projectile:turret_bullet': {
+    frames: ['shot01', 'shot02'],
+    width: 16, height: 16, centreOnObject: true, frameTime: PROJECTILE_FRAME,
+  },
+  'projectile:brobot_bullet': {
+    frames: ['shot01', 'shot02'],
+    width: 16, height: 16, centreOnObject: true, frameTime: PROJECTILE_FRAME,
   },
 };
 
@@ -103,7 +128,7 @@ export function createObjectAnimation(
     y: 0,
     width: art.width,
     height: art.height,
-    duration: FRAME * 3,
+    duration: art.frameTime ?? FRAME * 3,
     sprite,
     offsetX,
     offsetY,

@@ -22,6 +22,7 @@ import { sSystemRegistry } from '../engine/SystemRegistry';
 import { LevelSystem } from './LevelSystemNew';
 import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { EnemyAnimationComponent } from '../entities/components/EnemyAnimationComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import type { RenderSystem } from '../engine/RenderSystem';
@@ -216,6 +217,24 @@ describe('enemies render from their components', () => {
         type === 'door' ? /^object_door_(red|blue|green)0\d$/ : /^object_button_/
       );
     }
+  });
+
+  test('a runtime-spawned projectile draws itself', async () => {
+    // Projectiles come from GameObjectFactory rather than level data, so they
+    // need the same sprite attachment LevelSystem gives level-placed objects.
+    const factory = new GameObjectFactory(manager);
+    factory.setRenderSystem(sSystemRegistry.renderSystem!);
+    const shot = factory.spawn(GameObjectType.ENERGY_BALL, 100, 100);
+    expect(shot, 'factory did not spawn an energy ball').not.toBeNull();
+    manager.commitUpdates();
+
+    const sprite = componentOf<SpriteComponent>(shot!, SpriteComponent);
+    expect(sprite, 'projectile has no SpriteComponent').not.toBeNull();
+
+    calls.length = 0;
+    sprite!.update(1 / 60, shot!);
+    expect(calls.length).toBe(1);
+    expect(calls[0].sprite).toMatch(/^energy_ball0\d$/);
   });
 
   test('the frame volumes reach the collision component as it plays', async () => {

@@ -2922,57 +2922,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             // door and button draw themselves: their frames name their own
             // sprites, and DoorAnimationComponent / ButtonAnimationComponent
             // pick which animation plays.
-            case 'projectile': {
-              // Projectiles (energy balls, Wanda shots, cannon balls, turret bullets)
-              // Use faster animation for projectiles (80ms per frame instead of 150ms)
-              const PROJECTILE_FRAME_TIME = 0.08;
-              if (obj.projectileAnimTimer === undefined) obj.projectileAnimTimer = 0;
-              obj.projectileAnimTimer += 1 / 60;
-              if (obj.projectileAnimTimer >= PROJECTILE_FRAME_TIME) {
-                obj.projectileAnimTimer -= PROJECTILE_FRAME_TIME;
-                obj.animFrame = (obj.animFrame || 0) + 1;
-              }
-              
-              const projectileType = obj.subType || 'energy_ball';
-              let projWidth = 32;
-              let projHeight = 32;
-              
-              switch (projectileType) {
-                case 'energy_ball':
-                case 'wanda_shot':
-                  // Animated energy ball - 4 frames
-                  spriteFrames = ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'];
-                  projWidth = 32;
-                  projHeight = 32;
-                  break;
-                case 'cannon_ball':
-                  // Snailbomb's cannon ball
-                  spriteName = 'snail_bomb';
-                  projWidth = 32;
-                  projHeight = 32;
-                  break;
-                case 'turret_bullet':
-                  // Turret bullet - uses shot sprite
-                  spriteFrames = ['shot01', 'shot02'];
-                  projWidth = 16;
-                  projHeight = 16;
-                  break;
-                default:
-                  spriteFrames = ['energy_ball01'];
-                  projWidth = 32;
-                  projHeight = 32;
-              }
-              
-              if (spriteFrames.length > 0) {
-                obj.animFrame = (obj.animFrame || 0) % spriteFrames.length;
-                spriteName = spriteFrames[obj.animFrame];
-              }
-              
-              // Center projectile sprite
-              spriteOffset.x = (obj.width - projWidth) / 2;
-              spriteOffset.y = (obj.height - projHeight) / 2;
-              break;
-            }
+            // projectile draws itself; see data/objectAnimations.ts.
           }
           
           // Try to draw sprite, fall back to colored rectangle

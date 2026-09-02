@@ -18,6 +18,7 @@ import { setCameraBiasSystemRegistry } from './components/CameraBiasComponent';
 import { setSelectDialogSystemRegistry } from './components/SelectDialogComponent';
 import { TheSourceComponent } from './components/TheSourceComponent';
 import { LifetimeComponent } from './components/LifetimeComponent';
+import { createObjectAnimation } from '../data/objectAnimations';
 import { DynamicCollisionComponent } from './components/DynamicCollisionComponent';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
 import { MultiSpriteAnimComponent } from './components/MultiSpriteAnimComponent';
@@ -214,7 +215,28 @@ export class GameObjectFactory {
     // Add to object manager
     this.objectManager.add(obj);
 
+    this.attachObjectSprite(obj);
+
     return obj;
+  }
+
+  /**
+   * Give a runtime-spawned object its animation so SpriteComponent draws it.
+   *
+   * Projectiles and effects come from here rather than from level data, so they
+   * need the same treatment LevelSystem gives level-placed objects.
+   */
+  private attachObjectSprite(obj: GameObject): void {
+    if (obj.getComponent(SpriteComponent)?.getCurrentAnimation()) return;
+
+    const animation = createObjectAnimation(obj.type, obj.width, obj.height, obj.subType);
+    if (!animation) return;
+
+    const sprite = obj.getComponent(SpriteComponent) ?? new SpriteComponent();
+    if (!obj.getComponent(SpriteComponent)) obj.addComponent(sprite);
+    if (this.renderSystem) sprite.setRenderSystem(this.renderSystem);
+    sprite.addAnimation(animation.name ?? obj.type, animation);
+    sprite.playAnimation(animation.name ?? obj.type);
   }
 
   /**
