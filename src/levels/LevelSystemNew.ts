@@ -47,6 +47,7 @@ import { CutsceneType } from '../data/cutscenes';
 import { EnemyCollisionComponent } from '../entities/components/EnemyCollisionComponent';
 import { EnemyAnimationComponent, EnemyAnimation } from '../entities/components/EnemyAnimationComponent';
 import { createEnemyAnimations } from '../data/enemyAnimations';
+import { createObjectAnimation } from '../data/objectAnimations';
 import { HitPlayerComponent } from '../entities/components/HitPlayerComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
@@ -1925,6 +1926,7 @@ export class LevelSystem {
     this.attachEnemyCollision(obj);
     this.attachPhysics(obj);
     this.attachPossession(obj);
+    this.attachObjectSprite(obj);
     
     // Calculate position to match original Java behavior
     // Original used Y-up coords with position at bottom-left of sprite
@@ -2174,6 +2176,29 @@ export class LevelSystem {
 
     hitReact.setPossessionComponent(swap);
     obj.addComponent(swap);
+  }
+
+  /**
+   * Give the single-loop objects (collectibles, blocks, signs, cannons,
+   * spawners, the ghost) their animation so SpriteComponent draws them.
+   *
+   * These have no state to select on, so they need no animation component -
+   * just the frames and something to play them.
+   */
+  private attachObjectSprite(obj: GameObject): void {
+    const animation = createObjectAnimation(obj.type, obj.width, obj.height);
+    if (!animation) return;
+
+    const existing = obj.getComponent(SpriteComponent);
+    // Something already built this object's sprite by hand.
+    if (existing?.getCurrentAnimation()) return;
+
+    const sprite = existing ?? new SpriteComponent();
+    if (!existing) obj.addComponent(sprite);
+    const renderSystem = sSystemRegistry.renderSystem;
+    if (renderSystem) sprite.setRenderSystem(renderSystem);
+    sprite.addAnimation(animation.name ?? obj.type, animation);
+    sprite.playAnimation(animation.name ?? obj.type);
   }
 
   private convertToLevelData(parsed: ParsedLevel, info: LevelInfo): LevelData {

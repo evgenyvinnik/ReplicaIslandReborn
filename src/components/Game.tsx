@@ -2756,36 +2756,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           const spriteOffset = { x: 0, y: 0 };
           
           switch (obj.type) {
-            case 'ghost':
-              spriteName = 'ghost';
-              break;
-            case 'coin':
-              spriteFrames = ['coin01', 'coin02', 'coin03', 'coin04', 'coin05'];
-              obj.animFrame = obj.animFrame % spriteFrames.length;
-              spriteName = spriteFrames[obj.animFrame];
-              spriteOffset.x = -obj.width / 2;
-              spriteOffset.y = -obj.height / 2;
-              break;
-            case 'ruby':
-            case 'pearl':
-              spriteFrames = ['ruby01', 'ruby02', 'ruby03', 'ruby04', 'ruby05'];
-              obj.animFrame = obj.animFrame % spriteFrames.length;
-              spriteName = spriteFrames[obj.animFrame];
-              spriteOffset.x = -obj.width / 2;
-              spriteOffset.y = -obj.height / 2;
-              break;
-            case 'diary':
-              spriteName = 'diary01';
-              spriteOffset.x = -obj.width / 2;
-              spriteOffset.y = -obj.height / 2;
-              break;
-            case 'breakable_block':
-              // Breakable/destructible block - uses debris_block sprite
-              spriteName = 'debris_block';
-              // Block is 32x32, same as object dimensions
-              spriteOffset.x = 0;
-              spriteOffset.y = 0;
-              break;
+            // ghost, coin, ruby, pearl, diary and breakable_block draw
+            // themselves through SpriteComponent; see data/objectAnimations.ts.
             case 'enemy': {
               // Ordinary enemies draw themselves now: SpriteComponent holds
               // their animations (data/enemyAnimations.ts) and
@@ -3031,22 +3003,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               spriteOffset.y = (obj.height - 64) / 2;
               break;
             }
-            case 'hint_sign': {
-              // Hint sign - shows tutorial text when touched
-              spriteName = 'object_sign';
-              // Sign is 32x32
-              spriteOffset.x = 0;
-              spriteOffset.y = 0;
-              break;
-            }
-            case 'cannon':
-              spriteName = 'object_cannon';
-              break;
-            case 'spawner':
-              if (obj.subType === 'brobot_spawner') {
-                spriteName = 'object_brobot_machine';
-              }
-              break;
+            // hint_sign, cannon and spawner draw themselves through
+            // SpriteComponent; see data/objectAnimations.ts.
             case 'projectile': {
               // Projectiles (energy balls, Wanda shots, cannon balls, turret bullets)
               // Use faster animation for projectiles (80ms per frame instead of 150ms)

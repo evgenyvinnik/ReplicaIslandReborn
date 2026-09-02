@@ -151,6 +151,42 @@ describe('enemies render from their components', () => {
     expect(calls[0].sprite).toMatch(/^skeleton_attack/);
   });
 
+  test('single-loop objects draw themselves too', async () => {
+    // Collectibles, blocks, signs, cannons and spawners have no state to select
+    // on, so they get a looping animation and no animation component.
+    const cases: Array<[string, RegExp]> = [
+      ['coin', /^coin0\d$/],
+      ['ruby', /^ruby0\d$/],
+      ['breakable_block', /^debris_block$/],
+    ];
+
+    for (const [type, pattern] of cases) {
+      manager.reset();
+      let object: GameObject | null = null;
+      for (const group of linearLevelTree) {
+        for (const entry of group.levels) {
+          const levelSystem = new LevelSystem();
+          levelSystem.setSystems(new CollisionSystem(), manager, new HotSpotSystem());
+          if (!(await levelSystem.loadLevel(resourceToLevelId[entry.resource]))) continue;
+          manager.commitUpdates();
+          object = manager.getActiveObjects().find((o) => o.type === type) ?? null;
+          if (object) break;
+          manager.reset();
+        }
+        if (object) break;
+      }
+
+      expect(object, `no level spawns a ${type}`).not.toBeNull();
+      const sprite = componentOf<SpriteComponent>(object!, SpriteComponent);
+      expect(sprite, `${type} has no SpriteComponent`).not.toBeNull();
+
+      calls.length = 0;
+      sprite!.update(1 / 60, object!);
+      expect(calls.length, type).toBe(1);
+      expect(calls[0].sprite, type).toMatch(pattern);
+    }
+  });
+
   test('the frame volumes reach the collision component as it plays', async () => {
     // The payoff of moving rendering onto components: a skeleton's attack volume
     // arrives on the frames where the swing lands, not from an action lookup.
