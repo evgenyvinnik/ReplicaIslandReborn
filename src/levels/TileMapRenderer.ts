@@ -13,6 +13,7 @@ import type { RenderSystem } from '../engine/RenderSystem';
 import type { CameraSystem } from '../engine/CameraSystem';
 import type { ParsedLevel, ParsedLayer, TiledWorldData } from './LevelParser';
 import { ThemeTilesets } from './LevelParser';
+import { SortConstants } from '../engine/SortConstants';
 
 /**
  * Tile layer configuration for rendering
@@ -53,7 +54,8 @@ export class TileMapRenderer {
     // Add background layers with increasing priority
     // Note: Collision layer is NOT rendered - it only contains collision data
     // The visual tiles come from background layers only
-    let priority = -100;
+    // Original: LevelBuilder stacks background layers from BACKGROUND_START up.
+    let priority = SortConstants.BACKGROUND_START;
     for (const bgLayer of level.backgroundLayers) {
       this.addLayerFromParsed(bgLayer, priority);
       priority += 10;

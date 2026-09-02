@@ -23,6 +23,7 @@ import {
   FadeDrawableComponent, FadeLoopType, FadeFunction,
 } from './FadeDrawableComponent';
 import { sSystemRegistry } from '../../engine/SystemRegistry';
+import { SortConstants } from '../../engine/SortConstants';
 import type { AnimationDefinition } from '../../types';
 
 /**
@@ -32,8 +33,8 @@ import type { AnimationDefinition } from '../../types';
  */
 const PLAYER_STATE_ACTIONS: Record<number, ActionType | undefined> = {};
 
-/** SortConstants.PLAYER + 1: the glow halo sits just in front of Andou. */
-const PLAYER_GLOW_PRIORITY = 21;
+/** The glow halo sits just in front of Andou. Original: PLAYER + 1. */
+const PLAYER_GLOW_PRIORITY = SortConstants.PLAYER + 1;
 /** Centre the 64x64 halo on the 32x48 collision box. */
 const GLOW_OFFSET_X = -16;
 /** The same centring, plus the original's 5px draw offset (Y-up -5 = down). */

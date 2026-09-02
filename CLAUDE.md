@@ -70,7 +70,6 @@ optimisation it does not do. None of them is missing gameplay.
 | No object pooling | Low | The original pools 384+ objects to avoid GC pauses on 2010 Android hardware. The port allocates freely; this is not a correctness problem and has not shown up as one in play. |
 | Four components unattached | None | See "Ported But Not Wired Up" — one is dead in the original too, the rest are covered by other code or serve unused object types. |
 | `SimplePhysicsComponent` not ported | Low | Bounce/inertia for simple objects; the port's equivalents move on `PhysicsComponent` or `EffectsSystem` particles. |
-| Everything draws at priority 0 | Low | The port does not carry `SortConstants`, so most objects share a z of 0 and draw in spawn order. Only the layers that must be ordered set one: The Source (-5..-1) and the glow halo (21). |
 | `Game.tsx` size | Low | ~2780 lines of orchestration: level transitions, sprite loading, Canvas UI wiring, and turning pipeline events into lives, score, the win check and the diary. No longer a parallel component system. |
 
 ### Rendering
@@ -114,6 +113,36 @@ is attached where the original attaches it:
 
 One thing still draws directly from `Game.tsx`, deliberately: the effects around
 Andou (jet fire, hit sparks), which the original spawns as separate objects.
+
+**Draw order** is `src/engine/SortConstants.ts`, transcribed from the original's
+`SortConstants.java`. `RenderSystem` sorts its queue by these low-to-high, so a
+larger number draws on top:
+
+```
+BACKGROUND_START -100  THE_SOURCE_START -5  FOREGROUND 0  EFFECT 5
+GENERAL_OBJECT 10  GENERAL_ENEMY/NPC 15  PLAYER 20  FOREGROUND_EFFECT 30
+PROJECTILE 40  FOREGROUND_OBJECT 50  OVERLAY 70  HUD 100  FADE 200
+```
+
+`LevelSystemNew`'s `drawPriorityFor()` assigns these at spawn from two tables
+(`SUBTYPE_PRIORITIES`, `TYPE_PRIORITIES`), each entry transcribed from the
+`setPriority()` call in the matching `spawn*` function. Note the ones that do
+not follow from the object's type: the turret is `GENERAL_OBJECT` despite being
+an enemy, the dead-Kyle and dead-Andou props are `GENERAL_OBJECT` rather than
+NPC, and the ghost draws with the projectiles.
+
+The gaps between constants are what let a sprite sit next to its owner: the
+jet fire at `PLAYER - 1`, the glow halo and hit sparks at `PLAYER + 1`, The
+Source's five layers at `THE_SOURCE_START + 0..4`. Everything used to share a
+priority of 0 and draw in whatever order the object manager held it, which
+looked right often enough to hide that there was no way to express this at all.
+
+`EffectsSystem.drawQueued()` puts explosions, smoke and dust into the queue at
+`EFFECT`. They used to paint straight onto the canvas *before* the queue
+rendered, which put them under everything drawn afterwards — the background
+layers included. If you add a system that draws with raw canvas operations,
+give it a queue entry rather than a direct `ctx` call, or it lands underneath
+the world.
 
 A fade whose target sprite persists its opacity has to keep asserting that
 opacity even while waiting out an initial delay. The original can skip that,
@@ -771,6 +800,9 @@ After `DDA_STAGE_2_ATTEMPTS` deaths: +2 life boost, even faster fuel
 ---
 
 ## Render Sort Constants (SortConstants.java)
+
+Ported verbatim to `src/engine/SortConstants.ts`; see "Rendering" for how
+objects get assigned one.
 
 ```java
 BACKGROUND_START = -100;
@@ -1765,11 +1797,9 @@ without code changes.
 2. **RenderSystem sorts by priority for layering** (✅)
 3. **Camera offset applied during render, not during update** (✅)
 
-#### Priority Constants (implemented in RenderSystem):
-- `BACKGROUND_START = -100`
-- `FOREGROUND = 0`
-- `PLAYER = 20`
-- `HUD = 100`
+#### Priority Constants
+The full table lives in `src/engine/SortConstants.ts`. Objects are assigned one
+at spawn by `LevelSystemNew`'s `drawPriorityFor()`.
 
 ### ⚠️ Coordinate System
 

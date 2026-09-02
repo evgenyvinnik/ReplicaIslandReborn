@@ -9,6 +9,7 @@ import { GameState, ActionType, HitType, Team } from '../types';
 import { GameLoop } from '../engine/GameLoop';
 import { SystemRegistry, sSystemRegistry } from '../engine/SystemRegistry';
 import { RenderSystem } from '../engine/RenderSystem';
+import { SortConstants } from '../engine/SortConstants';
 import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem, SoundEffects } from '../engine/SoundSystem';
 import { CameraSystem } from '../engine/CameraSystem';
@@ -2456,7 +2457,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
             const jetSpriteName = pComp.jetFrame === 0 ? 'jetfire01' : 'jetfire02';
             if (renderSystem.hasSprite(jetSpriteName)) {
-              renderSystem.drawSprite(jetSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY + 16, 0, 9, 1, scaleX, 1);
+              renderSystem.drawSprite(
+                jetSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY + 16,
+                0, SortConstants.PLAYER - 1, 1, scaleX, 1
+              );
             }
           }
 
@@ -2469,7 +2473,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
             const sparkSpriteName = ['spark01', 'spark02', 'spark03'][pComp.sparkFrame];
             if (renderSystem.hasSprite(sparkSpriteName)) {
-              renderSystem.drawSprite(sparkSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 11, 1, scaleX, 1);
+              renderSystem.drawSprite(
+                sparkSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY,
+                0, SortConstants.PLAYER + 1, 1, scaleX, 1
+              );
             }
           }
         } else if (!drawnBySpriteComponent(obj)) {
@@ -2493,16 +2500,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             case 'door': color = '#8844ff'; break;
             case 'decoration': color = '#666666'; break;
           }
-          renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, color, 5);
+          renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, color, SortConstants.OVERLAY);
         }
       });
 
-      // Render visual effects (explosions, smoke, etc.)
-      const ctx = (renderSystem as unknown as { ctx: CanvasRenderingContext2D }).ctx;
-      // focusPosition is already the top-left corner of the camera viewport
-      const effectsCameraX = cameraSystem.getFocusPositionX();
-      const effectsCameraY = cameraSystem.getFocusPositionY();
-      effectsSystem.render(ctx, effectsCameraX, effectsCameraY);
+      // Explosions, smoke and dust. These go through the render queue at
+      // SortConstants.EFFECT rather than straight onto the canvas: drawn
+      // directly they landed under everything the queue paints afterwards,
+      // including the background layers. The queue already applies the camera
+      // translation, so the effects draw in world space with no offset of
+      // their own.
+      effectsSystem.drawQueued(renderSystem, SortConstants.EFFECT);
 
       // Swap and render - focusPosition is already the top-left corner for world-space objects
       const cameraTopLeftX = cameraSystem.getFocusPositionX();
@@ -2570,7 +2578,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // fadeTime goes from 1.5 to 0
         // alpha should go from 0 to 1
         const alpha = Math.min(1, Math.max(0, 1 - (playerCompForFade.fadeTime / 1.5)));
-        renderSystem.drawRect(0, 0, width, height, `rgba(0, 0, 0, ${alpha})`, 100);
+        renderSystem.drawRect(0, 0, width, height, `rgba(0, 0, 0, ${alpha})`, SortConstants.FADE);
       }
       
       // Update and render Canvas Game Over Screen (if active)

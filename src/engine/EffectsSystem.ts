@@ -465,6 +465,33 @@ export class EffectsSystem {
   }
   
   /**
+   * Schedule every live effect into the render queue at `priority`.
+   *
+   * Effects used to paint straight onto the canvas before the queue rendered,
+   * which put them underneath everything the queue drew afterwards - the
+   * background layers included. They are ordinary sprites, so they can just go
+   * through the queue and sort into their proper place (SortConstants.EFFECT:
+   * above the foreground, below objects and characters).
+   */
+  drawQueued(renderSystem: RenderSystem, priority: number): void {
+    for (const effect of this.activeEffects) {
+      if (!effect.alive) continue;
+
+      const frameName = effect.config.frames[effect.frameIndex];
+      if (!frameName || !renderSystem.hasSprite(frameName)) continue;
+
+      // World space: the queue applies the camera translation itself.
+      renderSystem.drawSprite(
+        frameName,
+        Math.floor(effect.x),
+        Math.floor(effect.y),
+        0,
+        priority
+      );
+    }
+  }
+
+  /**
    * Get count of active effects
    */
   getActiveCount(): number {

@@ -36,6 +36,7 @@ import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
 import { OrbitalMagnetComponent } from '../entities/components/OrbitalMagnetComponent';
 import { MotionBlurComponent } from '../entities/components/MotionBlurComponent';
+import { SortConstants } from '../engine/SortConstants';
 import {
   FadeDrawableComponent, FadeLoopType, FadeFunction,
 } from '../entities/components/FadeDrawableComponent';
@@ -83,8 +84,67 @@ const NO_BACKGROUND_COLLISION_SUBTYPES = new Set(['bat', 'sting', 'karaguin']);
  */
 const NO_PHYSICS_SUBTYPES = new Set(['the_source', 'shadowslime', 'turret']);
 
+/**
+ * Draw order for each spawned object, transcribed from the setPriority() call
+ * in the original's matching spawn function. Anything not named here falls back
+ * to its type's default in drawPriorityFor().
+ * Ported from: GameObjectFactory.java (spawn* functions) + SortConstants.java.
+ */
+const SUBTYPE_PRIORITIES: Readonly<Record<string, number>> = {
+  // The story NPCs and both bosses draw at NPC, which is GENERAL_ENEMY.
+  wanda: SortConstants.NPC,
+  kyle: SortConstants.NPC,
+  kabocha: SortConstants.NPC,
+  evil_kabocha: SortConstants.NPC,
+  rokudou: SortConstants.NPC,
+  // spawnEnemyKyleDead / spawnEnemyAndouDead are ordinary objects, not enemies.
+  kyle_dead: SortConstants.GENERAL_OBJECT,
+  andou_dead: SortConstants.GENERAL_OBJECT,
+  // spawnObjectTurret is GENERAL_OBJECT even though it is an enemy elsewhere.
+  turret: SortConstants.GENERAL_OBJECT,
+  // The ghost draws with the projectiles.
+  ghost: SortConstants.PROJECTILE,
+};
+
+/** Default draw order per object type, where the subType does not override it. */
+const TYPE_PRIORITIES: Readonly<Record<string, number>> = {
+  player: SortConstants.PLAYER,
+  enemy: SortConstants.GENERAL_ENEMY,
+  npc: SortConstants.NPC,
+  projectile: SortConstants.PROJECTILE,
+  ghost: SortConstants.PROJECTILE,
+  // spawnObjectDoor and spawnObjectCannon draw in front of everything else.
+  door: SortConstants.FOREGROUND_OBJECT,
+  cannon: SortConstants.FOREGROUND_OBJECT,
+  // Collectibles, blocks, signs, buttons, spawners and terminals.
+  coin: SortConstants.GENERAL_OBJECT,
+  ruby: SortConstants.GENERAL_OBJECT,
+  pearl: SortConstants.GENERAL_OBJECT,
+  diary: SortConstants.GENERAL_OBJECT,
+  breakable_block: SortConstants.GENERAL_OBJECT,
+  hint_sign: SortConstants.GENERAL_OBJECT,
+  button: SortConstants.GENERAL_OBJECT,
+  spawner: SortConstants.GENERAL_OBJECT,
+  terminal: SortConstants.GENERAL_OBJECT,
+  decoration: SortConstants.GENERAL_OBJECT,
+  effect: SortConstants.EFFECT,
+};
+
+/**
+ * Where this object draws in the render queue.
+ *
+ * Everything used to land on 0 and draw in spawn order, which happened to look
+ * right most of the time and produced no way to say "in front of that". Objects
+ * now carry the original's priorities.
+ */
+function drawPriorityFor(obj: GameObject): number {
+  const bySubType = SUBTYPE_PRIORITIES[obj.subType];
+  if (bySubType !== undefined) return bySubType;
+  return TYPE_PRIORITIES[obj.type] ?? SortConstants.FOREGROUND;
+}
+
 /** Draw order for The Source's layers; the original's SortConstants value. */
-const THE_SOURCE_START = -5;
+const THE_SOURCE_START = SortConstants.THE_SOURCE_START;
 
 /**
  * The Source's five layers, in the original's order, with the fade each one
@@ -2161,6 +2221,7 @@ export class LevelSystem {
     if (!obj.getComponent(SpriteComponent)) obj.addComponent(sprite);
     const renderSystem = sSystemRegistry.renderSystem;
     if (renderSystem) sprite.setRenderSystem(renderSystem);
+    sprite.setPriority(drawPriorityFor(obj));
     sprite.setCollisionComponent(collision);
     for (const [index, animation] of animations) {
       sprite.addAnimationAtIndex(index, animation);
@@ -2319,13 +2380,21 @@ export class LevelSystem {
    * just the frames and something to play them.
    */
   private attachObjectSprite(obj: GameObject): void {
+    // The Source is five layered sprites that set their own priorities
+    // (THE_SOURCE_START + 0..4) at spawn; the single-sprite paths below would
+    // flatten all five onto one.
+    if (obj.subType === 'the_source') return;
+
     const existing = obj.getComponent(SpriteComponent);
     const renderSystem = sSystemRegistry.renderSystem;
 
     // The player builds his own animations in PlayerComponent (they carry his
     // collision volumes), so he only needs the render system here.
     if (obj.type === 'player') {
-      if (existing && renderSystem) existing.setRenderSystem(renderSystem);
+      if (existing) {
+        if (renderSystem) existing.setRenderSystem(renderSystem);
+        existing.setPriority(drawPriorityFor(obj));
+      }
       return;
     }
 
@@ -2339,6 +2408,7 @@ export class LevelSystem {
         const sprite = existing ?? new SpriteComponent();
         if (!existing) obj.addComponent(sprite);
         if (renderSystem) sprite.setRenderSystem(renderSystem);
+        sprite.setPriority(drawPriorityFor(obj));
         for (const [index, animation] of npcAnimations) {
           sprite.addAnimationAtIndex(index, animation);
         }
@@ -2375,6 +2445,7 @@ export class LevelSystem {
     // render system, or SpriteComponent tracks their state without drawing.
     if (existing?.getCurrentAnimation()) {
       if (renderSystem) existing.setRenderSystem(renderSystem);
+      existing.setPriority(drawPriorityFor(obj));
       return;
     }
 
@@ -2384,6 +2455,7 @@ export class LevelSystem {
     const sprite = existing ?? new SpriteComponent();
     if (!existing) obj.addComponent(sprite);
     if (renderSystem) sprite.setRenderSystem(renderSystem);
+    sprite.setPriority(drawPriorityFor(obj));
     sprite.addAnimation(animation.name ?? obj.type, animation);
     sprite.playAnimation(animation.name ?? obj.type);
   }

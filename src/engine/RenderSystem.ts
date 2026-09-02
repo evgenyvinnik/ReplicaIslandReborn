@@ -6,6 +6,7 @@
 import type { RenderCommand, CameraState } from '../types';
 import { placeholders } from '../utils/PlaceholderSprites';
 import { assetPath } from '../utils/helpers';
+import { SortConstants } from './SortConstants';
 
 export interface Sprite {
   image: HTMLImageElement | HTMLCanvasElement;
@@ -275,7 +276,7 @@ export class RenderSystem {
     x: number,
     y: number,
     color: string = '#ffffff',
-    z: number = 100
+    z: number = SortConstants.HUD
   ): void {
     this.renderQueue.push({
       type: 'text',
