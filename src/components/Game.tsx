@@ -32,6 +32,7 @@ import { CanvasEndingStatsScreen } from '../engine/CanvasEndingStatsScreen';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { GameObject } from '../entities/GameObject';
+import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { resetPlayerRuntimeState } from '../entities/resetPlayerRuntimeState';
 import { applyPlayerAttack } from '../entities/applyPlayerAttack';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
@@ -2528,6 +2529,19 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         tileMapRendererRef.current.render(renderSystem, cameraSystem);
       }
 
+      /**
+       * True when the object's own SpriteComponent is drawing it, so the
+       * placeholder rectangle below must not be drawn on top of it.
+       */
+      const drawnBySpriteComponent = (obj: GameObject): boolean => {
+        // GHOST_NPC is a scripting helper the original never draws.
+        if (obj.type === 'npc' && obj.subType === 'ghost') return true;
+        const sprite = obj.getComponent(
+          SpriteComponent as unknown as new (...args: unknown[]) => SpriteComponent
+        );
+        return sprite?.getCurrentAnimation() != null;
+      };
+
       // Render game objects
       const player = gameObjectManager.getPlayer();
       const FRAME_TIME = 1 / 24; // 24 FPS animation, matching original's Utils.framesToTime(24, 1)
@@ -2824,101 +2838,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               spriteOffset.y = (obj.height - spriteHeight) / 2;
               break;
             }
-            case 'npc': {
-              // NPCs use their subtype to determine sprite
-              const npcType = obj.subType || 'wanda';
-              const npcSpriteWidth = 64;
-              const npcSpriteHeight = 128;
-              
-              // Determine animation based on movement state
-              const npcVel = obj.getVelocity();
-              const absVelX = Math.abs(npcVel.x);
-              const absVelY = Math.abs(npcVel.y);
-              
-              if (npcType === 'wanda') {
-                // Wanda has: stand, walk (5 frames), run (8 frames), jump (2 frames), crouch, shoot (9 frames)
-                if (obj.getCurrentAction() === ActionType.ATTACK) {
-                  spriteFrames = [
-                    'enemy_wanda_shoot01',
-                    'enemy_wanda_shoot02',
-                    'enemy_wanda_shoot03',
-                    'enemy_wanda_shoot04',
-                    'enemy_wanda_shoot05',
-                    'enemy_wanda_shoot06',
-                    'enemy_wanda_shoot07',
-                    'enemy_wanda_shoot08',
-                    'enemy_wanda_shoot09',
-                    'enemy_wanda_shoot02',
-                    'enemy_wanda_shoot01',
-                  ];
-                } else if (absVelY > 50 && !obj.touchingGround()) {
-                  // Jumping/falling
-                  spriteFrames = ['enemy_wanda_jump01', 'enemy_wanda_jump02'];
-                } else if (absVelX > 100) {
-                  // Running
-                  spriteFrames = [
-                    'enemy_wanda_run01', 'enemy_wanda_run02', 'enemy_wanda_run03', 'enemy_wanda_run04',
-                    'enemy_wanda_run05', 'enemy_wanda_run06', 'enemy_wanda_run07', 'enemy_wanda_run08'
-                  ];
-                } else if (absVelX > 10) {
-                  // Walking
-                  spriteFrames = [
-                    'enemy_wanda_walk01', 'enemy_wanda_walk02', 'enemy_wanda_walk03',
-                    'enemy_wanda_walk04', 'enemy_wanda_walk05'
-                  ];
-                } else {
-                  // Standing
-                  spriteFrames = ['enemy_wanda_stand'];
-                }
-              } else if (npcType === 'kyle') {
-                if (absVelY > 50 && !obj.touchingGround()) {
-                  spriteFrames = ['enemy_kyle_jump01', 'enemy_kyle_jump02'];
-                } else if (absVelX > 100) {
-                  spriteFrames = ['enemy_kyle_dash01', 'enemy_kyle_dash02'];
-                } else if (absVelX > 10) {
-                  // Match the Android walk cycle's forward-and-back ordering.
-                  spriteFrames = [
-                    'enemy_kyle_walk01',
-                    'enemy_kyle_walk02',
-                    'enemy_kyle_walk03',
-                    'enemy_kyle_walk04',
-                    'enemy_kyle_walk03',
-                    'enemy_kyle_walk02',
-                    'enemy_kyle_walk01',
-                    'enemy_kyle_walk05',
-                    'enemy_kyle_walk06',
-                    'enemy_kyle_walk07',
-                    'enemy_kyle_walk06',
-                    'enemy_kyle_walk05',
-                  ];
-                } else {
-                  spriteFrames = ['enemy_kyle_stand'];
-                }
-              } else if (npcType === 'kabocha') {
-                // Kabocha has: stand, walk (6 frames)
-                if (absVelX > 10) {
-                  // Walking
-                  spriteFrames = [
-                    'kabocha_walk01', 'kabocha_walk02', 'kabocha_walk03',
-                    'kabocha_walk04', 'kabocha_walk05', 'kabocha_walk06'
-                  ];
-                } else {
-                  // Standing
-                  spriteFrames = ['kabocha_stand'];
-                }
-              } else {
-                // Generic NPC fallback
-                spriteFrames = [`${npcType}_stand`];
-              }
-              
-              obj.animFrame = obj.animFrame % spriteFrames.length;
-              spriteName = spriteFrames[obj.animFrame];
-              
-              // Center sprite on object
-              spriteOffset.x = (obj.width - npcSpriteWidth) / 2;
-              spriteOffset.y = (obj.height - npcSpriteHeight) / 2;
-              break;
-            }
+            // npc draws itself: NPCAnimationComponent picks the animation from
+            // action, speed and whether it is airborne; see data/npcAnimations.ts.
             // door and button draw themselves: their frames name their own
             // sprites, and DoorAnimationComponent / ButtonAnimationComponent
             // pick which animation plays.
@@ -2938,8 +2859,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               scaleX, 
               1
             );
-          } else {
-            // Fallback to colored rectangles
+          } else if (!drawnBySpriteComponent(obj)) {
+            // Fallback to colored rectangles, for objects nothing else draws.
             let color = '#888888';
             switch (obj.type) {
               case 'coin': color = '#ffd700'; break;

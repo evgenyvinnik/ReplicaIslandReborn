@@ -48,6 +48,8 @@ import { EnemyCollisionComponent } from '../entities/components/EnemyCollisionCo
 import { EnemyAnimationComponent, EnemyAnimation } from '../entities/components/EnemyAnimationComponent';
 import { createEnemyAnimations } from '../data/enemyAnimations';
 import { createObjectAnimation } from '../data/objectAnimations';
+import { createNpcAnimations } from '../data/npcAnimations';
+import { NPCAnimationComponent, NPCAnimation } from '../entities/components/NPCAnimationComponent';
 import { HitPlayerComponent } from '../entities/components/HitPlayerComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
@@ -2193,6 +2195,31 @@ export class LevelSystem {
   private attachObjectSprite(obj: GameObject): void {
     const existing = obj.getComponent(SpriteComponent);
     const renderSystem = sSystemRegistry.renderSystem;
+
+    // NPCs pick their animation from action, speed and whether they are
+    // airborne; NPCAnimationComponent does that selection.
+    if (obj.type === 'npc') {
+      const npcAnimations = createNpcAnimations(obj.subType, obj.width, obj.height);
+      if (npcAnimations) {
+        const sprite = existing ?? new SpriteComponent();
+        if (!existing) obj.addComponent(sprite);
+        if (renderSystem) sprite.setRenderSystem(renderSystem);
+        for (const [index, animation] of npcAnimations) {
+          sprite.addAnimationAtIndex(index, animation);
+        }
+        sprite.playAnimation(NPCAnimation.IDLE);
+
+        const hasAnimator = obj.getComponent(
+          NPCAnimationComponent as unknown as new (...args: unknown[]) => NPCAnimationComponent
+        );
+        if (!hasAnimator) {
+          const animator = new NPCAnimationComponent();
+          animator.setSprite(sprite);
+          obj.addComponent(animator);
+        }
+        return;
+      }
+    }
 
     // Objects that built their own animations (doors, buttons) still need the
     // render system, or SpriteComponent tracks their state without drawing.
