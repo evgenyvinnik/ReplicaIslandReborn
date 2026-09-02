@@ -35,6 +35,10 @@ import { SimpleCollisionComponent } from '../entities/components/SimpleCollision
 import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
 import { OrbitalMagnetComponent } from '../entities/components/OrbitalMagnetComponent';
+import { MotionBlurComponent } from '../entities/components/MotionBlurComponent';
+import {
+  FadeDrawableComponent, FadeLoopType, FadeFunction,
+} from '../entities/components/FadeDrawableComponent';
 import { PlayerComponent } from '../entities/components/PlayerComponent';
 import { GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
@@ -78,6 +82,30 @@ const NO_BACKGROUND_COLLISION_SUBTYPES = new Set(['bat', 'sting', 'karaguin']);
  * fixed emplacements.
  */
 const NO_PHYSICS_SUBTYPES = new Set(['the_source', 'shadowslime', 'turret']);
+
+/** Draw order for The Source's layers; the original's SortConstants value. */
+const THE_SOURCE_START = -5;
+
+/**
+ * The Source's five layers, in the original's order, with the fade each one
+ * runs. Every layer ping-pongs forever, so the whole thing breathes at five
+ * different rates at once.
+ * Ported from: GameObjectFactory.spawnObjectTheSource().
+ */
+const THE_SOURCE_LAYERS: ReadonlyArray<{
+  layer: number;
+  sprite: string;
+  from: number;
+  to: number;
+  duration: number;
+  linear?: boolean;
+}> = [
+  { layer: 0, sprite: 'source_spikes', from: 1.0, to: 0.2, duration: 1.9 },
+  { layer: 1, sprite: 'source_body', from: 1.0, to: 0.8, duration: 5.0 },
+  { layer: 2, sprite: 'source_black', from: 0.0, to: 1.0, duration: 6.0, linear: true },
+  { layer: 3, sprite: 'source_spots', from: 0.0, to: 1.0, duration: 2.3 },
+  { layer: 4, sprite: 'source_core', from: 0.2, to: 1.0, duration: 1.2 },
+];
 
 /**
  * Background collision boxes, from the original's
@@ -863,12 +891,36 @@ export class LevelSystem {
         obj.life = 3; // Original: life = 3
         obj.team = Team.PLAYER; // Team.PLAYER means ENEMY attacks can damage it
         
-        // Sprite - using the source body sprite
-        const sourceSprite = new SpriteComponent();
-        sourceSprite.setSprite('enemy_source_body');
-        sourceSprite.addAnimation('idle', { frames: [{ x: 0, y: 0, width: 512, height: 512, duration: 1.0 }], loop: true });
-        sourceSprite.playAnimation('idle');
-        obj.addComponent(sourceSprite);
+        // The Source is five stacked 512x512 layers, each pulsing on its own
+        // FadeDrawableComponent at its own rate. That cross-fading is what makes
+        // it look alive; there is no frame animation at all.
+        // Original: spawnObjectTheSource(), layers 1-5 at THE_SOURCE_START + n.
+        const renderSystemForSource = sSystemRegistry.renderSystem;
+        for (const layer of THE_SOURCE_LAYERS) {
+          const layerSprite = new SpriteComponent();
+          layerSprite.setPriority(THE_SOURCE_START + layer.layer);
+          if (renderSystemForSource) layerSprite.setRenderSystem(renderSystemForSource);
+          layerSprite.addAnimation(layer.sprite, {
+            name: layer.sprite,
+            frames: [{
+              x: 0, y: 0, width: 512, height: 512, duration: 1.0, sprite: layer.sprite,
+            }],
+            loop: true,
+          });
+          layerSprite.playAnimation(layer.sprite);
+          obj.addComponent(layerSprite);
+
+          const layerFade = new FadeDrawableComponent();
+          layerFade.setSpriteComponent(layerSprite);
+          layerFade.setupFade({
+            startOpacity: layer.from,
+            endOpacity: layer.to,
+            duration: layer.duration,
+            loopType: FadeLoopType.PING_PONG,
+            fadeFunction: layer.linear ? FadeFunction.LINEAR : FadeFunction.EASE,
+          });
+          obj.addComponent(layerFade);
+        }
         
         // Orbital Magnet - creates orbital attraction effect that pulls player around
         // Original: orbit.setup(320.0f, 220.0f) - areaRadius, orbitRadius
@@ -2298,8 +2350,14 @@ export class LevelSystem {
         if (!hasAnimator) {
           const animator = new NPCAnimationComponent();
           animator.setSprite(sprite);
-          // Original: Kyle's scripted dash deliberately ignores wall contact.
-          if (obj.subType === 'kyle') animator.setStopAtWalls(false);
+          // Original: Kyle's scripted dash deliberately ignores wall contact,
+          // and trails a motion blur behind him while he does it.
+          if (obj.subType === 'kyle') {
+            animator.setStopAtWalls(false);
+            const blur = new MotionBlurComponent();
+            blur.setTarget(sprite);
+            obj.addComponent(blur);
+          }
           // Original: the bosses watch the shared SURPRISED channel and switch
           // to their surprised pose when The Source starts collapsing.
           const channel = sSystemRegistry.channelSystem?.registerChannel(SURPRISED_NPC_CHANNEL);

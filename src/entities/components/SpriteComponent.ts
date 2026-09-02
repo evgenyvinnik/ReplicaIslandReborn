@@ -26,6 +26,7 @@ export class SpriteComponent extends GameComponent {
   private currentAnimationIndex: number = -1;
   private renderSystem: RenderSystem | null = null;
   private opacity: number = 1;
+  private visible: boolean = true;
   private flipX: boolean = false;
   private flipY: boolean = false;
   private offsetX: number = 0;
@@ -255,7 +256,7 @@ export class SpriteComponent extends GameComponent {
 
     // Some campaign objects are rendered by Game's atlas-aware renderer, but
     // their SpriteComponent still owns animation timing/state.
-    if (!this.renderSystem) return;
+    if (!this.renderSystem || !this.visible) return;
 
     const frameData = this.currentAnimation.frames[this.currentFrame];
     // A frame may name its own image; the port's art is individual files rather
@@ -319,6 +320,39 @@ export class SpriteComponent extends GameComponent {
     this.collisionComponent = collision;
   }
 
+  /**
+   * Whether this sprite draws. The original achieves the same thing by swapping
+   * the render component in and out (ChangeComponentsComponent); hiding keeps
+   * animation and volume timing running, which is what the swap-in expects.
+   */
+  setVisible(visible: boolean): void {
+    this.visible = visible;
+  }
+
+  /**
+   * What this sprite is drawing right now: its image name, draw offset and
+   * priority. MotionBlurComponent reads this to build its trail, the way the
+   * original reads the DrawableBitmap off its target RenderComponent.
+   */
+  getCurrentDraw(): {
+    sprite: string;
+    frame: number;
+    offsetX: number;
+    offsetY: number;
+    priority: number;
+  } | null {
+    const frameData = this.currentAnimation?.frames[this.currentFrame];
+    const sprite = frameData?.sprite ?? this.spriteName;
+    if (!sprite) return null;
+    return {
+      sprite,
+      frame: frameData?.sprite !== undefined ? 0 : this.getCurrentFrameIndex(),
+      offsetX: this.offsetX + (frameData?.offsetX ?? 0),
+      offsetY: this.offsetY + (frameData?.offsetY ?? 0),
+      priority: this.priority,
+    };
+  }
+
   /** Draw order for this sprite; see SortConstants in the original. */
   setPriority(priority: number): void {
     this.priority = priority;
@@ -346,6 +380,7 @@ export class SpriteComponent extends GameComponent {
     this.currentAnimation = null;
     this.currentAnimationIndex = -1;
     this.opacity = 1;
+    this.visible = true;
     this.flipX = false;
     this.flipY = false;
     this.collisionComponent = null;

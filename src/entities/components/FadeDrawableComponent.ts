@@ -14,6 +14,7 @@
 import { GameComponent } from '../GameComponent';
 import { ComponentPhase } from '../../types';
 import type { GameObject } from '../GameObject';
+import { SpriteComponent } from './SpriteComponent';
 
 // Loop types
 export enum FadeLoopType {
@@ -63,6 +64,13 @@ export class FadeDrawableComponent extends GameComponent {
   // Fade parameters
   private initialOpacity: number = 1.0;
   private targetOpacity: number = 1.0;
+  /**
+   * The pair as configured. PING_PONG swaps the working values every cycle, so
+   * restarting a phase has to come back to these rather than to whatever the
+   * cycle happened to leave behind.
+   */
+  private configuredInitialOpacity: number = 1.0;
+  private configuredTargetOpacity: number = 1.0;
   private duration: number = 1.0;
   private loopType: FadeLoopType = FadeLoopType.NONE;
   private fadeFunction: FadeFunction = FadeFunction.LINEAR;
@@ -76,6 +84,7 @@ export class FadeDrawableComponent extends GameComponent {
   private currentOpacity: number = 1.0;
   private gameTime: number = 0;
   private isActive: boolean = true;
+  private spriteComponent: SpriteComponent | null = null;
 
   constructor() {
     super();
@@ -99,6 +108,7 @@ export class FadeDrawableComponent extends GameComponent {
     this.currentOpacity = 1.0;
     this.gameTime = 0;
     this.isActive = true;
+    this.spriteComponent = null;
   }
 
   /**
@@ -107,6 +117,8 @@ export class FadeDrawableComponent extends GameComponent {
   setupFade(config: FadeConfig): void {
     this.initialOpacity = Math.max(0, Math.min(1, config.startOpacity));
     this.targetOpacity = Math.max(0, Math.min(1, config.endOpacity));
+    this.configuredInitialOpacity = this.initialOpacity;
+    this.configuredTargetOpacity = this.targetOpacity;
     this.duration = Math.max(0.001, config.duration);
     this.loopType = config.loopType;
     this.fadeFunction = config.fadeFunction;
@@ -121,10 +133,32 @@ export class FadeDrawableComponent extends GameComponent {
   }
 
   /**
+   * The sprite this fade drives. Matches the original's setRenderComponent():
+   * the fade does not pick what is drawn, only how opaque it is.
+   */
+  setSpriteComponent(sprite: SpriteComponent): void {
+    this.spriteComponent = sprite;
+  }
+
+  /**
    * Set phase duration (enables phase repeating)
    */
   setPhaseDuration(duration: number): void {
     this.phaseDuration = duration;
+  }
+
+  /**
+   * Restart the phase timer, so a fade that flashes near the end of a powerup
+   * starts counting again when the powerup is extended.
+   * Original: FadeDrawableComponent.resetPhase(), called from PlayerComponent
+   * when a second glow is collected before the first runs out.
+   */
+  resetPhase(): void {
+    this.activateTime = 0;
+    this.startTime = 0;
+    this.initialOpacity = this.configuredInitialOpacity;
+    this.targetOpacity = this.configuredTargetOpacity;
+    this.currentOpacity = this.initialOpacity;
   }
 
   /**
@@ -168,9 +202,15 @@ export class FadeDrawableComponent extends GameComponent {
       this.startTime = 0;
     }
 
-    // Handle initial delay
+    // Handle initial delay. The original can simply return here, because its
+    // SpriteComponent allocates a fresh drawable at full opacity every frame;
+    // here opacity is state that persists on the sprite, so a fade waiting out
+    // its delay has to keep asserting where it starts - otherwise a restarted
+    // phase leaves the sprite frozen mid-flash.
     if (this.initialDelayTimer > 0) {
       this.initialDelayTimer -= deltaTime;
+      this.currentOpacity = this.initialOpacity;
+      this.applyOpacity(parent);
       return;
     }
 
@@ -208,11 +248,21 @@ export class FadeDrawableComponent extends GameComponent {
     }
 
     this.currentOpacity = opacity;
+    this.applyOpacity(parent);
+  }
 
-    // Apply to parent's opacity (if parent supports it)
-    const gameObj = parent as GameObject & { opacity?: number };
-    if ('opacity' in gameObj) {
-      gameObj.opacity = this.currentOpacity;
+  /**
+   * Push the current opacity onto the sprite. The original sets it on the
+   * drawable held by a RenderComponent; here SpriteComponent owns the drawing.
+   * An object can carry several (The Source has five layers, each with its own
+   * fade), so the target is normally set explicitly; falling back to the
+   * object's only sprite covers the single-sprite case.
+   */
+  private applyOpacity(parent: GameObject): void {
+    const sprite = this.spriteComponent ?? parent.getComponent(SpriteComponent);
+    if (sprite) {
+      this.spriteComponent = sprite;
+      sprite.setOpacity(this.currentOpacity);
     }
   }
 

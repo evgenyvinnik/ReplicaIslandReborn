@@ -19,6 +19,10 @@ import {
   selectPlayerAnimation,
   type PlayerAnimationName,
 } from '../../data/playerAnimations';
+import {
+  FadeDrawableComponent, FadeLoopType, FadeFunction,
+} from './FadeDrawableComponent';
+import { sSystemRegistry } from '../../engine/SystemRegistry';
 import type { AnimationDefinition } from '../../types';
 
 /**
@@ -27,6 +31,21 @@ import type { AnimationDefinition } from '../../types';
  * DEATH, gotoFrozen -> FROZEN.
  */
 const PLAYER_STATE_ACTIONS: Record<number, ActionType | undefined> = {};
+
+/** SortConstants.PLAYER + 1: the glow halo sits just in front of Andou. */
+const PLAYER_GLOW_PRIORITY = 21;
+/** Centre the 64x64 halo on the 32x48 collision box. */
+const GLOW_OFFSET_X = -16;
+/** The same centring, plus the original's 5px draw offset (Y-up -5 = down). */
+const GLOW_OFFSET_Y = -16 + 5;
+/** Original: setupFade(1, 0, 0.15, PING_PONG, EASE, glowDuration - 4). */
+const GLOW_FLASH_DURATION = 0.15;
+const GLOW_FLASH_LEAD_TIME = 4.0;
+/** Kids difficulty, used until applyDifficulty() supplies the real value. */
+const DEFAULT_GLOW_DURATION = 15.0;
+/** Original: AnimationComponent.FLICKER_INTERVAL / FLICKER_DURATION. */
+const FLICKER_INTERVAL = 0.15;
+const FLICKER_DURATION = 3.0;
 
 export enum PlayerState {
   MOVE = 0,          // Normal movement
@@ -131,6 +150,16 @@ export class PlayerComponent extends GameComponent {
   
   public glowMode: boolean = false;
   public glowTime: number = 0;
+  /** The halo layered over Andou while the glow powerup is active. */
+  private glowSprite: SpriteComponent | null = null;
+  private glowFader: FadeDrawableComponent | null = null;
+  /** Glow duration this difficulty grants, used to time the ending flash. */
+  private glowDuration: number = DEFAULT_GLOW_DURATION;
+  /** Post-hit flicker, from the original's AnimationComponent. */
+  private flickerTimeRemaining: number = 0;
+  private lastFlickerTime: number = 0;
+  private flickerOn: boolean = true;
+  private previousStateWasHitReact: boolean = false;
   public coinsForPowerup: number = 0;
 
   /**
@@ -170,6 +199,8 @@ export class PlayerComponent extends GameComponent {
   applyDifficulty(constants: DifficultyConstants, attempts: number, parent: GameObject): void {
     const adjustment = getDifficultyAdjustment(constants, attempts);
     this.fuelGroundRefillSpeed = constants.fuelGroundRefillSpeed;
+    this.glowDuration = constants.glowDuration;
+    this.glowFader = null;  // rebuilt with the new duration on next draw
     this.fuelAirRefillSpeed = adjustment.fuelAirRefillSpeed;
     if (adjustment.lifeBoost > 0) {
       parent.life += adjustment.lifeBoost;
@@ -460,7 +491,7 @@ export class PlayerComponent extends GameComponent {
 
     parent.setBackgroundCollisionNormal(vCollision.normal.y !== 0 ? vCollision.normal : hCollision.normal);
 
-    this.updateAnimation(parent);
+    this.updateAnimation(parent, deltaTime);
     this.updateCurrentAction(parent);
   }
 
@@ -472,7 +503,7 @@ export class PlayerComponent extends GameComponent {
    * the original does it. The glow powerup swaps the whole animation set for
    * one whose frames carry the larger HIT sphere.
    */
-  private updateAnimation(parent: GameObject): void {
+  private updateAnimation(parent: GameObject, deltaTime: number): void {
     const sprite = parent.getComponent(SpriteComponent);
     if (!sprite) return;
 
@@ -485,6 +516,9 @@ export class PlayerComponent extends GameComponent {
       // Force the animation to be re-selected against the new set.
       this.playingAnimation = null;
     }
+
+    this.updateGlowSprite(parent);
+    this.updateFlicker(parent, sprite, deltaTime);
 
     const next = selectPlayerAnimation({
       hitReacting: this.currentState === PlayerState.HIT_REACT,
@@ -501,6 +535,115 @@ export class PlayerComponent extends GameComponent {
       this.playingAnimation = next;
       sprite.playAnimation(next);
     }
+  }
+
+  /**
+   * Flicker Andou for a few seconds after he stops reeling from a hit.
+   *
+   * The original triggers this on the *exit* from HIT_REACT and runs it for a
+   * fixed 3 seconds, independent of how long invincibility lasts. Driving it
+   * from the invincible flag instead makes the glow powerup strobe the player
+   * for its entire duration, which the original never does.
+   *
+   * Original: AnimationComponent.update(), mFlickerTimeRemaining.
+   */
+  private updateFlicker(
+    parent: GameObject,
+    sprite: SpriteComponent,
+    deltaTime: number
+  ): void {
+    const hitReacting = this.currentState === PlayerState.HIT_REACT;
+    if (!hitReacting && this.previousStateWasHitReact) {
+      this.flickerTimeRemaining = FLICKER_DURATION;
+    }
+    this.previousStateWasHitReact = hitReacting;
+
+    const gameTime = parent.getGameTime();
+    if (this.flickerTimeRemaining > 0) {
+      this.flickerTimeRemaining -= deltaTime;
+      if (gameTime > this.lastFlickerTime + FLICKER_INTERVAL) {
+        this.lastFlickerTime = gameTime;
+        this.flickerOn = !this.flickerOn;
+      }
+    } else {
+      this.flickerOn = true;
+    }
+    sprite.setVisible(this.flickerOn);
+  }
+
+  /** Whether the post-hit flicker is currently hiding Andou. */
+  isFlickerHidden(): boolean {
+    return !this.flickerOn;
+  }
+
+  /**
+   * The glow powerup's halo: a second 64x64 sprite layered over Andou, fading
+   * to a flash in the last few seconds so the powerup announces its own end.
+   *
+   * The original spawns this as a set of components swapped onto the player by
+   * ChangeComponentsComponent (`spawnPlayer`, PLAYER_GLOW). The port keeps them
+   * attached and toggles visibility, which is the same thing from the outside.
+   * Andou's own frames already carry the larger HIT volume while glowing, so
+   * this is purely the visual.
+   */
+  private updateGlowSprite(parent: GameObject): void {
+    if (!this.glowFader) {
+      if (!this.glowSprite) {
+        const sprite = new SpriteComponent();
+        // PLAYER + 1: the halo sits just in front of Andou.
+        sprite.setPriority(PLAYER_GLOW_PRIORITY);
+        const renderSystem = sSystemRegistry.renderSystem;
+        if (renderSystem) sprite.setRenderSystem(renderSystem);
+        sprite.addAnimation('glow', {
+          name: 'glow',
+          frames: ['effect_glow01', 'effect_glow02', 'effect_glow03'].map((name) => ({
+            x: 0, y: 0, width: 64, height: 64,
+            duration: 1 / 24,
+            sprite: name,
+            // Centre the 64x64 halo on the 32x48 box, then the original's
+            // 5px draw offset (Y-up -5 is down, which is +5 here).
+            offsetX: GLOW_OFFSET_X,
+            offsetY: GLOW_OFFSET_Y,
+          })),
+          loop: true,
+        });
+        sprite.playAnimation('glow');
+        sprite.setVisible(false);
+        parent.addComponent(sprite);
+        this.glowSprite = sprite;
+      }
+
+      const fader = new FadeDrawableComponent();
+      fader.setSpriteComponent(this.glowSprite);
+      fader.setupFade({
+        startOpacity: 1,
+        endOpacity: 0,
+        duration: GLOW_FLASH_DURATION,
+        loopType: FadeLoopType.PING_PONG,
+        fadeFunction: FadeFunction.EASE,
+        // Hold steady, then flash for the last few seconds of the powerup.
+        initialDelay: Math.max(0, this.glowDuration - GLOW_FLASH_LEAD_TIME),
+        phaseDuration: this.glowDuration,
+      });
+      parent.addComponent(fader);
+      this.glowFader = fader;
+    }
+
+    if (this.glowSprite) this.glowSprite.setVisible(this.glowMode);
+  }
+
+  /**
+   * Turn the glow powerup on, or extend it if it is already running.
+   *
+   * Extending has to restart the fader's phase or the halo keeps flashing as
+   * though the powerup were still about to expire. The original calls this out
+   * as a hack in PlayerComponent; the shape is the same here.
+   */
+  activateGlow(duration: number): void {
+    this.glowMode = true;
+    this.glowTime = duration;
+    this.glowDuration = duration;
+    this.glowFader?.resetPhase();
   }
 
   /**

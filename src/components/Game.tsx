@@ -1050,6 +1050,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Jet fire (shown when boosting with jetpack)
         { name: 'jetfire01', file: 'jetfire01' },
         { name: 'jetfire02', file: 'jetfire02' },
+        // The glow powerup's halo, layered over Andou by PlayerComponent.
+        { name: 'effect_glow01', file: 'effect_glow01' },
+        { name: 'effect_glow02', file: 'effect_glow02' },
+        { name: 'effect_glow03', file: 'effect_glow03' },
         // Sparks (shown when hit)
         { name: 'spark01', file: 'spark01' },
         { name: 'spark02', file: 'spark02' },
@@ -2164,9 +2168,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 const glowDuration = difficultyConfig.glowDuration;
                 
                 if (playerComponent.coinsForPowerup >= coinsNeeded) {
-                  // Activate glow mode!
-                  playerComponent.glowMode = true;
-                  playerComponent.glowTime = glowDuration;
+                  // Activate glow mode! activateGlow() also restarts the
+                  // halo's flash timer, so collecting a second powerup before
+                  // the first expires stops it flashing "about to end".
+                  playerComponent.activateGlow(glowDuration);
                   playerComponent.invincible = true;  // Glow mode grants invincibility
                   playerComponent.invincibleTime = glowDuration;
                   playerComponent.coinsForPowerup = 0;  // Reset counter
@@ -2436,19 +2441,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           const spriteOffsetX = -16;
           const spriteOffsetY = -16;
           const scaleX = obj.facingDirection.x < 0 ? -1 : 1;
-          const ctx = renderSystem.getContext();
 
-          // Flash while invincible by skipping the body and its effects.
-          if (pComp.invincible && Math.floor(Date.now() / 100) % 2 === 0) {
-            const sprite = obj.getComponent(
-              SpriteComponent as unknown as new (...args: unknown[]) => SpriteComponent
-            );
-            sprite?.setOpacity(0);
-            return;
-          }
-          obj.getComponent(
-            SpriteComponent as unknown as new (...args: unknown[]) => SpriteComponent
-          )?.setOpacity(1);
+          // PlayerComponent owns the post-hit flicker (it hides its own
+          // sprite); the effects drawn here follow it, as the original's
+          // AnimationComponent does with the jet sprite.
+          if (pComp.isFlickerHidden()) return;
 
           // Jet fire, behind him, while the rockets are on.
           if (pComp.rocketsOn) {
@@ -2463,16 +2460,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
           }
 
-          // The glow powerup's halo, painted under the sprite the component
-          // draws a moment later in the same frame.
-          if (pComp.glowMode && ctx) {
-            ctx.save();
-            const glowIntensity = 15 + 10 * Math.sin(Date.now() / 100);
-            ctx.shadowColor = '#FFD700';
-            ctx.shadowBlur = glowIntensity;
-            ctx.restore();
-          }
-
           // Sparks on top while he is reeling from a hit.
           if (pComp.currentState === PlayerState.HIT_REACT) {
             pComp.sparkTimer += 1 / 60;
@@ -2485,85 +2472,28 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               renderSystem.drawSprite(sparkSpriteName, pos.x + spriteOffsetX, pos.y + spriteOffsetY, 0, 11, 1, scaleX, 1);
             }
           }
-        } else {
-          // Draw other objects with sprites
-          const OBJECT_FRAME_TIME = 0.15; // Animation speed for objects
-          
-          // Use object's animTimer and animFrame for per-object animation
-          // Initialize if not set
-          if (obj.animTimer === undefined) obj.animTimer = Math.random(); // Random offset to desync animations
-          if (obj.animFrame === undefined) obj.animFrame = 0;
-          
-          // Update animation timer
-          obj.animTimer += 1 / 60;
-          if (obj.animTimer >= OBJECT_FRAME_TIME) {
-            obj.animTimer -= OBJECT_FRAME_TIME;
-            obj.animFrame++;
-          }
-          
-          const spriteName: string | null = null;
-          const spriteOffset = { x: 0, y: 0 };
-          
+        } else if (!drawnBySpriteComponent(obj)) {
+          // Everything else draws itself through its own SpriteComponent:
+          // enemies from EnemyAnimationComponent, the bosses and story NPCs
+          // from NPCAnimationComponent, The Source from five cross-fading
+          // layers, doors and buttons from their animation components, and the
+          // rest from the single-loop definitions in data/objectAnimations.ts.
+          //
+          // What is left here is the safety net: a coloured box over anything
+          // that reached the screen with nothing to draw it, which is a bug
+          // worth seeing rather than an invisible object.
+          let color = '#888888';
           switch (obj.type) {
-            // ghost, coin, ruby, pearl, diary and breakable_block draw
-            // themselves through SpriteComponent; see data/objectAnimations.ts.
-            case 'enemy': {
-              // Ordinary enemies draw from EnemyAnimationComponent and the
-              // bosses from NPCAnimationComponent; both through their own
-              // SpriteComponent. The Source is the exception - five layered
-              // 512x512 sprites rather than an animation.
-              if (obj.subType !== 'the_source') return;
-
-              const sourceLayers = ['source_black', 'source_body', 'source_core', 'source_spikes', 'source_spots'];
-              const layerOffsetX = (obj.width - 512) / 2;
-              const layerOffsetY = (obj.height - 512) / 2;
-              for (let layerIdx = 0; layerIdx < sourceLayers.length; layerIdx++) {
-                renderSystem.drawSprite(
-                  sourceLayers[layerIdx],
-                  pos.x + layerOffsetX,
-                  pos.y + layerOffsetY,
-                  0,
-                  10 + layerIdx
-                );
-              }
-              return;
-            }
-            // npc draws itself: NPCAnimationComponent picks the animation from
-            // action, speed and whether it is airborne; see data/npcAnimations.ts.
-            // door and button draw themselves: their frames name their own
-            // sprites, and DoorAnimationComponent / ButtonAnimationComponent
-            // pick which animation plays.
-            // projectile draws itself; see data/objectAnimations.ts.
+            case 'coin': color = '#ffd700'; break;
+            case 'ruby':
+            case 'pearl': color = '#ff69b4'; break;
+            case 'diary': color = '#ffaa00'; break;
+            case 'enemy': color = '#ff4444'; break;
+            case 'npc': color = '#44aaff'; break;
+            case 'door': color = '#8844ff'; break;
+            case 'decoration': color = '#666666'; break;
           }
-          
-          // Try to draw sprite, fall back to colored rectangle
-          if (spriteName && renderSystem.hasSprite(spriteName)) {
-            const scaleX = obj.facingDirection.x < 0 ? -1 : 1;
-            renderSystem.drawSprite(
-              spriteName, 
-              pos.x + spriteOffset.x, 
-              pos.y + spriteOffset.y, 
-              0, 
-              5, 
-              1, 
-              scaleX, 
-              1
-            );
-          } else if (!drawnBySpriteComponent(obj)) {
-            // Fallback to colored rectangles, for objects nothing else draws.
-            let color = '#888888';
-            switch (obj.type) {
-              case 'coin': color = '#ffd700'; break;
-              case 'ruby':
-              case 'pearl': color = '#ff69b4'; break;
-              case 'diary': color = '#ffaa00'; break;
-              case 'enemy': color = '#ff4444'; break;
-              case 'npc': color = '#44aaff'; break;
-              case 'door': color = '#8844ff'; break;
-              case 'decoration': color = '#666666'; break;
-            }
-            renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, color, 5);
-          }
+          renderSystem.drawRect(pos.x, pos.y, obj.width, obj.height, color, 5);
         }
       });
 

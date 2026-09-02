@@ -64,27 +64,65 @@ and every mechanic in the original is present. What follows are the places
 where this port reaches the same behaviour by different means, plus one
 optimisation it does not do. None of them is missing gameplay.
 
-**Rendering does not go through `SpriteComponent`.** This is the single root
-cause of most of what is left. The original draws through
-`SpriteComponent` → `RenderComponent` → `RenderSystem`, with each
-`AnimationFrame` carrying its texture *and* its collision volumes. This port
-draws from a sprite switch in `Game.tsx` instead, which has three knock-on
-effects:
-
-| Effect | Impact | Notes |
-|--------|--------|-------|
-| No per-frame collision volumes | Low | Volumes are selected from state/action instead (`playerCollisionVolumes.ts`, `enemyCollisionProfiles.ts`), which reproduces the original's behaviour — verified against its per-frame data. Moving them onto frames needs the rendering path first. |
-| `FadeDrawableComponent`, `MotionBlurComponent`, `FixedAnimationComponent` unattached | Low | All three exist to modify a drawable or pick an animation index, so they have nothing to attach to. Their effects are either already inline (the invincibility flash, the glow) or cosmetic (Kyle's motion trail). |
-| `PlaySingleSoundComponent` unattached | None | `EffectsSystem` plays those sounds directly. |
-
-Other differences:
-
 | Difference | Impact | Notes |
 |------------|--------|-------|
 | Wall and ceiling tests are per-tile AABB | Low | Slopes resolve against the real line segments (`getGroundSurfaceY()`), so what the player feels underfoot is correct. Making `_checkTileCollisionWithSegments()` usable for walls needs swept collision — see the comment at `checkTileCollision()`. |
 | No object pooling | Low | The original pools 384+ objects to avoid GC pauses on 2010 Android hardware. The port allocates freely; this is not a correctness problem and has not shown up as one in play. |
-| `CrusherAndouComponent` unattached | None | Faithfully ported, but its object type (59) appears in no shipped level, so it can never run. |
-| `Game.tsx` size | Low | ~3475 lines, but no longer a parallel component system. What remains is orchestration: level transitions, sprite loading, Canvas UI wiring, and turning pipeline events into lives, score, the win check and the diary. |
+| Four components unattached | None | See "Ported But Not Wired Up" — one is dead in the original too, the rest are covered by other code or serve unused object types. |
+| `SimplePhysicsComponent` not ported | Low | Bounce/inertia for simple objects; the port's equivalents move on `PhysicsComponent` or `EffectsSystem` particles. |
+| Everything draws at priority 0 | Low | The port does not carry `SortConstants`, so most objects share a z of 0 and draw in spawn order. Only the layers that must be ordered set one: The Source (-5..-1) and the glow halo (21). |
+| `Game.tsx` size | Low | ~2780 lines of orchestration: level transitions, sprite loading, Canvas UI wiring, and turning pipeline events into lives, score, the win check and the diary. No longer a parallel component system. |
+
+### Rendering
+
+Everything on screen is drawn by its own `SpriteComponent`, the way the
+original draws it. `Game.tsx`'s render callback used to hold a ~1100-line
+switch that picked frames from each object's state every frame; that work now
+belongs to the animation components, and the frames themselves live in three
+catalogues:
+
+- `src/data/enemyAnimations.ts` — enemies, selected by `EnemyAnimationComponent`
+- `src/data/npcAnimations.ts` — Wanda, Kyle, Kabocha and both bosses, selected
+  by `NPCAnimationComponent` (which also watches the SURPRISED channel)
+- `src/data/objectAnimations.ts` — everything with a single looping animation:
+  collectibles, blocks, signs, cannons, spawners, projectiles, the ghost
+- `src/data/playerAnimations.ts` — Andou, selected by `PlayerComponent`
+
+`SpriteFrame` carries what the original's `AnimationFrame` carries: its own
+sprite name (this port's art is individual files rather than sheets), draw size
+and offset, and **its collision volumes**. `SpriteComponent` hands those volumes
+to the object's `DynamicCollisionComponent` as the animation plays, which is
+`sprite.setCollisionComponent(collision)` in the original. A frame that declares
+no volumes leaves the current ones alone, so an animation only has to say where
+they change.
+
+Three components modify what a sprite draws rather than choosing it, and each
+is attached where the original attaches it:
+
+- `FadeDrawableComponent` animates a sprite's opacity. The Source is five
+  512x512 layers stacked at priorities -5..-1, each with its own ping-pong fade
+  at its own rate (1.2s to 6.0s) — that cross-fading, not any frame animation,
+  is what makes it look alive. The player's glow powerup is a second sprite
+  layered at priority 21 whose fade holds steady, then flashes for the last four
+  seconds so the powerup announces its own end.
+- `MotionBlurComponent` samples its target sprite every 0.1s and redraws the
+  last four samples behind it, fading out. Kyle carries one while he dashes.
+- `PlayerComponent` owns Andou's post-hit flicker: three seconds of 0.15s
+  blinking triggered when he *leaves* HIT_REACT, per the original's
+  `AnimationComponent`. It is deliberately not tied to the invincible flag —
+  doing that makes the glow powerup strobe him for its whole duration.
+
+One thing still draws directly from `Game.tsx`, deliberately: the effects around
+Andou (jet fire, hit sparks), which the original spawns as separate objects.
+
+A fade whose target sprite persists its opacity has to keep asserting that
+opacity even while waiting out an initial delay. The original can skip that,
+because its `SpriteComponent` hands the fade a fresh drawable at full opacity
+every frame; here opacity is state that sticks to the sprite.
+
+If you remove a type from a render path, check the placeholder-rectangle
+fallback at the end of the object loop — it paints a coloured box over anything
+it thinks is undrawn, and will happily cover a sprite a component just drew.
 
 ### Movement
 
@@ -123,8 +161,10 @@ vulnerability volumes through `DynamicCollisionComponent` during the
 effects and death sequences.
 
 The original keeps volumes on animation frames, so an enemy's hitboxes change
-with what it is doing. This port has no per-frame volume data, so volumes are
-selected from state instead — which reproduces the behaviour that matters:
+with what it is doing, and so does this port: `SpriteFrame` carries
+`attackVolumes`/`vulnerabilityVolumes`, and `SpriteComponent` hands them to
+`DynamicCollisionComponent` as the animation plays. The geometry is defined in
+two catalogues, which the animation data draws from:
 
 - **The player** (`src/entities/playerCollisionVolumes.ts`) only has a HIT
   attack volume while stomping or glowing, and *no* vulnerability volume in
@@ -139,7 +179,10 @@ selected from state instead — which reproduces the behaviour that matters:
   - Skeleton, Mudman and Pink Namazu only present an attack volume while their
     action is `ATTACK`, so they are harmless mid-patrol. Brobots and the flying
     enemies hurt on contact.
-  `EnemyCollisionComponent` re-selects the set whenever the action changes.
+  These sets are attached to the frames of the matching animation in
+  `src/data/enemyAnimations.ts`, so an enemy's attack volume is live only on the
+  frames where the blow actually lands (`attackContactFrames`), not for the whole
+  attack animation.
 
 Hit types matter as much as geometry. A vulnerability volume left **untyped**
 accepts every hit type; a typed one accepts only its own. The original leaves
@@ -248,7 +291,7 @@ values the port used to carry.
 | **Player State Machine** | ✅ | All 7 states implemented in `PlayerComponent` |
 | **Ghost Mechanic** | ✅ | Charge, spawn, camera handoff, release |
 | **NPC Cutscene System** | ✅ | `NPCComponent` drives hot-spot scripts; level 0-1 completes |
-| **Components** | ⚠️ | ~30 ported; 7 are attached to nothing (see "Known remaining gaps") |
+| **Components** | ✅ | ~32 ported and attached; 4 attach to nothing (see "Ported But Not Wired Up") |
 | **UI/Screens** | ✅ | 11 React menu components + Canvas gameplay UI |
 | **Canvas Gameplay UI** | ✅ | HUD, Controls, Dialog, Cutscene, Pause, GameOver, LevelComplete |
 | **Levels** | ✅ | 40 levels load; every object type has a spawn implementation |
@@ -314,24 +357,32 @@ values the port used to carry.
 
 ### Ported But Not Wired Up
 
-Every component below exists under `src/entities/components/` and typechecks,
-but nothing constructs or attaches it. Their behavior is either reimplemented
-inline in `Game.tsx` or simply absent. Check with:
+Four components exist under `src/entities/components/` and typecheck, but
+nothing constructs or attaches them. Check with:
 
 ```bash
-grep -rL "ComponentName" src --include="*.ts" --include="*.tsx"
+grep -rl "ComponentName" src --include="*.ts" --include="*.tsx"
 ```
 
-| Component | Original use | Notes |
-|-----------|--------------|-------|
-| HitPlayerComponent | `spawnCoin` and friends | The collision pipeline is live now, but nothing attaches this; collectibles are still picked up inline |
-| SimplePhysicsComponent | 16 spawn sites (bouncing objects) | Bounce/inertia for simple objects |
-| FadeDrawableComponent | 16 spawn sites | Per-object fade |
-| PlaySingleSoundComponent | Explosion effects | Sound plays via `EffectsSystem` instead |
-| MotionBlurComponent | `spawnEnemyKyle` | Visual trail |
-| FixedAnimationComponent | 1 spawn site | Static animation selection |
-| CrusherAndouComponent | `spawnObjectCrusherAndou` | Object type is not used by any shipped level |
-| SnailbombComponent | Snail enemy behavior | Snailbomb is instead assembled from Patrol + LaunchProjectile |
+| Component | Original use | Why it is not attached |
+|-----------|--------------|------------------------|
+| FixedAnimationComponent | none | The original only *pools* it (`GameObjectFactory` line 225); nothing there allocates it either. Dead in both. |
+| PlaySingleSoundComponent | `spawnEffectExplosionLarge` / `Giant` | `EffectsSystem` plays those two sounds directly. |
+| CrusherAndouComponent | `spawnObjectCrusherAndou` | Its object type (59) appears in no shipped level, so it can never run. |
+| SnailbombComponent | Snail enemy behavior | The snailbomb is assembled from Patrol + LaunchProjectile instead, as the original's data does. |
+
+`SimplePhysicsComponent` (bounce/inertia, 16 spawn sites in the original) was
+never ported. Objects that would use it — debris, gems, bouncing projectiles —
+get their motion from `PhysicsComponent`/`MovementComponent` or from
+`EffectsSystem` particles.
+
+Recently wired, and worth knowing where they went:
+
+| Component | Attached to | Notes |
+|-----------|-------------|-------|
+| FadeDrawableComponent | The Source's five layers; the player's glow halo | Drives `SpriteComponent.setOpacity()`, where the original drives a RenderComponent's drawable |
+| MotionBlurComponent | Kyle | Samples his sprite every 0.1s and redraws four fading copies behind him |
+| HitPlayerComponent | Collectibles | The radius test the original uses for coins, rubies and diaries |
 
 ### React UI Components (Menu Screens Only)
 
@@ -1898,13 +1949,13 @@ The web port uses Canvas coordinates (TOP-LEFT, Y increases DOWN) but handles th
 | `CameraBiasComponent.java` | `CameraBiasComponent.ts` | ✅ |
 | `ChangeComponentsComponent.java` | `ChangeComponentsComponent.ts` | ✅ |
 | `OrbitalMagnetComponent.java` | `OrbitalMagnetComponent.ts` | ✅ |
-| `MotionBlurComponent.java` | `MotionBlurComponent.ts` | ⚠️ ported, not attached |
-| `FadeDrawableComponent.java` | `FadeDrawableComponent.ts` | ⚠️ ported, not attached |
-| `HitPlayerComponent.java` | `HitPlayerComponent.ts` | ⚠️ ported, not attached |
-| `SimplePhysicsComponent.java` | `SimplePhysicsComponent.ts` | ⚠️ ported, not attached |
-| `PlaySingleSoundComponent.java` | `PlaySingleSoundComponent.ts` | ⚠️ ported, not attached |
-| `FixedAnimationComponent.java` | `FixedAnimationComponent.ts` | ⚠️ ported, not attached |
-| `CrusherAndouComponent.java` | `CrusherAndouComponent.ts` | ⚠️ ported, not attached |
+| `MotionBlurComponent.java` | `MotionBlurComponent.ts` | ✅ attached to Kyle |
+| `FadeDrawableComponent.java` | `FadeDrawableComponent.ts` | ✅ The Source's layers, the glow halo |
+| `HitPlayerComponent.java` | `HitPlayerComponent.ts` | ✅ attached to collectibles |
+| `SimplePhysicsComponent.java` | — | ❌ not ported |
+| `PlaySingleSoundComponent.java` | `PlaySingleSoundComponent.ts` | ⚠️ ported, not attached (EffectsSystem plays those sounds) |
+| `FixedAnimationComponent.java` | `FixedAnimationComponent.ts` | ⚠️ ported, not attached (nothing attaches it in the original either) |
+| `CrusherAndouComponent.java` | `CrusherAndouComponent.ts` | ⚠️ ported, not attached (object type 59 is in no shipped level) |
 
 ---
 
