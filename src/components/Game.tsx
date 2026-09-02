@@ -38,6 +38,7 @@ import { DoorAnimationComponent, DoorAnimation } from '../entities/components/Do
 import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
+import { EnemyAnimationComponent } from '../entities/components/EnemyAnimationComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
@@ -2786,129 +2787,21 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               spriteOffset.y = 0;
               break;
             case 'enemy': {
-              // Determine enemy type by subtype or default to bat
-              const enemyType = obj.subType || 'bat';
-              let spriteWidth = 64;
-              let spriteHeight = 64;
-              
-              switch (enemyType) {
-                case 'bat':
-                  spriteFrames = ['bat01', 'bat02', 'bat03', 'bat04'];
-                  spriteWidth = 64;
-                  spriteHeight = 32;
-                  break;
-                case 'sting':
-                  spriteFrames = ['sting01', 'sting02', 'sting03'];
-                  spriteWidth = 64;
-                  spriteHeight = 64;
-                  break;
-                case 'onion':
-                  spriteFrames = ['onion01', 'onion02', 'onion03'];
-                  spriteWidth = 64;
-                  spriteHeight = 64;
-                  break;
-                case 'brobot':
-                  // Animate based on velocity
-                  if (Math.abs(obj.getVelocity().x) > 10) {
-                    spriteFrames = ['brobot_walk01', 'brobot_walk02', 'brobot_walk03'];
-                  } else {
-                    spriteFrames = ['brobot_idle01', 'brobot_idle02', 'brobot_idle03'];
-                  }
-                  spriteWidth = 64;
-                  spriteHeight = 64;
-                  break;
-                case 'skeleton':
-                  if (obj.getCurrentAction() === ActionType.ATTACK) {
-                    spriteFrames = ['skeleton_attack01', 'skeleton_attack03', 'skeleton_attack04'];
-                  } else if (Math.abs(obj.getVelocity().x) > 10) {
-                    spriteFrames = ['skeleton_walk01', 'skeleton_walk02', 'skeleton_walk03', 'skeleton_walk04', 'skeleton_walk05'];
-                  } else {
-                    spriteFrames = ['skeleton_stand'];
-                  }
-                  spriteWidth = 64;
-                  spriteHeight = 64;
-                  break;
-                case 'karaguin':
-                  spriteFrames = ['karaguin01', 'karaguin02', 'karaguin03'];
-                  spriteWidth = 32;
-                  spriteHeight = 32;
-                  break;
-                case 'mudman':
-                  if (obj.getCurrentAction() === ActionType.ATTACK) {
-                    spriteFrames = [
-                      'mudman_attack01',
-                      'mudman_attack02',
-                      'mudman_attack03',
-                      'mudman_attack04',
-                      'mudman_attack05',
-                      'mudman_attack06',
-                      'mudman_attack07',
-                    ];
-                  } else if (Math.abs(obj.getVelocity().x) > 10) {
-                    spriteFrames = [
-                      'mudman_walk01',
-                      'mudman_walk02',
-                      'mudman_walk03',
-                      'mudman_walk04',
-                      'mudman_walk05',
-                      'mudman_walk06',
-                    ];
-                  } else {
-                    spriteFrames = ['mudman_stand', 'mudman_idle01', 'mudman_idle02'];
-                  }
-                  spriteWidth = 128;
-                  spriteHeight = 128;
-                  break;
-                case 'pink_namazu':
-                  // Pink Namazu is a sleeping enemy that wakes up when player is near
-                  if (obj.getCurrentAction() === ActionType.ATTACK) {
-                    spriteFrames = ['pinknamazu_jump'];
-                  } else if (obj.getCurrentAction() === ActionType.MOVE) {
-                    spriteFrames = ['pinknamazu_eyeopen', 'pinknamazu_stand'];
-                  } else {
-                    spriteFrames = ['pinknamazu_sleep01', 'pinknamazu_sleep02'];
-                  }
-                  spriteWidth = 128;
-                  spriteHeight = 128;
-                  break;
-                case 'shadowslime':
-                  if (obj.getCurrentAction() === ActionType.ATTACK) {
-                    spriteFrames = [
-                      'shadowslime_attack01',
-                      'shadowslime_attack02',
-                      'shadowslime_attack03',
-                      'shadowslime_attack04',
-                      'shadowslime_flash',
-                    ];
-                  } else {
-                    spriteFrames = ['shadowslime_idle01', 'shadowslime_idle02'];
-                  }
-                  spriteWidth = 64;
-                  spriteHeight = 64;
-                  break;
-                case 'snailbomb':
-                  // Snailbomb has stand, walk, and shoot animations
-                  if (obj.getCurrentAction() === ActionType.ATTACK) {
-                    spriteFrames = ['snailbomb_shoot01', 'snailbomb_shoot02'];
-                  } else if (Math.abs(obj.getVelocity().x) > 5) {
-                    spriteFrames = ['snailbomb_walk01', 'snailbomb_walk02'];
-                  } else {
-                    spriteFrames = ['snailbomb_stand'];
-                  }
-                  spriteWidth = 64;
-                  spriteHeight = 64;
-                  break;
-                case 'turret':
-                  if (obj.getCurrentAction() === ActionType.ATTACK) {
-                    spriteFrames = ['object_gunturret02', 'object_gunturret01', 'object_gunturret03'];
-                  } else {
-                    spriteFrames = ['object_gunturret01', 'object_gunturret_idle'];
-                  }
-                  spriteWidth = 64;
-                  spriteHeight = 64;
-                  break;
+              // Ordinary enemies draw themselves now: SpriteComponent holds
+              // their animations (data/enemyAnimations.ts) and
+              // EnemyAnimationComponent picks the one matching their action.
+              const drawnByComponent = obj.getComponent(
+                EnemyAnimationComponent as unknown as new (...args: unknown[]) => EnemyAnimationComponent
+              ) !== null;
+              if (drawnByComponent) return;
+
+              // The bosses have no entry in that catalogue - their animations
+              // are keyed off life, the SURPRISED channel and hit/attack state
+              // rather than a plain action, so they stay here for now.
+              const spriteWidth = 128;
+              const spriteHeight = 128;
+              switch (obj.subType) {
                 case 'evil_kabocha':
-                  // Evil Kabocha boss has walk, hit, surprised, and death animations
                   if (obj.life <= 0) {
                     spriteFrames = ['evil_kabocha_die01', 'evil_kabocha_die02', 'evil_kabocha_die03', 'evil_kabocha_die04'];
                   } else if (isSurprisedChannelSet()) {
@@ -2920,11 +2813,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   } else {
                     spriteFrames = ['evil_kabocha_stand'];
                   }
-                  spriteWidth = 128;
-                  spriteHeight = 128;
                   break;
                 case 'rokudou':
-                  // Rokudou boss has fly, shoot, surprise, hit, and death animations
                   if (obj.life <= 0) {
                     spriteFrames = ['rokudou_die01', 'rokudou_die02', 'rokudou_die03', 'rokudou_die04'];
                   } else if (isSurprisedChannelSet()) {
@@ -2938,49 +2828,29 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   } else {
                     spriteFrames = ['rokudou_stand'];
                   }
-                  spriteWidth = 128;
-                  spriteHeight = 128;
                   break;
-                case 'the_source':
-                  // The Source is the final boss with layered 512x512 sprites
-                  // Render all layers with staggered z-indices
-                  {
-                    const sourcePos = obj.getPosition();
-                    const sourceWidth = 512;
-                    const sourceHeight = 512;
-                    const sourceLayers = ['source_black', 'source_body', 'source_core', 'source_spikes', 'source_spots'];
-                    const offsetX = (obj.width - sourceWidth) / 2;
-                    const offsetY = (obj.height - sourceHeight) / 2;
-                    for (let layerIdx = 0; layerIdx < sourceLayers.length; layerIdx++) {
-                      // drawSprite(name, x, y, frame, z, alpha, scaleX, scaleY, rotation)
-                      // Use frame=0 (single frame sprites), z-index staggered for layering
-                      renderSystem.drawSprite(
-                        sourceLayers[layerIdx],
-                        sourcePos.x + offsetX,
-                        sourcePos.y + offsetY,
-                        0,                // frame (single frame sprites)
-                        10 + layerIdx     // z-index (staggered for layers)
-                      );
-                    }
-                    // Don't set spriteName - we handled rendering above
-                    spriteName = '';
+                case 'the_source': {
+                  // Five layered 512x512 sprites, drawn directly.
+                  const sourcePos = obj.getPosition();
+                  const sourceLayers = ['source_black', 'source_body', 'source_core', 'source_spikes', 'source_spots'];
+                  const layerOffsetX = (obj.width - 512) / 2;
+                  const layerOffsetY = (obj.height - 512) / 2;
+                  for (let layerIdx = 0; layerIdx < sourceLayers.length; layerIdx++) {
+                    renderSystem.drawSprite(
+                      sourceLayers[layerIdx],
+                      sourcePos.x + layerOffsetX,
+                      sourcePos.y + layerOffsetY,
+                      0,
+                      10 + layerIdx
+                    );
                   }
-                  spriteWidth = 512;
-                  spriteHeight = 512;
-                  break;
+                  return;
+                }
                 default:
-                  // Default to bat animation for unhandled enemy types
-                  spriteFrames = ['bat01', 'bat02', 'bat03', 'bat04'];
-                  spriteWidth = 64;
-                  spriteHeight = 32;
-              }
-              // Skip normal rendering if we already handled it specially (The Source)
-              if (spriteName === '') {
-                break;
+                  return;
               }
               obj.animFrame = obj.animFrame % spriteFrames.length;
               spriteName = spriteFrames[obj.animFrame];
-              // Center sprite on object - sprite draws from top-left, so offset by half difference
               spriteOffset.x = (obj.width - spriteWidth) / 2;
               spriteOffset.y = (obj.height - spriteHeight) / 2;
               break;

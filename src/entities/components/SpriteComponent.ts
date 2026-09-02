@@ -8,8 +8,15 @@ import { ComponentPhase, ActionType } from '../../types';
 import type { AnimationDefinition } from '../../types';
 import type { GameObject } from '../GameObject';
 import type { RenderSystem } from '../../engine/RenderSystem';
+import { DynamicCollisionComponent } from './DynamicCollisionComponent';
+import type { CollisionVolume } from '../../engine/collision/CollisionVolume';
 
 export class SpriteComponent extends GameComponent {
+  /** Receives each frame's collision volumes. */
+  private collisionComponent: DynamicCollisionComponent | null = null;
+  /** Draw order, matching the original's SortConstants. */
+  private priority: number = 0;
+
   private spriteName: string = '';
   private currentFrame: number = 0;
   private frameTimer: number = 0;
@@ -240,33 +247,81 @@ export class SpriteComponent extends GameComponent {
       }
     }
 
+    // Hand this frame's collision volumes to the object, the way the original
+    // does: an AnimationFrame carries its hitboxes alongside its texture, so an
+    // enemy's volumes change with what it is doing. `undefined` on a frame means
+    // "leave the current volumes alone".
+    this.applyFrameVolumes(parent);
+
     // Some campaign objects are rendered by Game's atlas-aware renderer, but
     // their SpriteComponent still owns animation timing/state.
     if (!this.renderSystem) return;
 
+    const frameData = this.currentAnimation.frames[this.currentFrame];
+    // A frame may name its own image; the port's art is individual files rather
+    // than sheets, so most animations are a list of sprite names.
+    const spriteName = frameData?.sprite ?? this.spriteName;
+
     // Only render if the sprite is actually loaded (don't use placeholders)
     // This allows Game.tsx to handle fallback rendering with colored rectangles
-    if (!this.renderSystem.hasSprite(this.spriteName)) {
+    if (!this.renderSystem.hasSprite(spriteName)) {
       return;
     }
 
     // Queue sprite for rendering
     const pos = parent.getPosition();
-    const frame = this.getCurrentFrameIndex();
+    const frame = frameData?.sprite !== undefined ? 0 : this.getCurrentFrameIndex();
 
     // Check flip based on facing direction
     const facingLeft = parent.facingDirection.x < 0;
 
     this.renderSystem.drawSprite(
-      this.spriteName,
-      pos.x + this.offsetX,
-      pos.y + this.offsetY,
+      spriteName,
+      pos.x + this.offsetX + (frameData?.offsetX ?? 0),
+      pos.y + this.offsetY + (frameData?.offsetY ?? 0),
       frame,
-      0, // z-index
+      this.priority,
       this.opacity,
       facingLeft !== this.flipX ? -1 : 1, // scaleX
       this.flipY ? -1 : 1 // scaleY
     );
+  }
+
+  /**
+   * Push the current frame's collision volumes to the object's
+   * DynamicCollisionComponent. Frames that define no volumes leave whatever is
+   * already set in place, so an animation only has to declare them where they
+   * change.
+   */
+  private applyFrameVolumes(parent: GameObject): void {
+    const frameData = this.currentAnimation?.frames[this.currentFrame];
+    if (!frameData) return;
+    if (frameData.attackVolumes === undefined && frameData.vulnerabilityVolumes === undefined) {
+      return;
+    }
+
+    const collision = this.collisionComponent
+      ?? parent.getComponent(DynamicCollisionComponent);
+    if (!collision) return;
+    this.collisionComponent = collision;
+
+    collision.setCollisionVolumes(
+      (frameData.attackVolumes ?? null) as CollisionVolume[] | null,
+      (frameData.vulnerabilityVolumes ?? null) as CollisionVolume[] | null
+    );
+  }
+
+  /**
+   * Link the collision component that receives this sprite's frame volumes.
+   * Original: `sprite.setCollisionComponent(collision)`.
+   */
+  setCollisionComponent(collision: DynamicCollisionComponent): void {
+    this.collisionComponent = collision;
+  }
+
+  /** Draw order for this sprite; see SortConstants in the original. */
+  setPriority(priority: number): void {
+    this.priority = priority;
   }
 
   /**
@@ -293,5 +348,7 @@ export class SpriteComponent extends GameComponent {
     this.opacity = 1;
     this.flipX = false;
     this.flipY = false;
+    this.collisionComponent = null;
+    this.priority = 0;
   }
 }

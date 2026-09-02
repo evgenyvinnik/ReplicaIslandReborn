@@ -95,7 +95,33 @@ export interface SpriteFrame {
   width: number;
   height: number;
   duration: number;
+  /**
+   * Named image for this frame. The port's art is individual files rather than
+   * sheets, so an animation is a list of sprite names; when set this overrides
+   * the SpriteComponent's own sprite name.
+   */
+  sprite?: string;
+  /**
+   * Collision volumes carried by this frame, as the original's AnimationFrame
+   * carries them. SpriteComponent hands them to the object's
+   * DynamicCollisionComponent, so an enemy's hitboxes change with what it is
+   * doing. `undefined` leaves the current volumes alone; `null` clears them.
+   */
+  attackVolumes?: CollisionVolumeList;
+  vulnerabilityVolumes?: CollisionVolumeList;
+  /** Drawn size, when it differs from the object's own width/height. */
+  drawWidth?: number;
+  drawHeight?: number;
+  /** Draw offset relative to the object's position. */
+  offsetX?: number;
+  offsetY?: number;
 }
+
+/**
+ * Collision volumes attached to an animation frame. Kept structural so
+ * `types/index.ts` does not have to depend on the collision engine.
+ */
+export type CollisionVolumeList = Array<{ getHitType(): HitType }> | null;
 
 // Animation definition
 export interface AnimationDefinition {

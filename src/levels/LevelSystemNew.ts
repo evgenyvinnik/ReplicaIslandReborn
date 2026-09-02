@@ -45,6 +45,8 @@ import { resetInventory } from '../entities/components/InventoryComponent';
 import { GameFlowEventType } from '../engine/GameFlowEvent';
 import { CutsceneType } from '../data/cutscenes';
 import { EnemyCollisionComponent } from '../entities/components/EnemyCollisionComponent';
+import { EnemyAnimationComponent, EnemyAnimation } from '../entities/components/EnemyAnimationComponent';
+import { createEnemyAnimations } from '../data/enemyAnimations';
 import { HitPlayerComponent } from '../entities/components/HitPlayerComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
@@ -1998,8 +2000,6 @@ export class LevelSystem {
     });
     collision.setHitReactionComponent(hitReact);
 
-    const selector = new EnemyCollisionComponent(profile);
-    selector.setCollisionComponent(collision);
     // Prime the volumes now rather than on the first update, so the object is
     // fully configured from frame zero - attachPossession() reads them.
     collision.setCollisionVolumes(
@@ -2009,7 +2009,32 @@ export class LevelSystem {
 
     obj.addComponent(collision);
     obj.addComponent(hitReact);
-    obj.addComponent(selector);
+
+    // Animations carry the per-frame volumes from here on, so SpriteComponent
+    // hands them to the collision component as the animation plays - the way
+    // the original's AnimationFrame does. Enemies with no art here (bosses)
+    // keep the action-driven EnemyCollisionComponent instead.
+    const animations = createEnemyAnimations(obj.subType);
+    if (!animations) {
+      const selector = new EnemyCollisionComponent(profile);
+      selector.setCollisionComponent(collision);
+      obj.addComponent(selector);
+      return;
+    }
+
+    const sprite = obj.getComponent(SpriteComponent) ?? new SpriteComponent();
+    if (!obj.getComponent(SpriteComponent)) obj.addComponent(sprite);
+    const renderSystem = sSystemRegistry.renderSystem;
+    if (renderSystem) sprite.setRenderSystem(renderSystem);
+    sprite.setCollisionComponent(collision);
+    for (const [index, animation] of animations) {
+      sprite.addAnimationAtIndex(index, animation);
+    }
+    sprite.playAnimation(EnemyAnimation.IDLE);
+
+    const animator = new EnemyAnimationComponent();
+    animator.setSprite(sprite);
+    obj.addComponent(animator);
   }
 
   /**
