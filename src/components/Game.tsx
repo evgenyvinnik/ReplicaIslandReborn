@@ -34,7 +34,6 @@ import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory
 import { GameObject } from '../entities/GameObject';
 import { resetPlayerRuntimeState } from '../entities/resetPlayerRuntimeState';
 import { applyPlayerAttack } from '../entities/applyPlayerAttack';
-import { applyHostileProjectileToSource } from '../entities/applyHostileProjectile';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
@@ -2342,8 +2341,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
         });
 
-        // Hostile shots previously passed straight through Andou because the
-        // web port never ran its dynamic collision system.
+        // Enemy shots are resolved by GameObjectCollisionSystem: their HIT
+        // volume against Andou, and against The Source, whose PLAYER team is
+        // what lets the other bosses' fire destroy it in the finale. This loop
+        // only despatches a shot once it has connected with something.
         const sourceBoss = gameObjectManager.getActiveObjects().find(
           (obj) => obj.subType === 'the_source' && obj.life > 0 && obj.isVisible()
         );
@@ -2353,25 +2354,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
 
           const projectilePosition = obj.getPosition();
-          if (sourceBoss) {
-            const sourcePosition = sourceBoss.getPosition();
-            const hitsSource = projectilePosition.x < sourcePosition.x + sourceBoss.width &&
-              projectilePosition.x + obj.width > sourcePosition.x &&
-              projectilePosition.y < sourcePosition.y + sourceBoss.height &&
-              projectilePosition.y + obj.height > sourcePosition.y;
-            if (hitsSource && applyHostileProjectileToSource(obj, sourceBoss)) {
-              return;
-            }
-          }
+          const hits = (target: GameObject): boolean =>
+            projectilePosition.x < target.getPosition().x + target.width &&
+            projectilePosition.x + obj.width > target.getPosition().x &&
+            projectilePosition.y < target.getPosition().y + target.height &&
+            projectilePosition.y + obj.height > target.getPosition().y;
 
-          // Damage to the player is applied by GameObjectCollisionSystem against
-          // the projectile's HIT volume; this only despatches the spent
-          // projectile once it has actually connected.
-          const overlaps = playerRect.x < projectilePosition.x + obj.width &&
-            playerRect.x + playerRect.width > projectilePosition.x &&
-            playerRect.y < projectilePosition.y + obj.height &&
-            playerRect.y + playerRect.height > projectilePosition.y;
-          if (!overlaps) return;
+          if (!hits(player) && !(sourceBoss && hits(sourceBoss))) return;
 
           obj.life = 0;
           obj.setVisible(false);

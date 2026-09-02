@@ -198,6 +198,31 @@ describe('GameObjectCollisionSystem wiring', () => {
     expect(launcher.getLoadedShot()).toBe(player.object);
   });
 
+  test("an enemy shot damages The Source, whose team is PLAYER", () => {
+    // The finale works because The Source is on Team.PLAYER: the other bosses'
+    // fire counts as hostile to it. Game.tsx used to apply this hit itself as
+    // well as the pipeline, which halved the number of shots the fight took.
+    const shot = new GameObject();
+    shot.type = 'projectile';
+    shot.team = Team.ENEMY;
+    shot.width = 16;
+    shot.height = 16;
+    shot.life = 1;
+    shot.getPosition().set(100, 100);
+    const shotCollision = new DynamicCollisionComponent();
+    shotCollision.setCollisionVolumes([new AABoxCollisionVolume(0, 0, 16, 16, HitType.HIT)], null);
+    shot.addComponent(shotCollision);
+
+    const source = makeVictim(100, 100, 3);
+    source.object.type = 'enemy';
+    source.object.subType = 'the_source';
+    source.object.team = Team.PLAYER;
+
+    runFrame(system, [shot, source.object], 1);
+
+    expect(source.object.life).toBe(2);
+  });
+
   test('an invincible target refuses the hit', () => {
     const attacker = makeAttacker(100, 100);
     const victim = makeVictim(100, 100, 3);
