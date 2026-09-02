@@ -605,9 +605,19 @@ export class CollisionSystem {
       return result;
     }
 
-    // Use simple tile-based collision for reliability
-    // The segment-based collision has edge cases that cause pass-through issues
-    // TODO: Debug and fix checkTileCollisionWithSegments for slope support
+    // Deliberately the simple per-tile AABB test, not _checkTileCollisionWithSegments().
+    //
+    // That path does a discrete point test against each segment with a ~12px
+    // tolerance window. An object falling at ~500px/s covers ~8px per frame, so
+    // it steps straight past the window and through the floor - which is the
+    // "pass-through" the original TODO here described. Making it sound needs
+    // swept collision (the original ray-marches the box with testBox()), which
+    // is a rewrite of this loop rather than a fix.
+    //
+    // Where the segment data actually changes what the player feels - resting
+    // on a slope rather than on the tile grid - it is used: see
+    // getGroundSurfaceY(), which raycasts the real segments and is what
+    // BackgroundCollisionComponent and PlayerComponent snap to.
     return this.checkTileCollisionSimple(x, y, width, height, velocityX, velocityY);
   }
 
@@ -616,7 +626,7 @@ export class CollisionSystem {
    * Uses a hybrid approach: first checks tile occupancy, then uses segments
    * to determine collision type (wall vs slope).
    */
-  // @ts-ignore - Kept for future slope support, not currently used
+  // @ts-ignore - see checkTileCollision(): needs swept collision to be usable
   private _checkTileCollisionWithSegments(
     x: number,
     y: number,
