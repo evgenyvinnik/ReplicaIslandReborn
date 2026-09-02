@@ -7,7 +7,7 @@
  */
 
 import { GameComponent } from '../GameComponent';
-import { ComponentPhase, ActionType } from '../../types';
+import { ComponentPhase, ActionType, HitType } from '../../types';
 import type { GameObject } from '../GameObject';
 import { HotSpotType } from '../../engine/HotSpotSystem';
 import { sSystemRegistry } from '../../engine/SystemRegistry';
@@ -373,14 +373,28 @@ export class NPCComponent extends GameComponent {
         break;
         
       case HotSpotType.TALK:
-        // Handle NPC talk hot spot
         if (this.hitReactComponent !== null) {
-          // Setup dialog trigger on hit (player touching NPC)
-          const velocity = parentObject.getVelocity();
-          if (velocity.x !== 0) {
-            this.pauseMovement(parentObject);
+          if (parentObject.lastReceivedHitType !== HitType.COLLECT) {
+            this.hitReactComponent.setSpawnGameEventOnHit(
+              HitType.COLLECT,
+              this.dialogEvent as GameFlowEventType,
+              this.dialogIndex
+            );
+            if (parentObject.getVelocity().x !== 0) {
+              this.pauseMovement(parentObject);
+            }
+            // Stay on TALK until Andou actually touches this NPC.
+            hitAccepted = false;
+          } else {
+            parentObject.setCurrentAction(ActionType.MOVE);
+            this.resumeMovement(parentObject);
+            this.hitReactComponent.setSpawnGameEventOnHit(
+              HitType.INVALID,
+              GameFlowEventType.INVALID,
+              0
+            );
+            parentObject.lastReceivedHitType = HitType.INVALID;
           }
-          hitAccepted = false;
         }
         break;
         
@@ -609,6 +623,12 @@ export class NPCComponent extends GameComponent {
       this.dialogEvent = GameFlowEventType.SHOW_DIALOG_CHARACTER2;
       this.dialogIndex = hotSpot - HotSpotType.NPC_SELECT_DIALOG_2_1;
     }
+
+    this.hitReactComponent?.setSpawnGameEventOnHit(
+      HitType.COLLECT,
+      this.dialogEvent as GameFlowEventType,
+      this.dialogIndex
+    );
   }
 
   /**

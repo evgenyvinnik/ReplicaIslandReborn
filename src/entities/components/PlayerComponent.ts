@@ -187,7 +187,11 @@ export class PlayerComponent extends GameComponent {
     const input = this.inputSystem.getInputState();
     const velocity = parent.getVelocity();
     const position = parent.getPosition();
-    const gameTime = this.stateTimer; // Using local timer as gameTime approximation
+    // Collision contact timestamps are compared against GameObject.gameTime,
+    // which is the global TimeSystem clock. A per-player timer restarts on each
+    // level and makes every floor/wall contact immediately look stale after a
+    // transition later in the same session.
+    const gameTime = parent.getGameTime();
     this.stateTimer += deltaTime;
     const acceptsPlayerInput = this.currentState === PlayerState.MOVE ||
       this.currentState === PlayerState.STOMP;

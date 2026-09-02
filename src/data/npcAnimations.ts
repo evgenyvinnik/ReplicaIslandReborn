@@ -13,6 +13,8 @@
  */
 
 import { NPCAnimation } from '../entities/components/NPCAnimationComponent';
+import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
+import { HitType } from '../types';
 import type { AnimationDefinition, SpriteFrame } from '../types';
 
 /** 24 FPS, matching the original's Utils.framesToTime(24, n). */
@@ -25,9 +27,17 @@ const NPC_HEIGHT = 128;
 interface NpcArt {
   idle: string[];
   walk?: string[];
+  runStart?: string[];
   run?: string[];
+  jumpStart?: string[];
   jump?: string[];
   shoot?: string[];
+  hit?: string[];
+  surprised?: string[];
+  death?: string[];
+  /** Art size, when it is not the usual 64x128. */
+  width?: number;
+  height?: number;
 }
 
 const NPC_ART: Record<string, NpcArt> = {
@@ -58,7 +68,9 @@ const NPC_ART: Record<string, NpcArt> = {
       'enemy_kyle_walk05', 'enemy_kyle_walk06', 'enemy_kyle_walk07',
       'enemy_kyle_walk06', 'enemy_kyle_walk05',
     ],
+    runStart: ['enemy_kyle_crouch01', 'enemy_kyle_crouch02'],
     run: ['enemy_kyle_dash01', 'enemy_kyle_dash02'],
+    jumpStart: ['enemy_kyle_crouch01', 'enemy_kyle_crouch02'],
     jump: ['enemy_kyle_jump01', 'enemy_kyle_jump02'],
   },
   kabocha: {
@@ -68,22 +80,71 @@ const NPC_ART: Record<string, NpcArt> = {
       'kabocha_walk04', 'kabocha_walk05', 'kabocha_walk06',
     ],
   },
+  // The bosses are NPCs in the original too, animated by the same component
+  // and watching the same SURPRISED channel. Their art is 128x128.
+  evil_kabocha: {
+    idle: ['evil_kabocha_stand'],
+    walk: [
+      'evil_kabocha_walk01', 'evil_kabocha_walk02', 'evil_kabocha_walk03',
+      'evil_kabocha_walk04', 'evil_kabocha_walk05', 'evil_kabocha_walk06',
+    ],
+    hit: ['evil_kabocha_hit01', 'evil_kabocha_hit02'],
+    surprised: ['evil_kabocha_surprised'],
+    death: [
+      'evil_kabocha_die01', 'evil_kabocha_die02',
+      'evil_kabocha_die03', 'evil_kabocha_die04',
+    ],
+    width: 128,
+    height: 128,
+  },
+  rokudou: {
+    idle: ['rokudou_stand'],
+    // Rokudou flies rather than walks.
+    walk: ['rokudou_fly01', 'rokudou_fly02'],
+    run: ['rokudou_fly01', 'rokudou_fly02'],
+    jump: ['rokudou_fly01', 'rokudou_fly02'],
+    shoot: ['rokudou_shoot01', 'rokudou_shoot02'],
+    hit: ['rokudou_hit01', 'rokudou_hit02', 'rokudou_hit03'],
+    surprised: ['rokudou_surprise'],
+    death: ['rokudou_die01', 'rokudou_die02', 'rokudou_die03', 'rokudou_die04'],
+    width: 128,
+    height: 128,
+  },
 };
 
-function makeFrames(names: string[], objectWidth: number, objectHeight: number): SpriteFrame[] {
+function makeFrames(
+  names: string[],
+  objectWidth: number,
+  objectHeight: number,
+  art: NpcArt,
+  attackVolumes?: SpriteFrame['attackVolumes'],
+  vulnerabilityVolumes?: SpriteFrame['vulnerabilityVolumes']
+): SpriteFrame[] {
+  const spriteWidth = art.width ?? NPC_WIDTH;
+  const spriteHeight = art.height ?? NPC_HEIGHT;
   // The art is centred on the object's own box.
-  const offsetX = (objectWidth - NPC_WIDTH) / 2;
-  const offsetY = (objectHeight - NPC_HEIGHT) / 2;
-  return names.map((sprite) => ({
-    x: 0,
-    y: 0,
-    width: NPC_WIDTH,
-    height: NPC_HEIGHT,
-    duration: FRAME * 3,
-    sprite,
-    offsetX,
-    offsetY,
-  }));
+  const offsetX = (objectWidth - spriteWidth) / 2;
+  const offsetY = (objectHeight - spriteHeight) / 2;
+  return names.map((sprite) => {
+    const frame: SpriteFrame = {
+      x: 0,
+      y: 0,
+      width: spriteWidth,
+      height: spriteHeight,
+      duration: FRAME * 3,
+      sprite,
+      offsetX,
+      offsetY,
+    };
+    // Bosses configure their collision outside their animations, so omitted
+    // values must stay undefined. Story NPC frames own their collision exactly
+    // as the Android AnimationFrames do; null explicitly clears a dash attack.
+    if (attackVolumes !== undefined) frame.attackVolumes = attackVolumes;
+    if (vulnerabilityVolumes !== undefined) {
+      frame.vulnerabilityVolumes = vulnerabilityVolumes;
+    }
+    return frame;
+  });
 }
 
 /**
@@ -99,23 +160,44 @@ export function createNpcAnimations(
   const art = NPC_ART[subType];
   if (!art) return null;
 
-  const build = (names: string[], loop: boolean): AnimationDefinition =>
-    ({ frames: makeFrames(names, objectWidth, objectHeight), loop });
+  const storyNpc = subType === 'wanda' || subType === 'kyle' || subType === 'kabocha';
+  const vulnerability = storyNpc
+    // Original Y-up AABox(20, 5, 26, 80), converted for a 128px Y-down object.
+    ? [new AABoxCollisionVolume(20, 43, 26, 80, HitType.COLLECT)]
+    : undefined;
+  const kyleDashAttack = subType === 'kyle'
+    // Original Y-up AABox(32, 32, 50, 32), converted to Y-down.
+    ? [
+      new AABoxCollisionVolume(32, 64, 50, 32, HitType.HIT),
+      new AABoxCollisionVolume(32, 64, 50, 32, HitType.COLLECT),
+    ]
+    : undefined;
+
+  const build = (
+    names: string[],
+    loop: boolean,
+    attack: SpriteFrame['attackVolumes'] | undefined = storyNpc ? null : undefined
+  ): AnimationDefinition => ({
+    frames: makeFrames(names, objectWidth, objectHeight, art, attack, vulnerability),
+    loop,
+  });
 
   const walk = art.walk ?? art.idle;
+  const runStart = art.runStart ?? art.run ?? walk;
   const run = art.run ?? walk;
+  const jumpStart = art.jumpStart ?? art.jump ?? art.idle;
   const jump = art.jump ?? art.idle;
 
   const animations = new Map<NPCAnimation, AnimationDefinition>();
   animations.set(NPCAnimation.IDLE, build(art.idle, true));
   animations.set(NPCAnimation.WALK, build(walk, true));
-  animations.set(NPCAnimation.RUN_START, build(run, false));
-  animations.set(NPCAnimation.RUN, build(run, true));
-  animations.set(NPCAnimation.JUMP_START, build(jump, false));
+  animations.set(NPCAnimation.RUN_START, build(runStart, false));
+  animations.set(NPCAnimation.RUN, build(run, true, kyleDashAttack));
+  animations.set(NPCAnimation.JUMP_START, build(jumpStart, false));
   animations.set(NPCAnimation.JUMP_AIR, build(jump, true));
-  animations.set(NPCAnimation.TAKE_HIT, build(art.idle, false));
-  animations.set(NPCAnimation.SURPRISED, build(art.idle, false));
-  animations.set(NPCAnimation.DEATH, build(art.idle, false));
+  animations.set(NPCAnimation.TAKE_HIT, build(art.hit ?? art.idle, false));
+  animations.set(NPCAnimation.SURPRISED, build(art.surprised ?? art.idle, false));
+  animations.set(NPCAnimation.DEATH, build(art.death ?? art.idle, false));
   if (art.shoot) {
     animations.set(NPCAnimation.SHOOT, build(art.shoot, false));
   }

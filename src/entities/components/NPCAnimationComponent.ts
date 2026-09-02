@@ -32,8 +32,9 @@ export const enum NPCAnimation {
  * Speed and time thresholds
  */
 const RUN_SPEED_THRESHOLD = 100.0;
-const JUMP_SPEED_THRESHOLD = 25.0;
-const FALL_SPEED_THRESHOLD = -25.0;
+// Android uses positive Y upward; Canvas physics uses positive Y downward.
+const JUMP_SPEED_THRESHOLD = -25.0;
+const FALL_SPEED_THRESHOLD = 25.0;
 const FALL_TIME_THRESHOLD = 0.2;
 
 export interface NPCAnimationConfig {
@@ -137,7 +138,7 @@ export class NPCAnimationComponent extends GameComponent {
     const airTime = time.getGameTime() - parentObject.getLastTouchedFloorTime();
     if (!this.flying && !parentObject.touchingGround() && airTime > FALL_TIME_THRESHOLD) {
       const velocity = parentObject.getVelocity();
-      if (velocity.y < FALL_SPEED_THRESHOLD) {
+      if (velocity.y > FALL_SPEED_THRESHOLD) {
         return true;
       }
     }
@@ -147,7 +148,7 @@ export class NPCAnimationComponent extends GameComponent {
   protected shouldJump(parentObject: GameObject): boolean {
     if (!this.flying) {
       const velocity = parentObject.getVelocity();
-      if (velocity.y > JUMP_SPEED_THRESHOLD) {
+      if (velocity.y < JUMP_SPEED_THRESHOLD) {
         return true;
       }
     }

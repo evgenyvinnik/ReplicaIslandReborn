@@ -11,11 +11,14 @@ import type { GameObject } from '../GameObject';
 import { Vector2 } from '../../utils/Vector2';
 import type { LauncherComponent } from './LauncherComponent';
 import type { ChangeComponentsComponent } from './ChangeComponentsComponent';
+import { GameFlowEventType } from '../../engine/GameFlowEvent';
+import { sSystemRegistry } from '../../engine/SystemRegistry';
 
 // Pause-on-attack duration: 4 frames at 60fps
 const ATTACK_PAUSE_DELAY = (1.0 / 60) * 4;
 const DEFAULT_BOUNCE_MAGNITUDE = 200;
 const DEFAULT_INVINCIBILITY_TIME = 2.0;  // 2 seconds after hit
+const EVENT_SEND_DELAY = 5.0;
 
 export interface HitReactionConfig {
   pauseOnAttack?: boolean;
@@ -44,6 +47,12 @@ export class HitReactionComponent extends GameComponent {
   private dieOnCollect: boolean = false;
   private dieOnAttack: boolean = false;
   private forceInvincibility: boolean = false;
+
+  /** Original: a matching hit can post a level-flow event (NPC dialog, etc.). */
+  private gameEventHitType: HitType = HitType.INVALID;
+  private gameEventOnHit: GameFlowEventType = GameFlowEventType.INVALID;
+  private gameEventIndexData: number = 0;
+  private lastGameEventTime: number = -1;
   
   private onHitSound: string | null = null;
   private onDealHitSound: string | null = null;
@@ -114,6 +123,25 @@ export class HitReactionComponent extends GameComponent {
    */
   setPossessionComponent(component: ChangeComponentsComponent): void {
     this.possessionComponent = component;
+  }
+
+  /**
+   * Post a game-flow event when this object receives `hitType`.
+   *
+   * Story NPCs use COLLECT: Andou's always-present COLLECT volume touching the
+   * NPC opens whichever conversation the NPC selected from its hotspot.
+   */
+  setSpawnGameEventOnHit(
+    hitType: HitType,
+    event: GameFlowEventType,
+    indexData: number
+  ): void {
+    this.gameEventHitType = hitType;
+    this.gameEventOnHit = event;
+    this.gameEventIndexData = indexData;
+    if (hitType === HitType.INVALID) {
+      this.lastGameEventTime = -1;
+    }
   }
 
   setSoundPlayer(player: (sound: string) => void): void {
@@ -199,10 +227,21 @@ export class HitReactionComponent extends GameComponent {
    * Returns true if the hit was processed, false if ignored
    */
   receivedHit(parent: GameObject, attacker: GameObject, hitType: HitType): boolean {
-    const gameTime = this.gameTimeGetter?.() ?? 0;
+    const gameTime = this.gameTimeGetter?.() ?? parent.getGameTime();
     let processedHitType = hitType;
 
-    switch (hitType) {
+    if (this.gameEventHitType === hitType && hitType !== HitType.INVALID) {
+      if (this.lastGameEventTime < 0 || gameTime > this.lastGameEventTime + EVENT_SEND_DELAY) {
+        sSystemRegistry.gameFlowEvent?.post(this.gameEventOnHit, this.gameEventIndexData);
+      } else {
+        // Preserve the original's debounce semantics: consume repeat contact
+        // while the dialog activity is returning to the same collision.
+        processedHitType = HitType.INVALID;
+      }
+      this.lastGameEventTime = gameTime;
+    }
+
+    switch (processedHitType) {
       case HitType.INVALID:
         break;
 
@@ -292,7 +331,7 @@ export class HitReactionComponent extends GameComponent {
    * Update component - handle invincibility timer and hit type persistence
    */
   update(deltaTime: number, parent: GameObject): void {
-    const gameTime = this.gameTimeGetter?.() ?? 0;
+    const gameTime = this.gameTimeGetter?.() ?? parent.getGameTime();
     
     // Handle invincibility timer
     if (this.invincible && this.invincibleTime > 0) {
@@ -333,6 +372,10 @@ export class HitReactionComponent extends GameComponent {
     this.dieOnCollect = false;
     this.dieOnAttack = false;
     this.forceInvincibility = false;
+    this.gameEventHitType = HitType.INVALID;
+    this.gameEventOnHit = GameFlowEventType.INVALID;
+    this.gameEventIndexData = 0;
+    this.lastGameEventTime = -1;
     this.timeFreezer = null;
     this.workingVector.x = 0;
     this.workingVector.y = 0;

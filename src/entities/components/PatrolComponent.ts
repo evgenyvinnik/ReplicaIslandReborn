@@ -283,17 +283,21 @@ export class PatrolComponent extends GameComponent {
           }
         } else {
           // Flying movement
-          const goUp = (parent.touchingGround() && targetVelocityY < 0) || hotSpot === HotSpotType.GO_UP;
-          const goDown = (parent.touchingCeiling() || hotSpot === HotSpotType.GO_DOWN);
+          // The Android original is Y-up. Canvas is Y-down, so both the edge
+          // checks and commanded vertical velocities must be inverted.
+          const goUp = (parent.touchingGround() && targetVelocityY > 0) ||
+            hotSpot === HotSpotType.GO_UP;
+          const goDown = (parent.touchingCeiling() && targetVelocityY < 0) ||
+            hotSpot === HotSpotType.GO_DOWN;
 
           if (goUp) {
             parent.getTargetVelocity().x = 0;
-            parent.getTargetVelocity().y = this.maxSpeed;
+            parent.getTargetVelocity().y = -this.maxSpeed;
             parent.getAcceleration().y = this.acceleration;
             parent.getAcceleration().x = this.acceleration;
           } else if (goDown) {
             parent.getTargetVelocity().x = 0;
-            parent.getTargetVelocity().y = -this.maxSpeed;
+            parent.getTargetVelocity().y = this.maxSpeed;
             parent.getAcceleration().y = this.acceleration;
             parent.getAcceleration().x = this.acceleration;
           } else if (goRight) {

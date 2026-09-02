@@ -76,13 +76,15 @@ function runFrame(system: GameObjectCollisionSystem, objects: GameObject[], time
 
 describe('GameObjectCollisionSystem wiring', () => {
   let system: GameObjectCollisionSystem;
+  let time: TimeSystem;
 
   beforeEach(() => {
     sSystemRegistry.reset();
     system = new GameObjectCollisionSystem();
     sSystemRegistry.register(system, 'gameObjectCollision');
     // LauncherComponent schedules its shot against game time.
-    sSystemRegistry.register(new TimeSystem(), 'time');
+    time = new TimeSystem();
+    sSystemRegistry.register(time, 'time');
   });
 
   test('is reachable from the global registry', () => {
@@ -172,7 +174,7 @@ describe('GameObjectCollisionSystem wiring', () => {
     cannon.life = 1;
     cannon.getPosition().set(100, 100);
 
-    const launcher = new LauncherComponent({ angle: Math.PI, magnitude: 2000 });
+    const launcher = new LauncherComponent({ angle: Math.PI, magnitude: 2000, launchDelay: 0 });
     const cannonReaction = new HitReactionComponent({ forceInvincibility: true });
     cannonReaction.setLauncherComponent(launcher, HitType.LAUNCH);
     const cannonCollision = new DynamicCollisionComponent();
@@ -196,6 +198,13 @@ describe('GameObjectCollisionSystem wiring', () => {
     // A launch must not cost a life, and the player must be the loaded shot.
     expect(player.object.life).toBe(3);
     expect(launcher.getLoadedShot()).toBe(player.object);
+
+    time.update(1 / 60);
+    runFrame(system, [cannon, player.object], 1 + 1 / 60);
+    // GameObject.reset() must leave facingDirection.y at +1. A zero here
+    // component-multiplies the launch vector to zero and makes every vertical
+    // launcher fire flat.
+    expect(player.object.getVelocity().y).toBeCloseTo(-2000);
   });
 
   test("an enemy shot damages The Source, whose team is PLAYER", () => {

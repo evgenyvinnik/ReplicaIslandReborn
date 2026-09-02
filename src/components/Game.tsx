@@ -36,7 +36,6 @@ import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { resetPlayerRuntimeState } from '../entities/resetPlayerRuntimeState';
 import { applyPlayerAttack } from '../entities/applyPlayerAttack';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
-import { EnemyAnimationComponent } from '../entities/components/EnemyAnimationComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
@@ -180,8 +179,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const [dialogConversationIndex, setDialogConversationIndex] = useState(0);
   const [dialogSingleMode, setDialogSingleMode] = useState(false);
   const activeDialogRef = useRef<Dialog | null>(null);
-  const dialogIsCutsceneRef = useRef(false); // True for NPC-triggered dialogs (don't pause physics)
-  const dialogTriggerCooldownRef = useRef(0);
   const hasShownIntroDialogRef = useRef(false);
 
   // Sync ref with state
@@ -264,8 +261,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setDialogConversationIndex(conversationIdx);
               // For NPC-triggered dialogs, only show the single conversation at this hotspot
               setDialogSingleMode(true);
-              // Mark as cutscene dialog so physics don't pause - NPC needs to keep walking
-              dialogIsCutsceneRef.current = true;
               // Update ref immediately to prevent duplicate triggers (state update is async)
               activeDialogRef.current = dialog;
               setActiveDialog(dialog);
@@ -490,7 +485,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Update ref immediately (state update is async)
         activeDialogRef.current = null;
         setActiveDialog(null);
-        dialogIsCutsceneRef.current = false; // Reset cutscene flag
         // Do NOT auto-advance level here - NPC will continue walking and hit END_LEVEL hotspot
       };
       
@@ -1709,7 +1703,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           step: (n = 1): void => gameLoop.step(n),
           gates: {
             dialog: canvasDialogRef.current?.isActive() ?? false,
-            dialogIsCutscene: dialogIsCutsceneRef.current,
             cutscene: canvasCutsceneRef.current?.isActive() ?? false,
             pauseMenu: canvasPauseMenuRef.current?.isShowing() ?? false,
             gameOver: canvasGameOverRef.current?.isShowing() ?? false,
@@ -1735,10 +1728,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const player = gameObjectManager.getPlayer();
       
       // Check if game physics should be paused (dialog, pause menu, game over, etc.)
-      // Note: Cutscene dialogs (NPC-triggered) should NOT pause physics - NPCs need to move
-      const isDialogPausingPhysics = canvasDialogRef.current?.isActive() && !dialogIsCutsceneRef.current;
       const isGamePaused = 
-        isDialogPausingPhysics ||
+        canvasDialogRef.current?.isActive() ||
         canvasCutsceneRef.current?.isActive() ||
         canvasPauseMenuRef.current?.isShowing() ||
         canvasGameOverRef.current?.isShowing() ||
@@ -1806,6 +1797,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Update all game objects (use gameDelta so game freezes during pause-on-attack)
       gameObjectManager.update(gameDelta, gameTime);
+
+      // Components may defer dialogs or ending cutscenes with post(). The
+      // Android engine drains GameFlowEvent once per frame; without this call
+      // those events remain queued forever outside tests.
+      gameFlowEvent.update();
 
       // Resolve object-vs-object hits. DynamicCollisionComponent submits each
       // object's volumes during the FRAME_END phase above, so this has to run
@@ -2126,69 +2122,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
       }
       
-      // Handle dialog trigger cooldown
-      if (dialogTriggerCooldownRef.current > 0) {
-        dialogTriggerCooldownRef.current -= deltaTime;
-      }
-      
-      // Check for TALK hot spots (NPC dialogs)
-      if (player && hotSpotSystem && activeDialogRef.current === null && dialogTriggerCooldownRef.current <= 0) {
-        const px = player.getPosition().x + player.width / 2;
-        const py = player.getPosition().y + player.height / 2;
-        const hotSpot = hotSpotSystem.getHotSpot(px, py);
-        
-        // Check for dialog triggers
-        // TALK (8) = generic dialog trigger
-        // NPC_SELECT_DIALOG_1_* (32-36) = character 1's dialog, conversation index = hotspot - 32
-        // NPC_SELECT_DIALOG_2_* (38-42) = character 2's dialog, conversation index = hotspot - 38
-        if (hotSpot === HotSpotType.TALK || (hotSpot >= 32 && hotSpot <= 42)) {
-          // Get current level info to load the right dialog
-          const levelSys = levelSystemRef.current;
-          if (levelSys) {
-            const levelId = levelSys.getCurrentLevelId();
-            const levelInfo = levelSys.getLevelInfo(levelId);
-            
-            if (levelInfo) {
-              const dialogs = getDialogsForLevel(levelInfo.file);
-              
-              if (dialogs.length > 0) {
-                let dialogFileIndex = 0; // Which dialog file (character) to use
-                let conversationIdx = 0;  // Which conversation within that dialog
-                
-                if (hotSpot === HotSpotType.TALK) {
-                  // Generic TALK hot spot - use first dialog, first conversation
-                  dialogFileIndex = 0;
-                  conversationIdx = 0;
-                } else if (hotSpot >= 32 && hotSpot <= 36) {
-                  // NPC_SELECT_DIALOG_1_* - character 1's dialog
-                  dialogFileIndex = 0;
-                  conversationIdx = hotSpot - 32; // 32->0, 33->1, etc.
-                } else if (hotSpot >= 38 && hotSpot <= 42) {
-                  // NPC_SELECT_DIALOG_2_* - character 2's dialog (if exists)
-                  dialogFileIndex = Math.min(1, dialogs.length - 1);
-                  conversationIdx = hotSpot - 38; // 38->0, 39->1, etc.
-                }
-                
-                const dialog = dialogs[dialogFileIndex];
-                
-                if (dialog && conversationIdx < dialog.conversations.length) {
-                  // Set the conversation index and show only this single conversation
-                  setDialogConversationIndex(conversationIdx);
-                  setDialogSingleMode(true); // Only show this one conversation
-                  dialogIsCutsceneRef.current = false; // Player-triggered dialog pauses physics
-                  // Update ref immediately to prevent duplicate triggers (state update is async)
-                  activeDialogRef.current = dialog;
-                  setActiveDialog(dialog);
-                  soundSystem.playSfx(SoundEffects.BUTTON);
-                  // Set cooldown to prevent immediate re-trigger
-                  dialogTriggerCooldownRef.current = 2.0;
-                }
-              }
-            }
-          }
-        }
-      }
-
       // Check collectible pickups
       if (player) {
         const playerPos = player.getPosition();
@@ -2374,57 +2307,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // NOTE: Button collision detection moved earlier (before gameObjectManager.update)
         // so ButtonAnimationComponent sees HIT_REACT + DEPRESS in the same frame
         
-        // Check NPC collisions for dialog trigger (e.g., Kyle encounter)
-        gameObjectManager.forEach((obj) => {
-          if (obj === player || !obj.isVisible()) return;
-          
-          // Check if NPC - trigger dialog when player touches them
-          if ((obj.type === 'npc' || obj.subType === 'kyle_dead') &&
-              activeDialogRef.current === null &&
-              dialogTriggerCooldownRef.current <= 0) {
-            const objPos = obj.getPosition();
-            const objRect = {
-              x: objPos.x,
-              y: objPos.y,
-              width: obj.width,
-              height: obj.height,
-            };
-            
-            // Simple AABB collision
-            if (playerRect.x < objRect.x + objRect.width &&
-                playerRect.x + playerRect.width > objRect.x &&
-                playerRect.y < objRect.y + objRect.height &&
-                playerRect.y + playerRect.height > objRect.y) {
-              
-              // Trigger dialog for this NPC
-              const levelSys = levelSystemRef.current;
-              if (levelSys) {
-                const levelId = levelSys.getCurrentLevelId();
-                const levelInfo = levelSys.getLevelInfo(levelId);
-                
-                if (levelInfo) {
-                  const dialogs = getDialogsForLevel(levelInfo.file);
-                  const dialogIndex = obj.subType === 'kyle_dead' ? 1 : 0;
-                  
-                  if (dialogs.length > dialogIndex) {
-                    const dialog = dialogs[dialogIndex];
-                    
-                    if (dialog) {
-                      // console.log('[Game] Player touched NPC, triggering dialog');
-                      setDialogConversationIndex(0);
-                      setDialogSingleMode(false); // Show full dialog
-                      // Update ref immediately to prevent duplicate triggers (state update is async)
-                      activeDialogRef.current = dialog;
-                      setActiveDialog(dialog);
-                      soundSystem.playSfx(SoundEffects.BUTTON);
-                      dialogTriggerCooldownRef.current = 2.0;
-                    }
-                  }
-                }
-              }
-            }
-          }
-        });
       }
       
       // Update camera - must happen even for cutscene levels without player
@@ -2482,16 +2364,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       }
 
     });
-
-    /**
-     * The original's rival bosses watch a shared "SURPRISED" channel and switch
-     * to their surprised pose when The Source starts collapsing.
-     */
-    const isSurprisedChannelSet = (): boolean => {
-      const channel = channelSystem.registerChannel('SURPRISED');
-      const value = channel?.value as { value?: boolean } | null;
-      return value?.value === true;
-    };
 
     // Render callback
     let renderCount = 0;
@@ -2629,81 +2501,32 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             obj.animFrame++;
           }
           
-          let spriteName: string | null = null;
-          let spriteFrames: string[] = [];
+          const spriteName: string | null = null;
           const spriteOffset = { x: 0, y: 0 };
           
           switch (obj.type) {
             // ghost, coin, ruby, pearl, diary and breakable_block draw
             // themselves through SpriteComponent; see data/objectAnimations.ts.
             case 'enemy': {
-              // Ordinary enemies draw themselves now: SpriteComponent holds
-              // their animations (data/enemyAnimations.ts) and
-              // EnemyAnimationComponent picks the one matching their action.
-              const drawnByComponent = obj.getComponent(
-                EnemyAnimationComponent as unknown as new (...args: unknown[]) => EnemyAnimationComponent
-              ) !== null;
-              if (drawnByComponent) return;
+              // Ordinary enemies draw from EnemyAnimationComponent and the
+              // bosses from NPCAnimationComponent; both through their own
+              // SpriteComponent. The Source is the exception - five layered
+              // 512x512 sprites rather than an animation.
+              if (obj.subType !== 'the_source') return;
 
-              // The bosses have no entry in that catalogue - their animations
-              // are keyed off life, the SURPRISED channel and hit/attack state
-              // rather than a plain action, so they stay here for now.
-              const spriteWidth = 128;
-              const spriteHeight = 128;
-              switch (obj.subType) {
-                case 'evil_kabocha':
-                  if (obj.life <= 0) {
-                    spriteFrames = ['evil_kabocha_die01', 'evil_kabocha_die02', 'evil_kabocha_die03', 'evil_kabocha_die04'];
-                  } else if (isSurprisedChannelSet()) {
-                    spriteFrames = ['evil_kabocha_surprised'];
-                  } else if (obj.getCurrentAction() === ActionType.HIT_REACT) {
-                    spriteFrames = ['evil_kabocha_hit01', 'evil_kabocha_hit02'];
-                  } else if (Math.abs(obj.getVelocity().x) > 10) {
-                    spriteFrames = ['evil_kabocha_walk01', 'evil_kabocha_walk02', 'evil_kabocha_walk03', 'evil_kabocha_walk04', 'evil_kabocha_walk05', 'evil_kabocha_walk06'];
-                  } else {
-                    spriteFrames = ['evil_kabocha_stand'];
-                  }
-                  break;
-                case 'rokudou':
-                  if (obj.life <= 0) {
-                    spriteFrames = ['rokudou_die01', 'rokudou_die02', 'rokudou_die03', 'rokudou_die04'];
-                  } else if (isSurprisedChannelSet()) {
-                    spriteFrames = ['rokudou_surprise'];
-                  } else if (obj.getCurrentAction() === ActionType.HIT_REACT) {
-                    spriteFrames = ['rokudou_hit01', 'rokudou_hit02', 'rokudou_hit03'];
-                  } else if (obj.getCurrentAction() === ActionType.ATTACK) {
-                    spriteFrames = ['rokudou_shoot01', 'rokudou_shoot02'];
-                  } else if (Math.abs(obj.getVelocity().x) > 10 || Math.abs(obj.getVelocity().y) > 10) {
-                    spriteFrames = ['rokudou_fly01', 'rokudou_fly02'];
-                  } else {
-                    spriteFrames = ['rokudou_stand'];
-                  }
-                  break;
-                case 'the_source': {
-                  // Five layered 512x512 sprites, drawn directly.
-                  const sourcePos = obj.getPosition();
-                  const sourceLayers = ['source_black', 'source_body', 'source_core', 'source_spikes', 'source_spots'];
-                  const layerOffsetX = (obj.width - 512) / 2;
-                  const layerOffsetY = (obj.height - 512) / 2;
-                  for (let layerIdx = 0; layerIdx < sourceLayers.length; layerIdx++) {
-                    renderSystem.drawSprite(
-                      sourceLayers[layerIdx],
-                      sourcePos.x + layerOffsetX,
-                      sourcePos.y + layerOffsetY,
-                      0,
-                      10 + layerIdx
-                    );
-                  }
-                  return;
-                }
-                default:
-                  return;
+              const sourceLayers = ['source_black', 'source_body', 'source_core', 'source_spikes', 'source_spots'];
+              const layerOffsetX = (obj.width - 512) / 2;
+              const layerOffsetY = (obj.height - 512) / 2;
+              for (let layerIdx = 0; layerIdx < sourceLayers.length; layerIdx++) {
+                renderSystem.drawSprite(
+                  sourceLayers[layerIdx],
+                  pos.x + layerOffsetX,
+                  pos.y + layerOffsetY,
+                  0,
+                  10 + layerIdx
+                );
               }
-              obj.animFrame = obj.animFrame % spriteFrames.length;
-              spriteName = spriteFrames[obj.animFrame];
-              spriteOffset.x = (obj.width - spriteWidth) / 2;
-              spriteOffset.y = (obj.height - spriteHeight) / 2;
-              break;
+              return;
             }
             // npc draws itself: NPCAnimationComponent picks the animation from
             // action, speed and whether it is airborne; see data/npcAnimations.ts.

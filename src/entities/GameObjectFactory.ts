@@ -20,6 +20,15 @@ import { TheSourceComponent } from './components/TheSourceComponent';
 import { LifetimeComponent } from './components/LifetimeComponent';
 import { createObjectAnimation } from '../data/objectAnimations';
 import { DynamicCollisionComponent } from './components/DynamicCollisionComponent';
+import { HitReactionComponent } from './components/HitReactionComponent';
+import { GravityComponent } from './components/GravityComponent';
+import { ChangeComponentsComponent } from './components/ChangeComponentsComponent';
+import { EnemyAnimation, EnemyAnimationComponent } from './components/EnemyAnimationComponent';
+import { createEnemyAnimations } from '../data/enemyAnimations';
+import {
+  createEnemyCollisionProfile,
+  selectEnemyAttackVolumes,
+} from './enemyCollisionProfiles';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
 import { MultiSpriteAnimComponent } from './components/MultiSpriteAnimComponent';
 import {
@@ -311,12 +320,14 @@ export class GameObjectFactory {
     obj.life = 1;
     obj.maxLife = 1;
     obj.activationRadius = 200;
-    obj.addComponent(new PatrolComponent({
+    const patrol = new PatrolComponent({
       maxSpeed: 50,
       acceleration: 1000,
       flying: false,
       turnToFacePlayer: false,
-    }));
+    });
+    obj.addComponent(patrol);
+    this.finishRuntimeEnemy(obj, patrol, { width: 32, height: 48, offsetX: 16, offsetY: 16 });
   }
 
   /**
@@ -440,11 +451,13 @@ export class GameObjectFactory {
    */
   private configureEnemySnailbomb(obj: GameObject): void {
     obj.team = Team.ENEMY;
-    obj.type = 'snailbomb';
+    obj.type = 'enemy';
+    obj.subType = 'snailbomb';
     obj.width = 64;
     obj.height = 64;
     obj.life = 1;
     obj.maxLife = 1;
+    obj.activationRadius = 200;
 
     // Add sprite
     const sprite = this.componentPools.sprite.allocate();
@@ -485,22 +498,7 @@ export class GameObjectFactory {
       obj.addComponent(sprite);
     }
 
-    // Add physics
-    const physics = this.componentPools.physics.allocate();
-    if (physics) {
-      physics.setGravity(1200);
-      physics.setMaxVelocity(50, 600);
-      obj.addComponent(physics);
-    }
-
-    // Add movement
-    const movement = this.componentPools.movement.allocate();
-    if (movement && this.collisionSystem) {
-      movement.setCollisionSystem(this.collisionSystem);
-      obj.addComponent(movement);
-    }
-
-    obj.addComponent(new PatrolComponent({
+    const patrol = new PatrolComponent({
       maxSpeed: 20,
       acceleration: 1000,
       flying: false,
@@ -512,7 +510,8 @@ export class GameObjectFactory {
         delay: 4,
         stopsMovement: true,
       },
-    }));
+    });
+    obj.addComponent(patrol);
     obj.addComponent(new LaunchProjectileComponent({
       objectTypeToSpawn: GameObjectType.CANNON_BALL,
       offsetX: 55,
@@ -524,6 +523,84 @@ export class GameObjectFactory {
       setsPerActivation: 1,
       delayBeforeFirstSet: 5 / 24,
     }));
+    this.finishRuntimeEnemy(obj, patrol, { width: 32, height: 48, offsetX: 16, offsetY: 11 });
+  }
+
+  /**
+   * Complete an enemy created during play with the same physics, animation,
+   * collision and possession stack used for a level-placed enemy.
+   */
+  private finishRuntimeEnemy(
+    obj: GameObject,
+    patrol: PatrolComponent,
+    collisionBox: { width: number; height: number; offsetX: number; offsetY: number }
+  ): void {
+    obj.addComponent(new GravityComponent());
+    const movement = this.componentPools.movement.allocate();
+    if (this.collisionSystem) {
+      movement.setCollisionSystem(this.collisionSystem);
+      movement.setCollisionBox(
+        collisionBox.width,
+        collisionBox.height,
+        collisionBox.offsetX,
+        collisionBox.offsetY
+      );
+    }
+    obj.addComponent(movement);
+
+    const profile = createEnemyCollisionProfile(obj.subType);
+    if (!profile) return;
+    const collision = new DynamicCollisionComponent();
+    const reaction = new HitReactionComponent({
+      invincibleAfterHitTime: 0.5,
+      pauseOnAttack: true,
+    });
+    collision.setHitReactionComponent(reaction);
+    collision.setCollisionVolumes(
+      selectEnemyAttackVolumes(profile, obj.getCurrentAction()),
+      profile.vulnerability
+    );
+    obj.addComponent(collision);
+    obj.addComponent(reaction);
+
+    const animations = createEnemyAnimations(obj.subType);
+    if (animations) {
+      const existingSprite = obj.getComponent(SpriteComponent);
+      const sprite = existingSprite ?? this.componentPools.sprite.allocate();
+      if (!existingSprite) obj.addComponent(sprite);
+      if (this.renderSystem) sprite.setRenderSystem(this.renderSystem);
+      sprite.setCollisionComponent(collision);
+      for (const [index, animation] of animations) {
+        sprite.addAnimationAtIndex(index, animation);
+      }
+      sprite.playAnimation(EnemyAnimation.IDLE);
+      const animator = new EnemyAnimationComponent();
+      animator.setSprite(sprite);
+      obj.addComponent(animator);
+    }
+
+    const possessable = profile.vulnerability?.some((volume) => {
+      const type = volume.getHitType();
+      return type === HitType.INVALID || type === HitType.POSSESS;
+    });
+    if (possessable) {
+      const swap = new ChangeComponentsComponent();
+      swap.setPingPongBehavior(true);
+      swap.addSwapInComponent(new GhostComponent({
+        movementSpeed: 500,
+        jumpImpulse: 300,
+        acceleration: 1000,
+        useOrientationSensor: false,
+        delayOnRelease: 1.5,
+        killOnRelease: true,
+        targetAction: ActionType.MOVE,
+        lifeTime: 0,
+        ambientSound: 'sound_possession',
+      }));
+      swap.addSwapOutComponent(patrol);
+      reaction.setPossessionComponent(swap);
+      obj.addComponent(swap);
+    }
   }
 
   /**
@@ -662,6 +739,12 @@ export class GameObjectFactory {
     const movement = this.componentPools.movement.allocate();
     obj.addComponent(movement);
 
+    this.attachProjectileCollision(
+      obj,
+      new SphereCollisionVolume(8, 16, 16, HitType.HIT),
+      true
+    );
+
     // Cannon balls disappear when they hit level geometry, matching the
     // original game's SimpleCollision + Lifetime configuration.
     obj.addComponent(new SimpleCollisionComponent());
@@ -699,14 +782,16 @@ export class GameObjectFactory {
     const movement = this.componentPools.movement.allocate();
     obj.addComponent(movement);
 
-    // Add simple collision for background collision detection (ray casting)
-    const simpleCollision = new SimpleCollisionComponent();
-    obj.addComponent(simpleCollision);
+    this.attachProjectileCollision(
+      obj,
+      new SphereCollisionVolume(16, 16, 16, HitType.HIT),
+      true
+    );
 
-    // Add lifetime component so projectile disappears after some time
+    // The original energy ball passes through background geometry and expires
+    // by time; this is necessary for Rokudou's shots to cross the finale arena.
     const lifetime = new LifetimeComponent();
     lifetime.setTimeUntilDeath(5.0);
-    lifetime.setDieOnHitBackground(true);
     obj.addComponent(lifetime);
   }
 
@@ -732,6 +817,12 @@ export class GameObjectFactory {
     }
 
     obj.addComponent(this.componentPools.movement.allocate());
+
+    this.attachProjectileCollision(
+      obj,
+      new SphereCollisionVolume(16, 16, 16, HitType.HIT),
+      false
+    );
 
     // Unlike enemy energy balls, the original Wanda shot does not collide
     // with the background and remains alive for the full story beat.
@@ -770,9 +861,29 @@ export class GameObjectFactory {
     const movement = this.componentPools.movement.allocate();
     obj.addComponent(movement);
 
+    this.attachProjectileCollision(
+      obj,
+      new SphereCollisionVolume(8, 8, 8, HitType.HIT),
+      true
+    );
+
     const lifetime = new LifetimeComponent();
     lifetime.setTimeUntilDeath(3.0);
     obj.addComponent(lifetime);
+  }
+
+  /** Give a runtime-spawned shot the attack pipeline carried by its frames. */
+  private attachProjectileCollision(
+    obj: GameObject,
+    attackVolume: SphereCollisionVolume,
+    dieOnAttack: boolean
+  ): void {
+    const collision = new DynamicCollisionComponent();
+    collision.setCollisionVolumes([attackVolume], null);
+    const reaction = new HitReactionComponent({ dieOnAttack });
+    collision.setHitReactionComponent(reaction);
+    obj.addComponent(collision);
+    obj.addComponent(reaction);
   }
 
   /**

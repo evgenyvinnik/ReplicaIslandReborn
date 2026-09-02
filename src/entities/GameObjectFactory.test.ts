@@ -1,13 +1,21 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { GameObjectFactory, GameObjectType } from './GameObjectFactory';
 import { GameObjectManager } from './GameObjectManager';
-import { ActionType, Team } from '../types';
+import { ActionType, HitType, Team } from '../types';
 import { GhostComponent } from './components/GhostComponent';
 import { MovementComponent } from './components/MovementComponent';
 import { PatrolComponent } from './components/PatrolComponent';
 import { LaunchProjectileComponent } from './components/LaunchProjectileComponent';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { TimeSystem } from '../engine/TimeSystem';
+import { DynamicCollisionComponent } from './components/DynamicCollisionComponent';
+import { HitReactionComponent } from './components/HitReactionComponent';
+import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
+import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
+import { GameObject } from './GameObject';
+import { GravityComponent } from './components/GravityComponent';
+import { EnemyAnimationComponent } from './components/EnemyAnimationComponent';
+import { ChangeComponentsComponent } from './components/ChangeComponentsComponent';
 
 afterEach(() => {
   sSystemRegistry.reset();
@@ -68,9 +76,75 @@ describe('GameObjectFactory managed spawns', () => {
       if (projectileCase.type === GameObjectType.WANDA_SHOT) {
         expect(projectile.team).toBe(Team.NONE);
       }
+      const collision = projectile.getComponent(
+        DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
+      );
+      expect(collision?.getAttackVolumes()?.map((volume) => volume.getHitType())).toEqual([
+        HitType.HIT,
+      ]);
+      expect(projectile.getComponent(
+        HitReactionComponent as unknown as new (...args: unknown[]) => HitReactionComponent
+      )).not.toBeNull();
       expect(projectile.getPosition().x).toBe(35);
       expect(projectile.getPosition().y).toBe(20);
     }
+  });
+
+  test('a Brobot machine spawns a complete enemy, not an inert shell', () => {
+    const manager = new GameObjectManager();
+    const factory = new GameObjectFactory(manager);
+    const brobot = factory.spawn(GameObjectType.ENEMY_BROBOT, 100, 100) as GameObject;
+
+    expect(brobot.type).toBe('enemy');
+    expect(brobot.subType).toBe('brobot');
+    expect(brobot.getComponent(
+      MovementComponent as unknown as new (...args: unknown[]) => MovementComponent
+    )).not.toBeNull();
+    expect(brobot.getComponent(
+      GravityComponent as unknown as new (...args: unknown[]) => GravityComponent
+    )).not.toBeNull();
+    expect(brobot.getComponent(
+      DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
+    )?.getAttackVolumes()).not.toBeNull();
+    expect(brobot.getComponent(
+      EnemyAnimationComponent as unknown as new (...args: unknown[]) => EnemyAnimationComponent
+    )).not.toBeNull();
+    expect(brobot.getComponent(
+      ChangeComponentsComponent as unknown as new (...args: unknown[]) => ChangeComponentsComponent
+    )).not.toBeNull();
+  });
+
+  test('a runtime enemy projectile damages Andou and consumes itself', () => {
+    const manager = new GameObjectManager();
+    const factory = new GameObjectFactory(manager);
+    const collisionSystem = new GameObjectCollisionSystem();
+    sSystemRegistry.gameObjectManager = manager;
+    sSystemRegistry.gameObjectCollisionSystem = collisionSystem;
+
+    const shot = factory.spawn(GameObjectType.ENERGY_BALL, 100, 100) as GameObject;
+    const player = new GameObject();
+    player.type = 'player';
+    player.team = Team.PLAYER;
+    player.width = 32;
+    player.height = 48;
+    player.life = 3;
+    player.setPosition(100, 100);
+    const playerCollision = new DynamicCollisionComponent();
+    const playerReaction = new HitReactionComponent();
+    playerCollision.setCollisionVolumes(
+      null,
+      [new SphereCollisionVolume(16, 24, 24, HitType.INVALID)]
+    );
+    playerCollision.setHitReactionComponent(playerReaction);
+    player.addComponent(playerCollision);
+    player.addComponent(playerReaction);
+
+    shot.update(1 / 60, 1);
+    player.update(1 / 60, 1);
+    collisionSystem.update(1 / 60);
+
+    expect(player.life).toBe(2);
+    expect(shot.life).toBe(0);
   });
 
   test('snailbomb uses the original patrol and mirrored three-shot launcher', () => {

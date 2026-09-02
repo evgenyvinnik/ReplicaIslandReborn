@@ -1116,6 +1116,7 @@ export class LevelSystem {
         // Add NPC movement component
         const npcComponent = new NPCComponent();
         obj.addComponent(npcComponent);
+        this.attachStoryNpcInteraction(obj, npcComponent);
         
         // Add LaunchProjectileComponent for Wanda's neutral story projectile.
         const wandaGun = new LaunchProjectileComponent({
@@ -1155,6 +1156,18 @@ export class LevelSystem {
           spawnGameEventOnDeath: false,
         });
         obj.addComponent(npcComponent2);
+        const kyleHitReact = this.attachStoryNpcInteraction(obj, npcComponent2);
+        // Kyle's dash is a moving launcher in the original. Its angle is
+        // mirrored around PI/2 because the web port uses positive Y downward.
+        const kyleLauncher = new LauncherComponent({
+          angle: Math.PI * 0.55,
+          magnitude: 1000,
+          launchDelay: 0,
+          postLaunchDelay: 0,
+          driveActions: false,
+        });
+        kyleHitReact.setLauncherComponent(kyleLauncher, HitType.HIT);
+        obj.addComponent(kyleLauncher);
         break;
       }
         
@@ -1168,6 +1181,7 @@ export class LevelSystem {
         obj.facingDirection.x = -1;
         const npcComponent3 = new NPCComponent();
         obj.addComponent(npcComponent3);
+        this.attachStoryNpcInteraction(obj, npcComponent3);
         break;
       }
       
@@ -1294,7 +1308,8 @@ export class LevelSystem {
           offsetY: 42,
           requiredAction: ActionType.ATTACK,
           velocityX: 300,
-          velocityY: -300,
+          // Android Y-up -300 points down; Canvas Y-down uses +300.
+          velocityY: 300,
           shootSound: 'sound_poing',
         }));
         obj.addComponent(new LaunchProjectileComponent({
@@ -1307,7 +1322,7 @@ export class LevelSystem {
           offsetY: 42,
           requiredAction: ActionType.ATTACK,
           velocityX: 300,
-          velocityY: -300,
+          velocityY: 300,
           shootSound: 'sound_gun',
         }));
         break;
@@ -1483,11 +1498,17 @@ export class LevelSystem {
         const signHitReact = new HitReactionComponent({
           forceInvincibility: true
         });
+        signHitReact.setSpawnGameEventOnHit(
+          HitType.COLLECT,
+          GameFlowEventType.SHOW_DIALOG_CHARACTER2,
+          0
+        );
         signCollision.setHitReactionComponent(signHitReact);
         obj.addComponent(signHitReact);
         
         // Select dialog component for showing hints
         const dialogSelect = new SelectDialogComponent();
+        dialogSelect.setHitReactionComponent(signHitReact);
         obj.addComponent(dialogSelect);
         break;
       }
@@ -1502,9 +1523,23 @@ export class LevelSystem {
         obj.activationRadius = 2000;
         obj.team = Team.NONE;
         
-        // NPC component for scripted behavior
-        const terminalNpc = new NPCComponent();
-        obj.addComponent(terminalNpc);
+        const terminalCollision = new DynamicCollisionComponent();
+        terminalCollision.setCollisionVolumes(
+          null,
+          [new AABoxCollisionVolume(0, 0, 64, 64, HitType.COLLECT)]
+        );
+        const terminalHitReact = new HitReactionComponent({ forceInvincibility: true });
+        terminalHitReact.setSpawnGameEventOnHit(
+          HitType.COLLECT,
+          GameFlowEventType.SHOW_DIALOG_CHARACTER2,
+          0
+        );
+        terminalCollision.setHitReactionComponent(terminalHitReact);
+        const terminalDialogSelect = new SelectDialogComponent();
+        terminalDialogSelect.setHitReactionComponent(terminalHitReact);
+        obj.addComponent(terminalDialogSelect);
+        obj.addComponent(terminalCollision);
+        obj.addComponent(terminalHitReact);
         break;
       }
 
@@ -1601,7 +1636,25 @@ export class LevelSystem {
         objHeight = spawn.type === GameObjectTypeIndex.KYLE_DEAD ? 32 : 64;
         obj.activationRadius = 100;
         obj.team = Team.NONE;
-        // Just a static sprite, no components needed
+        if (spawn.type === GameObjectTypeIndex.KYLE_DEAD) {
+          const deadKyleCollision = new DynamicCollisionComponent();
+          deadKyleCollision.setCollisionVolumes(
+            null,
+            [new AABoxCollisionVolume(32, 0, 64, 32, HitType.COLLECT)]
+          );
+          const deadKyleHitReact = new HitReactionComponent({ forceInvincibility: true });
+          deadKyleHitReact.setSpawnGameEventOnHit(
+            HitType.COLLECT,
+            GameFlowEventType.SHOW_DIALOG_CHARACTER2,
+            0
+          );
+          deadKyleCollision.setHitReactionComponent(deadKyleHitReact);
+          const deadKyleDialogSelect = new SelectDialogComponent();
+          deadKyleDialogSelect.setHitReactionComponent(deadKyleHitReact);
+          obj.addComponent(deadKyleDialogSelect);
+          obj.addComponent(deadKyleCollision);
+          obj.addComponent(deadKyleHitReact);
+        }
         break;
       }
 
@@ -1984,6 +2037,27 @@ export class LevelSystem {
    * Convert parsed level to LevelData format for compatibility
    */
   /**
+   * Give Wanda, Kyle and Kabocha their original touch-to-talk collision.
+   * NPCComponent selects the conversation from the hotspot under the NPC;
+   * Andou's COLLECT attack volume then delivers that selection through the
+   * HitReactionComponent when their bodies overlap.
+   */
+  private attachStoryNpcInteraction(obj: GameObject, npc: NPCComponent): HitReactionComponent {
+    const collision = new DynamicCollisionComponent();
+    // Original: AABox(20, 5, 26, 80) in a 64x128 Y-up sprite.
+    collision.setCollisionVolumes(
+      null,
+      [new AABoxCollisionVolume(20, 43, 26, 80, HitType.COLLECT)]
+    );
+    const hitReact = new HitReactionComponent({ forceInvincibility: true });
+    collision.setHitReactionComponent(hitReact);
+    npc.setHitReactionComponent(hitReact);
+    obj.addComponent(collision);
+    obj.addComponent(hitReact);
+    return hitReact;
+  }
+
+  /**
    * Give an ordinary enemy the collision volumes and hit reaction the original
    * gives it, so damage flows through GameObjectCollisionSystem rather than the
    * inline AABB checks Game.tsx used to run.
@@ -2203,9 +2277,11 @@ export class LevelSystem {
       return;
     }
 
-    // NPCs pick their animation from action, speed and whether they are
-    // airborne; NPCAnimationComponent does that selection.
-    if (obj.type === 'npc') {
+    // NPCs and the bosses pick their animation from action, speed and whether
+    // they are airborne; NPCAnimationComponent does that selection, and watches
+    // the SURPRISED channel for the bosses' reaction shot. The original animates
+    // Evil Kabocha and Rokudou with this same component.
+    if (obj.type === 'npc' || createNpcAnimations(obj.subType, obj.width, obj.height)) {
       const npcAnimations = createNpcAnimations(obj.subType, obj.width, obj.height);
       if (npcAnimations) {
         const sprite = existing ?? new SpriteComponent();
@@ -2222,6 +2298,15 @@ export class LevelSystem {
         if (!hasAnimator) {
           const animator = new NPCAnimationComponent();
           animator.setSprite(sprite);
+          // Original: Kyle's scripted dash deliberately ignores wall contact.
+          if (obj.subType === 'kyle') animator.setStopAtWalls(false);
+          // Original: the bosses watch the shared SURPRISED channel and switch
+          // to their surprised pose when The Source starts collapsing.
+          const channel = sSystemRegistry.channelSystem?.registerChannel(SURPRISED_NPC_CHANNEL);
+          if (channel) {
+            animator.setChannel(channel);
+            animator.setChannelTrigger(NPCAnimation.SURPRISED);
+          }
           obj.addComponent(animator);
         }
         return;

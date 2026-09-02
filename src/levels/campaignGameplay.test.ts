@@ -17,17 +17,22 @@ import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem } from '../engine/SoundSystem';
 import { CameraSystem } from '../engine/CameraSystem';
 import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
+import { GameFlowEvent, GameFlowEventType } from '../engine/GameFlowEvent';
+import { TimeSystem } from '../engine/TimeSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { DifficultySettings } from '../stores/useGameStore';
 import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
-import { ActionType } from '../types';
+import { ActionType, HitType } from '../types';
 import { GravityComponent } from '../entities/components/GravityComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
+import { LauncherComponent } from '../entities/components/LauncherComponent';
+import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { NPCAnimation } from '../entities/components/NPCAnimationComponent';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
 import type { GameObject } from '../entities/GameObject';
 
@@ -61,6 +66,8 @@ interface Harness {
   manager: GameObjectManager;
   collision: CollisionSystem;
   input: InputSystem;
+  flow: GameFlowEvent;
+  time: TimeSystem;
   run: (frames: number) => void;
 }
 
@@ -79,6 +86,8 @@ function createHarness(): Harness {
   const input = new InputSystem();
   const sound = new SoundSystem();
   const objectCollision = new GameObjectCollisionSystem();
+  const flow = new GameFlowEvent();
+  const time = new TimeSystem();
 
   const levelSystem = new LevelSystem();
   levelSystem.setSystems(collision, manager, hotSpots);
@@ -91,11 +100,14 @@ function createHarness(): Harness {
   sSystemRegistry.register(input, 'input');
   sSystemRegistry.register(sound, 'sound');
   sSystemRegistry.register(objectCollision, 'gameObjectCollision');
+  sSystemRegistry.register(flow, 'gameFlowEvent');
+  sSystemRegistry.register(time, 'time');
 
   let gameTime = 0;
   const run = (frames: number): void => {
     for (let i = 0; i < frames; i++) {
-      gameTime += FRAME;
+      time.update(FRAME);
+      gameTime = time.getGameTime();
       const player = manager.getPlayer();
       if (player) {
         player.setGameTime(gameTime);
@@ -114,10 +126,11 @@ function createHarness(): Harness {
       manager.update(FRAME, gameTime);
       // Mirrors Game.tsx: volumes are submitted at FRAME_END, resolved here.
       objectCollision.update(FRAME);
+      flow.update();
     }
   };
 
-  return { levelSystem, manager, collision, input, run };
+  return { levelSystem, manager, collision, input, flow, time, run };
 }
 
 /** Levels that spawn a controllable player, in campaign order. */
@@ -317,6 +330,141 @@ describe('campaign gameplay simulation', () => {
     expect(wanda.getPosition().x).toBeGreaterThan(startX + 100);
   });
 
+  test('touching Kabocha opens the conversation selected under Kabocha, once', async () => {
+    const harness = createHarness();
+    expect(await harness.levelSystem.loadLevel(resourceToLevelId.level_0_2_lab)).toBe(true);
+    harness.manager.commitUpdates();
+
+    const player = harness.manager.getPlayer() as GameObject;
+    const kabocha = harness.manager
+      .getActiveObjects()
+      .find((object) => object.subType === 'kabocha') as GameObject;
+    expect(player).toBeDefined();
+    expect(kabocha).toBeDefined();
+
+    const events: Array<{ event: GameFlowEventType; index: number }> = [];
+    harness.flow.addListener((event, index) => events.push({ event, index }));
+
+    // Let NPCComponent read the NPC_SELECT_DIALOG tile beneath Kabocha, then
+    // overlap Andou's COLLECT volume with Kabocha's vulnerability volume.
+    harness.run(120);
+    // Kabocha crosses WALK_AND_TALK on the way down, producing the automatic
+    // opening line. The collision below is the separate touch conversation.
+    events.length = 0;
+    player.setPosition(kabocha.getPosition().x, kabocha.getPosition().y + 40);
+    player.getVelocity().zero();
+    player.getTargetVelocity().zero();
+    harness.run(2);
+
+    expect(events).toEqual([
+      { event: GameFlowEventType.SHOW_DIALOG_CHARACTER2, index: 0 },
+    ]);
+
+    // Continuous body contact must not reopen the same dialog every frame.
+    harness.run(120);
+    expect(events).toHaveLength(1);
+  });
+
+  test('every shipped story touch target is connected to COLLECT collision', async () => {
+    const seen = new Set<string>();
+    const unwired: string[] = [];
+
+    for (const group of linearLevelTree) {
+      for (const entry of group.levels) {
+        const harness = createHarness();
+        const levelId = resourceToLevelId[entry.resource];
+        expect(await harness.levelSystem.loadLevel(levelId), entry.resource).toBe(true);
+        harness.manager.commitUpdates();
+
+        for (const object of harness.manager.getActiveObjects()) {
+          const isStoryNpc = object.type === 'npc' &&
+            ['wanda', 'kyle', 'kabocha'].includes(object.subType);
+          const isTouchTarget = isStoryNpc ||
+            object.type === 'terminal' ||
+            object.type === 'hint_sign' ||
+            object.subType === 'kyle_dead';
+          if (!isTouchTarget) continue;
+
+          seen.add(object.subType || object.type);
+          const collision = object.getComponent(
+            DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
+          );
+          const reaction = object.getComponent(
+            HitReactionComponent as unknown as new (...args: unknown[]) => HitReactionComponent
+          );
+          const acceptsCollect = collision?.getVulnerabilityVolumes()?.some(
+            (volume) => volume.getHitType() === HitType.COLLECT
+          );
+          if (!collision || !reaction || !acceptsCollect) {
+            unwired.push(`${entry.resource}: ${object.subType || object.type}`);
+          }
+        }
+      }
+    }
+
+    expect([...seen].sort()).toEqual(['kabocha', 'kyle', 'kyle_dead', 'rokudou', 'wanda']);
+    expect(unwired).toEqual([]);
+  }, 60_000);
+
+  test('Kyle dash frames hit and launch Andou', async () => {
+    const harness = createHarness();
+    expect(await harness.levelSystem.loadLevel(resourceToLevelId.level_2_1_grass)).toBe(true);
+    harness.manager.commitUpdates();
+
+    const player = harness.manager.getPlayer() as GameObject;
+    const kyle = harness.manager
+      .getActiveObjects()
+      .find((object) => object.subType === 'kyle') as GameObject;
+    expect(player).toBeDefined();
+    expect(kyle).toBeDefined();
+    // Kyle starts far enough from this level's camera to deactivate on the
+    // first frame, so retain the spawned object before priming Andou's frames.
+    harness.run(2);
+
+    const sprite = kyle.getComponent(
+      SpriteComponent as unknown as new (...args: unknown[]) => SpriteComponent
+    ) as SpriteComponent;
+    const kyleCollision = kyle.getComponent(
+      DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
+    ) as DynamicCollisionComponent;
+    const playerCollision = player.getComponent(
+      DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
+    ) as DynamicCollisionComponent;
+    const launcher = kyle.getComponent(
+      LauncherComponent as unknown as new (...args: unknown[]) => LauncherComponent
+    ) as LauncherComponent;
+
+    const dash = sprite.findAnimation(NPCAnimation.RUN);
+    expect(dash).not.toBeNull();
+    for (const frame of dash!.frames) {
+      expect(frame.attackVolumes?.map((volume) => volume.getHitType())).toEqual([
+        HitType.HIT,
+        HitType.COLLECT,
+      ]);
+      expect(frame.vulnerabilityVolumes?.map((volume) => volume.getHitType())).toEqual([
+        HitType.COLLECT,
+      ]);
+    }
+
+    // Apply the dash frame, register both bodies, and resolve the same dynamic
+    // collision pipeline the game uses after FRAME_END.
+    sprite.playAnimation(NPCAnimation.RUN);
+    sprite.update(0, kyle);
+    player.setPosition(kyle.getPosition().x, kyle.getPosition().y + 40);
+    player.getVelocity().zero();
+    kyleCollision.update(0, kyle);
+    playerCollision.update(0, player);
+    sSystemRegistry.gameObjectCollisionSystem?.update(0);
+
+    expect(launcher.getLoadedShot()).toBe(player);
+    harness.time.update(FRAME);
+    launcher.update(0, kyle);
+    // Kyle starts facing left in this level. Andou should leave the impact
+    // moving left and upward, not with the flattened Y velocity the port had.
+    expect(player.getVelocity().x).toBeLessThan(-900);
+    expect(player.getVelocity().y).toBeLessThan(-100);
+  });
+
   test('an enemy falls and rests on the ground under component physics', async () => {
     const levels = await playableLevels();
     for (const { resource, levelId } of levels) {
@@ -359,6 +507,25 @@ describe('campaign gameplay simulation', () => {
     harness.run(30);
 
     expect(player.getPosition().x).toBeGreaterThan(startX);
+  });
+
+  test('a new level keeps grounded controls when the game clock is already advanced', async () => {
+    const harness = createHarness();
+    // Game.tsx owns one TimeSystem for the whole session; loading a level does
+    // not reset it. Reproduce a transition after several minutes of play.
+    harness.time.update(180);
+    expect(await harness.levelSystem.loadLevel(resourceToLevelId.level_0_2_lab)).toBe(true);
+    harness.manager.commitUpdates();
+
+    const player = harness.manager.getPlayer() as GameObject;
+    harness.run(120);
+    expect(player.touchingGround()).toBe(true);
+
+    const restingY = player.getPosition().y;
+    harness.input.setVirtualButton('fly', true);
+    harness.run(2);
+    expect(player.getVelocity().y).toBeLessThan(0);
+    expect(player.getPosition().y).toBeLessThan(restingY);
   });
 
   test('a player holding fly leaves the ground and burns fuel', async () => {

@@ -14,6 +14,8 @@ import { ComponentPhase } from '../../types';
 import { Vector2 } from '../../utils/Vector2';
 import { HotSpotType } from '../../engine/HotSpotSystem';
 import { GameFlowEventType } from '../../engine/GameFlowEvent';
+import { HitType } from '../../types';
+import type { HitReactionComponent } from './HitReactionComponent';
 
 // System registry references
 let hotSpotSystem: {
@@ -39,6 +41,7 @@ export class SelectDialogComponent extends GameComponent {
   private lastPosition: Vector2 = new Vector2(0, 0);
   private currentDialogEvent: GameFlowEventType = GameFlowEventType.INVALID;
   private currentDialogIndex: number = 0;
+  private hitReactionComponent: HitReactionComponent | null = null;
 
   constructor() {
     super(ComponentPhase.THINK);
@@ -65,6 +68,11 @@ export class SelectDialogComponent extends GameComponent {
     if (gameFlowEvent && this.currentDialogEvent !== GameFlowEventType.INVALID) {
       gameFlowEvent.post(this.currentDialogEvent, this.currentDialogIndex);
     }
+  }
+
+  /** Original: SelectDialogComponent programs its owner's COLLECT reaction. */
+  setHitReactionComponent(hitReaction: HitReactionComponent): void {
+    this.hitReactionComponent = hitReaction;
   }
 
   /**
@@ -106,6 +114,7 @@ export class SelectDialogComponent extends GameComponent {
         hitSpot <= HotSpotType.NPC_SELECT_DIALOG_1_5) {
       this.currentDialogEvent = GameFlowEventType.SHOW_DIALOG_CHARACTER1;
       this.currentDialogIndex = hitSpot - HotSpotType.NPC_SELECT_DIALOG_1_1;
+      this.applySelection();
       return;
     }
 
@@ -114,12 +123,19 @@ export class SelectDialogComponent extends GameComponent {
         hitSpot <= HotSpotType.NPC_SELECT_DIALOG_2_5) {
       this.currentDialogEvent = GameFlowEventType.SHOW_DIALOG_CHARACTER2;
       this.currentDialogIndex = hitSpot - HotSpotType.NPC_SELECT_DIALOG_2_1;
+      this.applySelection();
       return;
     }
+    // The Android component keeps the most recent selection after leaving the
+    // selector tile, allowing a terminal/NPC to remain touchable nearby.
+  }
 
-    // No valid dialog hotspot - reset
-    this.currentDialogEvent = GameFlowEventType.INVALID;
-    this.currentDialogIndex = 0;
+  private applySelection(): void {
+    this.hitReactionComponent?.setSpawnGameEventOnHit(
+      HitType.COLLECT,
+      this.currentDialogEvent,
+      this.currentDialogIndex
+    );
   }
 
   /**
@@ -130,5 +146,6 @@ export class SelectDialogComponent extends GameComponent {
     this.lastPosition.y = 0;
     this.currentDialogEvent = GameFlowEventType.INVALID;
     this.currentDialogIndex = 0;
+    this.hitReactionComponent = null;
   }
 }

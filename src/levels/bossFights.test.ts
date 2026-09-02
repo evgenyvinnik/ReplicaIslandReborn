@@ -21,6 +21,7 @@ import { CameraSystem } from '../engine/CameraSystem';
 import { ChannelSystem } from '../engine/ChannelSystem';
 import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
+import { GameObjectFactory } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { gameFlowEvent, GameFlowEventType } from '../engine/GameFlowEvent';
 import { LevelSystem } from './LevelSystemNew';
@@ -36,6 +37,7 @@ import { GameObject } from '../entities/GameObject';
 import type { GameComponent } from '../entities/GameComponent';
 import { ActionType, Team } from '../types';
 import type { CutsceneType } from '../data/cutscenes';
+import { TimeSystem } from '../engine/TimeSystem';
 
 const originalFetch = globalThis.fetch;
 const publicDirectory = join(import.meta.dir, '../../public');
@@ -64,6 +66,7 @@ afterAll(() => {
 interface Arena {
   manager: GameObjectManager;
   collision: GameObjectCollisionSystem;
+  time: TimeSystem;
 }
 
 async function loadBossLevel(): Promise<Arena> {
@@ -72,6 +75,7 @@ async function loadBossLevel(): Promise<Arena> {
 
   const manager = new GameObjectManager();
   const objectCollision = new GameObjectCollisionSystem();
+  const time = new TimeSystem();
   const camera = new CameraSystem(480, 320);
   const hotSpots = new HotSpotSystem();
   const levelSystem = new LevelSystem();
@@ -81,6 +85,7 @@ async function loadBossLevel(): Promise<Arena> {
   sSystemRegistry.register(manager, 'gameObject');
   sSystemRegistry.register(camera, 'camera');
   sSystemRegistry.register(objectCollision, 'gameObjectCollision');
+  sSystemRegistry.register(time, 'time');
   // NPCComponent reads the arena's script from here; without it the bosses
   // never get a target velocity.
   sSystemRegistry.register(hotSpots, 'hotSpot');
@@ -89,7 +94,11 @@ async function loadBossLevel(): Promise<Arena> {
   expect(await levelSystem.loadLevel(resourceToLevelId[BOSS_LEVEL])).toBe(true);
   manager.commitUpdates();
 
-  return { manager, collision: objectCollision };
+  const factory = new GameObjectFactory(manager);
+  factory.setSystemRegistry(sSystemRegistry);
+  sSystemRegistry.register(factory, 'factory');
+
+  return { manager, collision: objectCollision, time };
 }
 
 function findBoss(manager: GameObjectManager, subType: string): GameObject {
@@ -227,16 +236,43 @@ describe('boss fight composition', () => {
     const arena = await loadBossLevel();
     const rokudou = findBoss(arena.manager, 'rokudou');
     const before = arena.manager.getActiveObjects().length;
+    const guns = rokudou
+      .getComponents()
+      .filter((component): component is LaunchProjectileComponent =>
+        component instanceof LaunchProjectileComponent
+      );
 
     // Both guns set requiredAction=ATTACK, so nothing should spawn while he is
     // merely flying his patrol route.
+    arena.time.update(10);
     rokudou.setCurrentAction(ActionType.MOVE);
-    for (let frame = 0; frame < 300; frame++) {
-      rokudou.update(1 / 60, frame / 60);
-    }
+    for (const gun of guns) gun.update(0, rokudou);
     arena.manager.commitUpdates();
 
     expect(arena.manager.getActiveObjects().length).toBe(before);
+  });
+
+  test('Rokudou fires both finale shots downward in Canvas space', async () => {
+    const arena = await loadBossLevel();
+    const rokudou = findBoss(arena.manager, 'rokudou');
+    const guns = rokudou
+      .getComponents()
+      .filter((component): component is LaunchProjectileComponent =>
+        component instanceof LaunchProjectileComponent
+      );
+
+    arena.time.update(1);
+    rokudou.setCurrentAction(ActionType.ATTACK);
+    for (const gun of guns) gun.update(0, rokudou);
+    arena.manager.commitUpdates();
+
+    const shots = arena.manager.findObjectsByType('projectile');
+    expect(shots).toHaveLength(2);
+    expect(shots.map((shot) => shot.getVelocity().y)).toEqual([300, 300]);
+    for (const shot of shots) {
+      expect(componentOf<DynamicCollisionComponent>(shot, DynamicCollisionComponent))
+        .not.toBeNull();
+    }
   });
 });
 

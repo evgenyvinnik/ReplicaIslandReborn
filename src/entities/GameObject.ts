@@ -88,7 +88,10 @@ export class GameObject implements Poolable {
     this.acceleration.zero();
     this.impulse.zero();
     this.backgroundCollisionNormal.zero();
-    this.facingDirection.set(1, 0);
+    // The original resets both axes to a positive orientation. Launchers and
+    // effect offsets multiply by this vector; a zero Y silently erases every
+    // vertical launch/effect component.
+    this.facingDirection.set(1, 1);
 
     this.currentAction = ActionType.INVALID;
     this.animTimer = 0;
