@@ -37,10 +37,9 @@ import { applyPlayerAttack } from '../entities/applyPlayerAttack';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
-import { PatrolComponent } from '../entities/components/PatrolComponent';
-import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
 import { setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
@@ -108,8 +107,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const levelCompleteProcessedRef = useRef<number | null>(null);
   const endingCompletionProcessedRef = useRef<number | null>(null);
   const activeGhostRef = useRef<GameObject | null>(null);
-  const possessedPatrolsRef = useRef<Map<number, PatrolComponent>>(new Map());
-  const possessedAttacksRef = useRef<Map<number, AttackAtDistanceComponent>>(new Map());
 
   // Prevent a hotspot from scheduling the same asynchronous level transition
   // on several consecutive fixed-update frames.
@@ -129,8 +126,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const player = gameObjectManager.getPlayer();
       if (player) {
         activeGhostRef.current = null;
-        possessedPatrolsRef.current.clear();
-        possessedAttacksRef.current.clear();
         resetPlayerRuntimeState(player);
       }
     }
@@ -1833,17 +1828,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
           );
           if (previousGhostComponent?.isReleased() && previousGhost.type === 'enemy') {
+            // Reverse the swap that possessed it: the GhostComponent goes out
+            // and the AI comes back. ChangeComponentsComponent ping-pongs, so
+            // activating it a second time undoes the first.
             previousGhost.removeComponent(previousGhostComponent);
-            const previousPatrol = possessedPatrolsRef.current.get(previousGhost.id);
-            if (previousPatrol) {
-              previousGhost.addComponent(previousPatrol);
-              possessedPatrolsRef.current.delete(previousGhost.id);
+            const swap = previousGhost.getComponent(
+              ChangeComponentsComponent as unknown as new (...args: unknown[]) => ChangeComponentsComponent
+            );
+            if (swap?.getCurrentlySwapped()) {
+              swap.activate(previousGhost);
             }
-            const previousAttack = possessedAttacksRef.current.get(previousGhost.id);
-            if (previousAttack) {
-              previousGhost.addComponent(previousAttack);
-              possessedAttacksRef.current.delete(previousGhost.id);
-            }
+            previousGhost.lastReceivedHitType = HitType.INVALID;
             activeGhostRef.current = null;
           } else if (previousGhost.life <= 0 || previousGhost.isMarkedForRemoval()) {
             activeGhostRef.current = null;
@@ -1862,65 +1857,31 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
         }
 
+        // The takeover itself is done by the pipeline: the ghost's POSSESS
+        // attack volume reaches a POSSESS-capable vulnerability volume, and the
+        // target's HitReactionComponent activates its ChangeComponentsComponent
+        // (AI out, GhostComponent in). All that is left here is noticing which
+        // object the player is now driving, and handing it the camera.
         const controllableGhost = activeGhostRef.current;
         if (controllableGhost?.type === 'ghost' && controllableGhost.life > 0) {
-          const ghostPosition = controllableGhost.getPosition();
           gameObjectManager.forEach((target) => {
-            // The original decides this with a POSSESS-typed vulnerability
-            // volume rather than a list of names, which is what lets the ghost
-            // take over brobots, turrets and brobot spawners alike.
             if (activeGhostRef.current !== controllableGhost ||
                 target === player ||
-                target.life <= 0 ||
-                !target.isVisible() ||
-                !acceptsPossession(target)) {
+                target === controllableGhost ||
+                target.lastReceivedHitType !== HitType.POSSESS) {
               return;
             }
 
-            const targetPosition = target.getPosition();
-            const overlaps = ghostPosition.x < targetPosition.x + target.width &&
-              ghostPosition.x + controllableGhost.width > targetPosition.x &&
-              ghostPosition.y < targetPosition.y + target.height &&
-              ghostPosition.y + controllableGhost.height > targetPosition.y;
-            if (!overlaps) return;
-
-            const patrol = target.getComponent(
-              PatrolComponent as unknown as new (...args: unknown[]) => PatrolComponent
+            const possession = target.getComponent(
+              GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
             );
-            if (patrol) {
-              target.removeComponent(patrol);
-              possessedPatrolsRef.current.set(target.id, patrol);
-            }
-            const automaticAttack = target.getComponent(
-              AttackAtDistanceComponent as unknown as new (...args: unknown[]) => AttackAtDistanceComponent
-            );
-            if (automaticAttack) {
-              target.removeComponent(automaticAttack);
-              possessedAttacksRef.current.set(target.id, automaticAttack);
-            }
+            if (!possession) return;
 
             const sourceGhostComponent = controllableGhost.getComponent(
               GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
             );
             sourceGhostComponent?.transferControl(controllableGhost);
 
-            // Emplacements (turrets, brobot spawners) cannot walk, so the
-            // possessed object only aims and fires.
-            const isEmplacement = target.subType === 'turret' || target.type === 'spawner';
-            const possession = new GhostComponent({
-              movementSpeed: isEmplacement ? 0 : 500,
-              jumpImpulse: isEmplacement ? 0 : 300,
-              acceleration: isEmplacement ? 0 : 1000,
-              useOrientationSensor: false,
-              delayOnRelease: 1.5,
-              killOnRelease: !isEmplacement,
-              targetAction: isEmplacement ? ActionType.IDLE : ActionType.MOVE,
-              lifeTime: 0,
-              changeActionOnButton: isEmplacement,
-              buttonPressedAction: isEmplacement ? ActionType.ATTACK : ActionType.INVALID,
-              ambientSound: 'sound_possession',
-            });
-            target.addComponent(possession);
             target.getVelocity().zero();
             target.getTargetVelocity().zero();
             activeGhostRef.current = target;
@@ -2522,25 +2483,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       }
 
     });
-
-    /**
-     * Can the ghost take this object over?
-     *
-     * True when the object exposes a POSSESS vulnerability volume, matching the
-     * original: brobots (untyped volume, so any hit type is accepted), turrets
-     * and brobot spawners (both typed POSSESS).
-     */
-    const acceptsPossession = (target: GameObject): boolean => {
-      const collision = target.getComponent(
-        DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
-      );
-      const volumes = collision?.getVulnerabilityVolumes();
-      if (!volumes || volumes.length === 0) return false;
-      return volumes.some((volume) => {
-        const type = volume.getHitType();
-        return type === HitType.POSSESS || type === HitType.INVALID;
-      });
-    };
 
     /**
      * The original's rival bosses watch a shared "SURPRISED" channel and switch

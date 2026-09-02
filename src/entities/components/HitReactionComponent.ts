@@ -10,6 +10,7 @@ import { ComponentPhase, HitType, ActionType, Team } from '../../types';
 import type { GameObject } from '../GameObject';
 import { Vector2 } from '../../utils/Vector2';
 import type { LauncherComponent } from './LauncherComponent';
+import type { ChangeComponentsComponent } from './ChangeComponentsComponent';
 
 // Pause-on-attack duration: 4 frames at 60fps
 const ATTACK_PAUSE_DELAY = (1.0 / 60) * 4;
@@ -57,6 +58,9 @@ export class HitReactionComponent extends GameComponent {
    */
   private launcherComponent: LauncherComponent | null = null;
   private launcherHitType: HitType = HitType.LAUNCH;
+
+  /** Swap activated when this object takes a POSSESS hit. */
+  private possessionComponent: ChangeComponentsComponent | null = null;
   
   // Time freeze callback for pause-on-attack effect
   private timeFreezer: ((duration: number) => void) | null = null;
@@ -100,6 +104,16 @@ export class HitReactionComponent extends GameComponent {
   setLauncherComponent(component: LauncherComponent, launchHitType: HitType = HitType.LAUNCH): void {
     this.launcherComponent = component;
     this.launcherHitType = launchHitType;
+  }
+
+  /**
+   * Component swap to run when this object is possessed.
+   *
+   * The original hands the ghost's POSSESS hit to a ChangeComponentsComponent,
+   * which swaps the object's AI out and a GhostComponent in.
+   */
+  setPossessionComponent(component: ChangeComponentsComponent): void {
+    this.possessionComponent = component;
   }
 
   setSoundPlayer(player: (sound: string) => void): void {
@@ -243,8 +257,13 @@ export class HitReactionComponent extends GameComponent {
         break;
 
       case HitType.POSSESS:
-        // Special case for possession - not implemented yet
-        processedHitType = HitType.INVALID;
+        // The ghost takes this object over by activating its swap: the AI
+        // components go out and a GhostComponent comes in.
+        if (this.possessionComponent && parent.life > 0 && attacker.life > 0) {
+          this.possessionComponent.activate(parent);
+        } else {
+          processedHitType = HitType.INVALID;
+        }
         break;
 
       case HitType.LAUNCH:
@@ -307,6 +326,7 @@ export class HitReactionComponent extends GameComponent {
     this.invincibleAfterHitTime = 0;
     this.launcherComponent = null;
     this.launcherHitType = HitType.LAUNCH;
+    this.possessionComponent = null;
     this.lastHitTime = 0;
     this.invincible = false;
     this.invincibleTime = 0;

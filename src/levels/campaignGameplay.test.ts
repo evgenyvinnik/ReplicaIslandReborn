@@ -25,6 +25,7 @@ import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { ActionType } from '../types';
 import { GravityComponent } from '../entities/components/GravityComponent';
+import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
@@ -264,6 +265,32 @@ describe('campaign gameplay simulation', () => {
     harness.run(1);
     expect(player.getCurrentAction()).toBe(ActionType.FROZEN);
   });
+
+  test('possessable enemies get their possession swap at spawn', async () => {
+    // attachPossession() reads the vulnerability volumes, so they have to be
+    // primed at spawn rather than on the first update - otherwise every enemy
+    // silently loses the ability to be possessed.
+    const levels = await playableLevels();
+    let checked = 0;
+
+    for (const { resource, levelId } of levels) {
+      const harness = createHarness();
+      expect(await harness.levelSystem.loadLevel(levelId), resource).toBe(true);
+      harness.manager.commitUpdates();
+
+      for (const object of harness.manager.getActiveObjects()) {
+        if (object.subType !== 'brobot' && object.subType !== 'turret') continue;
+        const swap = object.getComponent(
+          ChangeComponentsComponent as unknown as new (...args: unknown[]) => ChangeComponentsComponent
+        );
+        expect(swap, `${object.subType} in ${resource} cannot be possessed`).not.toBeNull();
+        checked++;
+      }
+      if (checked > 0) break;
+    }
+
+    expect(checked).toBeGreaterThan(0);
+  }, 60_000);
 
   test('a scripted NPC walks its hot-spot route under component physics', async () => {
     // Wanda's intro run used to be driven by an inline copy of gravity,

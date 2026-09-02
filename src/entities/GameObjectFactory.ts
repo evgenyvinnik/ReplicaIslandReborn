@@ -6,7 +6,7 @@
 import { GameObject } from './GameObject';
 import { GameObjectManager } from './GameObjectManager';
 import { ObjectPool } from '../utils/ObjectPool';
-import { Team, ActionType } from '../types';
+import { Team, ActionType, HitType } from '../types';
 import { SpriteComponent } from './components/SpriteComponent';
 import { PhysicsComponent } from './components/PhysicsComponent';
 import { MovementComponent } from './components/MovementComponent';
@@ -18,6 +18,8 @@ import { setCameraBiasSystemRegistry } from './components/CameraBiasComponent';
 import { setSelectDialogSystemRegistry } from './components/SelectDialogComponent';
 import { TheSourceComponent } from './components/TheSourceComponent';
 import { LifetimeComponent } from './components/LifetimeComponent';
+import { DynamicCollisionComponent } from './components/DynamicCollisionComponent';
+import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
 import { MultiSpriteAnimComponent } from './components/MultiSpriteAnimComponent';
 import {
   SimpleCollisionComponent,
@@ -791,6 +793,15 @@ export class GameObjectFactory {
       // MovementComponent doesn't have setMaxSpeed, velocity is handled by physics
       obj.addComponent(movement);
     }
+
+    // The ghost takes objects over with a POSSESS attack volume, exactly as
+    // the original does: Sphere(32, 32, 32, POSSESS) on its animation frames.
+    const collision = new DynamicCollisionComponent();
+    collision.setCollisionVolumes(
+      [new SphereCollisionVolume(32, 32, 32, HitType.POSSESS)],
+      null
+    );
+    obj.addComponent(collision);
 
     // Add ghost component for possession behavior
     const ghost = new GhostComponent({

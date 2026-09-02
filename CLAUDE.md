@@ -60,7 +60,6 @@ These are real, and are the honest backlog for "finishing" the port:
 | Gap | Impact | Notes |
 |-----|--------|-------|
 | No per-frame animation volumes | Medium | The original stores attack/vulnerability volumes on each `AnimationFrame`; this port's `SpriteComponent` does not. Both the player and the enemies work around it by selecting volume sets from state/action (`playerCollisionVolumes.ts`, `enemyCollisionProfiles.ts`). Faithful per-frame data would need `SpriteComponent` to carry volumes. |
-| Possession is resolved inline | Low | The ghost takes over a target with an AABB overlap in `Game.tsx` and swaps components by hand. The original dispatches `HitType.POSSESS` through the pipeline into `HitReactionComponent.setPossessionComponent` + `ChangeComponentsComponent`. The possessable set now matches the original either way. |
 | Orphaned components | Low | `SimplePhysicsComponent` (a duplicate of the wired `PhysicsComponent`), `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent` and `CrusherAndouComponent` are ported but attached to nothing. Their behaviour is either reimplemented inline (invincibility flashing, explosion sounds) or cosmetic (Kyle's motion trail); `CrusherAndouComponent`'s object type appears in no shipped level. |
 | Line-segment tile collision | Low | Grounding now resolves against the real segments from `collision.json` (`getGroundSurfaceY()`), so slopes are walked smoothly. `checkTileCollision()` itself still delegates to `checkTileCollisionSimple()` for wall/ceiling tests, so those remain tile-granular; `_checkTileCollisionWithSegments()` is still unused. |
 | Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
@@ -138,9 +137,17 @@ check. The port does not implement the original's
 `HitReactionComponent.setInventoryUpdate` record; the consequences live in
 `Game.tsx` instead.
 
-Possession is decided the same way: `Game.tsx` looks for a `POSSESS`-capable
-vulnerability volume rather than a list of subType names, which is what lets the
-ghost take over brobots, turrets and brobot spawners alike.
+Possession runs through the same pipeline. The ghost carries a `POSSESS` attack
+volume; any object whose vulnerability volume accepts `POSSESS` can be taken
+over, which is why brobots (untyped volume), turrets and brobot spawners (typed
+`POSSESS`) all work while a snailbomb (typed `HIT`) does not. The takeover
+itself is `HitReactionComponent.setPossessionComponent()` activating a
+ping-pong `ChangeComponentsComponent`: the AI swaps out and a `GhostComponent`
+swaps in, and activating it again on release reverses that. `Game.tsx` only
+notices which object the player is now driving and hands it the camera.
+
+Enemy collision volumes are primed at spawn rather than on the first update,
+because `attachPossession()` reads them to decide whether to fit the swap.
 
 Do not add inline AABB combat checks back into `Game.tsx`. If something needs to
 deal or take damage, give it volumes and a `HitReactionComponent`.

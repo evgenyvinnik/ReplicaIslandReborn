@@ -46,7 +46,9 @@ import { GameFlowEventType } from '../engine/GameFlowEvent';
 import { CutsceneType } from '../data/cutscenes';
 import { EnemyCollisionComponent } from '../entities/components/EnemyCollisionComponent';
 import { HitPlayerComponent } from '../entities/components/HitPlayerComponent';
-import { createEnemyCollisionProfile } from '../entities/enemyCollisionProfiles';
+import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
+import { GhostComponent } from '../entities/components/GhostComponent';
+import { createEnemyCollisionProfile, selectEnemyAttackVolumes } from '../entities/enemyCollisionProfiles';
 
 /** Original: GameObjectFactory.sSurprisedNPCChannel. */
 const SURPRISED_NPC_CHANNEL = 'SURPRISED';
@@ -1920,6 +1922,7 @@ export class LevelSystem {
 
     this.attachEnemyCollision(obj);
     this.attachPhysics(obj);
+    this.attachPossession(obj);
     
     // Calculate position to match original Java behavior
     // Original used Y-up coords with position at bottom-left of sprite
@@ -1997,6 +2000,12 @@ export class LevelSystem {
 
     const selector = new EnemyCollisionComponent(profile);
     selector.setCollisionComponent(collision);
+    // Prime the volumes now rather than on the first update, so the object is
+    // fully configured from frame zero - attachPossession() reads them.
+    collision.setCollisionVolumes(
+      selectEnemyAttackVolumes(profile, obj.getCurrentAction()),
+      profile.vulnerability
+    );
 
     obj.addComponent(collision);
     obj.addComponent(hitReact);
@@ -2080,6 +2089,66 @@ export class LevelSystem {
     );
     collision.setHitReactionComponent(hitReact);
     obj.addComponent(collision);
+  }
+
+  /**
+   * Let the ghost take this object over.
+   *
+   * The original wires possession as a component swap: the object's
+   * HitReactionComponent holds a ChangeComponentsComponent which, on a POSSESS
+   * hit, swaps the AI out and a GhostComponent in
+   * (`hitReact.setPossessionComponent(ghostSwap)`).
+   *
+   * Whether an object can be possessed is decided by its vulnerability volume,
+   * not by name: brobots leave theirs untyped so it accepts any hit, while
+   * turrets and brobot spawners type theirs POSSESS.
+   */
+  private attachPossession(obj: GameObject): void {
+    const collision = obj.getComponent(DynamicCollisionComponent);
+    const hitReact = obj.getComponent(
+      HitReactionComponent as unknown as new (...args: unknown[]) => HitReactionComponent
+    );
+    if (!collision || !hitReact) return;
+
+    const volumes = collision.getVulnerabilityVolumes();
+    const possessable = volumes?.some((volume) => {
+      const type = volume.getHitType();
+      return type === HitType.POSSESS || type === HitType.INVALID;
+    });
+    if (!possessable) return;
+
+    // Emplacements cannot walk, so a possessed one only aims and fires.
+    const isEmplacement = obj.subType === 'turret' || obj.type === 'spawner';
+    const swap = new ChangeComponentsComponent();
+    // Ping-pong so releasing the object reverses the swap: the GhostComponent
+    // goes back out and the AI returns.
+    swap.setPingPongBehavior(true);
+    swap.addSwapInComponent(new GhostComponent({
+      movementSpeed: isEmplacement ? 0 : 500,
+      jumpImpulse: isEmplacement ? 0 : 300,
+      acceleration: isEmplacement ? 0 : 1000,
+      useOrientationSensor: false,
+      delayOnRelease: 1.5,
+      killOnRelease: !isEmplacement,
+      targetAction: isEmplacement ? ActionType.IDLE : ActionType.MOVE,
+      lifeTime: 0,
+      changeActionOnButton: isEmplacement,
+      buttonPressedAction: isEmplacement ? ActionType.ATTACK : ActionType.INVALID,
+      ambientSound: 'sound_possession',
+    }));
+
+    // The AI that has to stop while the player is driving.
+    const patrol = obj.getComponent(
+      PatrolComponent as unknown as new (...args: unknown[]) => PatrolComponent
+    );
+    if (patrol) swap.addSwapOutComponent(patrol);
+    const automaticAttack = obj.getComponent(
+      AttackAtDistanceComponent as unknown as new (...args: unknown[]) => AttackAtDistanceComponent
+    );
+    if (automaticAttack) swap.addSwapOutComponent(automaticAttack);
+
+    hitReact.setPossessionComponent(swap);
+    obj.addComponent(swap);
   }
 
   private convertToLevelData(parsed: ParsedLevel, info: LevelInfo): LevelData {
