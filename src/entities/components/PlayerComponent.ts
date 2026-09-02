@@ -117,6 +117,9 @@ export class PlayerComponent extends GameComponent {
   public touchingGround: boolean = false;
   public wasTouchingGround: boolean = false;
   public rocketsOn: boolean = false;
+  /** Held-state latches used to reproduce InputButton.getTriggered(). */
+  private jumpWasPressed: boolean = false;
+  private attackWasPressed: boolean = false;
   
   public stomping: boolean = false;
   public stompTime: number = 0;
@@ -217,6 +220,10 @@ export class PlayerComponent extends GameComponent {
     if (!this.inputSystem || !this.collisionSystem || !this.soundSystem) return;
 
     const input = this.inputSystem.getInputState();
+    const jumpTriggered = input.jump && !this.jumpWasPressed;
+    const attackTriggered = input.attack && !this.attackWasPressed;
+    this.jumpWasPressed = input.jump;
+    this.attackWasPressed = input.attack;
     const velocity = parent.getVelocity();
     const position = parent.getPosition();
     // Collision contact timestamps are compared against GameObject.gameTime,
@@ -287,7 +294,7 @@ export class PlayerComponent extends GameComponent {
 
     // Jump/Fly
     if (acceptsPlayerInput && input.jump) {
-      if (this.touchingGround && !this.rocketsOn) {
+      if (jumpTriggered && this.touchingGround && !this.rocketsOn) {
         // Initial jump from ground
         velocity.y = -PlayerComponent.AIR_VERTICAL_IMPULSE_FROM_GROUND;
         this.jumpTime = gameTime;
@@ -310,7 +317,10 @@ export class PlayerComponent extends GameComponent {
     }
 
     // Stomp attack
-    if (acceptsPlayerInput && input.attack && inTheAir && !this.stomping && this.currentState === PlayerState.MOVE) {
+    if (
+      acceptsPlayerInput && attackTriggered && inTheAir &&
+      !this.stomping && this.currentState === PlayerState.MOVE
+    ) {
       this.currentState = PlayerState.STOMP;
       this.stomping = true;
       this.stompTime = gameTime;
@@ -672,6 +682,8 @@ export class PlayerComponent extends GameComponent {
     this.touchingGround = false;
     this.wasTouchingGround = false;
     this.rocketsOn = false;
+    this.jumpWasPressed = false;
+    this.attackWasPressed = false;
     this.stomping = false;
     this.stompTime = 0;
     this.stompHangTime = 0;

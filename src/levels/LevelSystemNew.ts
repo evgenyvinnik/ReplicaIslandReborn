@@ -776,6 +776,13 @@ export class LevelSystem {
           }
         });
         obj.addComponent(skeletonPatrol);
+
+        // The original skeleton exposes two solid vertical edges. Convert its
+        // local points from Android's Y-up coordinates to Canvas Y-down.
+        const skeletonSurface = new SolidSurfaceComponent(2);
+        skeletonSurface.addSurfaceFromCoords(25, 64, 25, 0, -1, 0);
+        skeletonSurface.addSurfaceFromCoords(40, 64, 40, 0, 1, 0);
+        obj.addComponent(skeletonSurface);
         break;
       }
         
@@ -865,6 +872,15 @@ export class LevelSystem {
           }
         });
         obj.addComponent(mudmanPatrol);
+
+        // House-shaped solid body from spawnEnemyMudman(). Y coordinates and
+        // normal Y components are inverted for Canvas space.
+        const mudmanSurface = new SolidSurfaceComponent(4);
+        mudmanSurface.addSurfaceFromCoords(32, 64, 64, 32, -0.707, -0.707);
+        mudmanSurface.addSurfaceFromCoords(64, 32, 75, 64, 0.9456, -0.325);
+        mudmanSurface.addSurfaceFromCoords(32, 128, 32, 64, -1, 0);
+        mudmanSurface.addSurfaceFromCoords(75, 128, 75, 64, 1, 0);
+        obj.addComponent(mudmanSurface);
         break;
       }
         
@@ -902,6 +918,16 @@ export class LevelSystem {
           attackImpulseY: -170  // Original uses +170 in its Y-up coordinates
         });
         obj.addComponent(namazuSleeper);
+
+        // Rounded solid body from spawnEnemyPinkNamazu(). The original points
+        // and normals use Y-up coordinates; invert both for Canvas Y-down.
+        const namazuSurface = new SolidSurfaceComponent(5);
+        namazuSurface.addSurfaceFromCoords(12, 125, 22, 76, -0.98058067569092, 0.19611613513818);
+        namazuSurface.addSurfaceFromCoords(22, 76, 50, 53, -0.62580046626293, -0.77998318983495);
+        namazuSurface.addSurfaceFromCoords(50, 53, 81, 53, 0, -1);
+        namazuSurface.addSurfaceFromCoords(81, 53, 104, 79, 0.74038072228541, -0.67218776102228);
+        namazuSurface.addSurfaceFromCoords(104, 79, 104, 125, 1, 0);
+        obj.addComponent(namazuSurface);
         break;
       }
         
@@ -2230,6 +2256,10 @@ export class LevelSystem {
 
     const animator = new EnemyAnimationComponent();
     animator.setSprite(sprite);
+    if (obj.subType === 'shadowslime' && this.gameObjectManager) {
+      animator.setFacePlayer(true);
+      animator.setGameObjectManager(this.gameObjectManager);
+    }
     obj.addComponent(animator);
   }
 
@@ -2402,7 +2432,11 @@ export class LevelSystem {
     // they are airborne; NPCAnimationComponent does that selection, and watches
     // the SURPRISED channel for the bosses' reaction shot. The original animates
     // Evil Kabocha and Rokudou with this same component.
-    if (obj.type === 'npc' || createNpcAnimations(obj.subType, obj.width, obj.height)) {
+    // The bosses are type 'enemy' with an NPC subType, so the subType lookup has
+    // to be allowed for them - but only for them. Testing the subType alone
+    // matches anything that merely shares a name, which is how Kabocha's
+    // terminals ended up drawing Kabocha.
+    if (obj.type === 'npc' || obj.type === 'enemy') {
       const npcAnimations = createNpcAnimations(obj.subType, obj.width, obj.height);
       if (npcAnimations) {
         const sprite = existing ?? new SpriteComponent();
@@ -2427,6 +2461,12 @@ export class LevelSystem {
             const blur = new MotionBlurComponent();
             blur.setTarget(sprite);
             obj.addComponent(blur);
+          }
+          // Rokudou's scripted vertical movement is flight, not jumping or
+          // falling. The original NPC animator explicitly disables those
+          // ground-state transitions for him.
+          if (obj.subType === 'rokudou') {
+            animator.setFlying(true);
           }
           // Original: the bosses watch the shared SURPRISED channel and switch
           // to their surprised pose when The Source starts collapsing.

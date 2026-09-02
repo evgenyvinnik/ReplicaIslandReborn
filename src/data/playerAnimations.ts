@@ -31,8 +31,15 @@ const SPRITE_SIZE = 64;
  */
 const OFFSET = -16;
 
-/** Andou animates at roughly 12 FPS in this port's render loop. */
-const FRAME_TIME = 1 / 12;
+/**
+ * The original's frame hold times. Most of Andou's frames run at 24 FPS
+ * (`Utils.framesToTime(24, 1)`), but three animations are given explicit
+ * seconds instead: the idle holds a full second, the hit reaction a tenth, and
+ * the tail of the death explosion runs at half speed.
+ */
+const FRAME = 1 / 24;
+const IDLE_HOLD = 1.0;
+const HIT_HOLD = 0.1;
 
 /** Every animation Andou can be in, named as PlayerComponent selects them. */
 export type PlayerAnimationName =
@@ -46,27 +53,60 @@ interface PlayerArt {
   loop: boolean;
   /** Which volume set these frames carry. */
   volumes: PlayerVolumeState;
+  /** Hold time per frame, in seconds. One entry per frame. */
+  durations: number[];
 }
 
 const PLAYER_ART: Record<PlayerAnimationName, PlayerArt> = {
-  idle: { frames: ['andou_stand'], loop: false, volumes: 'normal' },
-  move: { frames: ['andou_diag01'], loop: false, volumes: 'normal' },
-  move_fast: { frames: ['andou_diagmore01'], loop: false, volumes: 'normal' },
-  boost_up: { frames: ['andou_flyup02', 'andou_flyup03'], loop: true, volumes: 'normal' },
-  boost_move: { frames: ['andou_diag02', 'andou_diag03'], loop: true, volumes: 'normal' },
-  boost_move_fast: { frames: ['andou_diagmore02', 'andou_diagmore03'], loop: true, volumes: 'normal' },
-  fall: { frames: ['andou_flyup01'], loop: false, volumes: 'normal' },
-  fall_move: { frames: ['andou_diag01'], loop: false, volumes: 'normal' },
-  fall_fast: { frames: ['andou_diagmore01'], loop: false, volumes: 'normal' },
-  charge: { frames: ['andou_flyup01'], loop: false, volumes: 'normal' },
+  // A full second per frame: Andou stands very still.
+  idle: { frames: ['andou_stand'], loop: false, volumes: 'normal', durations: [IDLE_HOLD] },
+  move: { frames: ['andou_diag01'], loop: false, volumes: 'normal', durations: [FRAME] },
+  move_fast: { frames: ['andou_diagmore01'], loop: false, volumes: 'normal', durations: [FRAME] },
+  boost_up: {
+    frames: ['andou_flyup02', 'andou_flyup03'],
+    loop: true, volumes: 'normal', durations: [FRAME, FRAME],
+  },
+  boost_move: {
+    frames: ['andou_diag02', 'andou_diag03'],
+    loop: true, volumes: 'normal', durations: [FRAME, FRAME],
+  },
+  boost_move_fast: {
+    frames: ['andou_diagmore02', 'andou_diagmore03'],
+    loop: true, volumes: 'normal', durations: [FRAME, FRAME],
+  },
+  // The original has no separate falling animations; these reuse the moving
+  // art, and PlayerComponent selects them from vertical velocity.
+  fall: { frames: ['andou_flyup01'], loop: false, volumes: 'normal', durations: [FRAME] },
+  fall_move: { frames: ['andou_diag01'], loop: false, volumes: 'normal', durations: [FRAME] },
+  fall_fast: { frames: ['andou_diagmore01'], loop: false, volumes: 'normal', durations: [FRAME] },
+  charge: { frames: ['andou_flyup01'], loop: false, volumes: 'normal', durations: [FRAME] },
   // The stomp is the attack: HIT volume on, vulnerability off.
   stomp: {
     frames: ['andou_stomp01', 'andou_stomp02', 'andou_stomp03', 'andou_stomp04'],
     loop: false,
     volumes: 'stomping',
+    durations: [FRAME, FRAME, FRAME, FRAME],
   },
-  hit: { frames: ['andou_hit'], loop: false, volumes: 'normal' },
-  dead: { frames: ['andou_die01', 'andou_die02'], loop: false, volumes: 'normal' },
+  hit: { frames: ['andou_hit'], loop: false, volumes: 'normal', durations: [HIT_HOLD] },
+  // Andou flickers between his two dying frames and then blows up. The port
+  // used to stop after those two frames and never load the explosion at all,
+  // though all twelve of its sprites ship with the game.
+  dead: {
+    frames: [
+      'andou_die01', 'andou_die02', 'andou_die01', 'andou_die02',
+      'andou_explode01', 'andou_explode02', 'andou_explode03', 'andou_explode04',
+      'andou_explode05', 'andou_explode06', 'andou_explode07', 'andou_explode08',
+      'andou_explode09', 'andou_explode10', 'andou_explode11', 'andou_explode12',
+    ],
+    loop: false,
+    volumes: 'normal',
+    durations: [
+      FRAME, FRAME, FRAME, FRAME,
+      FRAME, FRAME, FRAME, FRAME,
+      FRAME * 2, FRAME * 2, FRAME * 2, FRAME * 2,
+      FRAME * 2, FRAME * 2, FRAME * 2, FRAME * 2,
+    ],
+  },
 };
 
 /**
@@ -87,12 +127,12 @@ export function createPlayerAnimations(
       : glowing ? 'glowing' : 'normal';
     const set = volumeSets[state];
 
-    const frames: SpriteFrame[] = art.frames.map((sprite) => ({
+    const frames: SpriteFrame[] = art.frames.map((sprite, index) => ({
       x: 0,
       y: 0,
       width: SPRITE_SIZE,
       height: SPRITE_SIZE,
-      duration: FRAME_TIME,
+      duration: art.durations[index] ?? FRAME,
       sprite,
       offsetX: OFFSET,
       offsetY: OFFSET,

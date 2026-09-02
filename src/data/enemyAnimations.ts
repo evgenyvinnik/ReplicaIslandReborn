@@ -28,6 +28,22 @@ interface EnemyArt {
   idle: string[];
   walk?: string[];
   attack?: string[];
+  /** Only the turret's firing animation loops in the original. */
+  attackLoop?: boolean;
+  hidden?: string[];
+  appear?: string[];
+  /**
+   * Per-frame hold times in the original's 24 FPS units, one per frame of the
+   * matching list. Omitted lists fall back to 3, which is what every animation
+   * in this port used to use; almost nothing in the original actually does.
+   */
+  idleFrameTimes?: number[];
+  walkFrameTimes?: number[];
+  attackFrameTimes?: number[];
+  hiddenFrameTimes?: number[];
+  appearFrameTimes?: number[];
+  /** The skeleton's and snailbomb's idles do not loop in the original. */
+  idleLoop?: boolean;
   /**
    * Indices into `attack` whose frames carry the attack volume. The original
    * puts it on only the frames where the blow lands; omit for enemies that are
@@ -39,25 +55,51 @@ interface EnemyArt {
 
 /** Frame lists transcribed from Game.tsx's render switch. */
 const ENEMY_ART: Record<string, EnemyArt> = {
-  bat: { width: 64, height: 32, idle: ['bat01', 'bat02', 'bat03', 'bat04'] },
-  sting: { width: 64, height: 64, idle: ['sting01', 'sting02', 'sting03'] },
-  onion: { width: 64, height: 64, idle: ['onion01', 'onion02', 'onion03'] },
-  karaguin: { width: 32, height: 32, idle: ['karaguin01', 'karaguin02', 'karaguin03'] },
+  bat: {
+    width: 64, height: 32,
+    idle: ['bat01', 'bat02', 'bat03', 'bat04'],
+    idleFrameTimes: [1, 1, 1, 1],
+  },
+  sting: {
+    width: 64, height: 64,
+    idle: ['sting01', 'sting02', 'sting03'],
+    idleFrameTimes: [1, 1, 1],
+  },
+  onion: {
+    width: 64, height: 64,
+    // The original's idle is a single frame; only the walk cycles.
+    idle: ['onion01'],
+    idleFrameTimes: [3],
+    walk: ['onion01', 'onion02', 'onion03'],
+    walkFrameTimes: [1, 1, 1],
+  },
+  karaguin: {
+    width: 32, height: 32,
+    idle: ['karaguin01', 'karaguin02', 'karaguin03'],
+    idleFrameTimes: [1, 1, 1],
+  },
   brobot: {
     width: 64,
     height: 64,
-    idle: ['brobot_idle01', 'brobot_idle02', 'brobot_idle03'],
+    // The idle returns to idle02 rather than looping straight back.
+    idle: ['brobot_idle01', 'brobot_idle02', 'brobot_idle03', 'brobot_idle02'],
+    idleFrameTimes: [3, 1, 3, 3],
     walk: ['brobot_walk01', 'brobot_walk02', 'brobot_walk03'],
+    walkFrameTimes: [1, 1, 1],
   },
   skeleton: {
     width: 64,
     height: 64,
     idle: ['skeleton_stand'],
+    idleFrameTimes: [1],
+    idleLoop: false,
     walk: [
       'skeleton_walk01', 'skeleton_walk02', 'skeleton_walk03',
-      'skeleton_walk04', 'skeleton_walk05',
+      'skeleton_walk04', 'skeleton_walk05', 'skeleton_walk03',
     ],
+    walkFrameTimes: [3, 4, 3, 3, 4, 3],
     attack: ['skeleton_attack01', 'skeleton_attack03', 'skeleton_attack04'],
+    attackFrameTimes: [5, 1, 1],
     // Original: only the last two attack frames carry basicAttackVolume.
     attackContactFrames: [1, 2],
   },
@@ -65,48 +107,105 @@ const ENEMY_ART: Record<string, EnemyArt> = {
     width: 64,
     height: 64,
     idle: ['snailbomb_stand'],
-    walk: ['snailbomb_walk01', 'snailbomb_walk02'],
+    idleFrameTimes: [3],
+    idleLoop: false,
+    // The walk leans out and back rather than cycling one direction.
+    walk: [
+      'snailbomb_stand', 'snailbomb_walk01', 'snailbomb_walk02',
+      'snailbomb_walk01', 'snailbomb_stand',
+    ],
+    walkFrameTimes: [2, 2, 6, 2, 2],
     attack: ['snailbomb_shoot01', 'snailbomb_shoot02'],
+    attackFrameTimes: [3, 2],
   },
   mudman: {
     width: 128,
     height: 128,
-    idle: ['mudman_stand', 'mudman_idle01', 'mudman_idle02'],
+    // The original idles on a single held frame; the port had invented two more.
+    idle: ['mudman_stand'],
+    idleFrameTimes: [12],
     walk: [
       'mudman_walk01', 'mudman_walk02', 'mudman_walk03',
       'mudman_walk04', 'mudman_walk05', 'mudman_walk06',
     ],
+    walkFrameTimes: [4, 4, 5, 4, 4, 5],
+    // The wind-up starts from the standing frame, which the port was missing -
+    // without it attackContactFrames pointed one frame too late, so the blow
+    // landed on the recovery frame instead of the slam.
     attack: [
+      'mudman_stand',
       'mudman_attack01', 'mudman_attack02', 'mudman_attack03', 'mudman_attack04',
       'mudman_attack05', 'mudman_attack06', 'mudman_attack07',
     ],
-    // Original: crushAttackVolume rides the later attack frames only.
+    attackFrameTimes: [2, 2, 2, 2, 1, 1, 8, 5],
+    // Original: crushAttackVolume rides attack04, attack05 and attack06.
     attackContactFrames: [4, 5, 6],
   },
   pink_namazu: {
     width: 128,
     height: 128,
-    idle: ['pinknamazu_sleep01', 'pinknamazu_sleep02'],
-    walk: ['pinknamazu_eyeopen', 'pinknamazu_stand'],
+    // Asleep: breathing, with a long hold on each end.
+    idle: [
+      'pinknamazu_stand', 'pinknamazu_sleep01',
+      'pinknamazu_sleep02', 'pinknamazu_sleep01',
+    ],
+    idleFrameTimes: [8, 3, 8, 3],
+    // The original calls this "wake" - the eye-open blink before the slam.
+    walk: [
+      'pinknamazu_eyeopen', 'pinknamazu_stand',
+      'pinknamazu_eyeopen', 'pinknamazu_stand',
+    ],
+    walkFrameTimes: [3, 3, 3, 3],
     attack: ['pinknamazu_jump'],
+    attackFrameTimes: [2],
   },
   shadowslime: {
     width: 64,
     height: 64,
     idle: ['shadowslime_idle01', 'shadowslime_idle02'],
+    idleFrameTimes: [3, 3],
+    appear: [
+      'shadowslime_activate01', 'shadowslime_activate02', 'shadowslime_activate03',
+      'shadowslime_activate04', 'shadowslime_activate05', 'shadowslime_activate06',
+    ],
+    appearFrameTimes: [2, 2, 1, 1, 2, 1],
+    hidden: [
+      'shadowslime_activate06', 'shadowslime_activate05', 'shadowslime_activate04',
+      'shadowslime_activate03', 'shadowslime_activate02', 'shadowslime_activate01',
+    ],
+    hiddenFrameTimes: [1, 2, 1, 1, 2, 2],
+    attack: [
+      'shadowslime_attack01', 'shadowslime_attack02', 'shadowslime_attack03',
+      'shadowslime_attack04', 'shadowslime_flash', 'shadowslime_attack04',
+      'shadowslime_flash', 'shadowslime_attack03', 'shadowslime_attack02',
+      'shadowslime_attack01',
+    ],
+    attackFrameTimes: [2, 2, 2, 6, 1, 1, 1, 3, 3, 2],
   },
   turret: {
     width: 64,
     height: 64,
-    idle: ['object_gunturret01', 'object_gunturret_idle'],
-    attack: ['object_gunturret02', 'object_gunturret01', 'object_gunturret03'],
+    // The original idles on the closed barrel alone.
+    idle: ['object_gunturret_idle'],
+    idleFrameTimes: [1],
+    attack: [
+      'object_gunturret02', 'object_gunturret01',
+      'object_gunturret03', 'object_gunturret01',
+    ],
+    attackFrameTimes: [1, 1, 2, 1],
+    attackLoop: true,
   },
 };
 
 function makeFrames(
   names: string[],
   art: EnemyArt,
-  options: { attackVolumes?: unknown; vulnerabilityVolumes?: unknown; contactFrames?: number[] }
+  options: {
+    attackVolumes?: unknown;
+    vulnerabilityVolumes?: unknown;
+    contactFrames?: number[];
+    frameTimes?: number[];
+  }
 ): SpriteFrame[] {
   return names.map((sprite, index) => {
     const carriesAttack = options.contactFrames
@@ -118,7 +217,7 @@ function makeFrames(
       y: 0,
       width: art.width,
       height: art.height,
-      duration: FRAME * 3,
+      duration: FRAME * (options.frameTimes?.[index] ?? 3),
       sprite,
       // `null` clears the volumes on frames that should not have them, which is
       // what makes an enemy harmless between swings.
@@ -153,8 +252,9 @@ export function createEnemyAnimations(
     frames: makeFrames(art.idle, art, {
       attackVolumes: alwaysHostile ? attack : null,
       vulnerabilityVolumes: vulnerability,
+      frameTimes: art.idleFrameTimes,
     }),
-    loop: true,
+    loop: art.idleLoop ?? true,
   });
 
   if (art.walk) {
@@ -163,6 +263,7 @@ export function createEnemyAnimations(
       frames: makeFrames(art.walk, art, {
         attackVolumes: alwaysHostile ? attack : null,
         vulnerabilityVolumes: vulnerability,
+        frameTimes: art.walkFrameTimes,
       }),
       loop: true,
     });
@@ -175,8 +276,33 @@ export function createEnemyAnimations(
         attackVolumes: attack,
         vulnerabilityVolumes: vulnerability,
         contactFrames: art.attackContactFrames,
+        frameTimes: art.attackFrameTimes,
       }),
-      loop: !art.attackContactFrames,
+      loop: art.attackLoop ?? false,
+    });
+  }
+
+  if (art.hidden) {
+    animations.set(EnemyAnimation.HIDDEN, {
+      name: 'hidden',
+      frames: makeFrames(art.hidden, art, {
+        attackVolumes: alwaysHostile ? attack : null,
+        vulnerabilityVolumes: vulnerability,
+        frameTimes: art.hiddenFrameTimes,
+      }),
+      loop: false,
+    });
+  }
+
+  if (art.appear) {
+    animations.set(EnemyAnimation.APPEAR, {
+      name: 'appear',
+      frames: makeFrames(art.appear, art, {
+        attackVolumes: alwaysHostile ? attack : null,
+        vulnerabilityVolumes: vulnerability,
+        frameTimes: art.appearFrameTimes,
+      }),
+      loop: false,
     });
   }
 

@@ -102,6 +102,21 @@ describe('SpriteComponent per-frame data', () => {
     expect(collision.getVulnerabilityVolumes()).toBeNull();
   });
 
+  test('a one-shot animation finishes after the last frame duration, not on entry', () => {
+    sprite.addAnimation('attack', {
+      frames: [frame('attack01', 0.1), frame('attack02', 0.2)],
+      loop: false,
+    });
+    sprite.playAnimation('attack');
+
+    sprite.update(0.1, object);
+    expect(sprite.animationFinished()).toBe(false);
+    sprite.update(0.19, object);
+    expect(sprite.animationFinished()).toBe(false);
+    sprite.update(0.01, object);
+    expect(sprite.animationFinished()).toBe(true);
+  });
+
   test('volumes reach the collision component without explicit linking', () => {
     // Spawn sites should not each have to call setCollisionComponent().
     const bare = new GameObject();

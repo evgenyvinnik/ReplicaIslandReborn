@@ -24,6 +24,7 @@ export class SpriteComponent extends GameComponent {
   private animationsByIndex: AnimationDefinition[] = [];
   private currentAnimation: AnimationDefinition | null = null;
   private currentAnimationIndex: number = -1;
+  private animationComplete: boolean = false;
   private renderSystem: RenderSystem | null = null;
   private opacity: number = 1;
   private visible: boolean = true;
@@ -79,6 +80,7 @@ export class SpriteComponent extends GameComponent {
         // Stop animation
         this.currentAnimation = null;
         this.currentAnimationIndex = -1;
+        this.animationComplete = false;
         return;
       }
       animation = this.animationsByIndex[nameOrIndex];
@@ -87,6 +89,7 @@ export class SpriteComponent extends GameComponent {
         this.currentAnimationIndex = nameOrIndex;
         this.currentFrame = 0;
         this.frameTimer = 0;
+        this.animationComplete = false;
       }
     } else {
       // Play by name
@@ -96,6 +99,7 @@ export class SpriteComponent extends GameComponent {
         this.currentAnimationIndex = -1;
         this.currentFrame = 0;
         this.frameTimer = 0;
+        this.animationComplete = false;
       }
     }
   }
@@ -110,7 +114,7 @@ export class SpriteComponent extends GameComponent {
     if (this.currentAnimation.loop) {
       return false; // Looping animations never "finish"
     }
-    return this.currentFrame >= this.currentAnimation.frames.length - 1;
+    return this.animationComplete;
   }
 
   /**
@@ -244,6 +248,7 @@ export class SpriteComponent extends GameComponent {
           this.currentFrame = 0;
         } else {
           this.currentFrame = this.currentAnimation.frames.length - 1;
+          this.animationComplete = true;
         }
       }
     }
@@ -379,6 +384,7 @@ export class SpriteComponent extends GameComponent {
     this.frameTimer = 0;
     this.currentAnimation = null;
     this.currentAnimationIndex = -1;
+    this.animationComplete = false;
     this.opacity = 1;
     this.visible = true;
     this.flipX = false;

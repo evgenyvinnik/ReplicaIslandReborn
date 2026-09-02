@@ -1046,8 +1046,22 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Hit reaction
         { name: 'andou_hit', file: 'andou_hit' },
         // Death animation
-        { name: 'andou_die01', file: 'andou_die02' },
+        { name: 'andou_die01', file: 'andou_die01' },
         { name: 'andou_die02', file: 'andou_die02' },
+        // Andou blows up at the end of the death animation. All twelve frames
+        // ship with the game; nothing had ever loaded them.
+        { name: 'andou_explode01', file: 'andou_explode01' },
+        { name: 'andou_explode02', file: 'andou_explode02' },
+        { name: 'andou_explode03', file: 'andou_explode03' },
+        { name: 'andou_explode04', file: 'andou_explode04' },
+        { name: 'andou_explode05', file: 'andou_explode05' },
+        { name: 'andou_explode06', file: 'andou_explode06' },
+        { name: 'andou_explode07', file: 'andou_explode07' },
+        { name: 'andou_explode08', file: 'andou_explode08' },
+        { name: 'andou_explode09', file: 'andou_explode09' },
+        { name: 'andou_explode10', file: 'andou_explode10' },
+        { name: 'andou_explode11', file: 'andou_explode11' },
+        { name: 'andou_explode12', file: 'andou_explode12' },
         // Jet fire (shown when boosting with jetpack)
         { name: 'jetfire01', file: 'jetfire01' },
         { name: 'jetfire02', file: 'jetfire02' },
@@ -1060,7 +1074,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'spark02', file: 'spark02' },
         { name: 'spark03', file: 'spark03' },
         // Ghost (for possession mechanic)
+        // spawnPlayerGhost animates the energy ball. `ghost.png` ships with the
+        // original too, but nothing in its code ever references it.
         { name: 'ghost', file: 'ghost' },
+        { name: 'effect_energyball01', file: 'effect_energyball01', w: 64, h: 64 },
+        { name: 'effect_energyball02', file: 'effect_energyball02', w: 64, h: 64 },
+        { name: 'effect_energyball03', file: 'effect_energyball03', w: 64, h: 64 },
+        { name: 'effect_energyball04', file: 'effect_energyball04', w: 64, h: 64 },
       ];
 
       const loadPromises = sprites.map(sprite =>
@@ -1088,6 +1108,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'ruby05', file: 'object_ruby05', w: 32, h: 32 },
         // Diary
         { name: 'diary01', file: 'object_diary01', w: 32, h: 32 },
+        // The diary flickers through six frames in the original; the port had
+        // only ever loaded the first.
+        { name: 'diary02', file: 'object_diary02', w: 32, h: 32 },
+        { name: 'diary03', file: 'object_diary03', w: 32, h: 32 },
+        { name: 'diary04', file: 'object_diary04', w: 32, h: 32 },
+        { name: 'diary05', file: 'object_diary05', w: 32, h: 32 },
+        { name: 'diary06', file: 'object_diary06', w: 32, h: 32 },
         // Breakable block (destructible wall)
         { name: 'debris_block', file: 'object_debris_block', w: 32, h: 32 },
         { name: 'debris_piece', file: 'object_debris_piece', w: 16, h: 16 },
@@ -1201,6 +1228,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'shadowslime_stand', file: 'enemy_shadowslime_stand', w: 64, h: 64 },
         { name: 'shadowslime_idle01', file: 'enemy_shadowslime_idle01', w: 64, h: 64 },
         { name: 'shadowslime_idle02', file: 'enemy_shadowslime_idle02', w: 64, h: 64 },
+        { name: 'shadowslime_activate01', file: 'enemy_shadowslime_activate01', w: 64, h: 64 },
+        { name: 'shadowslime_activate02', file: 'enemy_shadowslime_activate02', w: 64, h: 64 },
+        { name: 'shadowslime_activate03', file: 'enemy_shadowslime_activate03', w: 64, h: 64 },
+        { name: 'shadowslime_activate04', file: 'enemy_shadowslime_activate04', w: 64, h: 64 },
+        { name: 'shadowslime_activate05', file: 'enemy_shadowslime_activate05', w: 64, h: 64 },
+        { name: 'shadowslime_activate06', file: 'enemy_shadowslime_activate06', w: 64, h: 64 },
         { name: 'shadowslime_attack01', file: 'enemy_shadowslime_attack01', w: 64, h: 64 },
         { name: 'shadowslime_attack02', file: 'enemy_shadowslime_attack02', w: 64, h: 64 },
         { name: 'shadowslime_attack03', file: 'enemy_shadowslime_attack03', w: 64, h: 64 },
@@ -1281,6 +1314,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'snail_bomb', file: 'snail_bomb', w: 32, h: 32 },
         // Turret/shot projectiles
         { name: 'shot01', file: 'object_shot01', w: 16, h: 16 },
+        // spawnTurretBullet uses its own art, not the generic shot sprites.
+        { name: 'effect_bullet01', file: 'effect_bullet01', w: 16, h: 16 },
+        { name: 'effect_bullet02', file: 'effect_bullet02', w: 16, h: 16 },
         { name: 'shot02', file: 'object_shot02', w: 16, h: 16 },
         // Rokudou boss enemy (128x128 actual size based on sprites)
         { name: 'rokudou_stand', file: 'enemy_rokudou_fight_stand', w: 128, h: 128 },

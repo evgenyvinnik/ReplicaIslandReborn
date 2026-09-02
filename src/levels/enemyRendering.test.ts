@@ -276,8 +276,14 @@ describe('enemies render from their components', () => {
     // Wind-up frame: no attack volume.
     expect(collision.getAttackVolumes()).toBeNull();
 
+    // The wind-up (attack01) holds for 5 frames at 24 FPS in the original, so
+    // the swing does not land until after that; advancing a generic 3 frames
+    // is still inside the wind-up.
     sprite.update(1 / 24 * 3 + 0.001, skeleton!);
-    // Contact frame: armed.
+    expect(collision.getAttackVolumes(), 'still winding up').toBeNull();
+
+    sprite.update(1 / 24 * 2 + 0.001, skeleton!);
+    // Contact frame (attack03): armed.
     expect(collision.getAttackVolumes()).not.toBeNull();
   });
 });

@@ -17,7 +17,7 @@ const CONTACT_ENEMIES = ['brobot', 'bat', 'sting', 'onion', 'karaguin', 'snailbo
 
 describe('enemy animations', () => {
   test('every enemy with art gets an idle animation', () => {
-    for (const subType of [...CONTACT_ENEMIES, 'skeleton', 'mudman', 'pink_namazu', 'turret']) {
+    for (const subType of [...CONTACT_ENEMIES, 'skeleton', 'mudman', 'pink_namazu', 'shadowslime', 'turret']) {
       const animations = createEnemyAnimations(subType);
       expect(animations?.get(EnemyAnimation.IDLE), subType).toBeDefined();
     }
@@ -63,7 +63,43 @@ describe('enemy animations', () => {
   test('a mudman lands its crush only on the later attack frames', () => {
     const attack = createEnemyAnimations('mudman')!.get(EnemyAnimation.ATTACK)!.frames;
     const armed = attack.map((f) => f.attackVolumes !== null);
-    expect(armed).toEqual([false, false, false, false, true, true, true]);
+    // Original: 8 frames - a standing wind-up, attack01-03 rising, the crush on
+    // attack04-06, then attack07 recovering. The recovery frame is harmless.
+    expect(attack.map((f) => f.sprite)).toEqual([
+      'mudman_stand',
+      'mudman_attack01', 'mudman_attack02', 'mudman_attack03', 'mudman_attack04',
+      'mudman_attack05', 'mudman_attack06', 'mudman_attack07',
+    ]);
+    expect(armed).toEqual([false, false, false, false, true, true, true, false]);
+  });
+
+  test('Shadow Slime has its full hide, appear, and firing sequences', () => {
+    const animations = createEnemyAnimations('shadowslime')!;
+    const hidden = animations.get(EnemyAnimation.HIDDEN)!;
+    const appear = animations.get(EnemyAnimation.APPEAR)!;
+    const attack = animations.get(EnemyAnimation.ATTACK)!;
+
+    expect(appear.frames.map((frame) => frame.sprite)).toEqual([
+      'shadowslime_activate01', 'shadowslime_activate02', 'shadowslime_activate03',
+      'shadowslime_activate04', 'shadowslime_activate05', 'shadowslime_activate06',
+    ]);
+    expect(hidden.frames.map((frame) => frame.sprite)).toEqual(
+      [...appear.frames].reverse().map((frame) => frame.sprite)
+    );
+    expect(attack.frames).toHaveLength(10);
+    expect(attack.loop).toBe(false);
+    expect(attack.frames.map((frame) => frame.duration * 24)).toEqual([2, 2, 2, 6, 1, 1, 1, 3, 3, 2]);
+    for (const animation of [hidden, appear, attack]) {
+      expect(animation.frames.every((frame) => frame.attackVolumes !== null)).toBe(true);
+      expect(animation.frames.every((frame) => frame.vulnerabilityVolumes !== null)).toBe(true);
+    }
+  });
+
+  test('enemy attacks finish unless the original explicitly loops them', () => {
+    for (const subType of ['snailbomb', 'skeleton', 'mudman', 'pink_namazu', 'shadowslime']) {
+      expect(createEnemyAnimations(subType)!.get(EnemyAnimation.ATTACK)!.loop, subType).toBe(false);
+    }
+    expect(createEnemyAnimations('turret')!.get(EnemyAnimation.ATTACK)!.loop).toBe(true);
   });
 
   test('crushers stay invulnerable on every frame', () => {

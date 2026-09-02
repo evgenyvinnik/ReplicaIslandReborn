@@ -89,7 +89,23 @@ catalogues:
 
 `SpriteFrame` carries what the original's `AnimationFrame` carries: its own
 sprite name (this port's art is individual files rather than sheets), draw size
-and offset, and **its collision volumes**. `SpriteComponent` hands those volumes
+and offset, **its hold time**, and **its collision volumes**.
+
+Hold times are per-frame and transcribed from the original's
+`Utils.framesToTime(24, n)` calls, because almost nothing in the game holds its
+frames evenly: a coin rests for 30 frames and then glints over four, Andou
+stands still for a full second, a mudman's slam holds for 8 frames while its
+wind-up runs at 2. Every catalogue carries them (`idleFrameTimes`,
+`walkFrameTimes`, `attackFrameTimes`, `durations`, `frameTimes` depending on the
+file); a list left out falls back to a flat 3 frames, which is what the whole
+port used to do and what made every animation feel wrong in the same way.
+
+The frame *lists* are transcribed too, and several are not the obvious cycle:
+the brobot's idle returns to `idle02` rather than looping from the start, the
+snailbomb's walk leans out and back, the terminals flicker through nine frames
+that revisit earlier ones, the ruby's cycle begins at `ruby02`, and the mudman's
+attack opens on its standing frame — leave that one out and `attackContactFrames`
+points a frame late, so the blow lands on the recovery instead of the slam. `SpriteComponent` hands those volumes
 to the object's `DynamicCollisionComponent` as the animation plays, which is
 `sprite.setCollisionComponent(collision)` in the original. A frame that declares
 no volumes leaves the current ones alone, so an animation only has to say where

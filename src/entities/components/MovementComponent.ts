@@ -82,10 +82,24 @@ export class MovementComponent extends GameComponent {
   }
 
   update(deltaTime: number, parent: GameObject): void {
+    // The original routes ordinary enemies through SimplePhysicsComponent
+    // before MovementComponent. SimplePhysics consumes scripted impulses (for
+    // example Pink Namazu's wake-up jump) and then Movement integrates the
+    // resulting velocity. This port folds background response into Movement,
+    // so it must also perform that missing SimplePhysics responsibility.
+    // PhysicsComponent-backed objects consume and clear the impulse in the
+    // earlier PHYSICS phase, making this safe for both component stacks.
+    const impulse = parent.getImpulse();
+    const velocity = parent.getVelocity();
+    velocity.x += impulse.x;
+    velocity.y += impulse.y;
+    impulse.zero();
+
+    // Match the original: locking suppresses position writes, but physics and
+    // impulses still update velocity while an animation owns the position.
     if (parent.positionLocked) return;
 
     const position = parent.getPosition();
-    const velocity = parent.getVelocity();
     const targetVelocity = parent.getTargetVelocity();
     const acceleration = parent.getAcceleration();
 

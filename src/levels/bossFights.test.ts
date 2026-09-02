@@ -27,6 +27,8 @@ import { gameFlowEvent, GameFlowEventType } from '../engine/GameFlowEvent';
 import { LevelSystem } from './LevelSystemNew';
 import { resourceToLevelId } from '../data/levelTree';
 import { NPCComponent } from '../entities/components/NPCComponent';
+import { NPCAnimation, NPCAnimationComponent } from '../entities/components/NPCAnimationComponent';
+import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { LaunchProjectileComponent } from '../entities/components/LaunchProjectileComponent';
@@ -196,6 +198,20 @@ describe('boss fight composition', () => {
       expect(boss.isMarkedForRemoval()).toBe(false);
     });
   }
+
+  test('Rokudou animation treats vertical travel as flight, not a jump', async () => {
+    const arena = await loadBossLevel();
+    const rokudou = findBoss(arena.manager, 'rokudou');
+    const animator = componentOf<NPCAnimationComponent>(rokudou, NPCAnimationComponent);
+    const sprite = componentOf<SpriteComponent>(rokudou, SpriteComponent);
+
+    rokudou.setGameTime(10);
+    rokudou.setCurrentAction(ActionType.MOVE);
+    rokudou.setVelocity(50, -100);
+    animator?.update(1 / 60, rokudou);
+
+    expect(sprite?.getCurrentAnimationIndex()).toBe(NPCAnimation.WALK);
+  });
 
   for (const [subType, label] of [['evil_kabocha', 'Evil Kabocha'], ['rokudou', 'Rokudou']] as const) {
     test(`${label} can actually move`, async () => {

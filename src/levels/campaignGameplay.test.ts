@@ -31,6 +31,7 @@ import { ChangeComponentsComponent } from '../entities/components/ChangeComponen
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { LauncherComponent } from '../entities/components/LauncherComponent';
+import { SolidSurfaceComponent } from '../entities/components/SolidSurfaceComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { NPCAnimation } from '../entities/components/NPCAnimationComponent';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
@@ -161,6 +162,7 @@ describe('campaign gameplay simulation', () => {
 
     for (const { resource, levelId } of levels) {
       const harness = createHarness();
+      expect(await harness.collision.loadCollisionData('/assets/collision.json'), resource).toBe(true);
       expect(await harness.levelSystem.loadLevel(levelId), resource).toBe(true);
       harness.manager.commitUpdates();
 
@@ -225,6 +227,40 @@ describe('campaign gameplay simulation', () => {
 
     expect(seen.size).toBeGreaterThan(5);
     expect(unwired).toEqual([]);
+  }, 60_000);
+
+  test('solid-bodied campaign enemies retain their original surface geometry', async () => {
+    const expectedSurfaceCounts: Readonly<Record<string, number>> = {
+      skeleton: 2,
+      mudman: 4,
+      pink_namazu: 5,
+    };
+    const seen = new Set<string>();
+
+    for (const group of linearLevelTree) {
+      for (const entry of group.levels) {
+        const harness = createHarness();
+        expect(
+          await harness.levelSystem.loadLevel(resourceToLevelId[entry.resource]),
+          entry.resource
+        ).toBe(true);
+        harness.manager.commitUpdates();
+
+        for (const object of harness.manager.getActiveObjects()) {
+          const expectedCount = expectedSurfaceCounts[object.subType];
+          if (expectedCount === undefined) continue;
+          seen.add(object.subType);
+          const surface = object.getComponent(
+            SolidSurfaceComponent as unknown as new (...args: unknown[]) => SolidSurfaceComponent
+          );
+          expect(surface, `${object.subType} in ${entry.resource}`).not.toBeNull();
+          expect(surface!.getSurfaces(), `${object.subType} in ${entry.resource}`)
+            .toHaveLength(expectedCount);
+        }
+      }
+    }
+
+    expect([...seen].sort()).toEqual(Object.keys(expectedSurfaceCounts).sort());
   }, 60_000);
 
   test('repeated attempts at a level quietly boost the player', async () => {
@@ -329,6 +365,38 @@ describe('campaign gameplay simulation', () => {
     // The NPC_GO_RIGHT hot spot on her landing tile should have her walking.
     expect(wanda.getPosition().x).toBeGreaterThan(startX + 100);
   });
+
+  test('both NPC-only opening scenes traverse their route and end the level', async () => {
+    for (const resource of ['level_0_1_sewer', 'level_0_1_sewer_wanda'] as const) {
+      const harness = createHarness();
+      expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+      expect(await harness.levelSystem.loadLevel(resourceToLevelId[resource]), resource).toBe(true);
+      harness.manager.commitUpdates();
+
+      const events: Array<{ event: GameFlowEventType; index: number }> = [];
+      harness.flow.addListener((event, index) => events.push({ event, index }));
+
+      // These scenes are authored as autonomous NPC routes. Sixty seconds is
+      // comfortably beyond their walk/wait/dialog sequence while still
+      // catching a character stuck at a missed hot spot.
+      harness.run(60 * 60);
+
+      const wanda = harness.manager.getActiveObjects().find(
+        (object) => object.subType === 'wanda'
+      );
+      const wandaState = wanda
+        ? `${wanda.getPosition().x.toFixed(1)},${wanda.getPosition().y.toFixed(1)} ` +
+          `action=${wanda.getCurrentAction()} velocity=${wanda.getVelocity().x.toFixed(1)},` +
+          `${wanda.getVelocity().y.toFixed(1)}`
+        : 'missing';
+
+      expect(
+        events.some(({ event }) => event === GameFlowEventType.GO_TO_NEXT_LEVEL),
+        `${resource} never reached its END_LEVEL hot spot; Wanda=${wandaState}; ` +
+          `events=${JSON.stringify(events)}`
+      ).toBe(true);
+    }
+  }, 60_000);
 
   test('touching Kabocha opens the conversation selected under Kabocha, once', async () => {
     const harness = createHarness();

@@ -122,7 +122,10 @@ export class EnemyAnimationComponent extends GameComponent {
       case AnimationState.ATTACKING:
         this.sprite.playAnimation(EnemyAnimation.ATTACK);
         
-        if (currentAction !== ActionType.ATTACK && this.sprite.animationFinished()) {
+        if (
+          currentAction !== ActionType.ATTACK &&
+          (this.sprite.animationFinished() || this.sprite.getCurrentAnimation()?.loop === true)
+        ) {
           this.state = AnimationState.IDLING;
         }
         break;

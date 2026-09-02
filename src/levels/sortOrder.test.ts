@@ -64,13 +64,14 @@ describe('draw order', () => {
     type: string;
     subType: string;
     priority: number | null;
+    sprite: string | null;
   }
 
-  function priorityOf(object: GameObject): number | null {
+  function drawOf(object: GameObject): { priority: number; sprite: string } | null {
     const sprite = object.getComponent(
       SpriteComponent as unknown as new (...a: unknown[]) => SpriteComponent
     );
-    return sprite?.getCurrentDraw()?.priority ?? null;
+    return sprite?.getCurrentDraw() ?? null;
   }
 
   /**
@@ -87,10 +88,12 @@ describe('draw order', () => {
         if (!(await levelSystem.loadLevel(resourceToLevelId[entry.resource]))) continue;
         manager.commitUpdates();
         for (const object of manager.getActiveObjects()) {
+          const draw = drawOf(object);
           seen.push({
             type: object.type,
             subType: object.subType,
-            priority: priorityOf(object),
+            priority: draw?.priority ?? null,
+            sprite: draw?.sprite ?? null,
           });
         }
         manager.reset();
@@ -152,6 +155,16 @@ describe('draw order', () => {
     expect(door, 'no level spawns a door').toBeDefined();
     // Original: spawnObjectDoor uses FOREGROUND_OBJECT.
     expect(door!.priority).toBe(SortConstants.FOREGROUND_OBJECT);
+  });
+
+  test('a terminal draws its own art, not the NPC that shares its name', async () => {
+    // The Kabocha terminals have subType 'kabocha', the same as the NPC. The
+    // sprite-attach path used to match on subType alone, so they inherited his
+    // animation and drew a man standing in the wall.
+    const objects = await collectSpawnedObjects();
+    const terminal = objects.find((o) => o.type === 'terminal' && o.sprite !== null);
+    expect(terminal, 'no level spawns a terminal').toBeDefined();
+    expect(terminal!.sprite).toMatch(/^object_terminal/);
   });
 
   test('collectibles draw as general objects', async () => {

@@ -225,8 +225,10 @@ export class NPCComponent extends GameComponent {
             if (parentObject.subType === 'wanda') {
               // console.log(`[NPCComponent] Wanda AFTER EXECUTE: targetVel=(${parentObject.getTargetVelocity().x}, ${parentObject.getTargetVelocity().y}) accel=(${parentObject.getAcceleration().x}, ${parentObject.getAcceleration().y})`);
             }
-          } else if (hotSpot === HotSpotType.ATTACK) {
-            // Handle attack hotspot - either pause+attack or immediate attack
+          } else if (hotSpot === HotSpotType.ATTACK && !this.pauseOnAttack) {
+            // Non-pausing attacks are immediate. Pausing attacks deliberately
+            // fall through to the command queue and wait for
+            // NPC_RUN_QUEUED_COMMANDS, preserving authored cutscene order.
             if (parentObject.subType === 'wanda') {
               // console.log(`[NPCComponent] Wanda: ATTACK hotspot detected, pauseOnAttack=${this.pauseOnAttack}`);
             }
@@ -307,8 +309,9 @@ export class NPCComponent extends GameComponent {
       if (hotSpot >= HotSpotType.NPC_GO_RIGHT && hotSpot <= HotSpotType.NPC_SLOW) {
         parentObject.setCurrentAction(ActionType.MOVE);
         accepted = this.executeCommand(hotSpot, parentObject, timeDelta);
-      } else if (hotSpot === HotSpotType.ATTACK) {
-        // Handle attack hotspot - either pause+attack or immediate attack
+      } else if (hotSpot === HotSpotType.ATTACK && !this.pauseOnAttack) {
+        // Match the main THINK pass: pausing attacks belong in the queue until
+        // an NPC_RUN_QUEUED_COMMANDS tile starts the scripted sequence.
         if (parentObject.subType === 'wanda') {
           // console.log(`[NPCComponent POST-PHYSICS] Wanda: ATTACK hotspot detected, pauseOnAttack=${this.pauseOnAttack}`);
         }
