@@ -11,6 +11,7 @@ import { ComponentPhase, HitType } from '../../types';
 import type { GameObject } from '../GameObject';
 import { HitReactionComponent } from './HitReactionComponent';
 import type { GameObjectManager } from '../GameObjectManager';
+import { sSystemRegistry } from '../../engine/SystemRegistry';
 import { Vector2 } from '../../utils/Vector2';
 
 /**
@@ -71,11 +72,14 @@ export class HitPlayerComponent extends GameComponent {
    * Update - check distance to player and trigger hits
    */
   update(_deltaTime: number, parent: GameObject): void {
-    if (!this.gameObjectManager || !this.hitReaction) {
+    // Fall back to the global registry so spawn sites do not each have to
+    // inject the manager; an explicit setGameObjectManager() still wins.
+    const manager = this.gameObjectManager ?? sSystemRegistry.gameObjectManager;
+    if (!manager || !this.hitReaction) {
       return;
     }
 
-    const player = this.gameObjectManager.getPlayer();
+    const player = manager.getPlayer();
     if (!player || player.life <= 0) {
       return;
     }

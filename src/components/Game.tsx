@@ -2246,22 +2246,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         gameObjectManager.forEach((obj) => {
           if (obj === player || !obj.isVisible()) return;
           
-          // Check if collectible
+          // Collectibles are picked up by the component pipeline: coins by
+          // HitPlayerComponent's radius test, rubies and diaries by Andou's
+          // COLLECT volume. Either way HitReactionComponent's dieOnCollect
+          // drops their life to zero, and this turns that into game state.
           if (obj.type === 'coin' || obj.type === 'ruby' || obj.type === 'pearl' || obj.type === 'diary') {
-            const objPos = obj.getPosition();
-            const objRect = {
-              x: objPos.x,
-              y: objPos.y,
-              width: obj.width,
-              height: obj.height,
-            };
-            
-            // Simple AABB collision
-            if (playerRect.x < objRect.x + objRect.width &&
-                playerRect.x + playerRect.width > objRect.x &&
-                playerRect.y < objRect.y + objRect.height &&
-                playerRect.y + playerRect.height > objRect.y) {
-              // Collected!
+            if (obj.life <= 0) {
               obj.setVisible(false);
               obj.markForRemoval();
               

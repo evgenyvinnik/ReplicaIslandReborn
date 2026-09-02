@@ -60,9 +60,8 @@ These are real, and are the honest backlog for "finishing" the port:
 | Gap | Impact | Notes |
 |-----|--------|-------|
 | No per-frame animation volumes | Medium | The original stores attack/vulnerability volumes on each `AnimationFrame`; this port's `SpriteComponent` does not. Both the player and the enemies work around it by selecting volume sets from state/action (`playerCollisionVolumes.ts`, `enemyCollisionProfiles.ts`). Faithful per-frame data would need `SpriteComponent` to carry volumes. |
-| Collectibles are still inline | Low | Coins, rubies, pearls and diaries are picked up by an AABB check in `Game.tsx` rather than through the player's COLLECT volume, even though the volume exists. The original uses `HitPlayerComponent` (a radius test, not the volume pipeline) plus `HitReactionComponent.setInventoryUpdate`; the port has the component but not the inventory hook. Behaviour is correct either way. |
 | Possession is resolved inline | Low | The ghost takes over a target with an AABB overlap in `Game.tsx` and swaps components by hand. The original dispatches `HitType.POSSESS` through the pipeline into `HitReactionComponent.setPossessionComponent` + `ChangeComponentsComponent`. The possessable set now matches the original either way. |
-| Orphaned components | Low–Medium | `HitPlayerComponent`, `SimplePhysicsComponent`, `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent`, `CrusherAndouComponent` are ported and exported but never attached to anything; their behavior is either reimplemented inline or absent. |
+| Orphaned components | Low | `SimplePhysicsComponent` (a duplicate of the wired `PhysicsComponent`), `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent` and `CrusherAndouComponent` are ported but attached to nothing. Their behaviour is either reimplemented inline (invincibility flashing, explosion sounds) or cosmetic (Kyle's motion trail); `CrusherAndouComponent`'s object type appears in no shipped level. |
 | Line-segment tile collision | Low | Grounding now resolves against the real segments from `collision.json` (`getGroundSurfaceY()`), so slopes are walked smoothly. `checkTileCollision()` itself still delegates to `checkTileCollisionSimple()` for wall/ceiling tests, so those remain tile-granular; `_checkTileCollisionWithSegments()` is still unused. |
 | Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
 | `Game.tsx` size | Medium (maintainability) | ~3550 lines. The inline enemy and NPC physics are gone (they now run on GravityComponent + MovementComponent), but the file still holds level orchestration, sprite loading, collectible pickup and the Canvas UI wiring. |
@@ -128,6 +127,16 @@ most enemy vulnerability volumes untyped (so a brobot can be both stomped and
 possessed) and types only the turret (`POSSESS`) and snailbomb (`HIT`). Andou's
 vulnerability volume is untyped too, which is what lets a cannon's `LAUNCH`
 volume reach him — typing it `HIT` silently makes cannons stop working.
+
+Collectibles use the original's two mechanisms rather than one AABB test.
+Coins carry a `HitPlayerComponent` — a plain 32px radius check, which is why
+`spawnCoin` leaves its dynamic-collision line commented out — while rubies and
+diaries carry a `COLLECT` vulnerability volume reached by Andou's always-present
+`COLLECT` attack volume. Both end at `HitReactionComponent`'s `dieOnCollect`,
+and `Game.tsx` turns the resulting death into inventory, score and the win
+check. The port does not implement the original's
+`HitReactionComponent.setInventoryUpdate` record; the consequences live in
+`Game.tsx` instead.
 
 Possession is decided the same way: `Game.tsx` looks for a `POSSESS`-capable
 vulnerability volume rather than a list of subType names, which is what lets the

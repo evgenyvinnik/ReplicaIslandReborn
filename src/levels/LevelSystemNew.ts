@@ -45,6 +45,7 @@ import { resetInventory } from '../entities/components/InventoryComponent';
 import { GameFlowEventType } from '../engine/GameFlowEvent';
 import { CutsceneType } from '../data/cutscenes';
 import { EnemyCollisionComponent } from '../entities/components/EnemyCollisionComponent';
+import { HitPlayerComponent } from '../entities/components/HitPlayerComponent';
 import { createEnemyCollisionProfile } from '../entities/enemyCollisionProfiles';
 
 /** Original: GameObjectFactory.sSurprisedNPCChannel. */
@@ -557,7 +558,10 @@ export class LevelSystem {
         objWidth = 32;
         objHeight = 32;
         obj.activationRadius = 100;
-        // console.log(`[LevelSystem] COIN created: type=${obj.type}, pos=(${spawn.x}, ${spawn.y}), visible=${obj.isVisible()}, active=${obj.isActive()}`);
+        obj.life = 1;
+        // The original picks coins up with HitPlayerComponent - a plain radius
+        // test rather than the volume pipeline, because coins are numerous.
+        this.attachCollectible(obj, { proximityRadius: 32, sound: 'ding' });
         break;
 
       case GameObjectTypeIndex.RUBY:
@@ -565,6 +569,10 @@ export class LevelSystem {
         objWidth = 32;
         objHeight = 32;
         obj.activationRadius = 100;
+        obj.life = 1;
+        // Rubies and diaries go through the volume pipeline in the original,
+        // against Andou's always-present COLLECT volume.
+        this.attachCollectible(obj, { volumeRadius: 16 });
         break;
 
       case GameObjectTypeIndex.DIARY:
@@ -572,6 +580,8 @@ export class LevelSystem {
         objWidth = 32;
         objHeight = 32;
         obj.activationRadius = 100;
+        obj.life = 1;
+        this.attachCollectible(obj, { volumeRadius: 16 });
         break;
 
       case GameObjectTypeIndex.BAT: {
@@ -2022,6 +2032,54 @@ export class LevelSystem {
       }
     }
     obj.addComponent(movement);
+  }
+
+  /**
+   * Make a collectible pick-up-able through the component pipeline.
+   *
+   * Game.tsx used to detect every pick-up with its own AABB overlap test. The
+   * original instead gives each collectible a HitReactionComponent with
+   * dieOnCollect, reached either by HitPlayerComponent (coins - a radius test)
+   * or by a COLLECT vulnerability volume (rubies, diaries). Game.tsx now only
+   * reacts to the resulting death.
+   */
+  private attachCollectible(
+    obj: GameObject,
+    options: { proximityRadius?: number; volumeRadius?: number; sound?: string }
+  ): void {
+    const hitReact = new HitReactionComponent({
+      dieOnCollect: true,
+      // Collectibles cannot be damaged, only collected.
+      forceInvincibility: true,
+      onHitSound: options.sound,
+    });
+    if (options.sound) {
+      hitReact.setSoundPlayer((sound) => {
+        sSystemRegistry.soundSystem?.playSfx(sound);
+      });
+    }
+    obj.addComponent(hitReact);
+
+    if (options.proximityRadius !== undefined) {
+      const hitPlayer = new HitPlayerComponent();
+      hitPlayer.setup({
+        distance: options.proximityRadius,
+        hitReaction: hitReact,
+        hitType: HitType.COLLECT,
+        // false: this object receives the hit from the player, it does not hit.
+        hitPlayer: false,
+      });
+      obj.addComponent(hitPlayer);
+      return;
+    }
+
+    const collision = new DynamicCollisionComponent();
+    collision.setCollisionVolumes(
+      null,
+      [new SphereCollisionVolume(options.volumeRadius ?? 16, 16, 16, HitType.COLLECT)]
+    );
+    collision.setHitReactionComponent(hitReact);
+    obj.addComponent(collision);
   }
 
   private convertToLevelData(parsed: ParsedLevel, info: LevelInfo): LevelData {
