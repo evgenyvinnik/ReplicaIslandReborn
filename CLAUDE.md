@@ -64,7 +64,7 @@ These are real, and are the honest backlog for "finishing" the port:
 | Orphaned components | Low | `SimplePhysicsComponent` (a duplicate of the wired `PhysicsComponent`), `FadeDrawableComponent`, `MotionBlurComponent`, `PlaySingleSoundComponent`, `FixedAnimationComponent` and `CrusherAndouComponent` are ported but attached to nothing. Their behaviour is either reimplemented inline (invincibility flashing, explosion sounds) or cosmetic (Kyle's motion trail); `CrusherAndouComponent`'s object type appears in no shipped level. |
 | Line-segment tile collision | Low | Grounding now resolves against the real segments from `collision.json` (`getGroundSurfaceY()`), so slopes are walked smoothly. `checkTileCollision()` itself still delegates to `checkTileCollisionSimple()` for wall/ceiling tests, so those remain tile-granular; `_checkTileCollisionWithSegments()` is still unused. |
 | Object pooling | Low | The original pools 384+ objects to avoid GC. The port allocates freely. Not a correctness problem in practice. |
-| `Game.tsx` size | Medium (maintainability) | ~3550 lines. The inline enemy and NPC physics are gone (they now run on GravityComponent + MovementComponent), but the file still holds level orchestration, sprite loading, collectible pickup and the Canvas UI wiring. |
+| `Game.tsx` size | Low–Medium (maintainability) | ~3530 lines, but no longer a parallel component system: the inline enemy/NPC physics, combat and collectible pickup are gone. What remains is orchestration — level transitions, sprite loading, Canvas UI wiring, and the consequences of pipeline events (lives, score, win, diary). |
 
 ### Movement
 
