@@ -24,6 +24,8 @@ interface ObjectArt {
    * drawn at -width/2, -height/2 so their art centres on the object's origin.
    */
   centred?: boolean;
+  /** Art centred within the object's own box, as the terminals are. */
+  centreOnObject?: boolean;
 }
 
 const OBJECT_ART: Record<string, ObjectArt> = {
@@ -54,6 +56,24 @@ const OBJECT_ART: Record<string, ObjectArt> = {
   spawner: { frames: ['object_brobot_machine'], width: 64, height: 64 },
 };
 
+/** Objects whose art depends on their subType, keyed `type:subType`. */
+const SUBTYPE_ART: Record<string, ObjectArt> = {
+  'decoration:andou_dead': { frames: ['andou_dead'], width: 64, height: 64 },
+  'decoration:kyle_dead': { frames: ['kyle_dead'], width: 64, height: 64 },
+  'terminal:kabocha': {
+    frames: ['object_terminal_kabocha01', 'object_terminal_kabocha02', 'object_terminal_kabocha03'],
+    width: 64,
+    height: 64,
+    centreOnObject: true,
+  },
+  'terminal:rokudou': {
+    frames: ['object_terminal01', 'object_terminal02', 'object_terminal03'],
+    width: 64,
+    height: 64,
+    centreOnObject: true,
+  },
+};
+
 /**
  * The looping animation for an object type, or null when it is drawn some other
  * way (the player, enemies, NPCs, doors, buttons, terminals and projectiles all
@@ -62,13 +82,21 @@ const OBJECT_ART: Record<string, ObjectArt> = {
 export function createObjectAnimation(
   type: string,
   objectWidth: number,
-  objectHeight: number
+  objectHeight: number,
+  subType?: string
 ): AnimationDefinition | null {
-  const art = OBJECT_ART[type];
+  const art = (subType ? SUBTYPE_ART[`${type}:${subType}`] : undefined) ?? OBJECT_ART[type];
   if (!art) return null;
 
-  const offsetX = art.centred ? -objectWidth / 2 : 0;
-  const offsetY = art.centred ? -objectHeight / 2 : 0;
+  let offsetX = 0;
+  let offsetY = 0;
+  if (art.centred) {
+    offsetX = -objectWidth / 2;
+    offsetY = -objectHeight / 2;
+  } else if (art.centreOnObject) {
+    offsetX = (objectWidth - art.width) / 2;
+    offsetY = (objectHeight - art.height) / 2;
+  }
 
   const frames: SpriteFrame[] = art.frames.map((sprite) => ({
     x: 0,

@@ -34,9 +34,6 @@ import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory
 import { GameObject } from '../entities/GameObject';
 import { resetPlayerRuntimeState } from '../entities/resetPlayerRuntimeState';
 import { applyPlayerAttack } from '../entities/applyPlayerAttack';
-import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
-import { ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
-import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { EnemyAnimationComponent } from '../entities/components/EnemyAnimationComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
@@ -2922,89 +2919,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               spriteOffset.y = (obj.height - npcSpriteHeight) / 2;
               break;
             }
-            case 'door': {
-              // Doors use their subtype (red, blue, green) to determine sprite
-              // DoorAnimationComponent handles animation state
-              const doorColor = (obj.subType || 'red').replace('_nonblocking', '');
-              // Use type assertion since getComponent uses strict constructor signature
-              const doorAnim = obj.getComponent(DoorAnimationComponent as unknown as new (...args: unknown[]) => DoorAnimationComponent);
-              if (doorAnim) {
-                const doorState = doorAnim.getCurrentState();
-                // Map door state to sprite: 0=closed, 1=open, 2=closing, 3=opening
-                switch (doorState) {
-                  case DoorAnimation.CLOSED:
-                    spriteName = `object_door_${doorColor}01`;
-                    break;
-                  case DoorAnimation.OPEN:
-                    spriteName = `object_door_${doorColor}04`;
-                    break;
-                  case DoorAnimation.OPENING:
-                  case DoorAnimation.CLOSING: {
-                    // Use middle frames based on animation time
-                    const animTime = doorAnim.getCurrentAnimationTime();
-                    spriteName = animTime < 0.083 ? `object_door_${doorColor}02` : `object_door_${doorColor}03`;
-                    break;
-                  }
-                  default:
-                    spriteName = `object_door_${doorColor}01`;
-                }
-              } else {
-                spriteName = `object_door_${doorColor}01`;
-              }
-              // Doors are 32x64
-              spriteOffset.x = 0;
-              spriteOffset.y = 0;
-              break;
-            }
-            case 'button': {
-              // Buttons use their subtype (red, blue, green) to determine sprite
-              // Get SpriteComponent directly since ButtonAnimationComponent delegates to it
-              const buttonColor = obj.subType || 'red';
-              // Use type assertion since getComponent uses strict constructor signature
-              const buttonSprite = obj.getComponent(SpriteComponent as unknown as new (...args: unknown[]) => SpriteComponent);
-              if (buttonSprite) {
-                const animIndex = buttonSprite.getCurrentAnimationIndex();
-                spriteName = animIndex === ButtonAnimation.DOWN
-                  ? `object_button_pressed_${buttonColor}`
-                  : `object_button_${buttonColor}`;
-              } else {
-                spriteName = `object_button_${buttonColor}`;
-              }
-              // Buttons are 32x32 sprites but visually only 16px tall
-              spriteOffset.x = 0;
-              spriteOffset.y = 16; // Offset to bottom of collision box
-              break;
-            }
-            case 'decoration': {
-              // Decoration objects (dead robots, etc.)
-              const decorationType = obj.subType || 'andou_dead';
-              if (decorationType === 'andou_dead') {
-                spriteName = 'andou_dead';
-              } else if (decorationType === 'kyle_dead') {
-                spriteName = 'kyle_dead';
-              }
-              spriteOffset.x = 0;
-              spriteOffset.y = 0;
-              break;
-            }
-            case 'terminal': {
-              // Terminal objects - static displays showing Kabocha or Rokudou
-              const terminalType = obj.subType || 'kabocha';
-              if (terminalType === 'kabocha') {
-                spriteFrames = ['object_terminal_kabocha01', 'object_terminal_kabocha02', 'object_terminal_kabocha03'];
-              } else {
-                // Rokudou terminal
-                spriteFrames = ['object_terminal01', 'object_terminal02', 'object_terminal03'];
-              }
-              obj.animFrame = obj.animFrame % spriteFrames.length;
-              spriteName = spriteFrames[obj.animFrame];
-              // Terminals are 64x64, center on object
-              spriteOffset.x = (obj.width - 64) / 2;
-              spriteOffset.y = (obj.height - 64) / 2;
-              break;
-            }
-            // hint_sign, cannon and spawner draw themselves through
-            // SpriteComponent; see data/objectAnimations.ts.
+            // door and button draw themselves: their frames name their own
+            // sprites, and DoorAnimationComponent / ButtonAnimationComponent
+            // pick which animation plays.
             case 'projectile': {
               // Projectiles (energy balls, Wanda shots, cannon balls, turret bullets)
               // Use faster animation for projectiles (80ms per frame instead of 150ms)

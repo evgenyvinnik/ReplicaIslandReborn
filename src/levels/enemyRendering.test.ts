@@ -187,6 +187,37 @@ describe('enemies render from their components', () => {
     }
   });
 
+  test('doors and buttons draw the sprite their state selects', async () => {
+    // Their animation components already chose the animation; naming the sprite
+    // on each frame is what lets SpriteComponent draw it.
+    for (const type of ['door', 'button']) {
+      manager.reset();
+      let object: GameObject | null = null;
+      for (const group of linearLevelTree) {
+        for (const entry of group.levels) {
+          const levelSystem = new LevelSystem();
+          levelSystem.setSystems(new CollisionSystem(), manager, new HotSpotSystem());
+          if (!(await levelSystem.loadLevel(resourceToLevelId[entry.resource]))) continue;
+          manager.commitUpdates();
+          object = manager.getActiveObjects().find((o) => o.type === type) ?? null;
+          if (object) break;
+          manager.reset();
+        }
+        if (object) break;
+      }
+
+      expect(object, `no level spawns a ${type}`).not.toBeNull();
+      const sprite = componentOf<SpriteComponent>(object!, SpriteComponent)!;
+
+      calls.length = 0;
+      sprite.update(1 / 60, object!);
+      expect(calls.length, type).toBe(1);
+      expect(calls[0].sprite, type).toMatch(
+        type === 'door' ? /^object_door_(red|blue|green)0\d$/ : /^object_button_/
+      );
+    }
+  });
+
   test('the frame volumes reach the collision component as it plays', async () => {
     // The payoff of moving rendering onto components: a skeleton's attack volume
     // arrives on the frames where the swing lands, not from an action lookup.

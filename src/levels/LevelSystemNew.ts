@@ -3,7 +3,7 @@
  * Ported from: Original/src/com/replica/replicaisland/LevelSystem.java
  */
 
-import type { LevelData, LevelLayer, LevelObject, AnimationDefinition } from '../types';
+import type { LevelData, LevelLayer, LevelObject, AnimationDefinition, SpriteFrame } from '../types';
 import { HitType, Team, ActionType } from '../types';
 import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { GameObjectManager } from '../entities/GameObjectManager';
@@ -948,30 +948,29 @@ export class LevelSystem {
         
         // Door animations - using frame index for sprite selection
         // Sprites are: 01=closed, 02=middle1, 03=middle2, 04=open
+        // Sprites: 01 closed, 02/03 mid-swing, 04 open. Naming the image on
+        // each frame is what lets SpriteComponent draw the door itself.
+        const doorArt = (n: string): string => `object_door_${doorColor}${n}`;
+        const doorFrame = (n: string, duration: number): SpriteFrame =>
+          ({ x: 0, y: 0, width: 32, height: 64, duration, sprite: doorArt(n) });
         const closedAnim: AnimationDefinition = {
           name: 'closed',
-          frames: [{ x: 0, y: 0, width: 32, height: 64, duration: 1.0 }],
+          frames: [doorFrame('01', 1.0)],
           loop: false
         };
         const openAnim: AnimationDefinition = {
           name: 'open',
-          frames: [{ x: 0, y: 0, width: 32, height: 64, duration: 1.0 }],
+          frames: [doorFrame('04', 1.0)],
           loop: false
         };
         const openingAnim: AnimationDefinition = {
           name: 'opening',
-          frames: [
-            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 },
-            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 }
-          ],
+          frames: [doorFrame('02', 0.083), doorFrame('03', 0.083)],
           loop: false
         };
         const closingAnim: AnimationDefinition = {
           name: 'closing',
-          frames: [
-            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 },
-            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 }
-          ],
+          frames: [doorFrame('03', 0.083), doorFrame('02', 0.083)],
           loop: false
         };
         
@@ -1051,12 +1050,18 @@ export class LevelSystem {
         // Button animations: up and down states
         const upAnim: AnimationDefinition = {
           name: 'up',
-          frames: [{ x: 0, y: 0, width: 32, height: 32, duration: 1.0 }],
+          frames: [{
+            x: 0, y: 0, width: 32, height: 32, duration: 1.0,
+            sprite: `object_button_${buttonColor}`,
+          }],
           loop: false
         };
         const downAnim: AnimationDefinition = {
           name: 'down',
-          frames: [{ x: 0, y: 0, width: 32, height: 32, duration: 1.0 }],
+          frames: [{
+            x: 0, y: 0, width: 32, height: 32, duration: 1.0,
+            sprite: `object_button_pressed_${buttonColor}`,
+          }],
           loop: false
         };
         
@@ -2186,16 +2191,21 @@ export class LevelSystem {
    * just the frames and something to play them.
    */
   private attachObjectSprite(obj: GameObject): void {
-    const animation = createObjectAnimation(obj.type, obj.width, obj.height);
-    if (!animation) return;
-
     const existing = obj.getComponent(SpriteComponent);
-    // Something already built this object's sprite by hand.
-    if (existing?.getCurrentAnimation()) return;
+    const renderSystem = sSystemRegistry.renderSystem;
+
+    // Objects that built their own animations (doors, buttons) still need the
+    // render system, or SpriteComponent tracks their state without drawing.
+    if (existing?.getCurrentAnimation()) {
+      if (renderSystem) existing.setRenderSystem(renderSystem);
+      return;
+    }
+
+    const animation = createObjectAnimation(obj.type, obj.width, obj.height, obj.subType);
+    if (!animation) return;
 
     const sprite = existing ?? new SpriteComponent();
     if (!existing) obj.addComponent(sprite);
-    const renderSystem = sSystemRegistry.renderSystem;
     if (renderSystem) sprite.setRenderSystem(renderSystem);
     sprite.addAnimation(animation.name ?? obj.type, animation);
     sprite.playAnimation(animation.name ?? obj.type);
