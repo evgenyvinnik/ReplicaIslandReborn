@@ -346,6 +346,12 @@ by tests so they cannot drift back:
 | Area | State |
 |------|-------|
 | Player constants | All 21 match. `STOMP_VELOCITY` differs only in sign (Y-up → Y-down). `playerConstants.test.ts` |
+| Player physics | Gravity is `GravityComponent`'s 400, not a tuned 500; friction is `PhysicsComponent`'s Coulomb model (mass 9.1, 0.2 dynamic / 0.01 static), not a per-frame multiplier. Jump apex and stopping distance are measured in a real level and checked against closed forms derived from the original's constants. `playerPhysics.test.ts`, `campaignGameplay.test.ts` |
+| Jetpack speed cap | The thrust is dropped at the cap rather than the speed clamped, so a cannon launch is not braked. `jetpackCap.test.ts` |
+| Out-of-world death | The original's `position.y < -height` converted to `position.y > levelHeight`; both forms swept and required to agree. `fallOutOfWorld.test.ts` |
+| Patrol attack range | Measured feet-to-feet as the original measures it, so an enemy's height does not shrink its reach. `patrolAttack.test.ts` |
+| Death tiles | The four walkers the original marks vulnerable die on DIE tiles, sampled at the feet. `deathTiles.test.ts` |
+| Projectile muzzles | `setOffsetY` applied from the object's bottom. `launcherParameters.test.ts` |
 | Difficulty constants | All 33 across Baby/Kids/Adults match. The extra `enemyDamage`/`coinValue`/`playerHitPoints` fields are dead config, referenced nowhere |
 | Activation radii | Derived from the screen size as `GameObjectFactory` does; every spawn site mapped. `activationRadius.test.ts` |
 | Camera | Follow distances, sinusoidal Y-only shake, pixel snap, bias gating, target hand-off. `cameraFollow.test.ts` |
@@ -359,7 +365,7 @@ by tests so they cannot drift back:
 | Level binary format | Little-endian; all 36 `.bin` files parse and agree with the shipped JSON. `binaryFormat.test.ts` |
 | RenderSystem | Queue sorted by priority, camera transform pixel-snapped. The original's double buffering is a threading artifact this port does not need |
 
-Two traps this audit kept hitting, worth knowing before adding to it:
+Traps this audit kept hitting, worth knowing before adding to it:
 
 - **A value assigned twice.** The original sets `delayBeforeFirstSet` twice on
   both the snailbomb and the shadow slime, and the second call wins. Reading the
@@ -367,6 +373,35 @@ Two traps this audit kept hitting, worth knowing before adding to it:
 - **Y-up to Y-down.** Anything vertical flips sign, and anything measured from an
   object's origin changes end: the original's origin is the object's bottom, so
   `position.y + 10` is *above the feet* and becomes `y + height - 10` here.
+
+  This is the single most productive bug class in the port, and it is dangerous
+  precisely because the transcribed line *looks* right - the code compiles, the
+  object still moves and animates, and only the number is wrong. Every one of
+  these was found by asking what the value physically means rather than by
+  reading the line:
+
+  | Where | The unconverted read | What it did |
+  |-------|----------------------|-------------|
+  | `PatrolComponent.updateAttack()` | distance measured between two *tops* | added `enemyHeight - playerHeight` to every vertical delta. A 128px mudman against a 48px player picked up 80px against a 70px reach, so `dx² + 6400 < 4900` never held and **the mudman could never attack at all** |
+  | `LaunchProjectileComponent.launch()` | `position.y + offsetY` | every muzzle off by `height - 2*offsetY`; Wanda fired from above her own head |
+  | `GhostComponent` / player | `position.y < -height` | means "below the world" only in Y-up. Here it fires when something flies *high*, never when it falls - a pit with no DIE tiles was a soft-lock, not a death |
+  | `GhostComponent` jump gate | `velocity.y <= 0` | the original means "not already moving upward", which is `>= 0` here |
+  | `LifetimeComponent` off-screen cull | focus treated as top-left | the original's `getFocusPosition*` is the view's **centre**; this port's is the viewport's top-left, so the cull region was asymmetric |
+  | `PlayerComponent` jetpack cap | `clamp(velocity)` | the original drops the *thrust* and only ever raises velocity *to* the cap, so a cannon launch keeps its speed instead of being braked to 250 |
+
+  Note the last two: not every one is a sign flip. `getFocusPosition*` and
+  `position.y` mean different *points* in the two engines, and the original's
+  cap is a rule about the impulse rather than about the speed.
+
+- **Hand-tuned values hiding among transcribed ones.** `PlayerComponent`'s 21
+  constants were transcribed exactly - and `GRAVITY` was 500 where the
+  original's `GravityComponent.sDefaultGravity` is 400, and friction was
+  `velocity.x *= 0.85` per frame where the original runs Coulomb friction off
+  `PhysicsComponent`'s mass 9.1 and 0.2/0.01 coefficients. Both are felt in
+  every second of play (a jump apex of 62px instead of 78, a stop in 56px
+  instead of 172) and neither looked out of place next to correct neighbours.
+  When auditing a file, check the values that are *not* in the original's
+  constant list as carefully as the ones that are.
 
 ### How to verify gameplay changes
 
@@ -509,8 +544,17 @@ grep -rl "ComponentName" src --include="*.ts" --include="*.tsx"
 
 `SimplePhysicsComponent` (bounce/inertia, 16 spawn sites in the original) was
 never ported. Objects that would use it — debris, gems, bouncing projectiles —
-get their motion from `PhysicsComponent`/`MovementComponent` or from
-`EffectsSystem` particles.
+get their motion from `MovementComponent` or from `EffectsSystem` particles.
+
+`PhysicsComponent` is a special case worth knowing about. The original attaches
+it to **exactly one object, the player** (`spawnPlayer`: mass 9.1, dynamic
+friction 0.2, static 0.01), where its job is to sum impulses and apply Coulomb
+friction. This port has a `PhysicsComponent` file, but nothing constructs it —
+it only sits in an object pool — and `PlayerComponent` does that work inline.
+The friction constants above therefore live on `PlayerComponent`
+(`MASS`, `DYNAMIC_FRICTION_COEFFICIENT`, `STATIC_FRICTION_COEFFICIENT`). The
+file's own multiplicative-friction implementation is unused; do not wire it to
+anything expecting the original's behaviour.
 
 Recently wired, and worth knowing where they went:
 
@@ -805,10 +849,27 @@ EVENT_SEND_DELAY = 5.0f;
 
 ### CollisionSystemNew vs Original (line-segment port status)
 - **Original (Java)** `Original/src/com/replica/replicaisland/CollisionSystem.java`: Bresenham ray stepping over tiled line-segment data, `testBox()` collects multiple `HitPoint`s per tile, `update()` swaps/clears temporary surfaces each frame, `loadCollisionTiles()` reads signature-52 binary.
-- **Web port attempt** `src/engine/CollisionSystemNew.ts` + `public/assets/collision.json`: segment data loads in `Game.tsx` before levels, but `checkTileCollision()` is hard-wired to `checkTileCollisionSimple()` so collision.json normals are ignored; `_checkTileCollisionWithSegments()` is marked TODO and never invoked, so slopes still behave as full AABB tiles.
-- **Integration gaps**: temporary surfaces submitted via `SolidSurfaceComponent.addTemporarySurface()` never activate because `updateTemporarySurfaces()` is not called by the game loop (Java’s `update()` handled this automatically), and `raycast()` depends on `collisionDataLoaded`, forcing `BackgroundCollisionComponent` to fall back to coarse tile sampling.
-- **Data/origin differences**: level collision tiles are flattened row-major with y=0 at the top in `src/levels/LevelSystemNew.ts`, unlike Java’s column-major with flipped Y; `reset()` in `CollisionSystemNew` leaves `collisionTileDefinitions`/`collisionDataLoaded` intact, so stale segment defs can leak across levels.
-- **Resulting symptom**: the new line-segment path is effectively disabled—slopes are treated as solid blocks, `checkSlopeClimb()` rarely succeeds, and moving-platform/door surfaces never register—matching the “new implementation not working” report.
+- **Web port** `src/engine/CollisionSystemNew.ts` + `public/assets/collision.json`:
+  segment data loads in `Game.tsx` before levels, but `checkTileCollision()`
+  runs `checkTileCollisionSimple()`, so collision.json's per-tile normals are
+  unused and `_checkTileCollisionWithSegments()` is never invoked. Slopes are
+  *not* full AABB tiles despite that - `getGroundSurfaceY()` and
+  `SLOPE_STEP_UP` handle them separately.
+- **Temporary surfaces do work.** An earlier revision of this file claimed
+  `updateTemporarySurfaces()` was never called and that moving-platform and
+  door surfaces therefore never registered. It is called, from `Game.tsx`
+  (search for it), and `SolidSurfaceComponent` submits correctly-flipped
+  start/end/normal triples the way the original does. Do not "fix" this again
+  on the strength of the old note.
+- **Data/origin differences**: level collision tiles are flattened row-major
+  with y=0 at the top in `src/levels/LevelSystemNew.ts`, unlike Java's
+  column-major with flipped Y. `reset()` deliberately leaves
+  `collisionTileDefinitions`/`collisionDataLoaded` alone: `collision.json` is a
+  single global file loaded once, not per-level data, so keeping it across
+  levels is correct rather than a leak.
+- **What is genuinely still missing**: the swept `testBox()` path. Slopes are
+  handled by `getGroundSurfaceY()`/`SLOPE_STEP_UP` (see "Known remaining
+  differences"), but fast-moving objects can still clip tile corners.
 
 ---
 
