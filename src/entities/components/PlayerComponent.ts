@@ -78,6 +78,11 @@ export class PlayerComponent extends GameComponent {
   public static readonly AIR_HORIZONTAL_IMPULSE_SPEED = 4000;
   public static readonly AIR_VERTICAL_IMPULSE_SPEED = 1200;
   public static readonly AIR_VERTICAL_IMPULSE_FROM_GROUND = 250;
+  /**
+   * A vertical impulse above this counts as leaving the ground on the same
+   * frame it is applied. Original: PlayerComponent.VERTICAL_IMPULSE_TOLERANCE.
+   */
+  public static readonly VERTICAL_IMPULSE_TOLERANCE = 50;
   public static readonly MAX_GROUND_HORIZONTAL_SPEED = 500;
   public static readonly MAX_AIR_HORIZONTAL_SPEED = 150;
   public static readonly MAX_UPWARD_SPEED = 250;
@@ -270,7 +275,43 @@ export class PlayerComponent extends GameComponent {
     if (input.left) moveX -= 1;
     if (input.right) moveX += 1;
 
-    const inTheAir = !this.touchingGround;
+    // Jump/Fly. This runs before the horizontal speed is chosen because the
+    // original decides "in the air" partly from the vertical impulse it just
+    // applied - see VERTICAL_IMPULSE_TOLERANCE below.
+    let verticalImpulse = 0;
+    if (acceptsPlayerInput && input.jump) {
+      if (jumpTriggered && this.touchingGround && !this.rocketsOn) {
+        // Initial jump from ground
+        velocity.y = -PlayerComponent.AIR_VERTICAL_IMPULSE_FROM_GROUND;
+        verticalImpulse = PlayerComponent.AIR_VERTICAL_IMPULSE_FROM_GROUND;
+        this.jumpTime = gameTime;
+        this.soundSystem.playSfx(SoundEffects.POING, 0.5);
+      } else if (gameTime > this.jumpTime + PlayerComponent.JUMP_TO_JETS_DELAY) {
+        // Jet pack
+        if (this.fuel > 0) {
+          this.fuel -= deltaTime;
+          velocity.y += -PlayerComponent.AIR_VERTICAL_IMPULSE_SPEED * deltaTime;
+          verticalImpulse = PlayerComponent.AIR_VERTICAL_IMPULSE_SPEED * deltaTime;
+          this.rocketsOn = true;
+          
+          // Cap upward speed
+          if (velocity.y < -PlayerComponent.MAX_UPWARD_SPEED) {
+            velocity.y = -PlayerComponent.MAX_UPWARD_SPEED;
+          }
+        }
+      }
+    } else {
+      this.rocketsOn = false;
+    }
+
+    // The frame you leave the ground already counts as airborne, so the jump
+    // starts under air control (max 150) rather than getting one more frame of
+    // ground control (max 500). A jump impulse is 250, well over the tolerance;
+    // a single frame of jet thrust is ~20, well under it - which is why the
+    // original compares against a threshold rather than just "impulse != 0".
+    // Original: PlayerComponent.VERTICAL_IMPULSE_TOLERANCE.
+    const inTheAir = !this.touchingGround
+      || verticalImpulse > PlayerComponent.VERTICAL_IMPULSE_TOLERANCE;
     const horizontalSpeed = inTheAir ? PlayerComponent.AIR_HORIZONTAL_IMPULSE_SPEED : PlayerComponent.GROUND_IMPULSE_SPEED;
     const maxHorizontalSpeed = inTheAir ? PlayerComponent.MAX_AIR_HORIZONTAL_SPEED : PlayerComponent.MAX_GROUND_HORIZONTAL_SPEED;
 
@@ -296,30 +337,6 @@ export class PlayerComponent extends GameComponent {
       if (Math.abs(velocity.x) < maxHorizontalSpeed) {
         velocity.x = maxHorizontalSpeed * Math.sign(velocity.x);
       }
-    }
-
-    // Jump/Fly
-    if (acceptsPlayerInput && input.jump) {
-      if (jumpTriggered && this.touchingGround && !this.rocketsOn) {
-        // Initial jump from ground
-        velocity.y = -PlayerComponent.AIR_VERTICAL_IMPULSE_FROM_GROUND;
-        this.jumpTime = gameTime;
-        this.soundSystem.playSfx(SoundEffects.POING, 0.5);
-      } else if (gameTime > this.jumpTime + PlayerComponent.JUMP_TO_JETS_DELAY) {
-        // Jet pack
-        if (this.fuel > 0) {
-          this.fuel -= deltaTime;
-          velocity.y += -PlayerComponent.AIR_VERTICAL_IMPULSE_SPEED * deltaTime;
-          this.rocketsOn = true;
-          
-          // Cap upward speed
-          if (velocity.y < -PlayerComponent.MAX_UPWARD_SPEED) {
-            velocity.y = -PlayerComponent.MAX_UPWARD_SPEED;
-          }
-        }
-      }
-    } else {
-      this.rocketsOn = false;
     }
 
     // Stomp attack
