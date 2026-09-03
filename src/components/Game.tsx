@@ -2010,7 +2010,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Check hot spots
       if (player && hotSpotSystem) {
         const px = player.getPosition().x + player.width / 2;
-        const py = player.getPosition().y + player.height / 2;
+        // Hot spots are sampled 10 pixels above the feet, matching the
+        // original's `position.y + 10` (its origin is the object's bottom).
+        // Sampling the centre instead reads the tile above the one the player
+        // is standing in whenever the box straddles a tile boundary, so death
+        // zones and END_LEVEL triggers fire late or not at all.
+        const py = player.getPosition().y + player.height - 10;
         const hotSpot = hotSpotSystem.getHotSpot(px, py);
         const playerComponent = player.getComponent(PlayerComponent);
         if (!playerComponent) return; // Should always exist for player object
@@ -2027,7 +2032,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           soundSystem.playSfx(SoundEffects.EXPLODE);
           
           // Spawn explosion effect at player position
-          effectsSystem.spawnExplosion(px, py, 'large');
+          // The blast belongs at his middle, not at the sample point above
+          // his feet that the hot spot lookup uses.
+          effectsSystem.spawnExplosion(
+            px,
+            player.getPosition().y + player.height / 2,
+            'large'
+          );
           
           // Screen shake for death
           cameraSystem.shake(15, 0.5);

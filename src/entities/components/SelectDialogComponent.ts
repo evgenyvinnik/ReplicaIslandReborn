@@ -94,10 +94,15 @@ export class SelectDialogComponent extends GameComponent {
       this.lastPosition.x = currentPosition.x;
       this.lastPosition.y = currentPosition.y;
 
-      // Check hotspot at NPC's feet (offset 10 pixels up from ground)
+      // Check the hot spot 10 pixels above the NPC's feet.
+      //
+      // The original writes this as `position.y + 10`, but its origin is the
+      // object's *bottom* (Y-up). Transcribed literally into this port's Y-down
+      // space that samples 10px below the head instead - for a 128px-tall NPC
+      // that is nearly four tiles away from the tile it is standing on.
       const hitSpot = hotSpotSystem.getHotSpot(
         parent.getCenteredPositionX(),
-        currentPosition.y + 10
+        currentPosition.y + parent.height - 10
       );
 
       // Map hotspot to dialog event and index
