@@ -18,7 +18,7 @@ import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { TimeSystem } from '../engine/TimeSystem';
 import { HotSpotSystem, HotSpotType } from '../engine/HotSpotSystem';
 import { AnimationSystem } from '../engine/AnimationSystem';
-import { EffectsSystem } from '../engine/EffectsSystem';
+import { EffectsSystem, EffectType } from '../engine/EffectsSystem';
 import { ChannelSystem } from '../engine/ChannelSystem';
 import { gameFlowEvent, GameFlowEventType } from '../engine/GameFlowEvent';
 import { CanvasHUD } from '../engine/CanvasHUD';
@@ -54,6 +54,17 @@ import { CutsceneType, getCutscene } from '../data/cutscenes';
 import { UIStrings } from '../data/strings';
 import { useGameStore } from '../stores/useGameStore';
 import { resourceToLevelId } from '../data/levelTree';
+
+/**
+ * The broken android's smoke, from spawnEnemyAndouDead(): SMOKE_BIG every
+ * 0.25s at offset (32, 15) and SMOKE_SMALL every 0.35s at (16, 15), both in
+ * the original's Y-up object space on a 64x64 sprite.
+ */
+const SMOKE_BIG_INTERVAL = 0.25;
+const SMOKE_SMALL_INTERVAL = 0.35;
+const SMOKE_BIG_OFFSET_X = 32;
+const SMOKE_SMALL_OFFSET_X = 16;
+const SMOKE_OFFSET_Y = 15;
 
 interface GameProps {
   width?: number;
@@ -112,7 +123,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const levelTransitionInProgressRef = useRef(false);
   
   // Decoration smoke effect timing (for ANDOU_DEAD)
-  const decorationSmokeTimerRef = useRef<Map<number, number>>(new Map());
+  /**
+   * Smoke cadence for the broken-android decoration, one accumulator pair per
+   * object. A WeakMap so a level transition cannot leave stale entries behind -
+   * the previous version keyed a plain Map by object id and never cleared it.
+   */
+  const decorationSmokeTimerRef = useRef<WeakMap<GameObject, { big: number; small: number }>>(
+    new WeakMap()
+  );
   
   // Player spawn point (set when level loads)
   const playerSpawnRef = useRef({ x: 100, y: 320 });
@@ -1960,27 +1978,43 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Update effects system (explosions, smoke, etc.)
       effectsSystem.update(deltaTime);
 
-      // Spawn smoke effects for decoration objects (ANDOU_DEAD - broken android)
-      const currentTime = performance.now();
+      // The broken android smoulders. The original hangs two
+      // LaunchProjectileComponents off the object itself - SMOKE_BIG every
+      // 0.25s from offset (32, 15) drifting up-left, and SMOKE_SMALL every
+      // 0.35s from (16, 15) drifting up-left faster. Smoke is an EffectsSystem
+      // particle in this port rather than a spawned object, so the emission
+      // lives here, but the offsets, rates and velocities are the original's.
+      //
+      // This used to spawn dust at PlayerComponent.WIDTH/HEIGHT offsets - the
+      // player's dimensions, on a 64x64 decoration - and timed itself off
+      // performance.now(), so it kept puffing while the game was paused.
       const smokeTimers = decorationSmokeTimerRef.current;
       gameObjectManager.forEach((obj) => {
-        if (obj.type !== 'decoration' || !obj.isVisible()) return;
-        
-        if (obj.subType === 'andou_dead') {
-          // Spawn smoke at intervals (matching original: 0.25s for big, 0.35s for small)
-          const objId = obj.id;
-          const lastSmokeTime = smokeTimers.get(objId) ?? 0;
-          
-          // Big smoke every 0.25 seconds
-          if (currentTime - lastSmokeTime > 250) {
-            const pos = obj.getPosition();
-            // Spawn dust effect at player's feet
-        effectsSystem.spawnDust(pos.x + PlayerComponent.WIDTH / 2, pos.y + PlayerComponent.HEIGHT);
-        effectsSystem.spawnDust(pos.x + PlayerComponent.WIDTH / 2 - 10, pos.y + PlayerComponent.HEIGHT);
-        effectsSystem.spawnDust(pos.x + PlayerComponent.WIDTH / 2 + 10, pos.y + PlayerComponent.HEIGHT);
-            smokeTimers.set(objId, currentTime);
-          }
+        if (obj.type !== 'decoration' || obj.subType !== 'andou_dead') return;
+        if (!obj.isVisible()) return;
+
+        const timers = smokeTimers.get(obj) ?? { big: 0, small: 0 };
+        timers.big += deltaTime;
+        timers.small += deltaTime;
+
+        const pos = obj.getPosition();
+        // Original offsets are Y-up from the object's bottom; this port
+        // measures from the top, so 15 above the bottom is height - 15.
+        const emitY = pos.y + obj.height - SMOKE_OFFSET_Y;
+        // Y-up velocities point up; negate them for Canvas space.
+        if (timers.big >= SMOKE_BIG_INTERVAL) {
+          timers.big -= SMOKE_BIG_INTERVAL;
+          effectsSystem.spawn(
+            EffectType.SMOKE_BIG, pos.x + SMOKE_BIG_OFFSET_X, emitY, -150, -100
+          );
         }
+        if (timers.small >= SMOKE_SMALL_INTERVAL) {
+          timers.small -= SMOKE_SMALL_INTERVAL;
+          effectsSystem.spawn(
+            EffectType.SMOKE_SMALL, pos.x + SMOKE_SMALL_OFFSET_X, emitY, -150, -150
+          );
+        }
+        smokeTimers.set(obj, timers);
       });
 
       // Enemies and NPCs are moved by GravityComponent and MovementComponent,
