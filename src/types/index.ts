@@ -78,6 +78,15 @@ export interface InputState {
   jump: boolean;
   attack: boolean;
   pause: boolean;
+  /**
+   * Horizontal movement as a proportion, -1..1.
+   *
+   * The original's directional pad is analogue: PlayerComponent does
+   * `impulse.set(dpad.getX(), 0)` and scales the movement impulse by it, so a
+   * half-pushed slider gives half the acceleration. Keyboard input is a full
+   * -1 or 1, which is what a d-pad reports too.
+   */
+  horizontal: number;
 }
 
 // Rectangle for collision bounds

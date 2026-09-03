@@ -126,6 +126,7 @@ export class InputSystem {
       jump: this.isActionActive('jump') || this.touchJump,
       attack: this.isActionActive('attack'),
       pause: this.isActionPressed('pause'),
+      horizontal: 0,
     };
 
     // Apply virtual joystick (always check, not just when touchActive)
@@ -134,6 +135,16 @@ export class InputSystem {
     if (this.virtualJoystickX > 0.3) state.right = true;
     if (this.virtualJoystickY < -0.3) state.up = true;
     if (this.virtualJoystickY > 0.3) state.down = true;
+
+    // The analogue value the original's d-pad reports. The on-screen slider
+    // produces a proportion, and the original scales the movement impulse by
+    // it rather than treating anything past a threshold as a full push. Keys
+    // report a whole -1 or 1, as a d-pad does.
+    if (Math.abs(this.virtualJoystickX) > 0.001) {
+      state.horizontal = Math.max(-1, Math.min(1, this.virtualJoystickX));
+    } else {
+      state.horizontal = (state.right ? 1 : 0) - (state.left ? 1 : 0);
+    }
 
     return state;
   }

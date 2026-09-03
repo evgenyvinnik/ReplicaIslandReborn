@@ -577,6 +577,52 @@ describe('campaign gameplay simulation', () => {
     expect(player.getPosition().x).toBeGreaterThan(startX);
   });
 
+  test('a half-pushed slider accelerates at half strength', async () => {
+    // The original's d-pad is analogue and PlayerComponent scales its impulse
+    // by it: `impulse.set(dpad.getX(), 0)`. This port thresholded the on-screen
+    // slider to a boolean at 0.3, so the touch control was all-or-nothing.
+    const levels = await playableLevels();
+
+    async function speedAfter(push: number): Promise<number> {
+      const harness = createHarness();
+      expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+      expect(await harness.levelSystem.loadLevel(levels[0].levelId)).toBe(true);
+      harness.manager.commitUpdates();
+      const player = harness.manager.getPlayer() as GameObject;
+      harness.run(30);                       // settle onto the floor
+      player.getVelocity().x = 0;
+      harness.input.setVirtualAxis('horizontal', push);
+      harness.run(5);                        // sample while still accelerating
+      return player.getVelocity().x;
+    }
+
+    const full = await speedAfter(1.0);
+    const half = await speedAfter(0.5);
+    expect(full, 'a full push should accelerate the player').toBeGreaterThan(0);
+    // Half the push, half the acceleration - not the same as a full push, and
+    // not nothing.
+    expect(half).toBeGreaterThan(0);
+    expect(half).toBeLessThan(full);
+    expect(half / full).toBeCloseTo(0.5, 1);
+  }, 30_000);
+
+  test('a gentle push below the old boolean threshold still moves the player', async () => {
+    const levels = await playableLevels();
+    const harness = createHarness();
+    expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+    expect(await harness.levelSystem.loadLevel(levels[0].levelId)).toBe(true);
+    harness.manager.commitUpdates();
+    const player = harness.manager.getPlayer() as GameObject;
+    harness.run(30);
+    player.getVelocity().x = 0;
+
+    // 0.2 is under the 0.3 the port used to threshold at, so this used to do
+    // nothing at all.
+    harness.input.setVirtualAxis('horizontal', 0.2);
+    harness.run(10);
+    expect(player.getVelocity().x).toBeGreaterThan(0);
+  }, 30_000);
+
   test('a new level keeps grounded controls when the game clock is already advanced', async () => {
     const harness = createHarness();
     // Game.tsx owns one TimeSystem for the whole session; loading a level does

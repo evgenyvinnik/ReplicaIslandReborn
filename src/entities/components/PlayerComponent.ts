@@ -275,9 +275,11 @@ export class PlayerComponent extends GameComponent {
     }
 
     // Horizontal movement
-    let moveX = 0;
-    if (input.left) moveX -= 1;
-    if (input.right) moveX += 1;
+    // The original reads the d-pad as an analogue value and scales the impulse
+    // by it, so a half-pushed touch slider accelerates at half strength. Keys
+    // report a whole -1 or 1.
+    // Original: PlayerComponent's `impulse.set(dpad.getX(), 0.0f)`.
+    const moveX = input.horizontal;
 
     // Jump/Fly. This runs before the horizontal speed is chosen because the
     // original decides "in the air" partly from the vertical impulse it just
@@ -327,11 +329,16 @@ export class PlayerComponent extends GameComponent {
       if (newSpeed <= maxHorizontalSpeed) {
         velocity.x += impulseX;
       } else if (Math.abs(velocity.x) < maxHorizontalSpeed) {
-        velocity.x = maxHorizontalSpeed * moveX;
+        // Clamp to the full cap in the direction of travel. The original uses
+        // Utils.sign(impulse.x) here, not the impulse itself - a half-pushed
+        // slider still tops out at the same speed, it just gets there slower.
+        velocity.x = maxHorizontalSpeed * Math.sign(impulseX);
       }
 
-      // Update facing direction
-      parent.facingDirection.x = moveX;
+      // Facing is a direction, not a magnitude: LaunchProjectileComponent
+      // multiplies offsets and velocities by it, so a fractional value would
+      // quietly halve every projectile the player fires.
+      parent.facingDirection.x = Math.sign(moveX);
     }
 
     // Air drag
