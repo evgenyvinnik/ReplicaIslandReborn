@@ -11,8 +11,13 @@ export type Character = 'Wanda' | 'Kyle' | 'Kabocha' | 'Rokudou';
 
 // Dialog page definition
 export interface DialogPage {
-  character: Character;
-  portrait: string;
+  /**
+   * Absent on narration pages. The original's dialog XML omits both the title
+   * and the image for these - the only one in the game is the note on finding
+   * Kyle's body in level_4_1.
+   */
+  character?: Character;
+  portrait?: string;
   text: string;
 }
 
@@ -68,6 +73,11 @@ function getPortrait(character: Character, portraitKey?: string): string {
 
 // Helper to create a dialog page
 // portraitKey should match keys in CharacterPortraits (e.g., 'wanda_surprised', 'kyle_closeup_angry')
+/** A page with no speaker and no portrait, as the original's XML writes it. */
+function narration(textKey: string): DialogPage {
+  return { text: getString(textKey) };
+}
+
 function page(character: Character, textKey: string, portraitKey?: string): DialogPage {
   return {
     character,
@@ -168,6 +178,23 @@ export const LevelDialogs: Record<string, Dialog> = {
         pages: [
           page('Kabocha', 'Kabocha_0_3_3_1', 'kabocha_closeup_normal'),
           page('Kabocha', 'Kabocha_0_3_3_2', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_3_3_3', 'kabocha_closeup_normal'),
+        ],
+      },
+      // Conversation 4: what The Source is and why he built you.
+      {
+        pages: [
+          page('Kabocha', 'Kabocha_0_3_4_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_3_4_2', 'kabocha_closeup_normal'),
+        ],
+      },
+      // Conversation 5: Rokudou, and what is at stake.
+      {
+        pages: [
+          page('Kabocha', 'Kabocha_0_3_5_1', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_3_5_2', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_3_5_3', 'kabocha_closeup_normal'),
+          page('Kabocha', 'Kabocha_0_3_5_4', 'kabocha_closeup_normal'),
         ],
       },
     ],
@@ -304,12 +331,30 @@ export const LevelDialogs: Record<string, Dialog> = {
     ],
   },
 
+  // World 2 Level 9: Wanda
+  // level_2_9_dialog_wanda.xml - two pages, wanda_smile then wanda_happy.
+  // The strings were ported but nothing referenced them, so this conversation
+  // never played even though level_2_9_grass is authored to show both hers and
+  // Kyle's.
+  'level_2_9_dialog_wanda': {
+    conversations: [
+      {
+        pages: [
+          page('Wanda', 'Wanda_2_9_1_1', 'wanda_smile'),
+          page('Wanda', 'Wanda_2_9_1_2', 'wanda_happy'),
+        ],
+      },
+    ],
+  },
+
   // World 2 Level 8: Kyle
   'level_2_8_dialog_kyle': {
     conversations: [
       {
         pages: [
           page('Kyle', 'Kyle_2_8_1_1', 'kyle_closeup_noglasses'),
+          page('Kyle', 'Kyle_2_8_1_2', 'kyle_closeup_noglasses'),
+          page('Kyle', 'Kyle_2_8_1_3', 'kyle_closeup_noglasses'),
         ],
       },
     ],
@@ -462,6 +507,13 @@ export const LevelDialogs: Record<string, Dialog> = {
 
   'level_4_1_dialog_rokudou': {
     conversations: [
+      // The original opens this with an unattributed line, shown with no
+      // portrait and no name, as Andou finds Kyle.
+      {
+        pages: [
+          narration('KyleDeadNote'),
+        ],
+      },
       {
         pages: [
           page('Rokudou', 'Rokudou_4_1_1_1', 'rokudou_closeup_normal'),
@@ -612,7 +664,7 @@ const LevelDialogMapping: Record<string, string[]> = {
   'level_2_6_grass': ['level_2_6_dialog_wanda'],
   'level_2_7_grass': ['level_2_7_dialog_kyle'],
   'level_2_8_grass': ['level_2_8_dialog_kyle'],
-  'level_2_9_grass': ['level_2_9_dialog_kyle'],  // Has both wanda and kyle
+  'level_2_9_grass': ['level_2_9_dialog_wanda', 'level_2_9_dialog_kyle'],
   
   // World 3 - Sewer (mixed past/present)
   'level_3_3_sewer': ['level_3_3_dialog_wanda'],

@@ -140,7 +140,7 @@ export class CanvasDialog {
     const portraitsToLoad = new Set<string>();
     for (const conversation of this.dialog.conversations) {
       for (const page of conversation.pages) {
-        portraitsToLoad.add(page.portrait);
+        if (page.portrait) portraitsToLoad.add(page.portrait);
       }
     }
     
@@ -266,7 +266,12 @@ export class CanvasDialog {
     // Calculate text area width first to determine line count
     const boxX = DIALOG_BOX_MARGIN;
     const boxWidth = this.width - DIALOG_BOX_MARGIN * 2;
-    const textWidth = boxWidth - DIALOG_BOX_PADDING * 2 - PORTRAIT_SIZE - TEXT_GAP;
+    // Narration pages carry no speaker or portrait - the original's XML omits
+    // both - so the text runs the full width of the box.
+    const isNarration = !currentPage.character;
+    const textWidth = isNarration
+      ? boxWidth - DIALOG_BOX_PADDING * 2
+      : boxWidth - DIALOG_BOX_PADDING * 2 - PORTRAIT_SIZE - TEXT_GAP;
     
     // Pre-calculate wrapped text lines to determine box height
     this.ctx.font = '11px monospace';
@@ -298,6 +303,7 @@ export class CanvasDialog {
     const portraitY = boxY + DIALOG_BOX_PADDING;
     
     // Portrait border
+    if (!isNarration) {
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     this.ctx.strokeStyle = '#446688';
     this.ctx.lineWidth = 2;
@@ -306,29 +312,34 @@ export class CanvasDialog {
     this.ctx.stroke();
     
     // Portrait image
-    const portrait = this.portraits.get(currentPage.portrait);
+    const portrait = currentPage.portrait
+      ? this.portraits.get(currentPage.portrait)
+      : undefined;
     if (portrait) {
       this.ctx.imageSmoothingEnabled = false;
       this.ctx.drawImage(portrait, portraitX + 4, portraitY + 4, PORTRAIT_SIZE - 8, PORTRAIT_SIZE - 8);
     }
+    }
     
     // Text area
-    const textX = portraitX + PORTRAIT_SIZE + TEXT_GAP;
+    const textX = isNarration ? portraitX : portraitX + PORTRAIT_SIZE + TEXT_GAP;
     const textY = portraitY;
     // textWidth already calculated above for box height
     
-    // Character name
-    const characterColor = CHARACTER_COLORS[currentPage.character] || '#ffffff';
-    const characterName = getCharacterName(currentPage.character);
-    
-    this.ctx.font = 'bold 14px monospace';
-    this.ctx.fillStyle = characterColor;
-    this.ctx.textBaseline = 'top';
-    this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    this.ctx.shadowBlur = 2;
-    this.ctx.shadowOffsetX = 1;
-    this.ctx.shadowOffsetY = 1;
-    this.ctx.fillText(characterName, textX, textY);
+    // Character name, omitted on narration pages.
+    if (currentPage.character) {
+      const characterColor = CHARACTER_COLORS[currentPage.character] || '#ffffff';
+      const characterName = getCharacterName(currentPage.character);
+
+      this.ctx.font = 'bold 14px monospace';
+      this.ctx.fillStyle = characterColor;
+      this.ctx.textBaseline = 'top';
+      this.ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+      this.ctx.shadowBlur = 2;
+      this.ctx.shadowOffsetX = 1;
+      this.ctx.shadowOffsetY = 1;
+      this.ctx.fillText(characterName, textX, textY);
+    }
     
     // Dialog text with word wrap - show full text immediately
     this.ctx.font = '11px monospace';

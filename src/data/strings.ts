@@ -265,6 +265,10 @@ export const KyleDialogs: Record<string, string> = {
 
   // Level 2-8
   'Kyle_2_8_1_1': "You're lucky you caught up to me when I'm in a good mood. Five minutes ago I would have cracked open your top and spit on your insides, but right now I've got more important things to think about. Wanda just told me we've found the entrance.",
+  'Kyle_2_8_1_2': "There's a whole structure below us, underground. Looks man-made, though of course it's not. We can see it on the GPR but we've been looking all over for a way in. Some old notebooks we found talked about an entrance to a sewer system, and that's what the radar seems to suggest too. Now we can actually go down there and see it.",
+  'Kyle_2_8_1_3': "We're closing in on The Source! I think it's an artifact from an ancient civilization; something based on knowledge that humanity lost a long time ago. We'll find out soon enough. Good luck catching up to us now, robot!",
+  // Narration, shown with no speaker or portrait when Andou finds Kyle's body.
+  'KyleDeadNote': "It's Kyle. He's not moving.",
 };
 
 // Kabocha's dialog strings
@@ -296,6 +300,17 @@ export const KabochaDialogs: Record<string, string> = {
   'Kabocha_0_3_2_3': "Try possessing that robot down there and using him to break through those blue blocks. Here's a hint: releasing a possessed robot causes it to explode.",
   'Kabocha_0_3_3_1': "Jolly good work! You're already asymptotically equal to my best neural net model.",
   'Kabocha_0_3_3_2': "One more thing about possession: those energy orbs require a lot of power to maintain, so you can only use them for a short time if you have not collected any gems. Collecting gems will extend the amount of time the orb can survive before dissipating.",
+  'Kabocha_0_3_3_3': "Let's practice possession a little more. I'll meet you up top.",
+
+  // Level 0-3, conversation 4: what The Source is
+  'Kabocha_0_3_4_1': "We don't actually know what The Source is or where it came from. My theory is that it's some sort of nanotechnological machine, constantly sucking matter in from the ocean, breaking it down into its component molecules, and then putting those molecules back together however it sees fit. If that's true, it's probably the creation of humans, but not humans of our time. Perhaps it was sent back in time by a future civilization, I'm not sure. On that point my data is insufficient. Suffice to say it is responsible for this island and everything on it.",
+  'Kabocha_0_3_4_2': "If I can find The Source, I can rid the world of hunger, disease, and war. With nanotechnology no problem is unsolvable, no goal out of reach. I've been searching for it my whole life, but now I'm old and can no longer venture out on my own. That's why I've created you for this most important of tasks.",
+
+  // Level 0-3, conversation 5: the enemy
+  'Kabocha_0_3_5_1': "You've done jolly well so far, my little friend. It's almost time to release you into the wild. But before I do that, I need to tell you about our enemies.",
+  'Kabocha_0_3_5_2': "The island is full of danger, but be particularly careful of Rokudou operatives. The Rokudou Corporation is a huge, soulless multinational run by a maniac. I'm sure you already have enough synapse nodes to understand that The Source could be used as a horrible weapon if it fell into the wrong hands.",
+  'Kabocha_0_3_5_3': "L. Rokudou is infamous for having built a successful business out of illegal profiteering, but few know he's also a psychopath. I've seen his behavior up close, and let me tell you: that man is crazy enough to annihilate the entire world if it would make him king of the rubble.",
+  'Kabocha_0_3_5_4': "You can be sure he's looking for The Source, though he's not foolish enough to do it himself. He sends agents, wet-behind-the-ears adventurers who don't know what they're getting into. You must avoid them at all costs, and we must find The Source before they do, or the future of the world is in great peril.",
 
   // Level 4-3 (Kabocha reveals his true intentions)
   'Kabocha_4_3_1_1': "Jolly good work, my little friend! The Source is within my grasp after all these years!",

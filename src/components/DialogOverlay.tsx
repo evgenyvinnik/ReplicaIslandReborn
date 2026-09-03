@@ -116,8 +116,13 @@ export function DialogOverlay({ dialog, onComplete, onSkip }: DialogOverlayProps
     return <></>;
   }
 
-  const characterColor = CHARACTER_COLORS[currentPage.character] || '#ffffff';
-  const characterName = getCharacterName(currentPage.character);
+  // Narration pages have no speaker; the original omits the title entirely.
+  const characterColor = currentPage.character
+    ? CHARACTER_COLORS[currentPage.character] || '#ffffff'
+    : '#ffffff';
+  const characterName = currentPage.character
+    ? getCharacterName(currentPage.character)
+    : '';
 
   // Calculate progress
   const totalPages = dialog.conversations.reduce((sum, conv) => sum + conv.pages.length, 0);
