@@ -28,6 +28,7 @@ export class CanvasDiaryOverlay {
   
   // Background image
   private bgImage: HTMLImageElement | null = null;
+  private bgLoaded: boolean = false;
   
   // Animation
   private fadeAlpha: number = 0;
@@ -59,12 +60,19 @@ export class CanvasDiaryOverlay {
   }
   
   private loadBackground(): void {
+    // The diary's own backdrop, 480x320 - exactly the screen. The original
+    // shows it behind the entry (diary.xml, @drawable/background_diary).
+    // This used to request ui_options_background.png, which does not exist in
+    // the port's assets at all, so every diary open 404'd and the image was
+    // never drawn even if it had loaded.
     this.bgImage = new Image();
-    this.bgImage.onerror = (): void => {
-      // console.log('Failed to load diary background');
+    this.bgImage.onload = (): void => {
+      this.bgLoaded = true;
     };
-    // Use a dark parchment-like background
-    this.bgImage.src = assetPath('/assets/sprites/ui_options_background.png');
+    this.bgImage.onerror = (): void => {
+      this.bgLoaded = false;
+    };
+    this.bgImage.src = assetPath('/assets/sprites/background_diary.png');
   }
   
   /**
@@ -185,14 +193,19 @@ export class CanvasDiaryOverlay {
     const bgWidth = this.width - bgPadding * 2;
     const bgHeight = this.height - bgPadding * 2;
     
-    // Paper background with slight transparency
-    this.ctx.fillStyle = 'rgba(245, 235, 220, 0.95)';
-    this.ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
-    
-    // Paper border
-    this.ctx.strokeStyle = 'rgba(139, 90, 43, 0.8)';
-    this.ctx.lineWidth = 2;
-    this.ctx.strokeRect(bgX, bgY, bgWidth, bgHeight);
+    if (this.bgLoaded && this.bgImage) {
+      // The shipped backdrop covers the whole screen, as it does in the
+      // original's layout.
+      this.ctx.drawImage(this.bgImage, 0, 0, this.width, this.height);
+    } else {
+      // Fallback while the image loads, or if it is missing.
+      this.ctx.fillStyle = 'rgba(245, 235, 220, 0.95)';
+      this.ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
+
+      this.ctx.strokeStyle = 'rgba(139, 90, 43, 0.8)';
+      this.ctx.lineWidth = 2;
+      this.ctx.strokeRect(bgX, bgY, bgWidth, bgHeight);
+    }
     
     // Create clipping region for scrolling text
     this.ctx.beginPath();
