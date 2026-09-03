@@ -69,7 +69,9 @@ optimisation it does not do. None of them is missing gameplay.
 | Wall and ceiling tests are per-tile AABB | Low | Slopes are handled: `getGroundSurfaceY()` puts the feet on the real segment, and `checkTileCollision()` no longer treats a sloped tile as a wall when its surface is within `SLOPE_STEP_UP` of the feet, so ramps are walkable. What is still missing is the original's full swept test (`testBox()` ray-marching the box), which would also fix fast-moving objects clipping tile corners — see the comment at `checkTileCollision()`. |
 | No object pooling | Low | The original pools 384+ objects to avoid GC pauses on 2010 Android hardware. The port allocates freely; this is not a correctness problem and has not shown up as one in play. |
 | Four components unattached | None | See "Ported But Not Wired Up" — one is dead in the original too, the rest are covered by other code or serve unused object types. |
-| `SimplePhysicsComponent` not ported | Low | Bounce/inertia for simple objects; the port's equivalents move on `PhysicsComponent` or `EffectsSystem` particles. |
+| `SimplePhysicsComponent` not ported | Low | Its two jobs are covered: `MovementComponent` consumes scripted impulses and clamps velocity on contact. Only the 10% bounce off surfaces is absent, which is cosmetic. |
+| Crush flash is front-layer only | Low | The original draws `effect_crush_back01-03` behind the object at `EFFECT` while the seven front frames play at `FOREGROUND_EFFECT`. `EffectsSystem` has no per-effect priority to hang the back layer on. |
+| `ui_button_fly_disabled` unused | None | Dead in the original too: `HudSystem.mFlyButtonActive` is set true in `reset()` and there is no setter, so the disabled sprite never draws there either. |
 | `Game.tsx` size | Low | ~2780 lines of orchestration: level transitions, sprite loading, Canvas UI wiring, and turning pipeline events into lives, score, the win check and the diary. No longer a parallel component system. |
 
 ### Rendering
