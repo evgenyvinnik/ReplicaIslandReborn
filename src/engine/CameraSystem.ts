@@ -6,6 +6,26 @@
 import { Vector2 } from '../utils/Vector2';
 import { lerp, clamp } from '../utils/helpers';
 
+/**
+ * Camera constants, transcribed from CameraSystem.java.
+ *
+ * The follow distances are a dead zone, not a smoothing factor: the original
+ * locks the camera to the target horizontally (X_FOLLOW_DISTANCE is 0) and
+ * lets it drift up to 90px *above* the camera before the view rises, so an
+ * ordinary jump does not shove the whole screen up and down. Downward it
+ * follows immediately.
+ *
+ * This port used a lerp toward the target instead, which both lagged behind
+ * the player horizontally and bobbed vertically on every hop.
+ */
+const X_FOLLOW_DISTANCE = 0;
+const Y_UP_FOLLOW_DISTANCE = 90;
+const Y_DOWN_FOLLOW_DISTANCE = 0;
+const MAX_INTERPOLATE_TO_TARGET_DISTANCE = 300;
+const INTERPOLATE_TO_TARGET_TIME = 1.0;
+const SHAKE_FREQUENCY = 40;
+const BIAS_SPEED = 400;
+
 export interface CameraBounds {
   minX: number;
   minY: number;
@@ -16,6 +36,8 @@ export interface CameraBounds {
 // Camera target interface - needs position, width, and height to center properly
 export interface CameraTarget {
   getPosition: () => Vector2;
+  /** The original only applies camera bias while the target is moving. */
+  getVelocity?: () => Vector2;
   width: number;
   height: number;
 }
@@ -32,17 +54,19 @@ export class CameraSystem {
   private target: CameraTarget | null = null;
 
   // Camera smoothing
-  private smoothing: number = 5.0;
-  private lookAheadX: number = 0;
-  private lookAheadY: number = 0;
 
   // Shake effect
   private shakeIntensity: number = 0;
-  private shakeDuration: number = 0;
   private shakeTimer: number = 0;
   private shakeOffset: Vector2 = new Vector2();
 
   // Bias for following movement direction
+  /** Seconds since this camera was created, for target-change easing. */
+  private elapsedTime: number = 0;
+  /** When the target last changed, or -1 when not interpolating. */
+  private targetChangedTime: number = -1;
+  private preInterpolateX: number = 0;
+  private preInterpolateY: number = 0;
   private biasX: number = 0;
   private biasY: number = 0;
   private readonly _biasSpeed: number = 2.0;
@@ -73,13 +97,15 @@ export class CameraSystem {
     this.target = null;
     this.bounds = null;
     this.shakeIntensity = 0;
-    this.shakeDuration = 0;
     this.shakeTimer = 0;
     this.shakeOffset.zero();
     this.biasX = 0;
     this.biasY = 0;
     this.npcFocusMode = false;
     this.npcTarget = null;
+    this.targetChangedTime = -1;
+    this.preInterpolateX = 0;
+    this.preInterpolateY = 0;
   }
 
   /**
@@ -89,8 +115,33 @@ export class CameraSystem {
   setTarget(target: CameraTarget | null): void {
     // Don't override if in NPC focus mode - NPCComponent will release this
     if (!this.npcFocusMode) {
+      this.beginTargetInterpolation(target);
       this.target = target;
     }
+  }
+
+  /**
+   * Start easing towards a newly handed-over target instead of cutting to it.
+   * The original only does this when the new target is within
+   * MAX_INTERPOLATE_TO_TARGET_DISTANCE; further than that it snaps, because
+   * sliding the camera across half a level would be worse than a cut.
+   */
+  private beginTargetInterpolation(next: CameraTarget | null): void {
+    if (!next || next === this.target) return;
+    const position = next.getPosition();
+    const centreX = position.x + next.width / 2;
+    const centreY = position.y + next.height / 2;
+    const cameraCentreX = this.position.x + this.viewportWidth / 2;
+    const cameraCentreY = this.position.y + this.viewportHeight / 2;
+    const dx = centreX - cameraCentreX;
+    const dy = centreY - cameraCentreY;
+    if (dx * dx + dy * dy > MAX_INTERPOLATE_TO_TARGET_DISTANCE * MAX_INTERPOLATE_TO_TARGET_DISTANCE) {
+      this.targetChangedTime = -1;
+      return;
+    }
+    this.preInterpolateX = cameraCentreX;
+    this.preInterpolateY = cameraCentreY;
+    this.targetChangedTime = this.elapsedTime;
   }
 
   /**
@@ -146,90 +197,98 @@ export class CameraSystem {
   }
 
   // Debug frame counter
-  private debugFrameCount: number = 0;
   
   /**
    * Update the camera
    */
   update(deltaTime: number): void {
-    this.debugFrameCount++;
-    
-    // Always log on frame 1 to confirm update is called
-    if (this.debugFrameCount === 1) {
-      // console.log(`[CameraSystem] FIRST UPDATE CALL - target exists: ${!!this.target}, npcFocusMode: ${this.npcFocusMode}`);
+    this.elapsedTime += deltaTime;
+
+    // Shake oscillates the Y axis only, as a sine of the remaining time.
+    // Original: mShakeOffsetY = sin(mShakeTime * SHAKE_FREQUENCY) * mShakeMagnitude.
+    let shakeOffsetY = 0;
+    if (this.shakeTimer > 0) {
+      this.shakeTimer -= deltaTime;
+      shakeOffsetY = Math.sin(this.shakeTimer * SHAKE_FREQUENCY) * this.shakeIntensity;
     }
-    
-    // Update target position from followed object
+
     if (this.target) {
-      const targetPos = this.target.getPosition();
-      // getPosition() returns top-left of sprite, so add half width/height to get center
-      const centerX = targetPos.x + this.target.width / 2;
-      const centerY = targetPos.y + this.target.height / 2;
-      this.targetPosition.set(centerX, centerY);
+      const targetPosition = this.target.getPosition();
+      const targetCentreX = targetPosition.x + this.target.width / 2;
+      const targetCentreY = targetPosition.y + this.target.height / 2;
 
-      // Apply look-ahead bias
-      this.targetPosition.x += this.lookAheadX + this.biasX;
-      this.targetPosition.y += this.lookAheadY + this.biasY;
+      // Work in the camera's centre, which is what the original tracks; the
+      // stored position is the viewport's top-left.
+      let centreX = this.position.x + this.viewportWidth / 2;
+      let centreY = this.position.y + this.viewportHeight / 2;
 
-      // Convert from center focus point to top-left corner of viewport
-      this.targetPosition.x -= this.viewportWidth / 2;
-      this.targetPosition.y -= this.viewportHeight / 2;
-      
-      // Debug every 60 frames
-      if (this.debugFrameCount % 60 === 1) {
-        // console.log(`[CameraSystem] update frame ${this.debugFrameCount}: targetPos=(${targetPos.x.toFixed(1)}, ${targetPos.y.toFixed(1)}) center=(${centerX.toFixed(1)}, ${centerY.toFixed(1)}) cameraTarget=(${this.targetPosition.x.toFixed(1)}, ${this.targetPosition.y.toFixed(1)}) cameraPos=(${this.position.x.toFixed(1)}, ${this.position.y.toFixed(1)}) focusPos=(${this.focusPosition.x.toFixed(1)}, ${this.focusPosition.y.toFixed(1)})`);
+      if (this.targetChangedTime > 0) {
+        // Handing the camera to a new target eases over a second rather than
+        // cutting, so a cutscene hand-off is not a jump.
+        const delta = this.elapsedTime - this.targetChangedTime;
+        const t = Math.min(delta / INTERPOLATE_TO_TARGET_TIME, 1);
+        const eased = t * t * (3 - 2 * t);
+        centreX = this.preInterpolateX + (targetCentreX - this.preInterpolateX) * eased;
+        centreY = this.preInterpolateY + (targetCentreY - this.preInterpolateY) * eased;
+        if (delta > INTERPOLATE_TO_TARGET_TIME) {
+          this.targetChangedTime = -1;
+        }
+      } else {
+        // Bias only counts while the target is actually moving - no camera
+        // motion without player input.
+        const biasLengthSquared = this.biasX * this.biasX + this.biasY * this.biasY;
+        const velocity = this.target.getVelocity?.();
+        const speedSquared = velocity
+          ? velocity.x * velocity.x + velocity.y * velocity.y
+          : 0;
+        if (biasLengthSquared > 0 && speedSquared > 1) {
+          const length = Math.sqrt(biasLengthSquared);
+          centreX += (this.biasX / length) * BIAS_SPEED * deltaTime;
+          centreY += (this.biasY / length) * BIAS_SPEED * deltaTime;
+        }
+
+        const xDelta = targetCentreX - centreX;
+        if (Math.abs(xDelta) > X_FOLLOW_DISTANCE) {
+          centreX = targetCentreX - X_FOLLOW_DISTANCE * Math.sign(xDelta);
+        }
+
+        // Y-down conversion: the original's "target is above the camera" is
+        // yDelta > 0 in its Y-up space, which is yDelta < 0 here.
+        const yDelta = targetCentreY - centreY;
+        if (yDelta < -Y_UP_FOLLOW_DISTANCE) {
+          centreY = targetCentreY + Y_UP_FOLLOW_DISTANCE;
+        } else if (yDelta > Y_DOWN_FOLLOW_DISTANCE) {
+          centreY = targetCentreY - Y_DOWN_FOLLOW_DISTANCE;
+        }
       }
-    } else {
-      // No target - camera stays where it is
-      if (this.debugFrameCount % 60 === 1) {
-        // console.log('[CameraSystem] update: No target set!');
-      }
+
+      this.position.x = centreX - this.viewportWidth / 2;
+      this.position.y = centreY - this.viewportHeight / 2;
     }
 
-    // Smooth camera movement toward target
-    this.position.x = lerp(
-      this.position.x,
-      this.targetPosition.x,
-      this.smoothing * deltaTime
-    );
-    this.position.y = lerp(
-      this.position.y,
-      this.targetPosition.y,
-      this.smoothing * deltaTime
-    );
+    // Camera-bias objects submit their influence every frame; the original
+    // consumes and clears the accumulated vector after each update.
+    this.biasX = 0;
+    this.biasY = 0;
 
-    // Apply bounds
     if (this.bounds) {
       this.position.x = clamp(
         this.position.x,
         this.bounds.minX,
-        this.bounds.maxX - this.viewportWidth
+        Math.max(this.bounds.minX, this.bounds.maxX - this.viewportWidth)
       );
       this.position.y = clamp(
         this.position.y,
         this.bounds.minY,
-        this.bounds.maxY - this.viewportHeight
+        Math.max(this.bounds.minY, this.bounds.maxY - this.viewportHeight)
       );
     }
 
-    // Update shake
-    if (this.shakeTimer > 0) {
-      this.shakeTimer -= deltaTime;
-      const intensity = this.shakeIntensity * (this.shakeTimer / this.shakeDuration);
-      this.shakeOffset.x = (Math.random() * 2 - 1) * intensity;
-      this.shakeOffset.y = (Math.random() * 2 - 1) * intensity;
-    } else {
-      this.shakeOffset.zero();
-    }
-
-    // Update focus position (position + shake)
-    this.focusPosition.x = this.position.x + this.shakeOffset.x;
-    this.focusPosition.y = this.position.y + this.shakeOffset.y;
-
-    // Camera-bias objects submit their influence every frame. The original
-    // camera consumed and cleared that accumulated vector after each update.
-    this.biasX = 0;
-    this.biasY = 0;
+    // The original floors the focal point so pixel art lands on whole pixels.
+    this.shakeOffset.x = 0;
+    this.shakeOffset.y = shakeOffsetY;
+    this.focusPosition.x = Math.floor(this.position.x);
+    this.focusPosition.y = Math.floor(this.position.y + shakeOffsetY);
   }
 
   /**
@@ -237,7 +296,6 @@ export class CameraSystem {
    */
   shake(intensity: number, duration: number): void {
     this.shakeIntensity = intensity;
-    this.shakeDuration = duration;
     this.shakeTimer = duration;
   }
 
@@ -260,13 +318,6 @@ export class CameraSystem {
     );
   }
 
-  /**
-   * Set look-ahead distance
-   */
-  setLookAhead(x: number, y: number): void {
-    this.lookAheadX = x;
-    this.lookAheadY = y;
-  }
 
   /**
    * Set position bias based on movement direction
@@ -377,12 +428,6 @@ export class CameraSystem {
     this.viewportHeight = height;
   }
 
-  /**
-   * Set camera smoothing (higher = faster following)
-   */
-  setSmoothing(smoothing: number): void {
-    this.smoothing = smoothing;
-  }
 
   /**
    * Check if a point is visible on screen
