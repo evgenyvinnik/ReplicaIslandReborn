@@ -287,6 +287,44 @@ Earlier revisions instead gave both bosses bespoke state-machine components and
 resolved their damage with `subType` string checks in `applyPlayerAttack`. Those
 components have been removed; do not reintroduce that pattern.
 
+### Camera
+
+`CameraSystem` is transcribed from `CameraSystem.java` and does **not** smooth.
+It keeps its target inside a dead zone and otherwise locks on:
+
+```
+X_FOLLOW_DISTANCE      = 0     // horizontally welded to the target
+Y_UP_FOLLOW_DISTANCE   = 90    // the target may rise 90px before the view does
+Y_DOWN_FOLLOW_DISTANCE = 0     // falling is followed immediately
+```
+
+The asymmetry is deliberate: an ordinary jump moves the player less than 90px
+relative to the camera, so the screen holds still instead of pumping, while a
+fall is tracked at once so you can see where you will land. An earlier version
+lerped toward the target with an invented smoothing factor, which lagged
+horizontally and bobbed on every hop.
+
+Also from the original: shake is a sine of the remaining shake time on the **Y
+axis only**; the focal point is floored so pixel art lands on whole pixels;
+camera bias applies only while the target is moving ("no camera motion without
+player input"); and handing the camera to a new target eases over
+`INTERPOLATE_TO_TARGET_TIME`, but only within
+`MAX_INTERPOLATE_TO_TARGET_DISTANCE` — further away it cuts.
+
+`cameraSystem.reset()` must be called on every level load. `setTarget()` is a
+no-op while NPC focus is held, and a cutscene level has no player to release
+that focus to, so without the reset the flag survives into the next level and
+silently swallows every `setTarget(player)`. `cameraFocus.test.ts` scans
+`Game.tsx` for a reset before each `setBounds`.
+
+### Time scaling
+
+`TimeSystem` can scale the game clock with an eased ramp
+(`EASE_DURATION = 0.5`). The original uses it in exactly one place:
+`PlayerComponent.gotoWin()` calls `appyScale(0.1f, 8.0f, true)`, dropping the
+game to a tenth speed as the last gem is taken. The ramp is cleared on level
+load — it runs for eight seconds but the level ends after one and a half.
+
 ### Dynamic difficulty
 
 The original quietly makes a level easier once the player keeps failing it: at
