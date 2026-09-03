@@ -305,14 +305,27 @@ export class PlayerComponent extends GameComponent {
         // Jet pack
         if (this.fuel > 0) {
           this.fuel -= deltaTime;
-          velocity.y += -PlayerComponent.AIR_VERTICAL_IMPULSE_SPEED * deltaTime;
+          let thrust = -PlayerComponent.AIR_VERTICAL_IMPULSE_SPEED * deltaTime;
           verticalImpulse = PlayerComponent.AIR_VERTICAL_IMPULSE_SPEED * deltaTime;
           this.rocketsOn = true;
-          
-          // Cap upward speed
-          if (velocity.y < -PlayerComponent.MAX_UPWARD_SPEED) {
-            velocity.y = -PlayerComponent.MAX_UPWARD_SPEED;
+
+          // Cap upward speed. The original drops the *thrust* once it would
+          // carry him past the cap and then only raises velocity up to it -
+          // never down. Clamping velocity outright instead also slows anything
+          // already rising faster, so holding the jets after a cannon launch
+          // clipped a 700px/s launch to 250. Note the original computes
+          // "in the air" from the impulse before this zeroes it, which is why
+          // verticalImpulse keeps its value.
+          if (
+            velocity.y + thrust < -PlayerComponent.MAX_UPWARD_SPEED &&
+            thrust < 0
+          ) {
+            thrust = 0;
+            if (velocity.y > -PlayerComponent.MAX_UPWARD_SPEED) {
+              velocity.y = -PlayerComponent.MAX_UPWARD_SPEED;
+            }
           }
+          velocity.y += thrust;
         }
       }
     } else {
