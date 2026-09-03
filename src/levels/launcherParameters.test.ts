@@ -116,6 +116,35 @@ describe('launcher parameters', () => {
     expect(checked, 'no launchers were actually checked').toBeGreaterThan(1);
   }, 60_000);
 
+  test('the muzzle sits the offset above the feet, not below the head', () => {
+    // setOffsetY() is measured upward from the object's bottom, because the
+    // original's origin is the bottom. LaunchProjectileComponent stores the
+    // raw value, so the conversion has to happen where it is applied:
+    //
+    //     y = position.y + height - offsetY
+    //
+    // Reading position.y + offsetY instead - which is what a straight
+    // transcription gives - moves every muzzle by (height - 2 * offsetY):
+    // a turret fires 38px too high, Wanda 44px, from above her own head.
+    const muzzleY = (top: number, height: number, offsetY: number): number =>
+      top + height - offsetY;
+
+    // Distance from the muzzle up to the object's feet must equal offsetY.
+    const aboveFeet = (height: number, offsetY: number): number =>
+      (0 + height) - muzzleY(0, height, offsetY);
+
+    for (const [height, offsetY] of [[64, 13], [64, 21], [64, 22], [128, 42]] as const) {
+      expect(aboveFeet(height, offsetY)).toBe(offsetY);
+    }
+
+    // And the vertical flip mirrors it through the object, as the original's
+    // `offsetY = height - offsetY` does.
+    const flipped = (height: number, offsetY: number): number =>
+      muzzleY(0, height, height - offsetY);
+    expect(flipped(64, 13)).toBe(13);
+    expect(flipped(128, 42)).toBe(42);
+  });
+
   test('the shadow slime fires half a second into its attack', async () => {
     const found = await launchersBySubType();
     if (!found.has('shadowslime')) return;

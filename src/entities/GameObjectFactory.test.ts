@@ -183,7 +183,12 @@ describe('GameObjectFactory managed spawns', () => {
     let shots = manager.findObjectsByType('projectile');
     expect(shots).toHaveLength(1);
     expect(shots[0].getPosition().x).toBe(139);
-    expect(shots[0].getPosition().y).toBe(205);
+    // The original's setOffsetY(21) is measured upward from the object's
+    // bottom, so on a 64px snailbomb standing at y=200 the muzzle is at
+    // 200 + 64 - 21 = 243, and centering the 32px shot puts its top at 227.
+    // Reading the offset from the top instead put it at 205, up by the
+    // height - 2 * offsetY that separates the two ends.
+    expect(shots[0].getPosition().y).toBe(227);
     expect(shots[0].getVelocity().x).toBe(100);
 
     for (let shot = 1; shot < 3; shot++) {

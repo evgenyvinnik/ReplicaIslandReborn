@@ -186,7 +186,15 @@ export class LaunchProjectileComponent extends GameComponent {
     }
 
     const x = parentObject.getPosition().x + offsetX;
-    const y = parentObject.getPosition().y + offsetY;
+    // offsetY is stored exactly as the original's setOffsetY() call gives it,
+    // and the original measures it upward from the object's *bottom*. Canvas
+    // measures downward from its top, so the offset has to be taken from the
+    // other end: a turret's 13 is 13px above its feet, not 13px below its
+    // head, and Wanda's 42 is chest height on a 128px sprite rather than a
+    // point above her head. The flip above still works out - when
+    // facingDirection.y is negative the two subtractions cancel, which is the
+    // mirroring the original intends.
+    const y = parentObject.getPosition().y + parentObject.height - offsetY;
     
     // console.log(`[LaunchProjectile] Launching ${this.objectTypeToSpawn} at (${x}, ${y}) flip=${flip}`);
     
