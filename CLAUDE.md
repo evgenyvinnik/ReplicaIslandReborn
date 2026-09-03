@@ -315,6 +315,25 @@ values the port used to carry.
   This is dev-only (`import.meta.env.DEV`) and is the fastest way to reproduce a
   gameplay bug without fighting `requestAnimationFrame` throttling.
 
+Two traps when checking behaviour in a browser, both of which produce
+convincing false negatives:
+
+- **Anything timed inside a single evaluation reads zero.** Sampling a counter,
+  awaiting a timeout, and sampling again measures a window in which the page
+  never paints, so `requestAnimationFrame` never fires. The loop, the collision
+  system and the frame counter all look dead. Measure across a real interaction
+  instead - set the counter, take a screenshot or click, then read it back.
+- **`getActiveObjects()` is not "the objects in the level".** Objects outside
+  their activation radius move to an inactive list, so a collectible that
+  disappears from that list has usually just been culled by distance rather
+  than picked up. Check `life` or `getInactiveObjectCount()` before concluding
+  anything was collected or destroyed.
+
+Also note that a dialog freezes the simulation (`__ri.gates.dialog`), so
+stepping frames while one is open changes nothing. Dialogs close on a real
+click/tap or Enter, and closing needs a React render - a synchronous loop of
+`step()` calls will never let one through.
+
 ---
 
 ## 🎮 Web Port Status (Current Implementation)
