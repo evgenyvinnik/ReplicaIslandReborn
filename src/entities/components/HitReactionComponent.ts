@@ -17,7 +17,14 @@ import { sSystemRegistry } from '../../engine/SystemRegistry';
 // Pause-on-attack duration: 4 frames at 60fps
 const ATTACK_PAUSE_DELAY = (1.0 / 60) * 4;
 const DEFAULT_BOUNCE_MAGNITUDE = 200;
-const DEFAULT_INVINCIBILITY_TIME = 2.0;  // 2 seconds after hit
+/**
+ * The original's HitReactionComponent.reset() leaves mInvincibleAfterHitTime
+ * at 0 - objects get no post-hit invincibility unless their spawn function
+ * asks for it, and most do not. The port defaulted to 2 seconds, which
+ * silently gave every enemy in the game a grace period the original never
+ * grants them.
+ */
+const DEFAULT_INVINCIBILITY_TIME = 0;
 const EVENT_SEND_DELAY = 5.0;
 
 export interface HitReactionConfig {

@@ -99,7 +99,11 @@ export class PlayerComponent extends GameComponent {
   public static readonly ATTACK_PAUSE_DELAY = (1.0 / 60.0) * 4;
   
   public static readonly HIT_REACT_TIME = 0.5;
-  public static readonly INVINCIBILITY_TIME = 2.0;
+  /**
+   * How long Andou is untouchable after a hit.
+   * Original: spawnPlayer's hitReact.setInvincibleTime(3.0f).
+   */
+  public static readonly INVINCIBILITY_TIME = 3.0;
   
   public static readonly GHOST_REACTIVATION_DELAY = 0.3;
   public static readonly GHOST_CHARGE_TIME = 0.75;

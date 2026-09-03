@@ -663,10 +663,14 @@ export class LevelSystem {
         obj.addComponent(playerDynCollision);
         
         // Add HitReactionComponent for damage response
+        // Original: spawnPlayer sets bounceOnHit(true), pauseOnAttack(true)
+        // and invincibleTime(3.0). The port had 2.0, leaving Andou vulnerable
+        // a full second earlier than the original after every hit.
         const playerHitReact = new HitReactionComponent({
           bounceOnHit: true,
           bounceMagnitude: 200,
-          invincibleAfterHitTime: 2.0,
+          invincibleAfterHitTime: 3.0,
+          pauseOnAttack: true,
           forceInvincibility: false
         });
         playerDynCollision.setHitReactionComponent(playerHitReact);

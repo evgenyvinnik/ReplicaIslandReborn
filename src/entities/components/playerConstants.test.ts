@@ -24,6 +24,13 @@ describe('player constants', () => {
     expect(PlayerComponent.VERTICAL_IMPULSE_TOLERANCE).toBe(50);
   });
 
+  test('post-hit invincibility matches the original', () => {
+    // Original: spawnPlayer's hitReact.setInvincibleTime(3.0f). The port had
+    // 2.0, which left Andou vulnerable a second earlier after every hit.
+    expect(PlayerComponent.INVINCIBILITY_TIME).toBe(3.0);
+    expect(PlayerComponent.HIT_REACT_TIME).toBe(0.5);
+  });
+
   test('fuel and jets match the original', () => {
     expect(PlayerComponent.FUEL_AMOUNT).toBe(1.0);
     expect(PlayerComponent.JUMP_TO_JETS_DELAY).toBe(0.5);
