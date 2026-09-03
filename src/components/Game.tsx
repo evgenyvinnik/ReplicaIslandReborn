@@ -343,6 +343,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               // Update camera bounds for new level
               const cameraSystem = systemRegistryRef.current?.cameraSystem;
               if (cameraSystem) {
+                // A new level: clear the previous one's camera state first. A cutscene
+                // NPC that still holds focus makes every setTarget() below a silent
+                // no-op - see the note at the initial level-load path.
+                cameraSystem.reset();
                 cameraSystem.setBounds({
                   minX: 0,
                   minY: 0,
@@ -446,6 +450,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Update camera bounds
       const cameraSystem = systemRegistryRef.current?.cameraSystem;
       if (cameraSystem) {
+        // A new level: clear the previous one's camera state first. A cutscene
+        // NPC that still holds focus makes every setTarget() below a silent
+        // no-op - see the note at the initial level-load path.
+        cameraSystem.reset();
         cameraSystem.setBounds({
           minX: 0,
           minY: 0,
@@ -745,6 +753,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 // Update camera bounds for new level
                 const cameraSystem = systemRegistryRef.current?.cameraSystem;
                 if (cameraSystem) {
+                  // A new level: clear the previous one's camera state first. A cutscene
+                  // NPC that still holds focus makes every setTarget() below a silent
+                  // no-op - see the note at the initial level-load path.
+                  cameraSystem.reset();
                   cameraSystem.setBounds({
                     minX: 0,
                     minY: 0,
@@ -1445,6 +1457,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             }
           }
           
+          // Clear any camera state left over from the previous level before
+          // aiming it at this one.
+          //
+          // setTarget() is deliberately a no-op while the camera is in NPC
+          // focus mode, so that a cutscene NPC keeps the camera until its
+          // script releases it. A cutscene level has no player to release the
+          // focus *to*, so NPCComponent never calls releaseNPCFocus() there and
+          // the flag survives the level transition - after which every
+          // setTarget(player) on every later level is silently swallowed and
+          // the camera stays pointed at whatever object now occupies the old
+          // NPC's slot. That leaves the player walking off-screen with the
+          // objects around him deactivated, which is unplayable.
+          cameraSystem.reset();
+
           // Set camera bounds - these are world bounds, not viewport-adjusted
           // CameraSystem will handle viewport offset internally
           cameraSystem.setBounds({
@@ -2081,6 +2107,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 // Update camera bounds for new level
                 const cameraSystem = systemRegistryRef.current?.cameraSystem;
                 if (cameraSystem) {
+                  // A new level: clear the previous one's camera state first. A cutscene
+                  // NPC that still holds focus makes every setTarget() below a silent
+                  // no-op - see the note at the initial level-load path.
+                  cameraSystem.reset();
                   cameraSystem.setBounds({
                     minX: 0,
                     minY: 0,
