@@ -877,7 +877,13 @@ export class LevelSystem {
           requiredAction: ActionType.ATTACK,
           projectilesInSet: 1,
           setsPerActivation: 1,
-          delayBeforeFirstSet: (23 / 24) / 2,
+          // The original writes this twice and the second call wins:
+          //   gun.setDelayBeforeFirstSet(attack.getLength() / 2.0f);
+          //   gun.setDelayBeforeFirstSet(Utils.framesToTime(24, 12));
+          // The port had transcribed the first, dead line - half the 23-frame
+          // attack animation, 0.479s - instead of the 12 frames that actually
+          // take effect.
+          delayBeforeFirstSet: 12 / 24,
         }));
         break;
       }
