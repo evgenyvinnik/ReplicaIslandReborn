@@ -40,6 +40,15 @@ import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { InputSystem } from '../engine/InputSystem';
 import type { SystemRegistry } from '../engine/SystemRegistry';
 
+/**
+ * Activation radii, derived from the screen size the way the original derives
+ * them in GameObjectFactory's constructor. See the fuller note in
+ * levels/LevelSystemNew.ts.
+ */
+const SCREEN_SIZE_RADIUS = Math.sqrt(240 * 240 + 160 * 160);
+const TIGHT_ACTIVATION_RADIUS = SCREEN_SIZE_RADIUS + 128;
+const NORMAL_ACTIVATION_RADIUS = SCREEN_SIZE_RADIUS * 1.25;
+
 // Object type definitions
 export enum GameObjectType {
   INVALID = '',
@@ -319,7 +328,7 @@ export class GameObjectFactory {
     obj.height = 64;
     obj.life = 1;
     obj.maxLife = 1;
-    obj.activationRadius = 200;
+    obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
     const patrol = new PatrolComponent({
       maxSpeed: 50,
       acceleration: 1000,
@@ -457,7 +466,7 @@ export class GameObjectFactory {
     obj.height = 64;
     obj.life = 1;
     obj.maxLife = 1;
-    obj.activationRadius = 200;
+    obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
 
     // Add sprite
     const sprite = this.componentPools.sprite.allocate();
@@ -718,7 +727,7 @@ export class GameObjectFactory {
     obj.subType = 'cannon_ball';
     obj.width = 32;
     obj.height = 32;
-    obj.activationRadius = 200;
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.life = 1;
 
     // Add sprite
@@ -763,7 +772,7 @@ export class GameObjectFactory {
     obj.subType = 'energy_ball';
     obj.width = 32;
     obj.height = 32;
-    obj.activationRadius = 300;
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.life = 1;
 
     // Add multi-sprite animated component for energy ball
@@ -802,7 +811,7 @@ export class GameObjectFactory {
     obj.subType = 'wanda_shot';
     obj.width = 32;
     obj.height = 32;
-    obj.activationRadius = 200;
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.life = 1;
 
     const multiSprite = new MultiSpriteAnimComponent();
@@ -840,7 +849,7 @@ export class GameObjectFactory {
     obj.subType = 'turret_bullet';
     obj.width = 16;
     obj.height = 16;
-    obj.activationRadius = 200;
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.life = 1;
 
     // Add sprite

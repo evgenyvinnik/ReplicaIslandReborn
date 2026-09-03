@@ -143,6 +143,30 @@ function drawPriorityFor(obj: GameObject): number {
   return TYPE_PRIORITIES[obj.type] ?? SortConstants.FOREGROUND;
 }
 
+/**
+ * Object activation radii, derived from the screen size exactly as the
+ * original derives them (GameObjectFactory's constructor):
+ *
+ *   screenSizeRadius = hypot(gameWidth / 2, gameHeight / 2)
+ *   tight  = screenSizeRadius + 128
+ *   normal = screenSizeRadius * 1.25
+ *   wide   = screenSizeRadius * 2
+ *   always = -1
+ *
+ * The port previously invented its own values - 100 for collectibles, 200 for
+ * most enemies, 2000 for story NPCs. Those are far tighter than the original's
+ * ~360-416, so enemies woke up almost on top of the player instead of a screen
+ * away, and everything off-screen sat frozen until you were nearly touching it.
+ */
+const GAME_WIDTH = 480;
+const GAME_HEIGHT = 320;
+const SCREEN_SIZE_RADIUS = Math.sqrt(
+  (GAME_WIDTH * 0.5) * (GAME_WIDTH * 0.5) + (GAME_HEIGHT * 0.5) * (GAME_HEIGHT * 0.5)
+);
+const TIGHT_ACTIVATION_RADIUS = SCREEN_SIZE_RADIUS + 128;
+const NORMAL_ACTIVATION_RADIUS = SCREEN_SIZE_RADIUS * 1.25;
+const ALWAYS_ACTIVE = -1;
+
 /** Draw order for The Source's layers; the original's SortConstants value. */
 const THE_SOURCE_START = SortConstants.THE_SOURCE_START;
 
@@ -617,6 +641,10 @@ export class LevelSystem {
         obj.life = this.playerMaxLife;
         obj.maxLife = this.playerMaxLife;
         obj.team = Team.PLAYER;
+        // Original: spawnPlayer sets activationRadius = mAlwaysActive. Left at
+        // the default of 0 the player is only ever "active" when the camera is
+        // exactly on him, which GameObjectManager cannot guarantee.
+        obj.activationRadius = ALWAYS_ACTIVE;
         
         // Add PlayerComponent - CRITICAL: Game.tsx expects this to exist
         const playerComp = new PlayerComponent();
@@ -652,7 +680,7 @@ export class LevelSystem {
         obj.type = 'coin';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 100;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.life = 1;
         // The original picks coins up with HitPlayerComponent - a plain radius
         // test rather than the volume pipeline, because coins are numerous.
@@ -663,7 +691,7 @@ export class LevelSystem {
         obj.type = 'ruby';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 100;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.life = 1;
         // Rubies and diaries go through the volume pipeline in the original,
         // against Andou's always-present COLLECT volume.
@@ -674,7 +702,7 @@ export class LevelSystem {
         obj.type = 'diary';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 100;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.life = 1;
         this.attachCollectible(obj, { volumeRadius: 16 });
         break;
@@ -684,7 +712,7 @@ export class LevelSystem {
         obj.subType = 'bat';
         objWidth = 64;   // Sprite is 64x32
         objHeight = 32;
-        obj.activationRadius = 200;
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
         // Add PatrolComponent - flying, 75 speed (from original)
         const batPatrol = new PatrolComponent({
           maxSpeed: 75.0,
@@ -705,7 +733,7 @@ export class LevelSystem {
         obj.subType = 'sting';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
         // Add PatrolComponent - flying, 75 speed (from original)
         const stingPatrol = new PatrolComponent({
           maxSpeed: 75.0,
@@ -725,7 +753,7 @@ export class LevelSystem {
         obj.subType = 'onion';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
         // Add PatrolComponent - ground, 50 speed (from original)
         const onionPatrol = new PatrolComponent({
           maxSpeed: 50.0,
@@ -742,7 +770,7 @@ export class LevelSystem {
         obj.subType = 'brobot';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
         // Add PatrolComponent - ground, 50 speed (from original)
         const brobotPatrol = new PatrolComponent({
           maxSpeed: 50.0,
@@ -759,7 +787,7 @@ export class LevelSystem {
         obj.subType = 'skeleton';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
         // Add PatrolComponent - ground, 20 speed, turn to face player, with attack (from original)
         const skeletonPatrol = new PatrolComponent({
           maxSpeed: 20.0,
@@ -791,7 +819,7 @@ export class LevelSystem {
         obj.subType = 'snailbomb';
         objWidth = 64;
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
         obj.addComponent(new PatrolComponent({
           maxSpeed: 20.0,
           acceleration: 1000.0,
@@ -825,7 +853,7 @@ export class LevelSystem {
         obj.subType = 'shadowslime';
         objWidth = 64;   // Sprite is 64x64
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         // Shadowslime uses PopOutComponent - appears/hides based on player distance
         const shadowslimePopOut = new PopOutComponent({
           appearDistance: 2000,
@@ -855,7 +883,7 @@ export class LevelSystem {
         obj.subType = 'mudman';
         objWidth = 128;  // Sprite is 128x128
         objHeight = 128;
-        obj.activationRadius = 300;
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
         // Add PatrolComponent - slow ground, 20 speed, with attack (from original)
         const mudmanPatrol = new PatrolComponent({
           maxSpeed: 20.0,
@@ -889,7 +917,7 @@ export class LevelSystem {
         obj.subType = 'karaguin';
         objWidth = 32;   // Sprite is 32x32
         objHeight = 32;
-        obj.activationRadius = 200;
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
         // Add PatrolComponent - flying (swimming), 50 speed (from original)
         const karaguinPatrol = new PatrolComponent({
           maxSpeed: 50.0,
@@ -908,7 +936,7 @@ export class LevelSystem {
         obj.subType = 'pink_namazu';
         objWidth = 128;   // Sprites are 128x128
         objHeight = 128;
-        obj.activationRadius = 250;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         // Pink Namazu uses SleeperComponent - sleeps until camera shakes, then jumps/slams
         const namazuSleeper = new SleeperComponent({
           wakeUpDuration: 1.5,
@@ -937,7 +965,7 @@ export class LevelSystem {
         obj.subType = 'turret';
         objWidth = 64;
         objHeight = 64;
-        obj.activationRadius = 300;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.ENEMY;
         obj.facingDirection.x = spawn.type === GameObjectTypeIndex.TURRET_LEFT ? -1 : 1;
         // Turret uses AttackAtDistanceComponent - stationary, shoots at player
@@ -973,7 +1001,7 @@ export class LevelSystem {
         obj.subType = 'the_source';
         objWidth = 512;   // Large boss sprites are 512x512
         objHeight = 512;
-        obj.activationRadius = -1; // Always active (final boss)
+        obj.activationRadius = ALWAYS_ACTIVE; // Original: spawnObjectTheSource
         obj.life = 3; // Original: life = 3
         obj.team = Team.PLAYER; // Team.PLAYER means ENEMY attacks can damage it
         
@@ -1067,7 +1095,7 @@ export class LevelSystem {
         obj.type = 'door';
         objWidth = 32;
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         
         // Determine color for sprite and channel
         let doorColor = 'red';
@@ -1166,7 +1194,7 @@ export class LevelSystem {
         obj.type = 'button';
         objWidth = 32;
         objHeight = 32; // Use 32 for collision detection
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         // Original: Team.NONE. GameObjectCollisionSystem rejects same-team
         // hits, so an ENEMY button could not be depressed by a brobot.
         obj.team = Team.NONE;
@@ -1248,7 +1276,7 @@ export class LevelSystem {
         obj.subType = 'wanda';
         objWidth = 64;   // Sprite is 64x128
         objHeight = 128;
-        obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
+        obj.activationRadius = ALWAYS_ACTIVE; // Large radius to keep NPC active during cutscenes
         obj.team = Team.ENEMY;
         obj.facingDirection.x = -1;
         // Add NPC movement component
@@ -1277,7 +1305,7 @@ export class LevelSystem {
         obj.subType = 'kyle';
         objWidth = 64;   // Sprite is 64x128
         objHeight = 128;
-        obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
+        obj.activationRadius = ALWAYS_ACTIVE; // Large radius to keep NPC active during cutscenes
         obj.team = Team.NONE;
         obj.facingDirection.x = -1;
         // Kyle's final sewer sequence relies on a GAME_EVENT hotspot. Match the
@@ -1314,7 +1342,7 @@ export class LevelSystem {
         obj.subType = 'kabocha';
         objWidth = 64;   // Sprite is 64x128
         objHeight = 128;
-        obj.activationRadius = 2000; // Large radius to keep NPC active during cutscenes
+        obj.activationRadius = ALWAYS_ACTIVE; // Large radius to keep NPC active during cutscenes
         obj.team = Team.ENEMY;
         obj.facingDirection.x = -1;
         const npcComponent3 = new NPCComponent();
@@ -1329,7 +1357,7 @@ export class LevelSystem {
         obj.subType = 'evil_kabocha';
         objWidth = 128;   // Sprites are 128x128
         objHeight = 128;
-        obj.activationRadius = 400; // Boss has larger activation radius
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS; // Boss has larger activation radius
         obj.life = 3;
         obj.team = Team.ENEMY;
         obj.facingDirection.x = -1;
@@ -1385,7 +1413,7 @@ export class LevelSystem {
         obj.subType = 'rokudou';
         objWidth = 128;  // Large boss sprite is 128x128
         objHeight = 128;
-        obj.activationRadius = 400; // Boss has larger activation radius
+        obj.activationRadius = NORMAL_ACTIVATION_RADIUS; // Boss has larger activation radius
         obj.life = 3; // Boss has 3 hit points
         obj.team = Team.ENEMY;
         obj.facingDirection.x = -1;
@@ -1472,7 +1500,7 @@ export class LevelSystem {
         obj.type = 'breakable_block';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 500; // Large radius to ensure blocks are active when NPC approaches
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS; // Large radius to ensure blocks are active when NPC approaches
         obj.life = 1;
         obj.team = Team.ENEMY; // Can be damaged by player
         
@@ -1509,7 +1537,7 @@ export class LevelSystem {
         obj.type = 'cannon';
         objWidth = 64;
         objHeight = 128;
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.NONE;
         
         // Launcher component - launches player with cannon effect
@@ -1554,7 +1582,7 @@ export class LevelSystem {
         obj.subType = 'brobot_spawner';
         objWidth = 64;
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.ENEMY;
         // BROBOT_SPAWNER_LEFT is the horizontally flipped variant; the launcher
         // mirrors its spawn offset and velocity from facingDirection.
@@ -1600,7 +1628,7 @@ export class LevelSystem {
         obj.subType = 'infinite';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 300;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.NONE;
         
         // Launch projectile component configured for infinite spawning
@@ -1623,7 +1651,7 @@ export class LevelSystem {
         obj.type = 'hint_sign';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 100;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.NONE;
         
         // Dynamic collision for collection
@@ -1658,7 +1686,7 @@ export class LevelSystem {
         obj.subType = spawn.type === GameObjectTypeIndex.KABOCHA_TERMINAL ? 'kabocha' : 'rokudou';
         objWidth = 64;
         objHeight = 64;
-        obj.activationRadius = 2000;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.NONE;
         
         const terminalCollision = new DynamicCollisionComponent();
@@ -1687,7 +1715,7 @@ export class LevelSystem {
         obj.subType = 'ghost';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 10000; // Always active
+        obj.activationRadius = ALWAYS_ACTIVE; // Always active
         obj.team = Team.NONE;
         obj.life = 1;
         
@@ -1714,7 +1742,7 @@ export class LevelSystem {
         obj.type = 'camera_bias';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 200;
+        obj.activationRadius = ALWAYS_ACTIVE;
         obj.team = Team.NONE;
         
         // Camera bias component
@@ -1729,7 +1757,7 @@ export class LevelSystem {
         obj.subType = 'crusher_andou';
         objWidth = 64;
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = ALWAYS_ACTIVE;
         obj.life = 1;
         obj.team = Team.ENEMY;
         
@@ -1772,7 +1800,7 @@ export class LevelSystem {
         obj.subType = spawn.type === GameObjectTypeIndex.ANDOU_DEAD ? 'andou_dead' : 'kyle_dead';
         objWidth = spawn.type === GameObjectTypeIndex.KYLE_DEAD ? 128 : 64;
         objHeight = spawn.type === GameObjectTypeIndex.KYLE_DEAD ? 32 : 64;
-        obj.activationRadius = 100;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.NONE;
         if (spawn.type === GameObjectTypeIndex.KYLE_DEAD) {
           const deadKyleCollision = new DynamicCollisionComponent();
@@ -1803,7 +1831,7 @@ export class LevelSystem {
         obj.type = 'door';
         objWidth = 32;
         objHeight = 64;
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         
         // Determine color for sprite and channel
         let nbDoorColor = 'red';
@@ -1885,7 +1913,7 @@ export class LevelSystem {
         obj.subType = 'cannon_ball';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.ENEMY;
         
         // Lifetime - dies after 3 seconds or on hitting background
@@ -1923,7 +1951,7 @@ export class LevelSystem {
         obj.subType = 'turret_bullet';
         objWidth = 16;
         objHeight = 16;
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.ENEMY;
         
         // Lifetime
@@ -1957,7 +1985,7 @@ export class LevelSystem {
         obj.subType = 'brobot_bullet';
         objWidth = 16;
         objHeight = 16;
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.ENEMY;
         
         // Lifetime
@@ -1991,7 +2019,7 @@ export class LevelSystem {
         obj.subType = 'energy_ball';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 300;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.ENEMY;
         
         // Lifetime
@@ -2033,7 +2061,7 @@ export class LevelSystem {
         obj.subType = 'wanda_shot';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 200;
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.NONE;
         
         // Lifetime
@@ -2087,7 +2115,7 @@ export class LevelSystem {
           objWidth = 128;
           objHeight = 128;
         }
-        obj.activationRadius = 100;
+        obj.activationRadius = ALWAYS_ACTIVE;
         obj.team = Team.NONE;
         
         // Short lifetime for effects
@@ -2103,7 +2131,7 @@ export class LevelSystem {
         obj.subType = 'framerate_watcher';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = 100;
+        obj.activationRadius = ALWAYS_ACTIVE;
         obj.team = Team.NONE;
         // No special components - handled by performance monitor
         break;
@@ -2574,10 +2602,10 @@ export class LevelSystem {
         this.gameObjectManager.setPlayer(obj);
         break;
       case 'enemy':
-        obj.activationRadius = 200;
+        obj.activationRadius = ALWAYS_ACTIVE;
         break;
       case 'collectible':
-        obj.activationRadius = 100;
+        obj.activationRadius = ALWAYS_ACTIVE;
         break;
     }
 
