@@ -88,7 +88,16 @@ export class PlayerComponent extends GameComponent {
   public static readonly MAX_UPWARD_SPEED = 250;
   public static readonly JUMP_TO_JETS_DELAY = 0.5;
   public static readonly AIR_DRAG_SPEED = 4000;
-  public static readonly GRAVITY = 500;
+  // GravityComponent.sDefaultGravity is (0, -400) in the original, and the
+  // player is given a plain GravityComponent with no multiplier. 500 made
+  // Andou 25% heavier than the original and cut his jump apex from 78px to
+  // 62px - a whole half-tile against level geometry authored for the former.
+  public static readonly GRAVITY = 400;
+  // spawnPlayer: physics.setMass(9.1) / setDynamicFrictionCoeffecient(0.2) /
+  // setStaticFrictionCoeffecient(0.01).
+  public static readonly MASS = 9.1;
+  public static readonly DYNAMIC_FRICTION_COEFFICIENT = 0.2;
+  public static readonly STATIC_FRICTION_COEFFICIENT = 0.01;
   public static readonly FUEL_AMOUNT = 1.0;
   
   public static readonly STOMP_VELOCITY = 1000;
@@ -436,10 +445,26 @@ export class PlayerComponent extends GameComponent {
     velocity.x = Math.max(-PlayerComponent.MAX_GROUND_HORIZONTAL_SPEED, Math.min(PlayerComponent.MAX_GROUND_HORIZONTAL_SPEED, velocity.x));
     velocity.y = Math.max(-PlayerComponent.MAX_UPWARD_SPEED * 2, Math.min(1000, velocity.y));
 
-    // Friction on ground
-    if (this.touchingGround && moveX === 0) {
-      velocity.x *= 0.85;
-      if (Math.abs(velocity.x) < 1) velocity.x = 0;
+    // Ground friction. The original gives the player a PhysicsComponent with
+    // mass 9.1, dynamic coefficient 0.2 and static 0.01, and stops him with
+    // Coulomb friction: maxFriction = |gravity.y| * mass * coefficient * dt,
+    // subtracted from the speed. A per-frame `velocity.x *= 0.85` is neither
+    // the same curve nor frame-rate independent - it decays exponentially and
+    // brought him to a halt in ~56px where the original slides ~172px.
+    if (this.touchingGround && moveX === 0 && velocity.x !== 0) {
+      const coefficient =
+        Math.abs(velocity.x) > 0
+          ? PlayerComponent.DYNAMIC_FRICTION_COEFFICIENT
+          : PlayerComponent.STATIC_FRICTION_COEFFICIENT;
+      const maxFriction =
+        Math.abs(PlayerComponent.GRAVITY) * PlayerComponent.MASS * coefficient * deltaTime;
+      if (maxFriction > Math.abs(velocity.x)) {
+        velocity.x = 0;
+      } else {
+        velocity.x -= maxFriction * Math.sign(velocity.x);
+      }
+      // The original's final "too slow to matter" cutoff.
+      if (Math.abs(velocity.x) < 0.01) velocity.x = 0;
     }
 
     // Move player (Collision logic)

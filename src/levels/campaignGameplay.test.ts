@@ -291,6 +291,97 @@ describe('campaign gameplay simulation', () => {
     );
   });
 
+  test('Andou jumps to the apex the original constants predict', async () => {
+    // Gravity was hand-tuned to 500; the original gives the player a plain
+    // GravityComponent, whose default is (0, -400). Measured in the real
+    // level, with the real collision pipeline - the closed-form apex is
+    // AIR_VERTICAL_IMPULSE_FROM_GROUND^2 / 2g = 250^2 / 800 = 78.1px, and 500
+    // gravity produced 62.5px, half a tile short.
+    const levels = await playableLevels();
+    const harness = createHarness();
+    expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+    expect(await harness.levelSystem.loadLevel(levels[0].levelId)).toBe(true);
+    harness.manager.commitUpdates();
+    const player = harness.manager.getPlayer() as GameObject;
+
+    harness.run(30); // settle onto the floor
+    const groundY = player.getPosition().y;
+    expect(player.touchingGround()).toBe(true);
+
+    harness.input.setVirtualButton('jump', true);
+    harness.run(1);
+    harness.input.setVirtualButton('jump', false);
+
+    let apex = groundY;
+    for (let i = 0; i < 120; i++) {
+      harness.run(1);
+      apex = Math.min(apex, player.getPosition().y);
+    }
+
+    const height = groundY - apex;
+    const predicted =
+      (PlayerComponent.AIR_VERTICAL_IMPULSE_FROM_GROUND ** 2) / (2 * PlayerComponent.GRAVITY);
+    expect(predicted).toBeCloseTo(78.125, 3);
+    // Euler integration lands a couple of pixels under the closed form.
+    expect(height).toBeGreaterThan(predicted - 6);
+    expect(height).toBeLessThan(predicted + 6);
+    // And comfortably over two tiles, which 500 gravity was not.
+    expect(height).toBeGreaterThan(64);
+  }, 30_000);
+
+  test('Andou coasts to a stop under the original Coulomb friction', async () => {
+    // Friction was `velocity.x *= 0.85` per frame - exponential, frame-rate
+    // dependent, and it stopped him in about a third of the distance. The
+    // original gives him a PhysicsComponent with mass 9.1 and a 0.2 dynamic
+    // coefficient, decelerating him by |gravity| * mass * coefficient per
+    // second: 728px/s^2, so 500px/s coasts 172px over 41 frames.
+    const levels = await playableLevels();
+    const harness = createHarness();
+    expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+    expect(await harness.levelSystem.loadLevel(levels[0].levelId)).toBe(true);
+    harness.manager.commitUpdates();
+    const player = harness.manager.getPlayer() as GameObject;
+
+    harness.run(30);
+    expect(player.touchingGround()).toBe(true);
+
+    // Inject top ground speed rather than driving him into whatever geometry
+    // happens to be to the right of his spawn.
+    player.getVelocity().x = PlayerComponent.MAX_GROUND_HORIZONTAL_SPEED;
+    const startSpeed = player.getVelocity().x;
+
+    const speeds: number[] = [startSpeed];
+    let frames = 0;
+    for (let i = 0; i < 200; i++) {
+      harness.run(1);
+      frames++;
+      speeds.push(player.getVelocity().x);
+      if (player.getVelocity().x === 0) break;
+    }
+
+    const rate =
+      Math.abs(PlayerComponent.GRAVITY) *
+      PlayerComponent.MASS *
+      PlayerComponent.DYNAMIC_FRICTION_COEFFICIENT;
+    expect(rate).toBeCloseTo(728, 3);
+
+    // He actually stops, in about the predicted number of frames.
+    expect(player.getVelocity().x).toBe(0);
+    const predictedFrames = (startSpeed / rate) * 60;
+    expect(frames).toBeGreaterThan(predictedFrames - 8);
+    expect(frames).toBeLessThan(predictedFrames + 8);
+
+    // Linear, not exponential: consecutive drops are equal while he is still
+    // moving. The 0.85 multiplier's drops shrink every frame.
+    const drops: number[] = [];
+    for (let i = 1; i < speeds.length - 1 && speeds[i] > 20; i++) {
+      drops.push(speeds[i - 1] - speeds[i]);
+    }
+    expect(drops.length).toBeGreaterThan(10);
+    const first = drops[0];
+    for (const d of drops) expect(Math.abs(d - first)).toBeLessThan(0.5);
+  }, 30_000);
+
   test("the player's GameObject action tracks its state", async () => {
     // The original sets this in gotoMove/gotoStomp/stateDead/gotoFrozen.
     // Leaving it at INVALID means anything gating on requiredAction can never
