@@ -70,7 +70,6 @@ optimisation it does not do. None of them is missing gameplay.
 | No object pooling | Low | The original pools 384+ objects to avoid GC pauses on 2010 Android hardware. The port allocates freely; this is not a correctness problem and has not shown up as one in play. |
 | Four components unattached | None | See "Ported But Not Wired Up" — one is dead in the original too, the rest are covered by other code or serve unused object types. |
 | `SimplePhysicsComponent` not ported | Low | Its two jobs are covered: `MovementComponent` consumes scripted impulses and clamps velocity on contact. Only the 10% bounce off surfaces is absent, which is cosmetic. |
-| Crush flash is front-layer only | Low | The original draws `effect_crush_back01-03` behind the object at `EFFECT` while the seven front frames play at `FOREGROUND_EFFECT`. `EffectsSystem` has no per-effect priority to hang the back layer on. |
 | `ui_button_fly_disabled` unused | None | Dead in the original too: `HudSystem.mFlyButtonActive` is set true in `reset()` and there is no setter, so the disabled sprite never draws there either. |
 | `Game.tsx` size | Low | ~2780 lines of orchestration: level transitions, sprite loading, Canvas UI wiring, and turning pipeline events into lives, score, the win check and the diary. No longer a parallel component system. |
 
@@ -156,7 +155,10 @@ priority of 0 and draw in whatever order the object manager held it, which
 looked right often enough to hide that there was no way to express this at all.
 
 `EffectsSystem.drawQueued()` puts explosions, smoke and dust into the queue at
-`EFFECT`. They used to paint straight onto the canvas *before* the queue
+`EFFECT`, unless the effect's config names its own `priority` — the crush
+flash uses that to draw `effect_crush_back01-03` behind the object it crushed
+while its seven front frames play over the top at `FOREGROUND_EFFECT`, which
+is how the original spawns it. They used to paint straight onto the canvas *before* the queue
 rendered, which put them under everything drawn afterwards — the background
 layers included. If you add a system that draws with raw canvas operations,
 give it a queue entry rather than a direct `ctx` call, or it lands underneath

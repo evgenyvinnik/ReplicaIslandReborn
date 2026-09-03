@@ -8,6 +8,7 @@
 import type { RenderSystem } from './RenderSystem';
 import type { SoundSystem } from './SoundSystem';
 import { assetPath } from '../utils/helpers';
+import { SortConstants } from './SortConstants';
 
 /**
  * Types of visual effects
@@ -19,6 +20,7 @@ export enum EffectType {
   SMOKE_BIG = 'smoke_big',
   SMOKE_SMALL = 'smoke_small',
   CRUSH_FLASH = 'crush_flash',
+  CRUSH_FLASH_BACK = 'crush_flash_back',
   DUST = 'dust',
   SPARK = 'spark',
   ENERGY_BALL = 'energy_ball',
@@ -44,6 +46,12 @@ interface EffectConfig {
   loop: boolean;
   sound?: string;
   hasAttackVolume?: boolean;
+  /**
+   * Draw order for this effect, when it differs from the queue's default.
+   * The crush flash is the reason this exists: the original draws its back
+   * layer behind the object and its front layer in front of it.
+   */
+  priority?: number;
 }
 
 /**
@@ -170,8 +178,24 @@ const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
     height: 32,
     loop: false,
   },
+  [EffectType.CRUSH_FLASH_BACK]: {
+    type: EffectType.CRUSH_FLASH_BACK,
+    // Drawn behind the object it crushed; the front layer plays over the top.
+    frames: [
+      'effect_crush_back01.png',
+      'effect_crush_back02.png',
+      'effect_crush_back03.png',
+    ],
+    frameTimes: [1, 1, 1],
+    frameDuration: 1 / 24,
+    width: 64,
+    height: 64,
+    loop: false,
+    priority: SortConstants.EFFECT,
+  },
   [EffectType.CRUSH_FLASH]: {
     type: EffectType.CRUSH_FLASH,
+    priority: SortConstants.FOREGROUND_EFFECT,
     frames: [
       'effect_crush_front01.png',
       'effect_crush_front02.png',
@@ -372,6 +396,9 @@ export class EffectsSystem {
    * Spawn crush/stomp flash effect
    */
   spawnCrushFlash(x: number, y: number): void {
+    // Two layers, as the original spawns them: the back one behind the object
+    // at EFFECT, the front one over it at FOREGROUND_EFFECT.
+    this.spawn(EffectType.CRUSH_FLASH_BACK, x, y);
     this.spawn(EffectType.CRUSH_FLASH, x, y);
   }
   
@@ -517,7 +544,7 @@ export class EffectsSystem {
         Math.floor(effect.x),
         Math.floor(effect.y),
         0,
-        priority
+        effect.config.priority ?? priority
       );
     }
   }

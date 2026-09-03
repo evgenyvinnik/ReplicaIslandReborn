@@ -14,6 +14,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import { EffectsSystem, EffectType } from './EffectsSystem';
+import { SortConstants } from './SortConstants';
 
 /** Total on-screen life of an effect, in seconds. */
 function lifetimeOf(type: EffectType): number {
@@ -60,5 +61,33 @@ describe('effect timing', () => {
   test('smoke outlasts the explosion that usually accompanies it', () => {
     expect(lifetimeOf(EffectType.SMOKE_BIG))
       .toBeGreaterThan(lifetimeOf(EffectType.EXPLOSION_LARGE));
+  });
+
+  test('a crush flash is two layers, one behind the object and one in front', () => {
+    // Original: spawnEffectCrushFlash builds a 3-frame back animation at
+    // EFFECT and a 7-frame front one at FOREGROUND_EFFECT. The port drew only
+    // the front, so the flash never showed behind what it crushed.
+    const system = new EffectsSystem();
+    system.spawnCrushFlash(0, 0);
+    expect(system.getActiveCount()).toBe(2);
+
+    const drawn: Array<{ sprite: string; z: number }> = [];
+    system.drawQueued(
+      {
+        hasSprite: (): boolean => true,
+        drawSprite: (sprite: string, _x: number, _y: number, _f: number, z: number): void => {
+          drawn.push({ sprite, z });
+        },
+      } as unknown as Parameters<EffectsSystem['drawQueued']>[0],
+      SortConstants.EFFECT
+    );
+
+    const back = drawn.find((d) => d.sprite.includes('crush_back'));
+    const front = drawn.find((d) => d.sprite.includes('crush_front'));
+    expect(back, 'no back layer drawn').toBeDefined();
+    expect(front, 'no front layer drawn').toBeDefined();
+    expect(back!.z).toBe(SortConstants.EFFECT);
+    expect(front!.z).toBe(SortConstants.FOREGROUND_EFFECT);
+    expect(back!.z).toBeLessThan(front!.z);
   });
 });
