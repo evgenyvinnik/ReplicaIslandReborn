@@ -886,6 +886,18 @@ mWideActivationRadius = screenSizeRadius * 2.0f;
 mAlwaysActive = -1.0f;  // Player, critical objects
 ```
 
+Ported verbatim. `LevelSystemNew.ts` derives all four from the screen size the
+same way (288.4 at 480x320, giving tight 416.4 / normal 360.6 / wide 576.9) and
+every spawn site picks one, mapped against the table in `GameObjectFactory.java`:
+story NPCs, the player and The Source are always-active; ordinary enemies are
+normal; collectibles, projectiles, doors, buttons, blocks and the shadow slime
+are tight.
+
+`GameObjectManager.updateActivation()` tests the same shape the original does —
+squared distance from the camera's centre to the object's position against the
+radius squared. It used to test a box (half the viewport plus the radius plus a
+128px margin, per axis), which covered roughly twice the area.
+
 ---
         }
     }
