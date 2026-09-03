@@ -59,6 +59,19 @@ import { resourceToLevelId } from '../data/levelTree';
  * The pickup sound for the 1st, 2nd and 3rd ruby of a level.
  * Original: AnimationComponent.setRubySounds(gem1, gem2, gem3).
  */
+/**
+ * The win flourish: the original slows the clock to a tenth for eight seconds
+ * as the last gem is collected, easing in and out.
+ * Original: PlayerComponent.gotoWin() -> TimeSystem.appyScale(0.1f, 8.0f, true).
+ */
+const WIN_TIME_SCALE = 0.1;
+const WIN_TIME_SCALE_DURATION = 8.0;
+/**
+ * How long the slow-motion plays before the level-complete screen takes over.
+ * Real milliseconds, so the scaled clock does not stretch it.
+ */
+const WIN_COMPLETE_DELAY_MS = 1500;
+
 const RUBY_SOUNDS: Record<number, string> = {
   1: SoundEffects.GEM1,
   2: SoundEffects.GEM2,
@@ -375,6 +388,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 // NPC that still holds focus makes every setTarget() below a silent
                 // no-op - see the note at the initial level-load path.
                 cameraSystem.reset();
+                systemRegistryRef.current?.timeSystem?.clearScale();
                 cameraSystem.setBounds({
                   minX: 0,
                   minY: 0,
@@ -482,6 +496,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // NPC that still holds focus makes every setTarget() below a silent
         // no-op - see the note at the initial level-load path.
         cameraSystem.reset();
+        systemRegistryRef.current?.timeSystem?.clearScale();
         cameraSystem.setBounds({
           minX: 0,
           minY: 0,
@@ -785,6 +800,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   // NPC that still holds focus makes every setTarget() below a silent
                   // no-op - see the note at the initial level-load path.
                   cameraSystem.reset();
+                  systemRegistryRef.current?.timeSystem?.clearScale();
                   cameraSystem.setBounds({
                     minX: 0,
                     minY: 0,
@@ -1498,6 +1514,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // NPC's slot. That leaves the player walking off-screen with the
           // objects around him deactivated, which is unplayable.
           cameraSystem.reset();
+          systemRegistryRef.current?.timeSystem?.clearScale();
 
           // Set camera bounds - these are world bounds, not viewport-adjusted
           // CameraSystem will handle viewport offset internally
@@ -2172,6 +2189,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   // NPC that still holds focus makes every setTarget() below a silent
                   // no-op - see the note at the initial level-load path.
                   cameraSystem.reset();
+                  systemRegistryRef.current?.timeSystem?.clearScale();
                   cameraSystem.setBounds({
                     minX: 0,
                     minY: 0,
@@ -2329,11 +2347,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                     playerComponent.levelWon = true;
                     playerComponent.currentState = PlayerState.WIN;
                     soundSystem.playSfx(SoundEffects.DING, 1.0);
-                    
-                    // Trigger level complete after a short delay
+
+                    // The original drops into slow motion as the last gem is
+                    // taken and holds it while the level ends.
+                    // Original: PlayerComponent.gotoWin().
+                    timeSystem.applyScale(WIN_TIME_SCALE, WIN_TIME_SCALE_DURATION, true);
+
                     setTimeout(() => {
                       completeLevel();
-                    }, 500);
+                    }, WIN_COMPLETE_DELAY_MS);
                   }
                 }
               } else if (obj.type === 'pearl') {
