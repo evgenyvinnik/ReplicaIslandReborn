@@ -382,6 +382,50 @@ describe('campaign gameplay simulation', () => {
     for (const d of drops) expect(Math.abs(d - first)).toBeLessThan(0.5);
   }, 30_000);
 
+  test('a mudman in a shipped level swings when the player stands next to it', async () => {
+    // The end-to-end version of patrolAttack.test.ts. PatrolComponent gated
+    // the swing on a distance measured between the two objects' tops, which
+    // added (enemyHeight - playerHeight) to every vertical delta. For a 128px
+    // mudman beside a 48px player that is 80px against a 70px reach, so the
+    // condition was arithmetically unsatisfiable and the mudman never once
+    // attacked in the whole campaign - while patrolling and animating
+    // normally, which is why nothing noticed.
+    const levels = await playableLevels();
+
+    let tested = 0;
+    for (const { levelId } of levels) {
+      const harness = createHarness();
+      expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+      if (!(await harness.levelSystem.loadLevel(levelId))) continue;
+      harness.manager.commitUpdates();
+
+      const player = harness.manager.getPlayer();
+      const mudman = (harness.manager.getActiveObjects() as GameObject[])
+        .find((o) => o.subType === 'mudman');
+      if (!player || !mudman) continue;
+
+      // Stand the player on the mudman's own ground, well inside its 70px
+      // reach, and keep the camera on the pair so it stays active and visible.
+      const mudPos = mudman.getPosition();
+      player.setPosition(
+        mudPos.x + mudman.width / 2 + 30,
+        mudPos.y + mudman.height - player.height
+      );
+
+      let attacked = false;
+      for (let i = 0; i < 240 && !attacked; i++) {
+        harness.run(1);
+        if (mudman.getCurrentAction() === ActionType.ATTACK) attacked = true;
+      }
+
+      expect(attacked, `mudman never attacked in level ${levelId}`).toBe(true);
+      tested++;
+      break;
+    }
+
+    expect(tested, 'no shipped level with a mudman and a player was found').toBeGreaterThan(0);
+  }, 60_000);
+
   test("the player's GameObject action tracks its state", async () => {
     // The original sets this in gotoMove/gotoStomp/stateDead/gotoFrozen.
     // Leaving it at INVALID means anything gating on requiredAction can never
