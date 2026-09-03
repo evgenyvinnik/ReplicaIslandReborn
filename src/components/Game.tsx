@@ -56,6 +56,16 @@ import { useGameStore } from '../stores/useGameStore';
 import { resourceToLevelId } from '../data/levelTree';
 
 /**
+ * The pickup sound for the 1st, 2nd and 3rd ruby of a level.
+ * Original: AnimationComponent.setRubySounds(gem1, gem2, gem3).
+ */
+const RUBY_SOUNDS: Record<number, string> = {
+  1: SoundEffects.GEM1,
+  2: SoundEffects.GEM2,
+  3: SoundEffects.GEM3,
+};
+
+/**
  * The broken android's smoke, from spawnEnemyAndouDead(): SMOKE_BIG every
  * 0.25s at offset (32, 15) and SMOKE_SMALL every 0.35s at (16, 15), both in
  * the original's Y-up object space on a 64x64 sprite.
@@ -1674,7 +1684,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           blockPosition.y + block.height / 2,
           'small'
         );
-        soundSystem.playSfx(SoundEffects.EXPLODE);
+        // The block's own death sound. The original sets it on the block's
+        // LifetimeComponent (`sound_break_block`); this port was playing the
+        // generic explosion instead, though the right clip ships and loads.
+        soundSystem.playSfx(SoundEffects.BREAK_BLOCK);
       });
     };
 
@@ -1745,7 +1758,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const onPlayerHit = (player: GameObject, playerComponent: PlayerComponent): void => {
       const playerPos = player.getPosition();
       setInventory({ lives: player.life });
-      soundSystem.playSfx(SoundEffects.THUMP);
+      // Original: hitReact.setTakeHitSound(HitType.HIT, deep_clang) in
+      // spawnPlayer. `thump` is the stomp's landing impact, not the hurt
+      // sound - PlayerComponent plays that one.
+      soundSystem.playSfx(SoundEffects.DEEP_CLANG);
       cameraSystem.shake(8, 0.3);
 
       if (player.life <= 0) {
@@ -2301,7 +2317,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               } else if (obj.type === 'ruby') {
                 const newRubyCount = inv.rubyCount + 1;
                 setInventory({ rubyCount: newRubyCount, score: inv.score + 3 });
-                soundSystem.playSfx(SoundEffects.GEM2, 0.5);
+                // The three gems of a level play a rising three-note motif -
+                // gem1, gem2, gem3 - rather than the same clip three times.
+                // Original: AnimationComponent.setRubySounds(), keyed off the
+                // inventory's ruby count.
+                soundSystem.playSfx(RUBY_SOUNDS[newRubyCount] ?? SoundEffects.GEM3, 0.5);
                 
                 // WIN CONDITION: Collecting 3 rubies (MAX_GEMS_PER_LEVEL) completes the level
                 if (newRubyCount >= PlayerComponent.MAX_GEMS_PER_LEVEL) {
@@ -2397,7 +2417,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 'small'
               );
               player.getVelocity().y = -200;
-              soundSystem.playSfx(SoundEffects.EXPLODE);
+              soundSystem.playSfx(SoundEffects.BREAK_BLOCK);
               timeSystem.freeze(PlayerComponent.ATTACK_PAUSE_DELAY);
             }
             return;

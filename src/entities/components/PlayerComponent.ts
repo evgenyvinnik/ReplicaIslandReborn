@@ -44,6 +44,8 @@ const GLOW_FLASH_DURATION = 0.15;
 const GLOW_FLASH_LEAD_TIME = 4.0;
 /** Kids difficulty, used until applyDifficulty() supplies the real value. */
 const DEFAULT_GLOW_DURATION = 15.0;
+/** Original: AnimationComponent.LAND_THUMP_DELAY - the stomp thump's cooldown. */
+const LAND_THUMP_DELAY = 0.5;
 /** Original: AnimationComponent.FLICKER_INTERVAL / FLICKER_DURATION. */
 const FLICKER_INTERVAL = 0.15;
 const FLICKER_DURATION = 3.0;
@@ -159,6 +161,10 @@ export class PlayerComponent extends GameComponent {
   private glowFader: FadeDrawableComponent | null = null;
   /** Glow duration this difficulty grants, used to time the ending flash. */
   private glowDuration: number = DEFAULT_GLOW_DURATION;
+  /** Game time before which the stomp thump will not replay. */
+  private landThumpDelay: number = 0;
+  /** The looping jetpack sound's stream id, or -1 when it is not running. */
+  private rocketSoundStream: number = -1;
   /** Post-hit flicker, from the original's AnimationComponent. */
   private flickerTimeRemaining: number = 0;
   private lastFlickerTime: number = 0;
@@ -350,7 +356,15 @@ export class PlayerComponent extends GameComponent {
     // Reset stomp when landing
     if (this.stomping && this.touchingGround && !this.stompLanded) {
       this.stompLanded = true;
-      // Effects handled in Game.tsx for now (camera shake, dust)
+      // The stomp's impact with the ground. The original plays `thump` here -
+      // gated on the stomp action, not on landing generally - and rate-limits
+      // it so a flurry of stomps does not machine-gun the clip.
+      // Original: AnimationComponent, mLandThump / LAND_THUMP_DELAY.
+      if (this.soundSystem && gameTime > this.landThumpDelay) {
+        this.soundSystem.playSfx(SoundEffects.THUMP);
+        this.landThumpDelay = gameTime + LAND_THUMP_DELAY;
+      }
+      // Remaining effects handled in Game.tsx (camera shake, dust)
       this.stomping = false;
       this.currentState = PlayerState.MOVE;
     }
@@ -530,6 +544,7 @@ export class PlayerComponent extends GameComponent {
 
     this.updateGlowSprite(parent);
     this.updateFlicker(parent, sprite, deltaTime);
+    this.updateRocketSound();
 
     const next = selectPlayerAnimation({
       hitReacting: this.currentState === PlayerState.HIT_REACT,
@@ -580,6 +595,34 @@ export class PlayerComponent extends GameComponent {
       this.flickerOn = true;
     }
     sprite.setVisible(this.flickerOn);
+  }
+
+  /**
+   * The jetpack's looping hum, started and stopped with the rockets.
+   *
+   * The original keeps one looping stream and pauses/resumes it
+   * (AnimationComponent, mRocketSoundStream). This port's SoundSystem has no
+   * per-stream pause, so the stream is stopped and restarted instead - the
+   * audible result is the same for a continuous hum.
+   */
+  private updateRocketSound(): void {
+    if (!this.soundSystem) return;
+    if (this.rocketsOn) {
+      if (this.rocketSoundStream === -1) {
+        this.rocketSoundStream = this.soundSystem.playSfx(SoundEffects.ROCKETS, 0.6, true);
+      }
+    } else if (this.rocketSoundStream !== -1) {
+      this.soundSystem.stopSound(this.rocketSoundStream);
+      this.rocketSoundStream = -1;
+    }
+  }
+
+  /** Stop the jetpack hum, for a death or level change that skips MOVE. */
+  stopRocketSound(): void {
+    if (this.soundSystem && this.rocketSoundStream !== -1) {
+      this.soundSystem.stopSound(this.rocketSoundStream);
+    }
+    this.rocketSoundStream = -1;
   }
 
   /** Whether the post-hit flicker is currently hiding Andou. */
@@ -684,6 +727,8 @@ export class PlayerComponent extends GameComponent {
     this.rocketsOn = false;
     this.jumpWasPressed = false;
     this.attackWasPressed = false;
+    this.landThumpDelay = 0;
+    this.stopRocketSound();
     this.stomping = false;
     this.stompTime = 0;
     this.stompHangTime = 0;
