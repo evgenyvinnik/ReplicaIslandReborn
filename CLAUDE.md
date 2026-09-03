@@ -338,6 +338,36 @@ applies it at spawn using the store's recorded `timesPlayed` for that level.
 Jetpack refill rates come from the same constants — they are not the hardcoded
 values the port used to carry.
 
+### Fidelity audit status
+
+Systems checked line-by-line against the Java original, with the numbers pinned
+by tests so they cannot drift back:
+
+| Area | State |
+|------|-------|
+| Player constants | All 21 match. `STOMP_VELOCITY` differs only in sign (Y-up → Y-down). `playerConstants.test.ts` |
+| Difficulty constants | All 33 across Baby/Kids/Adults match. The extra `enemyDamage`/`coinValue`/`playerHitPoints` fields are dead config, referenced nowhere |
+| Activation radii | Derived from the screen size as `GameObjectFactory` does; every spawn site mapped. `activationRadius.test.ts` |
+| Camera | Follow distances, sinusoidal Y-only shake, pixel snap, bias gating, target hand-off. `cameraFollow.test.ts` |
+| Hot spot types | All 41 match |
+| Object type indices | All 41 used by level data match. The original's own `ENERGY_BALL(68)`/`BREAKABLE_BLOCK_PIECE(68)` collision is renumbered here; no level reaches that far. `objectTypeIndices.test.ts` |
+| Component constants | PopOut, MotionBlur, Sleeper, TheSource, Channel, HitReaction all match |
+| Launcher parameters | Every projectile's offsets, velocities, set sizes and delays. `launcherParameters.test.ts` |
+| Animation frame times | Transcribed per frame from `framesToTime(24, n)`. `animationTiming.test.ts` |
+| Sound | 8-voice cap with SoundPool's priority stealing. `soundPriority.test.ts` |
+| Dialogs | Every script in `res/xml` ported, page counts checked against the XML. `dialogCoverage.test.ts` |
+| Level binary format | Little-endian; all 36 `.bin` files parse and agree with the shipped JSON. `binaryFormat.test.ts` |
+| RenderSystem | Queue sorted by priority, camera transform pixel-snapped. The original's double buffering is a threading artifact this port does not need |
+
+Two traps this audit kept hitting, worth knowing before adding to it:
+
+- **A value assigned twice.** The original sets `delayBeforeFirstSet` twice on
+  both the snailbomb and the shadow slime, and the second call wins. Reading the
+  first and stopping gives a plausible wrong number.
+- **Y-up to Y-down.** Anything vertical flips sign, and anything measured from an
+  object's origin changes end: the original's origin is the object's bottom, so
+  `position.y + 10` is *above the feet* and becomes `y + height - 10` here.
+
 ### How to verify gameplay changes
 
 - `bun test` runs a headless gameplay simulation (`src/levels/campaignGameplay.test.ts`)
