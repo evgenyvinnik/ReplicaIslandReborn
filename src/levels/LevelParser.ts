@@ -118,11 +118,15 @@ export interface ParsedLevel {
  * Utility to convert byte array to int (big endian)
  */
 function byteArrayToInt(bytes: Uint8Array, offset: number): number {
+  // Little endian, as the original writes it. Utils.byteArrayToInt keeps the
+  // big-endian form commented out beside it - "Same as DataInputStream's
+  // readInt method" - and deliberately does not use it. This had the bytes the
+  // other way round, which reads an 80-tile width as 1342177280.
   return (
-    ((bytes[offset] & 0xff) << 24) |
-    ((bytes[offset + 1] & 0xff) << 16) |
-    ((bytes[offset + 2] & 0xff) << 8) |
-    (bytes[offset + 3] & 0xff)
+    ((bytes[offset + 3] & 0xff) << 24) |
+    ((bytes[offset + 2] & 0xff) << 16) |
+    ((bytes[offset + 1] & 0xff) << 8) |
+    (bytes[offset] & 0xff)
   );
 }
 
