@@ -30,7 +30,15 @@ export enum EffectType {
 interface EffectConfig {
   type: EffectType;
   frames: string[];
+  /** Fallback hold time when `frameTimes` is absent. */
   frameDuration: number;
+  /**
+   * Per-frame hold times in the original's 24 FPS units, one per frame.
+   * Several effects are deliberately uneven - smoke rushes through its shape
+   * frames and then sits on one frame for two seconds while it disperses - and
+   * a flat rate makes them flash past.
+   */
+  frameTimes?: number[];
   width: number;
   height: number;
   loop: boolean;
@@ -108,6 +116,15 @@ const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
       'effect_explosion_big07.png',
       'effect_explosion_big08.png',
       'effect_explosion_big09.png',
+      // The giant blast is the big explosion followed by the small one -
+      // sixteen frames, not nine. Original: spawnEffectExplosionGiant().
+      'effect_explosion_small01.png',
+      'effect_explosion_small02.png',
+      'effect_explosion_small03.png',
+      'effect_explosion_small04.png',
+      'effect_explosion_small05.png',
+      'effect_explosion_small06.png',
+      'effect_explosion_small07.png',
     ],
     frameDuration: 1 / 24,
     width: 128,
@@ -118,13 +135,20 @@ const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
   },
   [EffectType.SMOKE_BIG]: {
     type: EffectType.SMOKE_BIG,
+    // Original: 02,03,04,05 at one frame each, then 01 held five times for a
+    // long, deliberately uneven tail - the puff forms quickly and then hangs.
     frames: [
-      'effect_smoke_big01.png',
       'effect_smoke_big02.png',
       'effect_smoke_big03.png',
       'effect_smoke_big04.png',
       'effect_smoke_big05.png',
+      'effect_smoke_big01.png',
+      'effect_smoke_big01.png',
+      'effect_smoke_big01.png',
+      'effect_smoke_big01.png',
+      'effect_smoke_big01.png',
     ],
+    frameTimes: [1, 1, 1, 1, 10, 13, 8, 5, 15],
     frameDuration: 1 / 24,
     width: 32,
     height: 32,
@@ -132,6 +156,7 @@ const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
   },
   [EffectType.SMOKE_SMALL]: {
     type: EffectType.SMOKE_SMALL,
+    // Original: 01 held for 10 frames, then 02-05 at one frame each.
     frames: [
       'effect_smoke_small01.png',
       'effect_smoke_small02.png',
@@ -139,9 +164,10 @@ const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
       'effect_smoke_small04.png',
       'effect_smoke_small05.png',
     ],
+    frameTimes: [10, 1, 1, 1, 1],
     frameDuration: 1 / 24,
-    width: 16,
-    height: 16,
+    width: 32,
+    height: 32,
     loop: false,
   },
   [EffectType.CRUSH_FLASH]: {
@@ -155,7 +181,8 @@ const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
       'effect_crush_front06.png',
       'effect_crush_front07.png',
     ],
-    frameDuration: 1 / 30,
+    frameTimes: [1, 1, 1, 1, 1, 1, 1],
+    frameDuration: 1 / 24,
     width: 64,
     height: 64,
     loop: false,
@@ -400,7 +427,11 @@ export class EffectsSystem {
       
       // Update frame timer
       effect.frameTimer += dt;
-      if (effect.frameTimer >= effect.config.frameDuration) {
+      const frameTimes = effect.config.frameTimes;
+      const hold = frameTimes
+        ? (frameTimes[effect.frameIndex] ?? 1) / 24
+        : effect.config.frameDuration;
+      if (effect.frameTimer >= hold) {
         effect.frameTimer = 0;
         effect.frameIndex++;
         
