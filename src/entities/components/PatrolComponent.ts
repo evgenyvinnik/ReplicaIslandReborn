@@ -147,10 +147,16 @@ export class PatrolComponent extends GameComponent {
         const playerPos = player.getPosition();
         const parentPos = parent.getPosition();
         if (this.sign(playerPos.x - parentPos.x) === this.sign(parent.facingDirection.x)) {
+          // The original measures X from the centre but Y from the object's
+          // position, which is its *bottom* in Y-up space. Reading position.y
+          // directly here would measure from the top instead, adding a
+          // constant (enemyHeight - playerHeight) to every vertical delta -
+          // enough to put a 128px mudman permanently out of its own 70px
+          // range. Both feet, as in the original.
           this.workingVector.x = this.getCenteredX(parent);
-          this.workingVector.y = parentPos.y;
+          this.workingVector.y = parentPos.y + parent.height;
           this.workingVector2.x = this.getCenteredX(player);
-          this.workingVector2.y = playerPos.y;
+          this.workingVector2.y = playerPos.y + player.height;
           
           const dx = this.workingVector2.x - this.workingVector.x;
           const dy = this.workingVector2.y - this.workingVector.y;

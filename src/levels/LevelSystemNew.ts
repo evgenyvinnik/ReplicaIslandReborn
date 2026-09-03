@@ -766,6 +766,12 @@ export class LevelSystem {
           turnToFacePlayer: false
         });
         obj.addComponent(onionPatrol);
+        // The original gives this enemy a LifetimeComponent with
+        // setVulnerableToDeathTiles(true), so it dies if it walks into a
+        // death pit rather than strolling through it.
+        const onionLife = new LifetimeComponent();
+        onionLife.setVulnerableToDeathTiles(true);
+        obj.addComponent(onionLife);
         break;
       }
         
@@ -783,6 +789,12 @@ export class LevelSystem {
           turnToFacePlayer: false
         });
         obj.addComponent(brobotPatrol);
+        // The original gives this enemy a LifetimeComponent with
+        // setVulnerableToDeathTiles(true), so it dies if it walks into a
+        // death pit rather than strolling through it.
+        const brobotLife = new LifetimeComponent();
+        brobotLife.setVulnerableToDeathTiles(true);
+        obj.addComponent(brobotLife);
         break;
       }
         
@@ -815,6 +827,12 @@ export class LevelSystem {
         skeletonSurface.addSurfaceFromCoords(25, 64, 25, 0, -1, 0);
         skeletonSurface.addSurfaceFromCoords(40, 64, 40, 0, 1, 0);
         obj.addComponent(skeletonSurface);
+        // The original gives this enemy a LifetimeComponent with
+        // setVulnerableToDeathTiles(true), so it dies if it walks into a
+        // death pit rather than strolling through it.
+        const skeletonLife = new LifetimeComponent();
+        skeletonLife.setVulnerableToDeathTiles(true);
+        obj.addComponent(skeletonLife);
         break;
       }
         
@@ -849,6 +867,12 @@ export class LevelSystem {
           // The Android launcher fires after the two attack frames (3 + 2).
           delayBeforeFirstSet: 5 / 24,
         }));
+        // The original gives this enemy a LifetimeComponent with
+        // setVulnerableToDeathTiles(true), so it dies if it walks into a
+        // death pit rather than strolling through it.
+        const snailbombLife = new LifetimeComponent();
+        snailbombLife.setVulnerableToDeathTiles(true);
+        obj.addComponent(snailbombLife);
         break;
       }
         

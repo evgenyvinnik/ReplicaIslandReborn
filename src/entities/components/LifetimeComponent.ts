@@ -10,6 +10,8 @@ import { GameComponent } from '../GameComponent';
 import { ComponentPhase } from '../../types';
 import type { GameObject } from '../GameObject';
 import type { CameraSystem } from '../../engine/CameraSystem';
+import { HotSpotType } from '../../engine/HotSpotSystem';
+import { sSystemRegistry } from '../../engine/SystemRegistry';
 
 export class LifetimeComponent extends GameComponent {
   private dieWhenInvisible: boolean = false;
@@ -146,21 +148,42 @@ export class LifetimeComponent extends GameComponent {
       }
     }
     
-    // Check visibility-based death
+    // Check visibility-based death.
+    // Two conversions the original does not need: its getFocusPosition* is the
+    // centre of the view, while this port's is the viewport's top-left, and its
+    // position.y is the object's bottom, while here it is the top. Comparing
+    // against the raw top-left made the cull asymmetric - twice as forgiving
+    // above and to the left of the camera as below and to the right.
     if (this.dieWhenInvisible && this.cameraSystem) {
       const pos = parent.getPosition();
-      const cameraX = this.cameraSystem.getFocusPositionX();
-      const cameraY = this.cameraSystem.getFocusPositionY();
-      const dx = Math.abs(pos.x - cameraX);
-      const dy = Math.abs(pos.y - cameraY);
-      
-      // Add some buffer beyond screen edge
-      if (dx > this.screenWidth * 1.5 || dy > this.screenHeight * 1.5) {
+      const centreX = this.cameraSystem.getFocusPositionX() + this.screenWidth / 2;
+      const centreY = this.cameraSystem.getFocusPositionY() + this.screenHeight / 2;
+      const dx = Math.abs(pos.x - centreX);
+      const dy = Math.abs(pos.y + parent.height - centreY);
+
+      if (dx > this.screenWidth || dy > this.screenHeight) {
         this.die(parent);
         return;
       }
     }
     
+    // Death tiles. The flag for this was ported with a setter, a getter and
+    // no reader, so the four walking enemies the original marks vulnerable
+    // (brobot, snailbomb, skeleton, onion) would stroll through a death pit.
+    // Sampled at the feet: the original's position.y is the object's bottom.
+    if (parent.life > 0 && this._vulnerableToDeathTiles) {
+      const hotSpotSystem = sSystemRegistry.hotSpotSystem;
+      if (hotSpotSystem) {
+        const spot = hotSpotSystem.getHotSpot(
+          parent.getCenteredPositionX(),
+          parent.getPosition().y + parent.height - 10
+        );
+        if (spot === HotSpotType.DIE) {
+          parent.life = 0;
+        }
+      }
+    }
+
     // Check background collision death (like original Java)
     // parentObject.getBackgroundCollisionNormal().length2() > 0.0f
     if (this._dieOnHitBackground) {
@@ -171,13 +194,37 @@ export class LifetimeComponent extends GameComponent {
       }
     }
     
-    // Check life
-    if (parent.life <= 0) {
+    // Check life.
+    // In the original this component owns every death: die() spawns the smoke
+    // poof, plays the death sound and destroys the object. This port splits
+    // that - projectiles and effects are owned here, but an ordinary enemy's
+    // death (crush flash, stomp sound, score) belongs to Game.tsx's
+    // resolveCollisionOutcomes, which skips anything already marked for
+    // removal. So a component attached purely to make an enemy vulnerable to
+    // death tiles reports the kill and leaves the consequences to that owner;
+    // removing the object here would make it vanish silently instead.
+    if (parent.life <= 0 && this.ownsDeath()) {
       this.die(parent);
       return;
     }
   }
   
+  /**
+   * Was this component given anything that makes it responsible for the
+   * object's removal - a lifetime trigger, or a death consequence? These are
+   * exactly the fields the original's die() acts on.
+   */
+  private ownsDeath(): boolean {
+    return (
+      this.timeUntilDeath >= 0 ||
+      this.dieWhenInvisible ||
+      this._dieOnHitBackground ||
+      this.spawnOnDeathType >= 0 ||
+      this.deathSound !== null ||
+      this.onDeath !== null
+    );
+  }
+
   /**
    * Kill the object
    */
