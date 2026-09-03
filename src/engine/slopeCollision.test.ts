@@ -121,3 +121,93 @@ describe('slope surfaces from collision segments', () => {
     expect(bare.getGroundSurfaceY(16, 32)).toBeNull();
   });
 });
+
+/**
+ * Walking *into* a ramp.
+ *
+ * getGroundSurfaceY() above puts an object's feet on the right surface, but the
+ * horizontal test is a whole-tile AABB: it saw the ramp tile as a solid block
+ * and reported a wall, so an object stopped dead at the foot of every slope and
+ * never got the chance to be lifted. checkTileCollision() now lets an object
+ * walk into a sloped surface that is within a step of its feet.
+ */
+describe('walking into slopes', () => {
+  let collision: CollisionSystem;
+
+  /** A floor along the bottom with one ramp tile sitting on it at `rampCol`. */
+  const WIDTH = 10;
+  const HEIGHT = 8;
+  const FLOOR_ROW = HEIGHT - 1;
+  const RAMP_ROW = HEIGHT - 2;
+  const FLOOR_TILE = 1;   // a plain solid block
+  const FLOOR_Y = FLOOR_ROW * 32;
+
+  /** A 32x48 object, the size of the player's collision box. */
+  const BOX_W = 32;
+  const BOX_H = 48;
+
+  beforeEach(async () => {
+    collision = new CollisionSystem();
+    expect(await collision.loadCollisionData('/assets/collision.json')).toBe(true);
+  });
+
+  function world(rampCol: number, blockCol: number | null = null): void {
+    const tiles: number[] = [];
+    for (let y = 0; y < HEIGHT; y++) {
+      for (let x = 0; x < WIDTH; x++) {
+        if (y === FLOOR_ROW) tiles.push(FLOOR_TILE);
+        else if (y === RAMP_ROW && x === rampCol) tiles.push(RAMP_TILE);
+        else if (y === RAMP_ROW && x === blockCol) tiles.push(FLOOR_TILE);
+        else tiles.push(EMPTY_TILE);
+      }
+    }
+    collision.setTileCollision(tiles, WIDTH, HEIGHT, 32, 32);
+  }
+
+  /** Walk right from `startX`, letting the feet follow the surface each step. */
+  function walkRight(startX: number, steps: number): { x: number; feetY: number } {
+    let x = startX;
+    let feetY = FLOOR_Y;
+    for (let i = 0; i < steps; i++) {
+      const result = collision.checkTileCollision(x, feetY - BOX_H, BOX_W, BOX_H, 100, 0);
+      if (result.rightWall) break;
+      x += 6;
+      const surface = collision.getGroundSurfaceY(x + BOX_W / 2, feetY);
+      if (surface !== null) feetY = surface;
+    }
+    return { x, feetY };
+  }
+
+  test('an object walks up a ramp instead of stopping at it', () => {
+    world(3);
+    const before = { x: 60, feetY: FLOOR_Y };
+    const after = walkRight(before.x, 24);
+
+    // It gets past the ramp tile (world x 96..128) entirely...
+    expect(after.x).toBeGreaterThan(128);
+    // ...and ends up a tile higher than it started.
+    expect(after.feetY).toBeLessThan(before.feetY - 24);
+  });
+
+  test('a flat-topped block is still a wall', () => {
+    // Same layout, but the tile in the object's path is a plain block.
+    world(9, 3);
+    const after = walkRight(60, 24);
+
+    // Stopped before entering the block at world x 96.
+    expect(after.x).toBeLessThanOrEqual(96);
+    expect(after.feetY).toBe(FLOOR_Y);
+  });
+
+  test('a ramp above the step height does not become a doorway', () => {
+    world(3);
+    // Feet well below the ramp's surface: this is a wall face, not a slope to
+    // walk up, and must still block.
+    const deepBelow = FLOOR_Y + 64;
+    const result = collision.checkTileCollision(
+      90, deepBelow - BOX_H, BOX_W, BOX_H, 100, 0
+    );
+    // Nothing walkable is within a step up, so the ramp tile is not entered.
+    expect(result.rightWall || result.grounded || result.ceiling).toBe(true);
+  });
+});

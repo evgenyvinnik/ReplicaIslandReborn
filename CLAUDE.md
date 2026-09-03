@@ -66,7 +66,7 @@ optimisation it does not do. None of them is missing gameplay.
 
 | Difference | Impact | Notes |
 |------------|--------|-------|
-| Wall and ceiling tests are per-tile AABB | Low | Slopes resolve against the real line segments (`getGroundSurfaceY()`), so what the player feels underfoot is correct. Making `_checkTileCollisionWithSegments()` usable for walls needs swept collision — see the comment at `checkTileCollision()`. |
+| Wall and ceiling tests are per-tile AABB | Low | Slopes are handled: `getGroundSurfaceY()` puts the feet on the real segment, and `checkTileCollision()` no longer treats a sloped tile as a wall when its surface is within `SLOPE_STEP_UP` of the feet, so ramps are walkable. What is still missing is the original's full swept test (`testBox()` ray-marching the box), which would also fix fast-moving objects clipping tile corners — see the comment at `checkTileCollision()`. |
 | No object pooling | Low | The original pools 384+ objects to avoid GC pauses on 2010 Android hardware. The port allocates freely; this is not a correctness problem and has not shown up as one in play. |
 | Four components unattached | None | See "Ported But Not Wired Up" — one is dead in the original too, the rest are covered by other code or serve unused object types. |
 | `SimplePhysicsComponent` not ported | Low | Bounce/inertia for simple objects; the port's equivalents move on `PhysicsComponent` or `EffectsSystem` particles. |

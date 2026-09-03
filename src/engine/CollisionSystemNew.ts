@@ -571,6 +571,84 @@ export class CollisionSystem {
   }
 
   /**
+   * How far above its feet an object will step rather than be stopped.
+   *
+   * The original resolves this continuously by ray-marching the box against the
+   * tile segments, so a ramp is never a wall. This port's horizontal test is a
+   * per-tile AABB, which makes every slope tile a full block - walk into a ramp
+   * and you stop dead against it. Allowing a step up to this height reproduces
+   * the behaviour that matters (ramps are walkable) without needing the full
+   * swept test.
+   */
+  private static readonly SLOPE_STEP_UP = 20;
+
+  /**
+   * The ground height inside one tile at a given world x, from its segments,
+   * plus whether that surface is sloped rather than flat. Null when the tile has
+   * no upward-facing surface there.
+   */
+  private tileSurfaceYAt(
+    tileX: number,
+    tileY: number,
+    worldX: number
+  ): { y: number; sloped: boolean } | null {
+    const tileIndex = this.getTileAt(tileX, tileY);
+    if (tileIndex < 0) return null;
+    const definition = this.collisionTileDefinitions.get(tileIndex);
+    if (!definition) return null;
+
+    const tileLeft = tileX * this.tileWidth;
+    const tileTop = tileY * this.tileHeight;
+    const localX = worldX - tileLeft;
+
+    let best: { y: number; sloped: boolean } | null = null;
+    for (const segment of definition.segments) {
+      // Only surfaces you can stand on.
+      if (segment.normalY >= 0) continue;
+      const x1 = segment.startX;
+      const x2 = segment.endX;
+      const minX = Math.min(x1, x2);
+      const maxX = Math.max(x1, x2);
+      if (localX < minX - 0.001 || localX > maxX + 0.001) continue;
+
+      let localY: number;
+      if (Math.abs(x2 - x1) < 0.001) {
+        localY = Math.min(segment.startY, segment.endY);
+      } else {
+        const t = (localX - x1) / (x2 - x1);
+        localY = segment.startY + (segment.endY - segment.startY) * t;
+      }
+      // A sloped surface has a normal off both axes; a flat tile top is (0,-1).
+      const sloped = Math.abs(segment.normalX) > 0.05 && Math.abs(segment.normalY) > 0.05;
+      const worldY = tileTop + localY;
+      if (best === null || worldY < best.y) best = { y: worldY, sloped };
+    }
+    return best;
+  }
+
+  /**
+   * Whether an object whose feet are at `feetY` can walk into this tile rather
+   * than be stopped by it: the tile has a real surface at `worldX` and that
+   * surface is no more than a step above the feet.
+   */
+  private isWalkableSlopeAt(
+    tileX: number,
+    tileY: number,
+    worldX: number,
+    feetY: number
+  ): boolean {
+    const surface = this.tileSurfaceYAt(tileX, tileY, worldX);
+    if (surface === null) return false;
+    // Only actual ramps get this treatment. A flat-topped tile is a block: if it
+    // stopped being a wall, an object could walk through the top corner of any
+    // ledge it happened to be level with.
+    if (!surface.sloped) return false;
+    // Above the feet by more than a step is a wall, not a ramp. Below the feet
+    // is a drop, which is walkable too.
+    return surface.y >= feetY - CollisionSystem.SLOPE_STEP_UP;
+  }
+
+  /**
    * Check if a tile has collision data (for backward compatibility)
    */
   isTileSolid(tileX: number, tileY: number): boolean {
@@ -989,15 +1067,26 @@ export class CollisionSystem {
             }
             
             if (resolveHorizontal) {
-              if (overlapLeft <= overlapRight) {
-                if (velocityX >= 0) {
-                  result.rightWall = true;
-                  result.normal.x = -1;
-                }
-              } else {
-                if (velocityX <= 0) {
-                  result.leftWall = true;
-                  result.normal.x = 1;
+              // A ramp is not a wall. If this tile's segments put a standing
+              // surface within a step of the object's feet at the edge it is
+              // pushing into, let it walk on rather than stopping it dead -
+              // BackgroundCollisionComponent then lifts it onto the surface via
+              // getGroundSurfaceY(). Without this every slope tile blocks
+              // horizontal movement, because the test above is a whole-tile AABB.
+              const leadingEdgeX = velocityX >= 0 ? objectRight : x;
+              const walkable = this.isWalkableSlopeAt(tx, ty, leadingEdgeX, objectBottom);
+
+              if (!walkable) {
+                if (overlapLeft <= overlapRight) {
+                  if (velocityX >= 0) {
+                    result.rightWall = true;
+                    result.normal.x = -1;
+                  }
+                } else {
+                  if (velocityX <= 0) {
+                    result.leftWall = true;
+                    result.normal.x = 1;
+                  }
                 }
               }
             } else {
