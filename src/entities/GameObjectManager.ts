@@ -20,7 +20,11 @@ export class GameObjectManager {
   // For activation based on camera proximity
   private inactiveObjects: FixedSizeArray<GameObject>;
   private camera: CameraSystem | null = null;
-  private activationMargin: number = 128; // Pixels beyond viewport to activate
+  /**
+   * activationRadius === -1 means "never deactivate". Original:
+   * GameObjectFactory.mAlwaysActive.
+   */
+  private static readonly ALWAYS_ACTIVE = -1;
 
   // Player reference
   private player: GameObject | null = null;
@@ -175,50 +179,51 @@ export class GameObjectManager {
   /**
    * Update object activation based on camera distance
    */
+  /**
+   * Activate and deactivate objects by distance from the camera.
+   *
+   * The original is a plain circle test: the squared distance from the camera
+   * focus to the object's position against the object's activationRadius
+   * squared, with -1 meaning always active (GameObjectManager.java).
+   *
+   * This port used to test a box instead - half the viewport, plus the radius,
+   * plus a 128px margin, on each axis independently. That made the live area
+   * roughly twice the original's in every direction, so objects a screen and a
+   * half away were still being simulated. Now that the radii themselves come
+   * from the original's formulas, the shape has to match too or they describe
+   * the wrong region.
+   */
   private updateActivation(): void {
     if (!this.camera) return;
 
-    const cameraX = this.camera.getFocusPositionX();
-    const cameraY = this.camera.getFocusPositionY();
-    const viewWidth = this.camera.getViewportWidth();
-    const viewHeight = this.camera.getViewportHeight();
+    // The port's focus position is the viewport's top-left; the original's is
+    // its centre, which is what the distance is measured from.
+    const focusX = this.camera.getFocusPositionX() + this.camera.getViewportWidth() / 2;
+    const focusY = this.camera.getFocusPositionY() + this.camera.getViewportHeight() / 2;
 
-    // Deactivate objects that are too far from camera
+    const withinRadius = (object: GameObject): boolean => {
+      if (object.activationRadius === GameObjectManager.ALWAYS_ACTIVE) return true;
+      const position = object.getPosition();
+      const dx = position.x - focusX;
+      const dy = position.y - focusY;
+      return dx * dx + dy * dy < object.activationRadius * object.activationRadius;
+    };
+
     this.objects.forEach((object) => {
-      if (object.activationRadius > 0) {
-        const objX = object.getCenteredPositionX();
-        const objY = object.getCenteredPositionY();
-
-        const dx = Math.abs(objX - (cameraX + viewWidth / 2));
-        const dy = Math.abs(objY - (cameraY + viewHeight / 2));
-
-        if (dx > viewWidth / 2 + object.activationRadius + this.activationMargin ||
-            dy > viewHeight / 2 + object.activationRadius + this.activationMargin) {
-          if (object.destroyOnDeactivation) {
-            object.markForRemoval();
-          } else {
-            // Move to inactive list
-            this.objects.remove(object);
-            object.setActive(false);
-            this.inactiveObjects.add(object);
-          }
-        }
+      if (object.activationRadius === GameObjectManager.ALWAYS_ACTIVE) return;
+      if (withinRadius(object)) return;
+      if (object.destroyOnDeactivation) {
+        object.markForRemoval();
+      } else {
+        this.objects.remove(object);
+        object.setActive(false);
+        this.inactiveObjects.add(object);
       }
     });
 
-    // Reactivate objects that are close to camera
     const toReactivate: GameObject[] = [];
     this.inactiveObjects.forEach((object) => {
-      const objX = object.getCenteredPositionX();
-      const objY = object.getCenteredPositionY();
-
-      const dx = Math.abs(objX - (cameraX + viewWidth / 2));
-      const dy = Math.abs(objY - (cameraY + viewHeight / 2));
-
-      if (dx <= viewWidth / 2 + object.activationRadius + this.activationMargin &&
-          dy <= viewHeight / 2 + object.activationRadius + this.activationMargin) {
-        toReactivate.push(object);
-      }
+      if (withinRadius(object)) toReactivate.push(object);
     });
 
     for (const object of toReactivate) {
