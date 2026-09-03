@@ -47,12 +47,19 @@ export const SoundEffects = {
 export type SoundEffectName = typeof SoundEffects[keyof typeof SoundEffects];
 
 /**
- * Sound priorities
+ * Playback priorities, from SoundSystem.java. The original passes these to
+ * Android's SoundPool, which steals the lowest-priority stream when it runs
+ * out of voices rather than refusing the new sound.
+ *
+ * Only two appear at the original's call sites: the jetpack loop and the
+ * stomp's landing thump are HIGH, and everything else - rubies, doors,
+ * buttons, hits, projectiles, deaths, the ghost's ambience - is NORMAL.
  */
 export const SoundPriority = {
   LOW: 0,
   NORMAL: 1,
   HIGH: 2,
+  MUSIC: 3,
 } as const;
 
 export interface SoundConfig {
@@ -66,11 +73,46 @@ interface LoadedSound {
   name: string;
 }
 
+/** Original: SoundSystem.MAX_STREAMS - the voice count SoundPool is built with. */
+const MAX_STREAMS = 8;
+
 interface PlayingSound {
   source: AudioBufferSourceNode;
   gainNode: GainNode;
   name: string;
   loop: boolean;
+  priority: number;
+  /** Monotonic id, so the oldest of equal priority can be identified. */
+  startOrder: number;
+}
+
+/**
+ * Which playing sound to drop to make room for one of `priority`, the way
+ * SoundPool does it: the lowest-ranked stream goes first, and among equals the
+ * one that started earliest. A sound can never evict one that outranks it, so
+ * the jetpack loop and the stomp thump survive a busy frame of ordinary
+ * effects - and if nothing is evictable, the newcomer is what gets dropped.
+ *
+ * Exported so the rule can be tested without an AudioContext.
+ */
+export function chooseEvictionVictim(
+  playing: ReadonlyMap<number, { priority: number; startOrder: number }>,
+  priority: number
+): number | null {
+  let victimId: number | null = null;
+  let victim: { priority: number; startOrder: number } | null = null;
+  for (const [id, sound] of playing) {
+    if (sound.priority > priority) continue;
+    if (
+      victim === null ||
+      sound.priority < victim.priority ||
+      (sound.priority === victim.priority && sound.startOrder < victim.startOrder)
+    ) {
+      victimId = id;
+      victim = sound;
+    }
+  }
+  return victimId;
 }
 
 export class SoundSystem {
@@ -201,12 +243,32 @@ export class SoundSystem {
   /**
    * Play a sound effect
    */
-  playSfx(name: string, volume: number = 1.0, loop: boolean = false): number {
+  /**
+   * Free a voice for a sound of the given priority. Returns false when every
+   * playing sound outranks the newcomer, in which case the new sound is the
+   * one that does not play.
+   */
+  private evictForPriority(priority: number): boolean {
+    const victimId = chooseEvictionVictim(this.playingSounds, priority);
+    if (victimId === null) return false;
+    this.stopSound(victimId);
+    return true;
+  }
+
+  playSfx(
+    name: string,
+    volume: number = 1.0,
+    loop: boolean = false,
+    priority: number = SoundPriority.NORMAL
+  ): number {
     if (!this.audioContext || !this.config.enabled) return -1;
     if (this.audioContext.state === 'closed') return -1;
 
-    // Limit concurrent sounds to prevent browser crash
-    if (this.playingSounds.size > 32) {
+    // The original runs eight voices and lets SoundPool steal one when they are
+    // all busy; it never refuses to play. This port used to bail out above 32
+    // sounds instead, which both allowed four times the polyphony and dropped
+    // the *new* sound rather than the least important old one.
+    if (this.playingSounds.size >= MAX_STREAMS && !this.evictForPriority(priority)) {
       return -1;
     }
     
@@ -239,6 +301,8 @@ export class SoundSystem {
         gainNode,
         name,
         loop,
+        priority,
+        startOrder: id,
       });
 
       source.onended = (): void => {

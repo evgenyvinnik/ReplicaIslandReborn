@@ -10,7 +10,7 @@ import type { InputSystem } from '../../engine/InputSystem';
 import type { CollisionSystem } from '../../engine/CollisionSystemNew';
 import type { SoundSystem } from '../../engine/SoundSystem';
 import type { LevelSystem } from '../../levels/LevelSystemNew';
-import { SoundEffects } from '../../engine/SoundSystem';
+import { SoundEffects, SoundPriority } from '../../engine/SoundSystem';
 import { getDifficultyAdjustment } from '../dynamicDifficulty';
 import type { DifficultyConstants } from '../../stores/useGameStore';
 import { SpriteComponent } from './SpriteComponent';
@@ -382,7 +382,8 @@ export class PlayerComponent extends GameComponent {
       // it so a flurry of stomps does not machine-gun the clip.
       // Original: AnimationComponent, mLandThump / LAND_THUMP_DELAY.
       if (this.soundSystem && gameTime > this.landThumpDelay) {
-        this.soundSystem.playSfx(SoundEffects.THUMP);
+        // Original plays this at PRIORITY_HIGH so a busy frame cannot swallow it.
+        this.soundSystem.playSfx(SoundEffects.THUMP, 1.0, false, SoundPriority.HIGH);
         this.landThumpDelay = gameTime + LAND_THUMP_DELAY;
       }
       // Remaining effects handled in Game.tsx (camera shake, dust)
@@ -630,7 +631,9 @@ export class PlayerComponent extends GameComponent {
     if (!this.soundSystem) return;
     if (this.rocketsOn) {
       if (this.rocketSoundStream === -1) {
-        this.rocketSoundStream = this.soundSystem.playSfx(SoundEffects.ROCKETS, 0.6, true);
+        this.rocketSoundStream = this.soundSystem.playSfx(
+          SoundEffects.ROCKETS, 0.6, true, SoundPriority.HIGH
+        );
       }
     } else if (this.rocketSoundStream !== -1) {
       this.soundSystem.stopSound(this.rocketSoundStream);
