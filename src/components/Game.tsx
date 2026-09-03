@@ -2087,7 +2087,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const playerComponent = player.getComponent(PlayerComponent);
         if (!playerComponent) return; // Should always exist for player object
 
-        if (hotSpot === HotSpotType.DIE && !playerComponent.isDying) {
+        // Falling out of the world kills too. The original tests
+        // `position.y < -height` - its origin is the object's bottom and its
+        // world floor is y=0, so that reads "entirely below the level". In
+        // Y-down space the floor is at levelHeight and the object's top is
+        // position.y, which makes the same test `position.y > levelHeight`.
+        // Copied across unconverted it fires only when something flies far
+        // above the level and never when it falls, so a pit with no DIE tiles
+        // left Andou falling forever with full health.
+        const levelBottom = levelSystemRef.current?.getLevelHeight() ?? Infinity;
+        const fellOutOfWorld = player.getPosition().y > levelBottom;
+
+        if ((hotSpot === HotSpotType.DIE || fellOutOfWorld) && !playerComponent.isDying) {
           // Player death from death zone - matching original behavior:
           // 1. Play death animation in-game
           // 2. After 2 seconds, fade to black

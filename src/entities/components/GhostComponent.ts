@@ -189,8 +189,15 @@ export class GhostComponent extends GameComponent {
         }
       }
 
-      // Check if ghost fell off screen
-      if (parent.getPosition().y < -parent.height) {
+      // Check if the ghost fell out of the world. The original's
+      // `position.y < -height` reads "entirely below the level" in its Y-up
+      // space, where the floor is y=0 and position.y is the object's bottom.
+      // Y-down puts the floor at levelHeight and the object's top at
+      // position.y, so the same test is `position.y > levelHeight`. Carried
+      // over unconverted it fired only when the ghost flew high above the
+      // level, and never when it fell.
+      const levelBottom = sSystemRegistry?.levelSystem?.getLevelSize().height;
+      if (levelBottom !== undefined && parent.getPosition().y > levelBottom) {
         parent.life = 0;
         timeToRelease = true;
       }
@@ -241,9 +248,12 @@ export class GhostComponent extends GameComponent {
 
         // Handle jump button
         if (inputState.jump) {
+          // The original requires velocity.y <= 0, which in its Y-up space
+          // means "not already moving upward". Up is negative here, so the
+          // same condition is velocity.y >= 0.
           if (
             parent.touchingGround() &&
-            parent.getVelocity().y <= 0 &&
+            parent.getVelocity().y >= 0 &&
             !this.config.changeActionOnButton
           ) {
             // Apply jump impulse
