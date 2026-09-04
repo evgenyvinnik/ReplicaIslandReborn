@@ -426,6 +426,116 @@ describe('campaign gameplay simulation', () => {
     expect(tested, 'no shipped level with a mudman and a player was found').toBeGreaterThan(0);
   }, 60_000);
 
+  test('every ruby in a level can be collected, which is the win condition', async () => {
+    // Three rubies complete a level (PlayerComponent.MAX_GEMS_PER_LEVEL), and
+    // Game.tsx keys the whole win path off each ruby's life reaching zero.
+    // Rubies are taken by Andou's always-present COLLECT attack volume meeting
+    // their COLLECT vulnerability volume - a different mechanism from the
+    // coins' radius test, and one nothing exercised end to end.
+    const levels = await playableLevels();
+    const failures: string[] = [];
+    let levelsChecked = 0;
+
+    for (const { resource, levelId } of levels.slice(0, 8)) {
+      const harness = createHarness();
+      expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+      if (!(await harness.levelSystem.loadLevel(levelId))) continue;
+      harness.manager.commitUpdates();
+
+      const player = harness.manager.getPlayer();
+      if (!player) continue;
+
+      // Rubies out of range sit on the inactive list; collect them one at a
+      // time, keeping the camera on each so it stays active.
+      const rubies: GameObject[] = [];
+      harness.manager.forEach((o) => { if (o.type === 'ruby') rubies.push(o); });
+      if (rubies.length === 0) continue;
+      levelsChecked++;
+
+      let collected = 0;
+      for (const ruby of rubies) {
+        const target = ruby.getPosition();
+        for (let i = 0; i < 30 && ruby.life > 0; i++) {
+          player.setPosition(
+            target.x + ruby.width / 2 - player.width / 2,
+            target.y + ruby.height / 2 - player.height / 2
+          );
+          harness.run(1);
+        }
+        if (ruby.life <= 0) collected++;
+      }
+
+      if (collected < rubies.length) {
+        failures.push(`${resource}: collected ${collected} of ${rubies.length} rubies`);
+      }
+    }
+
+    expect(levelsChecked, 'no level with rubies was checked').toBeGreaterThan(2);
+    expect(failures, 'these rubies could not be collected').toEqual([]);
+  }, 60_000);
+
+  test('a scripted player can get moving in every level, not wedged at spawn', async () => {
+    // The reachability flood in levelReachable.test.ts proves the *geometry*
+    // has a route. This proves the physics can take it: a bot that holds right
+    // and, when horizontal progress stalls, holds the fly button long enough
+    // to actually light the jets, is run in every playable level.
+    //
+    // JUMP_TO_JETS_DELAY is 0.5s, so a bot that taps or pulses fly never
+    // engages the jetpack at all - it jumps repeatedly and looks stuck. That
+    // is what a naive bot does, and it is why this holds the button for two
+    // seconds at a time.
+    //
+    // The bar is deliberately low - a blind "always right" bot is not meant to
+    // finish levels, only to demonstrate it is not cemented in place. The
+    // worst real level moves it through 9 distinct tiles; a wedged player
+    // manages one or two.
+    const levels = await playableLevels();
+    const failures: string[] = [];
+    let checked = 0;
+
+    for (const { resource, levelId } of levels) {
+      const harness = createHarness();
+      if (!(await harness.collision.loadCollisionData('/assets/collision.json'))) continue;
+      if (!(await harness.levelSystem.loadLevel(levelId))) continue;
+      harness.manager.commitUpdates();
+      const player = harness.manager.getPlayer();
+      if (!player) continue;
+      checked++;
+
+      const visited = new Set<string>();
+      let stalled = 0;
+      let lastX = player.getPosition().x;
+      let flyFor = 0;
+      let wentNonFinite = false;
+
+      for (let i = 0; i < 1800; i++) {
+        harness.input.setVirtualAxis('horizontal', 1);
+        const x = player.getPosition().x;
+        if (Math.abs(x - lastX) < 0.5) stalled++; else stalled = 0;
+        lastX = x;
+        if (stalled > 20 && flyFor === 0) flyFor = 120;
+        harness.input.setVirtualButton('fly', flyFor > 0);
+        if (flyFor > 0) flyFor--;
+        harness.run(1);
+        const position = player.getPosition();
+        if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+          wentNonFinite = true;
+          break;
+        }
+        visited.add(`${Math.floor(position.x / 32)},${Math.floor(position.y / 32)}`);
+      }
+
+      if (wentNonFinite) {
+        failures.push(`${resource}: player position became non-finite`);
+      } else if (visited.size < 5) {
+        failures.push(`${resource}: player only ever occupied ${visited.size} tiles`);
+      }
+    }
+
+    expect(checked, 'no playable levels were run').toBeGreaterThan(20);
+    expect(failures, 'the player could not get moving in these levels').toEqual([]);
+  }, 300_000);
+
   test("the player's GameObject action tracks its state", async () => {
     // The original sets this in gotoMove/gotoStomp/stateDead/gotoFrozen.
     // Leaving it at INVALID means anything gating on requiredAction can never
