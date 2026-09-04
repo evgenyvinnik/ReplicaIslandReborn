@@ -416,6 +416,15 @@ Traps this audit kept hitting, worth knowing before adding to it:
   Unknown keys now throw; that immediately caught a `'gameObjectFactory'` where
   the key is `'factory'`.
 
+- **`PlayerComponent` publishes no collision volumes until its systems are
+  injected.** Andou's attack and vulnerability volumes come off his animation
+  frames, and `updateAnimation()` bails without `setSystems(input, collision,
+  sound, levelSystem)` - which `Game.tsx` calls, with a fallback inside the
+  frame loop. A harness that skips it gets a player who cannot stomp, press a
+  button, collect a ruby or damage a boss, which looks exactly like every one
+  of those mechanics being broken. It cost three separate investigations in
+  one session; check this first when the player seems to hit nothing.
+
 - **`GameObject.update()` no-ops on a deactivated object.** A door across the
   level does not run at all until the player comes within its activation
   radius. When testing two objects that talk to each other, put the camera on
