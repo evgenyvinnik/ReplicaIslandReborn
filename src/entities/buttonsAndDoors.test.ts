@@ -88,10 +88,17 @@ describe('buttons and doors', () => {
     object.team = kind === 'player' ? Team.PLAYER : Team.ENEMY;
     object.width = kind === 'player' ? 32 : 64;
     object.height = kind === 'player' ? 48 : 64;
-    // Andou's DEPRESS box is at the top of his body, a brobot's at its feet
-    // (AABox(16, 48, 32, 16) on a 64px sprite), so the brobot has to stand on
-    // top of the button for the two to meet.
-    object.getPosition().set(100, kind === 'player' ? 100 : 100 - 48);
+    // Both pressers carry their DEPRESS box at their feet, as the original
+    // does - Andou's pressCollisionVolume is AABox(16, 0, 32, 16), the bottom
+    // 16px of his sprite in Y-up, and a brobot's is AABox(16, 48, 32, 16) on a
+    // 64px sprite in Y-down. So both have to stand on the button, whose own
+    // DEPRESS volume is the top 16px of its 32px body at y=100.
+    //
+    // This used to place the player level with the button, because his box had
+    // been converted in x but not in y and so sat at his head; standing on the
+    // button did not press it, and only overlapping it did.
+    // A few pixels of overlap, as a character resting on a button has.
+    object.getPosition().set(100, 100 - object.height + 6);
 
     const volumes = kind === 'player'
       ? createPlayerVolumeSets().normal.attack

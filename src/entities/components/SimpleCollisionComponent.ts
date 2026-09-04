@@ -111,9 +111,16 @@ export class SimpleCollisionComponent extends GameComponent {
                 parent.setLastTouchedRightWallTime(time);
               }
 
-              if (this.hitNormal.y > 0) {
+              // The original tests `normal.y > 0` for a floor because its
+              // world is Y-up, where a floor's normal points up at +1. This
+              // port's collision system reports normals in canvas space, where
+              // a flat tile top is (0, -1) - see tileSurfaceYAt() - so the
+              // test has to flip with it. Left as-is it stamps a floor contact
+              // as a ceiling and vice versa, which silently inverts
+              // touchingGround() for anything that reads the normal.
+              if (this.hitNormal.y < 0) {
                 parent.setLastTouchedFloorTime(time);
-              } else if (this.hitNormal.y < 0) {
+              } else if (this.hitNormal.y > 0) {
                 parent.setLastTouchedCeilingTime(time);
               }
             }

@@ -140,4 +140,42 @@ describe('player volumes through the collision system', () => {
 
     expect(enemy.life).toBe(2);
   });
+
+  test('the stomp box is under Andou, not over his head', () => {
+    // The original's stompAttackVolume is AABox(16, -5, 32, 37, HIT) on a
+    // 64x64 sprite in Y-up space, whose origin is the object's bottom. That
+    // spans y -5..32: it starts five pixels *below* his feet and reaches up to
+    // mid-body, which is what makes a stomp land on whatever he comes down on.
+    //
+    // Carried over with only its x rescaled - which is what this port did - it
+    // becomes -5..32 in Y-down, sitting above his head. Andou then reaches
+    // *over* an enemy rather than into it, and the hit only lands after he has
+    // fallen far enough that his head is level with the enemy's body.
+    //
+    // Conversion for the 32x48 player object: 48 - (offsetY_up + height).
+    const sets = createPlayerVolumeSets();
+    const hit = sets.stomping.attack.find(
+      (v) => (v as { getHitType(): HitType }).getHitType() === HitType.HIT
+    ) as AABoxCollisionVolume;
+    expect(hit).toBeDefined();
+
+    const PLAYER_HEIGHT = 48;
+    // Reaches below the feet, as the original's -5 does.
+    expect(hit.getMaxYPosition(null)).toBeGreaterThan(PLAYER_HEIGHT);
+    // And does not extend above his middle.
+    expect(hit.getMinYPosition(null)).toBeGreaterThanOrEqual(PLAYER_HEIGHT / 2 - 8);
+  });
+
+  test('the DEPRESS box is at his feet, which is what presses a button', () => {
+    // pressCollisionVolume is AABox(16, 0, 32, 16) - the bottom 16px of the
+    // sprite in Y-up. At the head it would press buttons Andou jumped past
+    // rather than ones he stood on.
+    const sets = createPlayerVolumeSets();
+    const press = sets.normal.attack.find(
+      (v) => (v as { getHitType(): HitType }).getHitType() === HitType.DEPRESS
+    ) as AABoxCollisionVolume;
+    expect(press).toBeDefined();
+    expect(press.getMaxYPosition(null)).toBe(48);
+    expect(press.getMinYPosition(null)).toBe(32);
+  });
 });

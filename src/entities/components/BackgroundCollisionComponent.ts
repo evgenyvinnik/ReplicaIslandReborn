@@ -1,5 +1,14 @@
 /**
  * Background Collision Component - Handles collision against the background
+ *
+ * NOTE: nothing constructs this component. Andou resolves his own tile
+ * collision inside `PlayerComponent`, and everything else uses
+ * `MovementComponent`, which reads `checkTileCollision()`'s explicit
+ * `grounded`/`ceiling` flags rather than a normal's sign. Treat the code below
+ * as unexercised: it is a partial transcription that keeps the original's
+ * Y-up variable names (`top`/`bottom` are the box's lower/upper edges here)
+ * and has never run. Before wiring it to anything, check it against
+ * `MovementComponent`, which is the path the game actually takes.
  * Ported from: Original/src/com/replica/replicaisland/BackgroundCollisionComponent.java
  *
  * Snaps colliding objects out of collision and reports the hit to the parent game object.
@@ -243,7 +252,11 @@ export class BackgroundCollisionComponent extends GameComponent {
         horizontalHit = true;
       }
 
-      // Top boundary (note: in this game, y increases upward)
+      // The world's *floor*, not its top. `bottom`/`top` above keep the
+      // original's Y-up names while holding Y-down offsets, so `top` is the
+      // box's lower edge and this test is "the feet went past the bottom of
+      // the level". The -1 it adds to the normal is an upward-pointing floor
+      // normal in canvas space, which is consistent with the stamping below.
       if (this.currentPosition.y + top > levelSize.height) {
         this.currentPosition.y = levelSize.height - top - 1;
         this.verticalHitNormal.y -= 1;
@@ -331,7 +344,9 @@ export class BackgroundCollisionComponent extends GameComponent {
       }
 
       if (verticalHit) {
-        if (this.verticalHitNormal.y > 0) {
+        // Y-down normals: a floor's points up, at -1. The original's
+        // `normal.y > 0` is a floor only in its Y-up world.
+        if (this.verticalHitNormal.y < 0) {
           parent.setLastTouchedFloorTime(time);
         } else {
           parent.setLastTouchedCeilingTime(time);
