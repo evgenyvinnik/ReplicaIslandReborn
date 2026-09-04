@@ -32,6 +32,9 @@ import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { LaunchProjectileComponent } from '../entities/components/LaunchProjectileComponent';
+import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
+import { InputSystem } from '../engine/InputSystem';
+import { SoundSystem } from '../engine/SoundSystem';
 import { MovementComponent } from '../entities/components/MovementComponent';
 import { createPlayerVolumeSets } from '../entities/playerCollisionVolumes';
 import { applyPlayerAttack } from '../entities/applyPlayerAttack';
@@ -81,9 +84,12 @@ async function loadBossLevel(): Promise<Arena> {
   const camera = new CameraSystem(480, 320);
   const hotSpots = new HotSpotSystem();
   const levelSystem = new LevelSystem();
-  levelSystem.setSystems(new CollisionSystem(), manager, hotSpots);
+  const tileCollision = new CollisionSystem();
+  levelSystem.setSystems(tileCollision, manager, hotSpots);
   manager.setCamera(camera);
 
+  sSystemRegistry.register(tileCollision, 'collision');
+  sSystemRegistry.register(levelSystem, 'level');
   sSystemRegistry.register(manager, 'gameObject');
   sSystemRegistry.register(camera, 'camera');
   sSystemRegistry.register(objectCollision, 'gameObjectCollision');
@@ -196,6 +202,56 @@ describe('boss fight composition', () => {
       expect(boss.life).toBe(afterCollision);
       expect(result.isBoss).toBe(true);
       expect(boss.isMarkedForRemoval()).toBe(false);
+    });
+
+    test(`${label} dies to three real stomps from the level's own player`, async () => {
+      // The tests above build a synthetic player and hand it the stomp volume
+      // set directly. This uses the player the arena actually spawns, with
+      // PlayerComponent running and choosing his volumes off the stomp
+      // animation - the path the game takes. It answers "is the fight
+      // winnable with the real player", not "is the stomp box in the right
+      // place"; that placement is pinned in playerCollisionVolumes.test.ts and
+      // felt in doorsAndButtons and breakableBlocks.
+      const arena = await loadBossLevel();
+      const boss = findBoss(arena.manager, subType);
+      const player = arena.manager.getPlayer();
+      expect(player, 'the boss arena should spawn a player').toBeTruthy();
+      if (!player) return;
+
+      const component = player.getComponent(PlayerComponent) as PlayerComponent;
+      // Andou's collision volumes come off his animation frames, so
+      // PlayerComponent has to be able to run - Game.tsx injects these.
+      component.setSystems(
+        new InputSystem(), sSystemRegistry.collisionSystem as CollisionSystem,
+        new SoundSystem(), sSystemRegistry.levelSystem as unknown as LevelSystem
+      );
+      const reaction = componentOf<HitReactionComponent>(boss, HitReactionComponent);
+      const startLife = boss.life;
+      expect(startLife).toBe(3);
+
+      const target = boss.getPosition();
+      let time = 0;
+      for (let hit = 0; hit < 3 && boss.life > 0; hit++) {
+        reaction?.setInvincible(false);
+        // Sweep him down through the boss while stomping, as a landed stomp does.
+        for (let i = 0; i < 40 && boss.life > startLife - hit - 1; i++) {
+          component.stomping = true;
+          component.currentState = PlayerState.STOMP;
+          const sweep = (i % 20) / 20;
+          player.setPosition(
+            target.x + boss.width / 2 - player.width / 2,
+            target.y - player.height + sweep * (boss.height + player.height)
+          );
+          time += 1 / 60;
+          player.setGameTime(time);
+          boss.setGameTime(time);
+          player.update(1 / 60, time);
+          boss.update(1 / 60, time);
+          arena.collision.update(1 / 60);
+        }
+      }
+
+      expect(boss.life, `${label} survived three stomps`).toBe(0);
     });
   }
 
