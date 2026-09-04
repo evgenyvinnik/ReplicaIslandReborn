@@ -83,7 +83,7 @@ async function loadLevel(resource: string): Promise<Rig> {
   sSystemRegistry.register(oc, 'gameObjectCollision');
   sSystemRegistry.register(new GameFlowEvent(), 'gameFlowEvent');
   sSystemRegistry.register(time, 'time');
-  sSystemRegistry.register(factory, 'gameObjectFactory');
+  sSystemRegistry.register(factory, 'factory');
   expect(await collision.loadCollisionData('/assets/collision.json')).toBe(true);
   expect(await levelSystem.loadLevel(resourceToLevelId[resource]), resource).toBe(true);
   manager.commitUpdates();

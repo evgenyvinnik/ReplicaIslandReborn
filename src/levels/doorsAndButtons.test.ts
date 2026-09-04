@@ -33,6 +33,7 @@ import { sSystemRegistry } from '../engine/SystemRegistry';
 import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent } from '../entities/components/PlayerComponent';
+import { SolidSurfaceComponent } from '../entities/components/SolidSurfaceComponent';
 import { HitType } from '../types';
 import type { GameObject } from '../entities/GameObject';
 
@@ -153,3 +154,81 @@ test('every button the campaign ships can be pressed by standing on it', async (
   expect(checked, 'no buttons were found in the campaign').toBeGreaterThan(3);
   expect(failures, 'these buttons could not be pressed').toEqual([]);
 }, 180_000);
+
+test('pressing a button opens the door on its channel', async () => {
+  // The second half of the chain. A button that registers DEPRESS but never
+  // moves its door leaves the level exactly as impassable as one that ignores
+  // the player: ButtonAnimationComponent writes the channel,
+  // DoorAnimationComponent reads it and removes the door's SolidSurfaceComponent.
+  const failures: string[] = [];
+  let checked = 0;
+
+  const seen = new Set<string>();
+  for (const group of linearLevelTree) {
+    for (const entry of group.levels) {
+      if (seen.has(entry.resource)) continue;
+      seen.add(entry.resource);
+
+      const rig = await load(entry.resource);
+      if (!rig) continue;
+      const player = rig.manager.getPlayer();
+      if (!player) continue;
+      const component = player.getComponent(PlayerComponent) as PlayerComponent;
+      component.setSystems(
+        sSystemRegistry.inputSystem!, rig.collision,
+        sSystemRegistry.soundSystem!, rig.levelSystem
+      );
+
+      const buttons = allOfType(rig, (o) => o.type === 'button');
+      const doors = allOfType(rig, (o) => o.type === 'door');
+      if (buttons.length === 0 || doors.length === 0) continue;
+
+      // Test each door once, pressing any button on its colour. Iterating
+      // buttons instead re-tests the same door in levels that field two of a
+      // colour, which reads as a failure that is really a duplicate.
+      for (const door of doors) {
+        const button = buttons.find((b) => b.subType === door.subType);
+        if (!button) continue;
+        if (!door.getComponents().some((c) => c instanceof SolidSurfaceComponent)) continue; // non-blocking door
+
+        // Press the button with the camera on it, then walk the camera over to
+        // the door - which is how it happens in play, and the only way both
+        // objects are ever inside their activation radius. GameObject.update()
+        // no-ops on a deactivated object, so a door across the level simply
+        // does not run until the player approaches it.
+        const buttonPos = button.getPosition();
+        rig.camera.setPosition(buttonPos.x, buttonPos.y);
+        for (let i = 0; i < 30; i++) {
+          player.setPosition(
+            buttonPos.x + button.width / 2 - player.width / 2,
+            buttonPos.y - player.height + 10
+          );
+          player.setGameTime(rig.time.getGameTime());
+          button.setGameTime(rig.time.getGameTime());
+          rig.time.update(FRAME);
+          rig.manager.update(FRAME, rig.time.getGameTime());
+          rig.oc.update(FRAME);
+        }
+
+        const doorPos = door.getPosition();
+        rig.camera.setPosition(doorPos.x, doorPos.y);
+        let opened = false;
+        for (let i = 0; i < 120 && !opened; i++) {
+          rig.time.update(FRAME);
+          rig.manager.update(FRAME, rig.time.getGameTime());
+          rig.oc.update(FRAME);
+          if (!door.getComponents().some((c) => c instanceof SolidSurfaceComponent)) opened = true;
+        }
+
+        checked++;
+        if (!opened) {
+          failures.push(`${entry.resource}: the ${door.subType} door never opened`);
+        }
+      }
+    }
+  }
+
+  expect(checked, 'no button/door pairs were found').toBeGreaterThan(2);
+  expect(failures, 'these doors stayed shut').toEqual([]);
+}, 180_000);
+

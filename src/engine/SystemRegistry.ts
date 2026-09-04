@@ -116,6 +116,14 @@ export class SystemRegistry {
       case 'effects':
         this.effectsSystem = system as unknown as EffectsSystem;
         break;
+      case 'channel':
+        this.channelSystem = system as unknown as ChannelSystem;
+        break;
+      default:
+        // A key with no case here silently does nothing, which reads as the
+        // system simply not working: buttons register their press but never
+        // write their channel, so doors never open. Fail loudly instead.
+        throw new Error(`SystemRegistry.register: unknown system type '${type}'`);
     }
   }
 }
