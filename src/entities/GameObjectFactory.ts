@@ -48,6 +48,13 @@ import type { SystemRegistry } from '../engine/SystemRegistry';
 const SCREEN_SIZE_RADIUS = Math.sqrt(240 * 240 + 160 * 160);
 const TIGHT_ACTIVATION_RADIUS = SCREEN_SIZE_RADIUS + 128;
 const NORMAL_ACTIVATION_RADIUS = SCREEN_SIZE_RADIUS * 1.25;
+/**
+ * The original's mAlwaysActive. GameObject.activationRadius defaults to 0, and
+ * GameObjectManager tests `dx*dx + dy*dy < radius*radius`, so leaving it unset
+ * means "never within range": the object is deactivated on its very first
+ * update and stops running. Every configure* below has to say what it wants.
+ */
+const ALWAYS_ACTIVE = -1;
 
 // Object type definitions
 export enum GameObjectType {
@@ -261,6 +268,8 @@ export class GameObjectFactory {
    * Configure the player character
    */
   private configurePlayer(obj: GameObject): void {
+    // spawnPlayer: object.activationRadius = mAlwaysActive.
+    obj.activationRadius = ALWAYS_ACTIVE;
     obj.team = Team.PLAYER;
     obj.width = 32;
     obj.height = 48;
@@ -343,6 +352,8 @@ export class GameObjectFactory {
    * Configure a coin collectible
    */
   private configureCoin(obj: GameObject): void {
+    // spawnCoin: object.activationRadius = mTightActivationRadius.
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.type = 'coin';
     obj.team = Team.NONE;
     obj.width = 16;
@@ -372,6 +383,8 @@ export class GameObjectFactory {
    * Configure a pearl collectible
    */
   private configurePearl(obj: GameObject): void {
+    // Collectibles are tight, as spawnCoin and spawnRuby are.
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.type = 'pearl';
     obj.team = Team.NONE;
     obj.width = 24;
@@ -399,6 +412,8 @@ export class GameObjectFactory {
    * Configure a spring bounce pad
    */
   private configureSpring(obj: GameObject): void {
+    // A placed object, like the other tight-radius furniture.
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.team = Team.NONE;
     obj.width = 32;
     obj.height = 16;
@@ -430,6 +445,8 @@ export class GameObjectFactory {
    * Configure smoke poof effect
    */
   private configureSmokePoof(obj: GameObject): void {
+    // spawnEffectSmokeBig: object.activationRadius = mTightActivationRadius.
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.team = Team.NONE;
     obj.width = 32;
     obj.height = 32;
@@ -617,6 +634,8 @@ export class GameObjectFactory {
    * A flying boss that shoots energy balls and bullets
    */
   private configureEnemyRokudou(obj: GameObject): void {
+    // spawnEnemyRokudou: object.activationRadius = mNormalActivationRadius.
+    obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
     obj.team = Team.ENEMY;
     obj.type = 'rokudou';
     obj.width = 128;
@@ -900,6 +919,9 @@ export class GameObjectFactory {
    * The ghost is controlled by the player and floats freely
    */
   private configureGhost(obj: GameObject): void {
+    // spawnPlayerGhost: object.activationRadius = mAlwaysActive. The player is
+    // driving this thing, so it must never be culled by distance.
+    obj.activationRadius = ALWAYS_ACTIVE;
     obj.team = Team.PLAYER;
     obj.type = 'ghost';
     obj.width = 64;
@@ -1075,6 +1097,8 @@ export class GameObjectFactory {
    * Configure The Source (final boss)
    */
   private configureTheSource(obj: GameObject): void {
+    // spawnObjectTheSource: object.activationRadius = mAlwaysActive.
+    obj.activationRadius = ALWAYS_ACTIVE;
     obj.team = Team.ENEMY;
     obj.type = 'the_source';
     obj.width = 256;  // Large boss
