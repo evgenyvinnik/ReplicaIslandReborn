@@ -151,6 +151,11 @@ function reachable(
 test('every level with a win condition lets the player reach it', async () => {
   await loadSlopeIndices();
   const failures: string[] = [];
+  // Both routes must actually be exercised. Six levels - the intro variants,
+  // level_3_10_sewer, level_3_11_sewer and level_4_3_underground - carry no
+  // rubies at all and can only be finished by reaching a hot spot.
+  let byRubies = 0;
+  let byExit = 0;
   let checked = 0;
 
   const seenResources = new Set<string>();
@@ -185,7 +190,8 @@ test('every level with a win condition lets the player reach it', async () => {
       });
       for (let y = 0; y < rows; y++) {
         for (let x = 0; x < cols; x++) {
-          if (loaded.hotSpots.getHotSpotByTile(x, y) === HotSpotType.END_LEVEL) {
+          const spot = loaded.hotSpots.getHotSpotByTile(x, y);
+          if (spot === HotSpotType.END_LEVEL || spot === HotSpotType.GAME_EVENT) {
             targets.push({ what: 'END_LEVEL', tile: [x, y] });
           }
         }
@@ -205,9 +211,13 @@ test('every level with a win condition lets the player reach it', async () => {
       const reachableEnds = ends.filter(canReach).length;
 
       checked++;
-      // The level is finishable if three rubies are reachable, or any
-      // END_LEVEL tile is.
-      const finishable = reachableRubies >= Math.min(3, rubies.length) || reachableEnds > 0;
+      // The level is finishable if all three rubies are reachable, or any exit
+      // tile is. `Math.min(3, rubies.length)` was wrong here: a level with no
+      // rubies made the ruby clause 0 >= 0, so the six levels that can only be
+      // finished by reaching a hot spot passed without their exit ever being
+      // checked.
+      const finishable = (rubies.length >= 3 && reachableRubies >= 3) || reachableEnds > 0;
+      if (rubies.length >= 3) byRubies++; else byExit++;
       if (!finishable) {
         failures.push(
           `${entry.resource}: spawn ${start.join(',')} reaches ${region.size} tiles; ` +
@@ -218,5 +228,7 @@ test('every level with a win condition lets the player reach it', async () => {
   }
 
   expect(checked, 'no levels were actually checked').toBeGreaterThan(10);
+  expect(byRubies, 'no ruby-finished level was checked').toBeGreaterThan(10);
+  expect(byExit, 'no hot-spot-finished level was checked').toBeGreaterThan(1);
   expect(failures, 'these levels cannot be finished from the spawn').toEqual([]);
 }, 180_000);
