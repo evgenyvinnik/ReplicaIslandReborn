@@ -67,11 +67,15 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
         attackOnlyWhileAttacking: false,
       };
 
-    // 64x64.
+    // 64x64. spawnEnemyShadowSlime types its vulnerability volume HIT
+    // (`basicVulnerabilityVolume.get(0).setHitType(HitType.HIT)`), unlike most
+    // enemies, which leave theirs untyped. A typed volume accepts only its own
+    // hit type, so the shadow slime can be stomped but not possessed - left
+    // untyped here it accepted POSSESS too.
     case 'shadowslime':
       return {
         attack: [new SphereCollisionVolume(16, 32, 32, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(16, 32, 32)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 32, HitType.HIT)],
         attackOnlyWhileAttacking: false,
       };
 

@@ -91,10 +91,22 @@ describe('enemy collision profiles', () => {
   test('enemies the original leaves untyped accept any hit', () => {
     // An untyped vulnerability volume matches every hit type, which is how a
     // brobot can be both stomped and possessed.
-    for (const subType of ['brobot', 'shadowslime', 'skeleton', 'karaguin', 'bat', 'sting', 'onion']) {
+    for (const subType of ['brobot', 'skeleton', 'karaguin', 'bat', 'sting', 'onion']) {
       const profile = createEnemyCollisionProfile(subType)!;
       expect(profile.vulnerability!.map((v) => v.getHitType()), subType)
         .toEqual([HitType.INVALID]);
+    }
+  });
+
+  test('the shadow slime and snailbomb are stompable but not possessable', () => {
+    // Two enemies the original types HIT rather than leaving untyped:
+    // spawnEnemyShadowSlime calls setHitType(HitType.HIT) on its vulnerability
+    // volume, and the snailbomb's is constructed with it. A typed volume
+    // accepts only its own hit type, so the ghost bounces off both.
+    for (const subType of ['shadowslime', 'snailbomb']) {
+      const profile = createEnemyCollisionProfile(subType)!;
+      expect(profile.vulnerability!.map((v) => v.getHitType()), subType)
+        .toEqual([HitType.HIT]);
     }
   });
 
