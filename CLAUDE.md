@@ -1273,7 +1273,13 @@ The original game uses a **non-linear "memory tree"** structure for level progre
 **Key characteristics:**
 - Levels are organized into **groups** (31 total groups)
 - Each group can contain **1-3 levels** that the player can choose between
-- Completing **any level** in a group unlocks the **next group**
+- Completing a level offers the **next uncompleted level in the same group**;
+  only when every level in the group is done does the next group unlock. This
+  file used to say that completing *any* level in a group advanced you, which
+  is wrong - `AndouKun.java` scans the group for an uncompleted level and only
+  increments `mLevelRow` when it finds none, and `completeCurrentLevel()` does
+  the same. A group of three memories makes you play all three.
+  `levelProgression.test.ts` walks the whole tree and pins this
 - Groups alternate between "present" (current story) and "past" (flashback memories)
 - This creates a **non-linear narrative** where the player experiences memories out of chronological order
 
