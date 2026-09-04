@@ -116,4 +116,25 @@ describe('activation radii', () => {
       }
     }
   });
+
+  test('nothing the campaign spawns is left with the default radius of zero', () => {
+    // GameObject.activationRadius defaults to 0, and updateActivation() tests
+    // `dx*dx + dy*dy < radius*radius`, so 0 does not mean "always on" - it
+    // means "never in range". An object that never gets one assigned is
+    // deactivated on its first update and recycled: it comes back 0x0 with no
+    // components, which looks like the object simply not existing.
+    //
+    // This is how the player's ghost was broken: configureGhost never set a
+    // radius, so charging the ghost produced something that was destroyed
+    // before it could be steered into anything.
+    return spawnedRadii().then((found) => {
+      const zeroed: string[] = [];
+      for (const [key, radii] of found) {
+        for (const radius of radii) {
+          if (radius === 0) zeroed.push(key);
+        }
+      }
+      expect([...new Set(zeroed)], 'these spawn with activationRadius 0').toEqual([]);
+    });
+  }, 60_000);
 });
