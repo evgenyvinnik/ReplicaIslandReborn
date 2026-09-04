@@ -352,6 +352,11 @@ by tests so they cannot drift back:
 | Patrol attack range | Measured feet-to-feet as the original measures it, so an enemy's height does not shrink its reach. `patrolAttack.test.ts` |
 | Death tiles | The four walkers the original marks vulnerable die on DIE tiles, sampled at the feet. `deathTiles.test.ts` |
 | Projectile muzzles | `setOffsetY` applied from the object's bottom. `launcherParameters.test.ts` |
+| Player collision volumes | Stomp and DEPRESS boxes at the feet, not the head. Confirmed three ways: enemies die to a stomp, all 99 buttons press, all breakable blocks break |
+| Possession | Charging the ghost, its POSSESS volume, and taking over a brobot and a turret - the two objects the original calls `setPossessionComponent` on. `possession.test.ts` |
+| Doors and buttons | Every button presses and every button-operated door opens. `doorsAndButtons.test.ts` |
+| Cannons | Andou's vulnerability volume stays untyped so LAUNCH reaches him; all five cannons fire. `cannonLaunch.test.ts` |
+| Level reachability | Every level's win condition is reachable from its spawn, flooding the real collision grid. `levelReachable.test.ts` |
 | Difficulty constants | All 33 across Baby/Kids/Adults match. The extra `enemyDamage`/`coinValue`/`playerHitPoints` fields are dead config, referenced nowhere |
 | Activation radii | Derived from the screen size as `GameObjectFactory` does; every spawn site mapped. `activationRadius.test.ts` |
 | Camera | Follow distances, sinusoidal Y-only shake, pixel snap, bias gating, target hand-off. `cameraFollow.test.ts` |
@@ -388,10 +393,34 @@ Traps this audit kept hitting, worth knowing before adding to it:
   | `GhostComponent` jump gate | `velocity.y <= 0` | the original means "not already moving upward", which is `>= 0` here |
   | `LifetimeComponent` off-screen cull | focus treated as top-left | the original's `getFocusPosition*` is the view's **centre**; this port's is the viewport's top-left, so the cull region was asymmetric |
   | `PlayerComponent` jetpack cap | `clamp(velocity)` | the original drops the *thrust* and only ever raises velocity *to* the cap, so a cannon launch keeps its speed instead of being braked to 250 |
+  | `playerCollisionVolumes` stomp box | `AABox(16, -5, 32, 37)` with only x rescaled | the original's box starts 5px *below* the feet; unconverted it sits above Andou's head, so a stomp reaches over an enemy instead of into it |
+  | `playerCollisionVolumes` press box | `AABox(16, 0, 32, 16)` likewise | the DEPRESS box belongs at his feet - at his head, standing on a button does not press it, and all 99 buttons in the campaign fail |
 
   Note the last two: not every one is a sign flip. `getFocusPosition*` and
   `position.y` mean different *points* in the two engines, and the original's
   cap is a rule about the impulse rather than about the speed.
+
+- **`activationRadius` defaults to 0, which means "never active".**
+  `GameObjectManager.updateActivation()` tests `dx*dx + dy*dy < radius*radius`,
+  so an unset radius is not "always on" - the object is deactivated on its very
+  first update, and `destroyOnDeactivation` objects are recycled back to 0x0
+  with no components. `configureGhost` never set one, which killed the player's
+  ghost within five frames of charging it and so broke possession entirely -
+  and possession is the only thing that works on a turret. Every `configure*`
+  in `GameObjectFactory` must say what it wants; `ALWAYS_ACTIVE` is -1.
+
+- **`SystemRegistry.register()` used to swallow unknown keys.** It is a switch,
+  and there was no `'channel'` case at all - `Game.tsx` works only because it
+  assigns `systemRegistry.channelSystem` directly. Anything else registering
+  one got a level whose buttons stamp their press and whose doors never open.
+  Unknown keys now throw; that immediately caught a `'gameObjectFactory'` where
+  the key is `'factory'`.
+
+- **`GameObject.update()` no-ops on a deactivated object.** A door across the
+  level does not run at all until the player comes within its activation
+  radius. When testing two objects that talk to each other, put the camera on
+  each in turn rather than parking it on one - otherwise the far one looks
+  broken when the mechanism is fine.
 
 - **Hand-tuned values hiding among transcribed ones.** `PlayerComponent`'s 21
   constants were transcribed exactly - and `GRAVITY` was 500 where the
@@ -413,6 +442,21 @@ Traps this audit kept hitting, worth knowing before adding to it:
 - `src/levels/levelCompletable.test.ts` reads the shipped level data and
   asserts every level reachable through either progression tree has a way to
   finish it: three rubies, a boss, or an END_LEVEL/GAME_EVENT hot spot.
+- `src/levels/levelReachable.test.ts` goes further and asks whether the player
+  can physically *get* to it, flooding the real collision grid from the spawn.
+  It has to treat slopes as traversable - `isTileSolid()` answers "does this
+  tile have a collision definition", which is true for the 33 of 53 defined
+  tiles carrying a diagonal, and calling those walls reports five levels as
+  impossible.
+- `campaignGameplay.test.ts` also runs a bot through every playable level:
+  hold right, and hold *fly* for two seconds whenever horizontal progress
+  stalls. The hold matters - `JUMP_TO_JETS_DELAY` is 0.5s, so a bot that
+  pulses the button never lights the jets, jumps on the spot, and looks
+  exactly like a player stuck against a wall.
+- The object-based routes that the tile flood passes straight through have
+  their own end-to-end checks, because a break in any of them walls off a
+  level while every geometry test still passes: `doorsAndButtons.test.ts`,
+  `breakableBlocks.test.ts`, `cannonLaunch.test.ts`, `possession.test.ts`.
 - Combat rules are pinned by `src/entities/enemyCollisionProfiles.test.ts`,
   `src/entities/playerCollisionVolumes.test.ts`,
   `src/engine/GameObjectCollisionSystem.test.ts` and
