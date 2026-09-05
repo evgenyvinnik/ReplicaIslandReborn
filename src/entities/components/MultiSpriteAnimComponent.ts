@@ -87,8 +87,8 @@ export class MultiSpriteAnimComponent extends GameComponent {
   /**
    * Update animation
    */
-  update(deltaTime: number, parent: GameObject): void {
-    if (this.spriteNames.length === 0 || !this.renderSystem) return;
+  update(deltaTime: number, _parent: GameObject): void {
+    if (this.spriteNames.length === 0) return;
 
     // Update animation frame
     this.frameTimer += deltaTime;
@@ -106,6 +106,10 @@ export class MultiSpriteAnimComponent extends GameComponent {
         }
       }
     }
+  }
+
+  override render(parent: GameObject): void {
+    if (!this.renderSystem) return;
 
     // Get current sprite name
     const spriteName = this.spriteNames[this.currentFrame];

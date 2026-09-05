@@ -94,9 +94,6 @@ export class MotionBlurComponent extends GameComponent {
     if (!target) return;
     this.target = target;
 
-    const renderSystem = sSystemRegistry.renderSystem;
-    if (!renderSystem) return;
-
     // Sample the target's current frame into the ring buffer.
     this.timeSinceLastStep += deltaTime;
     if (this.timeSinceLastStep >= this.stepDelay) {
@@ -114,6 +111,11 @@ export class MotionBlurComponent extends GameComponent {
         this.timeSinceLastStep = 0;
       }
     }
+  }
+
+  override render(_parent: GameObject): void {
+    const renderSystem = sSystemRegistry.renderSystem;
+    if (!this.enabled || !renderSystem) return;
 
     // Redraw the whole trail, newest first so it fades away behind the object.
     const startStep = this.currentStep > 0 ? this.currentStep - 1 : STEP_COUNT - 1;

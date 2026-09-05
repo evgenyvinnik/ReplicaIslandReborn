@@ -51,6 +51,9 @@ export abstract class GameComponent {
    */
   abstract update(deltaTime: number, parent: GameObject): void;
 
+  /** Draw the current state without advancing simulation or collision. */
+  render(_parent: GameObject): void {}
+
   /**
    * Reset the component to initial state
    */

@@ -196,6 +196,14 @@ export class GameObject implements Poolable {
     return [...this.allComponents];
   }
 
+  /** Rendering also runs on display frames with no simulation update. */
+  render(): void {
+    if (!this.active || !this.visible || this.markedForRemoval) return;
+    for (const component of this.allComponents) {
+      component.render(this);
+    }
+  }
+
   /**
    * Remove all components
    */

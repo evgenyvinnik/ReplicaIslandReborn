@@ -9,7 +9,8 @@
 import { SystemRegistry } from './SystemRegistry';
 
 export type UpdateCallback = (deltaTime: number) => void;
-export type RenderCallback = (interpolation: number) => void;
+// UI animation follows display time, independently of fixed-step physics.
+export type RenderCallback = (interpolation: number, deltaTime: number) => void;
 
 export class GameLoop {
   private running: boolean = false;
@@ -172,14 +173,11 @@ export class GameLoop {
         }
         this.accumulator -= this.fixedDeltaTime;
       }
+    }
 
-      // Calculate interpolation for smooth rendering
-      const interpolation = this.accumulator / this.fixedDeltaTime;
-
-      // Render with interpolation
-      if (this.renderCallback) {
-        this.guard('render', this.renderCallback, interpolation);
-      }
+    // A paused simulation still draws and advances its menus/dialogue.
+    if (this.renderCallback) {
+      this.guard('render', this.renderCallback, this.accumulator / this.fixedDeltaTime, deltaTime);
     }
 
     // Schedule next frame
@@ -189,9 +187,9 @@ export class GameLoop {
   /**
    * Run a frame callback without letting a throw tear down the loop.
    */
-  private guard(label: string, callback: (arg: number) => void, arg: number): void {
+  private guard<T extends number[]>(label: string, callback: (...args: T) => void, ...args: T): void {
     try {
-      callback(arg);
+      callback(...args);
     } catch (error) {
       this.lastError = error;
       if (this.loggedErrors < GameLoop.MAX_LOGGED_ERRORS) {
@@ -223,7 +221,7 @@ export class GameLoop {
       }
     }
     if (render && this.renderCallback) {
-      this.guard('render', this.renderCallback, 0);
+      this.guard('render', this.renderCallback, 0, frames * this.fixedDeltaTime);
     }
   }
 

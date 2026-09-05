@@ -84,6 +84,16 @@ export class RenderSystem {
     return this.ctx;
   }
 
+  /** Draw an immediate screen-space fade, after the world queue and HUD. */
+  drawScreenOverlay(color: string, opacity: number): void {
+    this.ctx.save();
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+    this.ctx.fillStyle = color;
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.restore();
+  }
+
   /**
    * Set camera position
    */

@@ -30,7 +30,7 @@ import {
   selectEnemyAttackVolumes,
 } from './enemyCollisionProfiles';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
-import { MultiSpriteAnimComponent } from './components/MultiSpriteAnimComponent';
+import { SortConstants } from '../engine/SortConstants';
 import {
   SimpleCollisionComponent,
   setSimpleCollisionSystemRegistry,
@@ -252,6 +252,10 @@ export class GameObjectFactory {
    * need the same treatment LevelSystem gives level-placed objects.
    */
   private attachObjectSprite(obj: GameObject): void {
+    // Runtime projectiles must draw above actors, just like level-placed ones.
+    if (obj.type === 'projectile') {
+      obj.getComponent(SpriteComponent)?.setPriority(SortConstants.PROJECTILE);
+    }
     if (obj.getComponent(SpriteComponent)?.getCurrentAnimation()) return;
 
     const animation = createObjectAnimation(obj.type, obj.width, obj.height, obj.subType);
@@ -259,6 +263,7 @@ export class GameObjectFactory {
 
     const sprite = obj.getComponent(SpriteComponent) ?? new SpriteComponent();
     if (!obj.getComponent(SpriteComponent)) obj.addComponent(sprite);
+    if (obj.type === 'projectile') sprite.setPriority(SortConstants.PROJECTILE);
     if (this.renderSystem) sprite.setRenderSystem(this.renderSystem);
     sprite.addAnimation(animation.name ?? obj.type, animation);
     sprite.playAnimation(animation.name ?? obj.type);
@@ -794,18 +799,8 @@ export class GameObjectFactory {
     obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.life = 1;
 
-    // Add multi-sprite animated component for energy ball
-    // Since each frame is a separate image (energy_ball01-04), we use MultiSpriteAnimComponent
-    const multiSprite = new MultiSpriteAnimComponent();
-    if (this.renderSystem) {
-      multiSprite.setRenderSystem(this.renderSystem);
-      multiSprite.setSpriteSequence(
-        ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'],
-        0.08,  // 80ms per frame
-        true   // loop
-      );
-      obj.addComponent(multiSprite);
-    }
+    // attachObjectSprite supplies the original 24fps animation. Do not also
+    // attach a MultiSpriteAnimComponent: it draws a second, out-of-sync ball.
 
     const movement = this.componentPools.movement.allocate();
     obj.addComponent(movement);
@@ -833,16 +828,7 @@ export class GameObjectFactory {
     obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.life = 1;
 
-    const multiSprite = new MultiSpriteAnimComponent();
-    if (this.renderSystem) {
-      multiSprite.setRenderSystem(this.renderSystem);
-      multiSprite.setSpriteSequence(
-        ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'],
-        1 / 24,
-        true
-      );
-      obj.addComponent(multiSprite);
-    }
+    // The shared object animation supplies this shot's single sprite too.
 
     obj.addComponent(this.componentPools.movement.allocate());
 

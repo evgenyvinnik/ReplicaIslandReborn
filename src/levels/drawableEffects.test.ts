@@ -127,6 +127,7 @@ describe('drawable-modifying components', () => {
       calls.length = 0;
       for (const sprite of componentsOf<SpriteComponent>(source, SpriteComponent)) {
         sprite.update(1 / 60, source);
+        sprite.render(source);
       }
 
       const drawn = [...calls].sort((a, b) => a.priority - b.priority).map((c) => c.sprite);
@@ -141,6 +142,7 @@ describe('drawable-modifying components', () => {
       calls.length = 0;
       for (const sprite of componentsOf<SpriteComponent>(source, SpriteComponent)) {
         sprite.update(1 / 60, source);
+        sprite.render(source);
       }
       for (const call of calls) {
         expect(call.priority).toBeLessThan(0);
@@ -159,6 +161,7 @@ describe('drawable-modifying components', () => {
       }
       calls.length = 0;
       for (const sprite of sprites) sprite.update(1 / 60, source);
+      source.render();
 
       const opacities = calls.map((c) => c.alpha);
       expect(new Set(opacities.map((o) => o.toFixed(3))).size).toBeGreaterThan(3);
@@ -179,6 +182,7 @@ describe('drawable-modifying components', () => {
         coreFade.update(1 / 60, source);
         calls.length = 0;
         core.update(1 / 60, source);
+        core.render(source);
         if (calls.length) samples.push(calls[0].alpha);
       }
 
@@ -212,6 +216,7 @@ describe('drawable-modifying components', () => {
 
       calls.length = 0;
       blur!.update(1 / 60, kyle!);
+      blur!.render(kyle!);
 
       expect(calls.length).toBe(4);
       // Each step is fainter than the one in front of it, and all are behind
@@ -248,6 +253,7 @@ describe('drawable-modifying components', () => {
 
       calls.length = 0;
       blur.update(1 / 60, object);
+      blur.render(object);
       expect(calls.length).toBe(0);
     });
   });
@@ -283,6 +289,7 @@ describe('drawable-modifying components', () => {
       for (let i = 0; i < frames; i++) {
         calls.length = 0;
         object.update(1 / 60, 1 / 60);
+        object.render();
         drawn = [...calls];
       }
       return drawn;
@@ -364,6 +371,7 @@ describe('drawable-modifying components', () => {
       for (let i = 0; i < 30; i++) fade.update(1 / 60, object);  // 0.5s in
       calls.length = 0;
       sprite.update(1 / 60, object);
+      sprite.render(object);
       expect(calls[0].alpha).toBe(1);
     });
 
@@ -384,6 +392,7 @@ describe('drawable-modifying components', () => {
       fade.update(1 / 60, object);
       calls.length = 0;
       sprite.update(1 / 60, object);
+      sprite.render(object);
       expect(calls[0].alpha).toBe(1);
     });
   });

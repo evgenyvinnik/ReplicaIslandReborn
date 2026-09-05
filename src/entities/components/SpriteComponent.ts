@@ -258,10 +258,10 @@ export class SpriteComponent extends GameComponent {
     // enemy's volumes change with what it is doing. `undefined` on a frame means
     // "leave the current volumes alone".
     this.applyFrameVolumes(parent);
+  }
 
-    // Some campaign objects are rendered by Game's atlas-aware renderer, but
-    // their SpriteComponent still owns animation timing/state.
-    if (!this.renderSystem || !this.visible) return;
+  override render(parent: GameObject): void {
+    if (!this.currentAnimation || !this.renderSystem || !this.visible) return;
 
     const frameData = this.currentAnimation.frames[this.currentFrame];
     // A frame may name its own image; the port's art is individual files rather

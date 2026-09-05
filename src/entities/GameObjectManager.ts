@@ -240,6 +240,11 @@ export class GameObjectManager {
     return this.objects.toArray();
   }
 
+  /** Submit current sprites and trails once per display frame, even if paused. */
+  render(): void {
+    this.objects.forEach((object) => object.render());
+  }
+
   /**
    * Find objects by type
    */

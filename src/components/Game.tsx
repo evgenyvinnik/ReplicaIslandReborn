@@ -39,6 +39,7 @@ import { applyPlayerAttack } from '../entities/applyPlayerAttack';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
+import { MultiSpriteAnimComponent } from '../entities/components/MultiSpriteAnimComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
 import { setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
@@ -1836,12 +1837,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Update input
       inputSystem.update();
 
-      // Update time
-      timeSystem.update(deltaTime);
-      const gameTime = timeSystem.getGameTime();
-      // Use frozen-aware delta for game logic (0 when frozen for pause-on-attack effect)
-      const gameDelta = timeSystem.getFrameDelta();
-
       // Get player and input state
       const player = gameObjectManager.getPlayer();
       
@@ -1859,6 +1854,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (isGamePaused) {
         return; // Skip rest of update, but render will still happen
       }
+
+      // Dialogue suspends the simulation clock as well as physics. Advancing
+      // time while reading expires NPC contact debounces, door channels, and
+      // floor contact stamps even though nothing in the world has moved.
+      timeSystem.update(deltaTime);
+      const gameTime = timeSystem.getGameTime();
+      const gameDelta = timeSystem.getFrameDelta();
       
       if (player) {
         // Update player's internal gameTime before physics so touchingGround() works correctly
@@ -2235,6 +2237,24 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Original flow: death animation plays for 2s, then fade to black over 1.5s, then restart
       const pComp = player?.getComponent(PlayerComponent);
       if (pComp) { // Ensure playerComponent exists
+        // World effects share the simulation clock: they freeze with dialogue
+        // and slow down with the rest of the game, regardless of display Hz.
+        const frameTime = 1 / 24;
+        if (pComp.rocketsOn) {
+          pComp.jetTimer += gameDelta;
+          while (pComp.jetTimer >= frameTime) {
+            pComp.jetTimer -= frameTime;
+            pComp.jetFrame = (pComp.jetFrame + 1) % 2;
+          }
+        }
+        if (pComp.currentState === PlayerState.HIT_REACT) {
+          pComp.sparkTimer += gameDelta;
+          while (pComp.sparkTimer >= frameTime) {
+            pComp.sparkTimer -= frameTime;
+            pComp.sparkFrame = (pComp.sparkFrame + 1) % 3;
+          }
+        }
+
         if (pComp.isDying) {
           pComp.deathTime -= deltaTime;
           
@@ -2537,7 +2557,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     // Render callback
     let renderCount = 0;
-    gameLoop.setRenderCallback((): void => {
+    gameLoop.setRenderCallback((_interpolation: number, displayDelta: number): void => {
       renderCount++;
       if (renderCount === 1 || renderCount === 60) {
         // console.log('[Game Render]', { renderCount, tileMapLayers: tileMapRendererRef.current?.getLayerCount() });
@@ -2571,6 +2591,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         tileMapRendererRef.current.render(renderSystem, cameraSystem);
       }
 
+      // Draw current component state once per display frame. A paused world
+      // still draws, and multiple physics steps never duplicate its sprites.
+      gameObjectManager.render();
+
       /**
        * True when the object's own SpriteComponent is drawing it, so the
        * placeholder rectangle below must not be drawn on top of it.
@@ -2581,12 +2605,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const sprite = obj.getComponent(
           SpriteComponent as unknown as new (...args: unknown[]) => SpriteComponent
         );
-        return sprite?.getCurrentAnimation() != null;
+        const multiSprite = obj.getComponent(MultiSpriteAnimComponent);
+        return sprite?.getCurrentAnimation() != null || !!multiSprite?.getCurrentSpriteName();
       };
 
       // Render game objects
       const player = gameObjectManager.getPlayer();
-      const FRAME_TIME = 1 / 24; // 24 FPS animation, matching original's Utils.framesToTime(24, 1)
       
       gameObjectManager.forEach((obj) => {
         if (!obj.isVisible()) return;
@@ -2614,11 +2638,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
           // Jet fire, behind him, while the rockets are on.
           if (pComp.rocketsOn) {
-            pComp.jetTimer += 1 / 60;
-            if (pComp.jetTimer >= FRAME_TIME) {
-              pComp.jetTimer -= FRAME_TIME;
-              pComp.jetFrame = (pComp.jetFrame + 1) % 2;
-            }
             const jetSpriteName = pComp.jetFrame === 0 ? 'jetfire01' : 'jetfire02';
             if (renderSystem.hasSprite(jetSpriteName)) {
               renderSystem.drawSprite(
@@ -2630,11 +2649,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
           // Sparks on top while he is reeling from a hit.
           if (pComp.currentState === PlayerState.HIT_REACT) {
-            pComp.sparkTimer += 1 / 60;
-            if (pComp.sparkTimer >= FRAME_TIME) {
-              pComp.sparkTimer -= FRAME_TIME;
-              pComp.sparkFrame = (pComp.sparkFrame + 1) % 3;
-            }
             const sparkSpriteName = ['spark01', 'spark02', 'spark03'][pComp.sparkFrame];
             if (renderSystem.hasSprite(sparkSpriteName)) {
               renderSystem.drawSprite(
@@ -2695,7 +2709,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         canvasHUD.setInventory(playerComponent.coinsForPowerup, getInventory().rubyCount);
         canvasHUD.setShowFPS(currentSettings.showFPS);
         canvasHUD.setFPS(gameLoop.getFPS());
-        canvasHUD.update(1 / 60); // ~60fps deltaTime
+        canvasHUD.update(displayDelta);
         canvasHUD.render();
       }
       
@@ -2717,14 +2731,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Update and render Canvas Dialog (if active)
       const canvasDialog = canvasDialogRef.current;
       if (canvasDialog && canvasDialog.isActive()) {
-        canvasDialog.update(1 / 60);
+        canvasDialog.update(displayDelta);
         canvasDialog.render();
       }
       
       // Update and render Canvas Cutscene (if active)
       const canvasCutscene = canvasCutsceneRef.current;
       if (canvasCutscene && canvasCutscene.isActive()) {
-        canvasCutscene.update(1 / 60);
+        canvasCutscene.update(displayDelta);
         canvasCutscene.render();
       }
       
@@ -2742,34 +2756,34 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // fadeTime goes from 1.5 to 0
         // alpha should go from 0 to 1
         const alpha = Math.min(1, Math.max(0, 1 - (playerCompForFade.fadeTime / 1.5)));
-        renderSystem.drawRect(0, 0, width, height, `rgba(0, 0, 0, ${alpha})`, SortConstants.FADE);
+        renderSystem.drawScreenOverlay('#000000', alpha);
       }
       
       // Update and render Canvas Game Over Screen (if active)
       const canvasGameOver = canvasGameOverRef.current;
       if (canvasGameOver && canvasGameOver.isShowing()) {
-        canvasGameOver.update(1 / 60);
+        canvasGameOver.update(displayDelta);
         canvasGameOver.render();
       }
       
       // Update and render Canvas Level Complete Screen (if active)
       const canvasLevelComplete = canvasLevelCompleteRef.current;
       if (canvasLevelComplete && canvasLevelComplete.isShowing()) {
-        canvasLevelComplete.update(1 / 60);
+        canvasLevelComplete.update(displayDelta);
         canvasLevelComplete.render();
       }
       
       // Update and render Canvas Diary Overlay (if active)
       const canvasDiary = canvasDiaryRef.current;
       if (canvasDiary && canvasDiary.isVisible()) {
-        canvasDiary.update(1 / 60);
+        canvasDiary.update(displayDelta);
         canvasDiary.render();
       }
       
       // Update and render Canvas Ending Stats Screen (if active)
       const canvasEndingStats = canvasEndingStatsRef.current;
       if (canvasEndingStats && canvasEndingStats.isShowing()) {
-        canvasEndingStats.update(1 / 60);
+        canvasEndingStats.update(displayDelta);
         canvasEndingStats.render();
       }
     });

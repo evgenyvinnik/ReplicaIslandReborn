@@ -21,7 +21,7 @@ import { CameraSystem } from '../engine/CameraSystem';
 import { ChannelSystem } from '../engine/ChannelSystem';
 import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
-import { GameObjectFactory } from '../entities/GameObjectFactory';
+import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { gameFlowEvent, GameFlowEventType } from '../engine/GameFlowEvent';
 import { LevelSystem } from './LevelSystemNew';
@@ -43,6 +43,8 @@ import type { GameComponent } from '../entities/GameComponent';
 import { ActionType, Team } from '../types';
 import type { CutsceneType } from '../data/cutscenes';
 import { TimeSystem } from '../engine/TimeSystem';
+import { TheSourceComponent } from '../entities/components/TheSourceComponent';
+import type { EffectsSystem } from '../engine/EffectsSystem';
 
 const originalFetch = globalThis.fetch;
 const publicDirectory = join(import.meta.dir, '../../public');
@@ -74,7 +76,7 @@ interface Arena {
   time: TimeSystem;
 }
 
-async function loadBossLevel(): Promise<Arena> {
+async function loadBossLevel(onBossDeath?: (ending: string) => void): Promise<Arena> {
   sSystemRegistry.reset();
   gameFlowEvent.reset();
 
@@ -86,6 +88,7 @@ async function loadBossLevel(): Promise<Arena> {
   const levelSystem = new LevelSystem();
   const tileCollision = new CollisionSystem();
   levelSystem.setSystems(tileCollision, manager, hotSpots);
+  if (onBossDeath) levelSystem.setOnBossDeathCallback(onBossDeath);
   manager.setCamera(camera);
 
   sSystemRegistry.register(tileCollision, 'collision');
@@ -353,6 +356,59 @@ describe('boss death posts its ending cutscene', () => {
 
   beforeEach(() => {
     events = [];
+  });
+
+  test('three real enemy shots collapse The Source and trigger Wanda ending exactly once', async () => {
+    const endings: string[] = [];
+    const arena = await loadBossLevel((ending) => { endings.push(ending); });
+    const source = findBoss(arena.manager, 'the_source');
+    const behavior = componentOf<TheSourceComponent>(source, TheSourceComponent)!;
+    const camera = sSystemRegistry.cameraSystem!;
+    camera.setTarget(arena.manager.getPlayer());
+    const explosions: string[] = [];
+    sSystemRegistry.register({
+      spawnExplosion: (_x: number, _y: number, kind: string): void => { explosions.push(kind); },
+    } as unknown as EffectsSystem, 'effects');
+    const factory = sSystemRegistry.gameObjectFactory!;
+
+    const frame = (): void => {
+      arena.time.update(1 / 60);
+      source.update(1 / 60, arena.time.getGameTime());
+      arena.collision.update(1 / 60);
+    };
+    for (let hit = 0; hit < 3; hit++) {
+      // Factory shots carry the real team, attack sphere and hit reaction.
+      // Place a shot inside the core; no life assignment or forced HIT_REACT.
+      const shot = factory.spawn(
+        GameObjectType.ENERGY_BALL,
+        source.getPosition().x + source.width / 2 - 16,
+        source.getPosition().y + source.height / 2 - 16
+      )!;
+      expect(shot).toBeTruthy();
+      arena.time.update(1 / 60);
+      shot.update(1 / 60, arena.time.getGameTime());
+      source.update(1 / 60, arena.time.getGameTime());
+      arena.collision.update(1 / 60);
+      expect(source.life).toBe(2 - hit);
+      frame(); // Source consumes the collision's HIT_REACT on the next frame.
+      if (hit < 2) {
+        expect(behavior.isDead()).toBe(false);
+        for (let i = 0; i < 60; i++) frame(); // Real 0.6s invincibility expires.
+      }
+    }
+
+    expect(behavior.isDead()).toBe(true);
+    expect(sSystemRegistry.channelSystem?.registerChannel('SURPRISED')?.value)
+      .toEqual({ value: true });
+    expect(camera.getTarget()).toBe(source);
+    const startY = source.getPosition().y;
+    for (let i = 0; i < 29 * 60; i++) frame();
+    expect(endings).toEqual([]);
+    expect(source.getPosition().y - startY).toBeCloseTo(29 * 20, 5);
+    expect(explosions.length).toBeGreaterThan(200);
+    expect(new Set(explosions)).toEqual(new Set(['giant']));
+    for (let i = 0; i < 3 * 60; i++) frame();
+    expect(endings).toEqual(['WANDA_ENDING']);
   });
 
   for (const [subType, label, expected] of [

@@ -29,6 +29,7 @@ import type { RenderSystem } from '../engine/RenderSystem';
 import type { GameObject } from '../entities/GameObject';
 import type { GameComponent } from '../entities/GameComponent';
 import { ActionType, HitType } from '../types';
+import { SortConstants } from '../engine/SortConstants';
 import { createPlayerAnimations } from '../data/playerAnimations';
 
 const originalFetch = globalThis.fetch;
@@ -38,6 +39,7 @@ interface DrawCall {
   sprite: string;
   x: number;
   y: number;
+  z: number;
 }
 
 /** Stands in for RenderSystem, recording what the components ask to draw. */
@@ -46,8 +48,8 @@ function createRecordingRenderSystem(): { system: RenderSystem; calls: DrawCall[
   const system = {
     // Every sprite "exists" so SpriteComponent never bails out on a missing asset.
     hasSprite: (): boolean => true,
-    drawSprite: (sprite: string, x: number, y: number): void => {
-      calls.push({ sprite, x, y });
+    drawSprite: (sprite: string, x: number, y: number, _frame: number, z: number): void => {
+      calls.push({ sprite, x, y, z });
     },
   } as unknown as RenderSystem;
   return { system, calls };
@@ -112,12 +114,13 @@ describe('enemies render from their components', () => {
     expect(componentOf<EnemyAnimationComponent>(brobot!, EnemyAnimationComponent)).not.toBeNull();
   });
 
-  test('updating an enemy schedules a draw of one of its own frames', async () => {
+  test('rendering an enemy draws one of its own frames', async () => {
     const brobot = await loadLevelWithEnemy('brobot');
     const sprite = componentOf<SpriteComponent>(brobot!, SpriteComponent)!;
 
     calls.length = 0;
     sprite.update(1 / 60, brobot!);
+    brobot!.render();
 
     expect(calls.length).toBe(1);
     expect(calls[0].sprite).toMatch(/^brobot_(idle|walk)0\d$/);
@@ -130,6 +133,7 @@ describe('enemies render from their components', () => {
     calls.length = 0;
     for (let i = 0; i < 12; i++) {
       sprite.update(1 / 24, brobot!);
+      brobot!.render();
     }
 
     const distinct = new Set(calls.map((c) => c.sprite));
@@ -149,6 +153,7 @@ describe('enemies render from their components', () => {
     animator.update(1 / 60, skeleton!);
     calls.length = 0;
     sprite.update(1 / 60, skeleton!);
+    skeleton!.render();
 
     expect(calls[0].sprite).toMatch(/^skeleton_attack/);
   });
@@ -184,6 +189,7 @@ describe('enemies render from their components', () => {
 
       calls.length = 0;
       sprite!.update(1 / 60, object!);
+      object!.render();
       expect(calls.length, type).toBe(1);
       expect(calls[0].sprite, type).toMatch(pattern);
     }
@@ -213,6 +219,7 @@ describe('enemies render from their components', () => {
 
       calls.length = 0;
       sprite.update(1 / 60, object!);
+      object!.render();
       expect(calls.length, type).toBe(1);
       expect(calls[0].sprite, type).toMatch(
         type === 'door' ? /^object_door_(red|blue|green)0\d$/ : /^object_button_/
@@ -220,23 +227,29 @@ describe('enemies render from their components', () => {
     }
   });
 
-  test('a runtime-spawned projectile draws itself', async () => {
-    // Projectiles come from GameObjectFactory rather than level data, so they
-    // need the same sprite attachment LevelSystem gives level-placed objects.
-    const factory = new GameObjectFactory(manager);
-    factory.setRenderSystem(sSystemRegistry.renderSystem!);
-    const shot = factory.spawn(GameObjectType.ENERGY_BALL, 100, 100);
-    expect(shot, 'factory did not spawn an energy ball').not.toBeNull();
-    manager.commitUpdates();
+  for (const shotType of [GameObjectType.ENERGY_BALL, GameObjectType.WANDA_SHOT]) {
+    test(`a runtime-spawned ${shotType} draws exactly once above actors`, async () => {
+      // Projectiles come from GameObjectFactory rather than level data, so they
+      // need the same sprite attachment LevelSystem gives level-placed objects.
+      const factory = new GameObjectFactory(manager);
+      factory.setRenderSystem(sSystemRegistry.renderSystem!);
+      const shot = factory.spawn(shotType, 100, 100);
+      expect(shot, `factory did not spawn ${shotType}`).not.toBeNull();
+      manager.commitUpdates();
 
-    const sprite = componentOf<SpriteComponent>(shot!, SpriteComponent);
-    expect(sprite, 'projectile has no SpriteComponent').not.toBeNull();
+      const sprite = componentOf<SpriteComponent>(shot!, SpriteComponent);
+      expect(sprite, 'projectile has no SpriteComponent').not.toBeNull();
 
-    calls.length = 0;
-    sprite!.update(1 / 60, shot!);
-    expect(calls.length).toBe(1);
-    expect(calls[0].sprite).toMatch(/^energy_ball0\d$/);
-  });
+      calls.length = 0;
+      sprite!.update(1 / 60, shot!);
+      shot!.render();
+      expect(calls.length).toBe(1);
+      expect(calls[0].sprite).toMatch(/^energy_ball0\d$/);
+      expect(calls[0].z).toBe(SortConstants.PROJECTILE);
+      expect(sprite!.getCurrentAnimation()?.frames.map((frame) => frame.duration))
+        .toEqual([1 / 24, 1 / 24, 1 / 24, 1 / 24]);
+    });
+  }
 
   test("Andou's stomp frames arm his attack volume and drop his vulnerability", async () => {
     // The point of moving the player onto SpriteComponent: his volumes ride on
