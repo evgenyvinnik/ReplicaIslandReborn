@@ -63,9 +63,13 @@ export class CanvasControls {
   // Active touch tracking
   private activeTouches: Map<number, TouchZone['type']> = new Map();
   private sliderTouchId: number | null = null;
+  private interactionAllowed: () => boolean = () => true;
+  private boundRelease: () => void;
+  private orbControlMode = false;
+  private orbVertical = 0;
   
   // Callbacks
-  private onMovementChange: ((direction: number) => void) | null = null;
+  private onMovementChange: ((direction: number, vertical: number) => void) | null = null;
   private onFlyPressed: (() => void) | null = null;
   private onFlyReleased: (() => void) | null = null;
   private onStompPressed: (() => void) | null = null;
@@ -92,6 +96,7 @@ export class CanvasControls {
     this.boundHandleMouseDown = this.handleMouseDown.bind(this);
     this.boundHandleMouseMove = this.handleMouseMove.bind(this);
     this.boundHandleMouseUp = this.handleMouseUp.bind(this);
+    this.boundRelease = this.releaseAll.bind(this);
   }
   
   /**
@@ -132,7 +137,7 @@ export class CanvasControls {
    * Set callbacks
    */
   setCallbacks(
-    onMovementChange: (direction: number) => void,
+    onMovementChange: (direction: number, vertical: number) => void,
     onFlyPressed: () => void,
     onFlyReleased: () => void,
     onStompPressed: () => void,
@@ -154,6 +159,47 @@ export class CanvasControls {
     this.keyboardFly = fly;
     this.keyboardStomp = stomp;
   }
+
+  setInteractionAllowed(check: () => boolean): void {
+    this.interactionAllowed = check;
+  }
+
+  /** The original orb uses two-axis tilt; the web touch equivalent is a visible pad. */
+  setOrbControlMode(enabled: boolean): void {
+    if (this.orbControlMode === enabled) return;
+    this.orbControlMode = enabled;
+    // Do not carry a held movement direction across a control handoff.
+    for (const [id, zone] of this.activeTouches) {
+      if (zone === 'slider') this.activeTouches.delete(id);
+    }
+    this.sliderTouchId = null;
+    if (this.mouseZone === 'slider') this.mouseZone = null;
+    this.releaseMovement();
+  }
+
+  private releaseMovement(): void {
+    this.touchState.isSliderActive = false;
+    this.touchState.sliderPosition = 0.5;
+    this.orbVertical = 0;
+    this.onMovementChange?.(0, 0);
+  }
+
+  /** Cancel held controls when gameplay is suspended, focus is lost, or listeners detach. */
+  releaseAll(): void {
+    this.activeTouches.clear();
+    this.sliderTouchId = null;
+    this.mouseZone = null;
+    if (this.touchState.isSliderActive) this.releaseMovement();
+    if (this.touchState.isFlyPressed) this.onFlyReleased?.();
+    if (this.touchState.isStompPressed) this.onStompReleased?.();
+    this.touchState = { isSliderActive: false, sliderPosition: 0.5, isFlyPressed: false, isStompPressed: false };
+  }
+
+  private canInteract(): boolean {
+    if (this.interactionAllowed()) return true;
+    this.releaseAll();
+    return false;
+  }
   
   /**
    * Set canvas dimensions
@@ -174,6 +220,7 @@ export class CanvasControls {
     this.canvas.addEventListener('mousedown', this.boundHandleMouseDown);
     window.addEventListener('mousemove', this.boundHandleMouseMove);
     window.addEventListener('mouseup', this.boundHandleMouseUp);
+    window.addEventListener('blur', this.boundRelease);
   }
   
   /**
@@ -187,6 +234,8 @@ export class CanvasControls {
     this.canvas.removeEventListener('mousedown', this.boundHandleMouseDown);
     window.removeEventListener('mousemove', this.boundHandleMouseMove);
     window.removeEventListener('mouseup', this.boundHandleMouseUp);
+    window.removeEventListener('blur', this.boundRelease);
+    this.releaseAll();
   }
   
   /**
@@ -197,9 +246,9 @@ export class CanvasControls {
       // Slider zone (entire slider area)
       {
         x: MOVEMENT_SLIDER_BASE_X,
-        y: this.height - MOVEMENT_SLIDER_BASE_Y - SLIDER_BUTTON_HEIGHT,
+        y: this.orbControlMode ? this.height - 132 : this.height - MOVEMENT_SLIDER_BASE_Y - SLIDER_BUTTON_HEIGHT,
         width: MOVEMENT_SLIDER_WIDTH,
-        height: SLIDER_BUTTON_HEIGHT + 20,
+        height: this.orbControlMode ? 128 : SLIDER_BUTTON_HEIGHT + 20,
         type: 'slider',
       },
       // Fly button
@@ -251,17 +300,19 @@ export class CanvasControls {
   /**
    * Update slider position from x coordinate
    */
-  private updateSliderFromX(worldX: number): void {
+  private updateSlider(worldX: number, worldY: number): void {
     const sliderLeft = MOVEMENT_SLIDER_BASE_X;
     const position = Math.max(0, Math.min(1, (worldX - sliderLeft) / MOVEMENT_SLIDER_WIDTH));
     this.touchState.sliderPosition = position;
     
     const direction = (position - 0.5) * 2; // -1 to 1
-    this.onMovementChange?.(direction);
+    this.orbVertical = this.orbControlMode ? Math.max(-1, Math.min(1, (worldY - (this.height - 68)) / 64)) : 0;
+    this.onMovementChange?.(direction, this.orbVertical);
   }
   
   // Touch handlers
   private handleTouchStart(e: TouchEvent): void {
+    if (!this.canInteract()) return;
     e.preventDefault();
     
     for (let i = 0; i < e.changedTouches.length; i++) {
@@ -270,19 +321,23 @@ export class CanvasControls {
       const zone = this.getZoneAtPoint(pos.x, pos.y);
       
       if (zone) {
+        // A second finger must not steal the slider from its current owner.
+        if (zone.type === 'slider' && (this.sliderTouchId !== null || this.mouseZone === 'slider')) continue;
         this.activeTouches.set(touch.identifier, zone.type);
         
         switch (zone.type) {
           case 'slider':
             this.sliderTouchId = touch.identifier;
             this.touchState.isSliderActive = true;
-            this.updateSliderFromX(pos.x);
+            this.updateSlider(pos.x, pos.y);
             break;
           case 'fly':
+            if (this.touchState.isFlyPressed) break;
             this.touchState.isFlyPressed = true;
             this.onFlyPressed?.();
             break;
           case 'stomp':
+            if (this.touchState.isStompPressed) break;
             this.touchState.isStompPressed = true;
             this.onStompPressed?.();
             break;
@@ -292,6 +347,7 @@ export class CanvasControls {
   }
   
   private handleTouchMove(e: TouchEvent): void {
+    if (!this.canInteract()) return;
     e.preventDefault();
     
     for (let i = 0; i < e.changedTouches.length; i++) {
@@ -299,7 +355,7 @@ export class CanvasControls {
       
       if (touch.identifier === this.sliderTouchId) {
         const pos = this.canvasToWorld(touch.clientX, touch.clientY);
-        this.updateSliderFromX(pos.x);
+        this.updateSlider(pos.x, pos.y);
       }
     }
   }
@@ -316,16 +372,16 @@ export class CanvasControls {
           case 'slider':
             if (touch.identifier === this.sliderTouchId) {
               this.sliderTouchId = null;
-              this.touchState.isSliderActive = false;
-              this.touchState.sliderPosition = 0.5;
-              this.onMovementChange?.(0);
+              this.releaseMovement();
             }
             break;
           case 'fly':
+            if (this.mouseZone === 'fly' || [...this.activeTouches.values()].includes('fly')) break;
             this.touchState.isFlyPressed = false;
             this.onFlyReleased?.();
             break;
           case 'stomp':
+            if (this.mouseZone === 'stomp' || [...this.activeTouches.values()].includes('stomp')) break;
             this.touchState.isStompPressed = false;
             this.onStompReleased?.();
             break;
@@ -338,22 +394,26 @@ export class CanvasControls {
   private mouseZone: TouchZone['type'] | null = null;
   
   private handleMouseDown(e: MouseEvent): void {
+    if (e.button !== 0 || !this.canInteract() || this.mouseZone) return;
     const pos = this.canvasToWorld(e.clientX, e.clientY);
     const zone = this.getZoneAtPoint(pos.x, pos.y);
     
     if (zone) {
+      if (zone.type === 'slider' && this.sliderTouchId !== null) return;
       this.mouseZone = zone.type;
       
       switch (zone.type) {
         case 'slider':
           this.touchState.isSliderActive = true;
-          this.updateSliderFromX(pos.x);
+          this.updateSlider(pos.x, pos.y);
           break;
         case 'fly':
+          if (this.touchState.isFlyPressed) break;
           this.touchState.isFlyPressed = true;
           this.onFlyPressed?.();
           break;
         case 'stomp':
+          if (this.touchState.isStompPressed) break;
           this.touchState.isStompPressed = true;
           this.onStompPressed?.();
           break;
@@ -362,9 +422,10 @@ export class CanvasControls {
   }
   
   private handleMouseMove(e: MouseEvent): void {
+    if (!this.canInteract()) return;
     if (this.mouseZone === 'slider' && this.touchState.isSliderActive) {
       const pos = this.canvasToWorld(e.clientX, e.clientY);
-      this.updateSliderFromX(pos.x);
+      this.updateSlider(pos.x, pos.y);
     }
   }
   
@@ -372,15 +433,15 @@ export class CanvasControls {
     if (this.mouseZone) {
       switch (this.mouseZone) {
         case 'slider':
-          this.touchState.isSliderActive = false;
-          this.touchState.sliderPosition = 0.5;
-          this.onMovementChange?.(0);
+          this.releaseMovement();
           break;
         case 'fly':
+          if ([...this.activeTouches.values()].includes('fly')) break;
           this.touchState.isFlyPressed = false;
           this.onFlyReleased?.();
           break;
         case 'stomp':
+          if ([...this.activeTouches.values()].includes('stomp')) break;
           this.touchState.isStompPressed = false;
           this.onStompReleased?.();
           break;
@@ -413,6 +474,31 @@ export class CanvasControls {
     const buttonSprite = this.sprites.get(isActive ? 'ui_movement_slider_button_on' : 'ui_movement_slider_button_off');
     
     if (!baseSprite || !buttonSprite) return;
+
+    if (this.orbControlMode) {
+      const centerX = MOVEMENT_SLIDER_BASE_X + MOVEMENT_SLIDER_WIDTH / 2;
+      const centerY = this.height - 68;
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      this.ctx.strokeStyle = '#ffffff';
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.arc(centerX, centerY, 62, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.stroke();
+      this.ctx.beginPath();
+      this.ctx.moveTo(centerX - 48, centerY);
+      this.ctx.lineTo(centerX + 48, centerY);
+      this.ctx.moveTo(centerX, centerY - 48);
+      this.ctx.lineTo(centerX, centerY + 48);
+      this.ctx.stroke();
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.font = '12px sans-serif';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText('ORB · DRAG TO STEER', centerX, centerY - 70);
+      const x = (this.touchState.sliderPosition - 0.5) * 2;
+      this.ctx.drawImage(buttonSprite, centerX + x * 32 - 32, centerY + this.orbVertical * 32 - 32, 64, 64);
+      return;
+    }
     
     const baseX = MOVEMENT_SLIDER_BASE_X;
     const baseY = this.height - MOVEMENT_SLIDER_BASE_Y - MOVEMENT_SLIDER_HEIGHT;

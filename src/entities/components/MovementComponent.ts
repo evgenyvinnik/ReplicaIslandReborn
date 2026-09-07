@@ -36,6 +36,7 @@ export class MovementComponent extends GameComponent {
   private collisionSystem: CollisionSystem | null = null;
   private tileWidth: number = 32;
   private tileHeight: number = 32;
+  private bounciness: number = 0;
 
   constructor() {
     super(ComponentPhase.MOVEMENT);
@@ -54,6 +55,11 @@ export class MovementComponent extends GameComponent {
   setTileDimensions(width: number, height: number): void {
     this.tileWidth = width;
     this.tileHeight = height;
+  }
+
+  /** Original SimplePhysics restitution; ordinary walkers stop, the orb bounces. */
+  setBounciness(value: number): void {
+    this.bounciness = Math.max(0, Math.min(1, value));
   }
 
   /**
@@ -99,7 +105,6 @@ export class MovementComponent extends GameComponent {
     // impulses still update velocity while an animation owns the position.
     if (parent.positionLocked) return;
 
-    const position = parent.getPosition();
     const targetVelocity = parent.getTargetVelocity();
     const acceleration = parent.getAcceleration();
 
@@ -110,6 +115,18 @@ export class MovementComponent extends GameComponent {
     velocity.x = interpolate(velocity.x, targetVelocity.x, acceleration.x, deltaTime);
     velocity.y = interpolate(velocity.y, targetVelocity.y, acceleration.y, deltaTime);
 
+    // Fast orbs can cross more than a tile in one frame. Keep tile probes close
+    // enough to see narrow walls, without applying steering/impulses twice.
+    const steps = this.collisionSystem
+      ? Math.max(1, Math.ceil(Math.max(Math.abs(velocity.x), Math.abs(velocity.y)) * deltaTime /
+        (Math.min(this.tileWidth, this.tileHeight) / 2)))
+      : 1;
+    for (let i = 0; i < steps; i++) this.move(deltaTime / steps, parent);
+  }
+
+  private move(deltaTime: number, parent: GameObject): void {
+    const position = parent.getPosition();
+    const velocity = parent.getVelocity();
     const gameTime = parent.getGameTime();
 
     // Calculate new position
@@ -124,6 +141,12 @@ export class MovementComponent extends GameComponent {
       const boxHeight = this.boxHeight ?? parent.height;
       const offsetX = this.boxWidth === null ? 0 : this.boxOffsetX;
       const offsetY = this.boxHeight === null ? 0 : this.boxOffsetY;
+
+      const objectWall = this.collisionSystem.sweepTemporaryBox(
+        position.x + offsetX, position.y + offsetY, boxWidth, boxHeight,
+        newX - position.x, 0, parent
+      );
+      const incomingX = velocity.x;
 
       // Handle horizontal movement first
       const horizontalCollision = this.collisionSystem.checkTileCollision(
@@ -142,7 +165,7 @@ export class MovementComponent extends GameComponent {
           const tileX = Math.floor((newX + offsetX) / this.tileWidth);
           // Snap left edge just past the right edge of the blocking tile
           newX = (tileX + 1) * this.tileWidth + 0.1 - offsetX;
-          velocity.x = Math.max(0, velocity.x);
+          velocity.x = Math.max(0, -incomingX * this.bounciness);
           parent.setLastTouchedLeftWallTime(gameTime);
         }
         if (horizontalCollision.rightWall) {
@@ -150,10 +173,24 @@ export class MovementComponent extends GameComponent {
           const tileX = Math.floor((newX + offsetX + boxWidth) / this.tileWidth);
           // Snap right edge just before the left edge of the blocking tile
           newX = tileX * this.tileWidth - boxWidth - 0.1 - offsetX;
-          velocity.x = Math.min(0, velocity.x);
+          velocity.x = Math.min(0, -incomingX * this.bounciness);
           parent.setLastTouchedRightWallTime(gameTime);
         }
       }
+
+      if (objectWall && (incomingX > 0 ? newX + offsetX >= objectWall.x : newX + offsetX <= objectWall.x)) {
+        newX = objectWall.x - offsetX;
+        velocity.x = -incomingX * this.bounciness;
+        horizontalCollision.normal.set(objectWall.normalX, objectWall.normalY);
+        if (objectWall.normalX > 0) parent.setLastTouchedLeftWallTime(gameTime);
+        else parent.setLastTouchedRightWallTime(gameTime);
+      }
+
+      const objectFloor = this.collisionSystem.sweepTemporaryBox(
+        newX + offsetX, position.y + offsetY, boxWidth, boxHeight,
+        0, newY - position.y, parent
+      );
+      const incomingY = velocity.y;
 
       // Now handle vertical movement with the adjusted X position
       const verticalCollision = this.collisionSystem.checkTileCollision(
@@ -169,7 +206,7 @@ export class MovementComponent extends GameComponent {
         // Snap the box's feet to the top of the tile
         const tileY = Math.floor((newY + offsetY + boxHeight) / this.tileHeight);
         newY = tileY * this.tileHeight - boxHeight - offsetY;
-        velocity.y = 0;
+        velocity.y = -Math.abs(incomingY) * this.bounciness;
         parent.setLastTouchedFloorTime(gameTime);
       }
 
@@ -177,8 +214,16 @@ export class MovementComponent extends GameComponent {
         // Snap the box's head to the bottom of the tile
         const tileY = Math.floor((newY + offsetY) / this.tileHeight);
         newY = (tileY + 1) * this.tileHeight - offsetY;
-        velocity.y = Math.max(0, velocity.y);
+        velocity.y = Math.max(0, -incomingY * this.bounciness);
         parent.setLastTouchedCeilingTime(gameTime);
+      }
+
+      if (objectFloor && (incomingY > 0 ? newY + offsetY >= objectFloor.y : newY + offsetY <= objectFloor.y)) {
+        newY = objectFloor.y - offsetY;
+        velocity.y = -incomingY * this.bounciness;
+        verticalCollision.normal.set(objectFloor.normalX, objectFloor.normalY);
+        if (objectFloor.normalY < 0) parent.setLastTouchedFloorTime(gameTime);
+        else parent.setLastTouchedCeilingTime(gameTime);
       }
 
       // Merge normals for background collision
@@ -201,6 +246,13 @@ export class MovementComponent extends GameComponent {
    * Reset component
    */
   reset(): void {
-    // Nothing to reset
+    this.collisionSystem = null;
+    this.boxWidth = null;
+    this.boxHeight = null;
+    this.boxOffsetX = 0;
+    this.boxOffsetY = 0;
+    this.tileWidth = 32;
+    this.tileHeight = 32;
+    this.bounciness = 0;
   }
 }

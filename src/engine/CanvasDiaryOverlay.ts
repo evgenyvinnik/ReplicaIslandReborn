@@ -38,11 +38,14 @@ export class CanvasDiaryOverlay {
   private scrollY: number = 0;
   private maxScrollY: number = 0;
   private lastY: number = 0;
+  private touchMoved: boolean = false;
   
   // Bound handlers
   private boundClickHandler: (e: MouseEvent | TouchEvent) => void;
   private boundWheelHandler: (e: globalThis.Event) => void;
   private boundTouchMoveHandler: (e: TouchEvent) => void;
+  private boundTouchStartHandler: (e: TouchEvent) => void;
+  private boundKeyHandler: (e: KeyboardEvent) => void;
   
   constructor(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, width: number, height: number) {
     this.ctx = ctx;
@@ -54,6 +57,11 @@ export class CanvasDiaryOverlay {
     this.boundClickHandler = this.handleClick.bind(this);
     this.boundWheelHandler = this.handleWheel.bind(this);
     this.boundTouchMoveHandler = this.handleTouchMove.bind(this);
+    this.boundTouchStartHandler = (e): void => {
+      this.lastY = e.touches[0]?.clientY ?? 0;
+      this.touchMoved = false;
+    };
+    this.boundKeyHandler = this.handleKey.bind(this);
     
     // Load background
     this.loadBackground();
@@ -84,6 +92,7 @@ export class CanvasDiaryOverlay {
     this.visible = true;
     this.targetAlpha = 1;
     this.scrollY = 0;
+    this.touchMoved = false;
     this.calculateMaxScroll();
     
     // Attach event listeners
@@ -91,6 +100,8 @@ export class CanvasDiaryOverlay {
     this.canvas.addEventListener('touchend', this.boundClickHandler);
     this.canvas.addEventListener('wheel', this.boundWheelHandler);
     this.canvas.addEventListener('touchmove', this.boundTouchMoveHandler, { passive: false });
+    this.canvas.addEventListener('touchstart', this.boundTouchStartHandler, { passive: true });
+    window.addEventListener('keydown', this.boundKeyHandler);
   }
   
   /**
@@ -104,6 +115,8 @@ export class CanvasDiaryOverlay {
     this.canvas.removeEventListener('touchend', this.boundClickHandler);
     this.canvas.removeEventListener('wheel', this.boundWheelHandler);
     this.canvas.removeEventListener('touchmove', this.boundTouchMoveHandler);
+    this.canvas.removeEventListener('touchstart', this.boundTouchStartHandler);
+    window.removeEventListener('keydown', this.boundKeyHandler);
   }
   
   /**
@@ -115,11 +128,31 @@ export class CanvasDiaryOverlay {
   
   private handleClick(e: MouseEvent | TouchEvent): void {
     e.preventDefault();
+    if (this.touchMoved) return;
+    this.close();
+  }
+
+  private close(): void {
+    if (this.targetAlpha === 0) return;
     
     // Close on click/tap
     this.hide();
-    if (this.onClose) {
-      this.onClose();
+    const callback = this.onClose;
+    this.onClose = null;
+    callback?.();
+  }
+
+  private handleKey(e: KeyboardEvent): void {
+    if (['Escape', 'Enter', ' '].includes(e.key)) {
+      e.preventDefault();
+      this.close();
+    } else {
+      const delta = e.key === 'ArrowDown' ? 28 : e.key === 'ArrowUp' ? -28 :
+        e.key === 'PageDown' ? this.height / 2 : e.key === 'PageUp' ? -this.height / 2 : 0;
+      if (delta !== 0) {
+        e.preventDefault();
+        this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY + delta));
+      }
     }
   }
   
@@ -134,6 +167,7 @@ export class CanvasDiaryOverlay {
     if (e.touches.length === 1) {
       const touch = e.touches[0];
       const deltaY = this.lastY - touch.clientY;
+      if (Math.abs(deltaY) > 2) this.touchMoved = true;
       this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY + deltaY));
       this.lastY = touch.clientY;
     }
@@ -269,7 +303,7 @@ export class CanvasDiaryOverlay {
     this.ctx.fillStyle = 'rgba(100, 70, 40, 0.8)';
     this.ctx.font = `italic ${TEXT_FONT_SIZE - 2}px "Courier New", monospace`;
     this.ctx.textAlign = 'center';
-    this.ctx.fillText('Tap anywhere to close', this.width / 2, this.height - bgPadding - 5);
+    this.ctx.fillText('Scroll to read · Tap / Enter to close', this.width / 2, this.height - bgPadding - 5);
     
     this.ctx.restore();
   }

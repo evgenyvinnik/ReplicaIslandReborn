@@ -23,6 +23,11 @@ import { sSystemRegistry } from '../engine/SystemRegistry';
 import { resourceToLevelId } from '../data/levelTree';
 import { LevelSystem } from './LevelSystemNew';
 import type { GameObject } from '../entities/GameObject';
+import { startLevelAttempt } from './startLevelAttempt';
+import { DifficultySettings, useGameStore } from '../stores/useGameStore';
+import { PlayerComponent } from '../entities/components/PlayerComponent';
+import { InputSystem } from '../engine/InputSystem';
+import { SoundSystem } from '../engine/SoundSystem';
 
 const pub = join(import.meta.dir, '../../public');
 const originalFetch = globalThis.fetch;
@@ -37,6 +42,50 @@ beforeAll(() => {
   }) as typeof fetch;
 });
 afterAll(() => { globalThis.fetch = originalFetch; });
+
+test('successful retries record attempts and refill the new player with difficulty assistance', async () => {
+  const savedProgress = useGameStore.getState().progress;
+  const levelId = resourceToLevelId.level_0_2_lab;
+  useGameStore.setState({ progress: { ...savedProgress, levels: {} } });
+  sSystemRegistry.reset();
+  const manager = new GameObjectManager();
+  const levels = new LevelSystem();
+  levels.setSystems(new CollisionSystem(), manager, new HotSpotSystem());
+  const difficulty = DifficultySettings.kids;
+  levels.setPlayerMaxLife(difficulty.playerMaxLife);
+  try {
+    for (let attempt = 1; attempt <= difficulty.ddaStage2Attempts + 1; attempt++) {
+      expect(await levels.loadLevel(levelId)).toBe(true);
+      // Do not commit here: the shared attempt setup must handle pending spawns.
+      startLevelAttempt(levelId, manager, difficulty);
+      const boost = attempt >= difficulty.ddaStage2Attempts ? difficulty.ddaStage2LifeBoost
+        : attempt >= difficulty.ddaStage1Attempts ? difficulty.ddaStage1LifeBoost : 0;
+      expect(useGameStore.getState().progress.levels[levelId].timesPlayed).toBe(attempt);
+      expect(manager.getPlayer()!.life).toBe(difficulty.playerMaxLife + boost);
+      expect(manager.getPlayer()!.maxLife).toBe(difficulty.playerMaxLife + boost);
+      const player = manager.getPlayer()!;
+      const component = player.getComponent(PlayerComponent)!;
+      component.setSystems(new InputSystem(), new CollisionSystem(), new SoundSystem(), levels);
+      component.fuel = 0;
+      player.setGameTime(10); // no recent floor contacts: exercise air refuelling
+      component.update(0.1, player);
+      const airRefill = attempt >= difficulty.ddaStage2Attempts ? difficulty.ddaStage2FuelAirRefillSpeed
+        : attempt >= difficulty.ddaStage1Attempts ? difficulty.ddaStage1FuelAirRefillSpeed : difficulty.fuelAirRefillSpeed;
+      expect(component.fuel).toBeCloseTo(airRefill * 0.1);
+      manager.getPlayer()!.life = 0; // next reload must refill the replacement player
+    }
+    // An independent level starts its own attempt history.
+    const nextId = resourceToLevelId.level_1_1_island;
+    expect(await levels.loadLevel(nextId)).toBe(true);
+    startLevelAttempt(nextId, manager, difficulty);
+    expect(useGameStore.getState().progress.levels[nextId].timesPlayed).toBe(1);
+    expect(manager.getPlayer()!.life).toBe(difficulty.playerMaxLife);
+  } finally {
+    levels.dispose();
+    sSystemRegistry.reset();
+    useGameStore.setState({ progress: savedProgress });
+  }
+});
 
 test('reloading the same level ten times leaves it identical each time', async () => {
   sSystemRegistry.reset();

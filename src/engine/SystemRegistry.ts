@@ -20,6 +20,7 @@ import type { GameObjectManager } from '../entities/GameObjectManager';
 import type { GameObjectFactory } from '../entities/GameObjectFactory';
 import type { GameFlowEvent } from './GameFlowEvent';
 import type { EffectsSystem } from './EffectsSystem';
+import type { ScreenFade } from './ScreenFade';
 
 /**
  * Central registry for all game systems
@@ -42,6 +43,7 @@ export class SystemRegistry {
   public animationSystem: AnimationSystem | null = null;
   public gameFlowEvent: GameFlowEvent | null = null;
   public effectsSystem: EffectsSystem | null = null;
+  public screenFade: ScreenFade | null = null;
 
   // Game configuration
   public gameWidth: number = 480;
@@ -67,6 +69,7 @@ export class SystemRegistry {
     this.animationSystem = null;
     this.gameFlowEvent = null;
     this.effectsSystem = null;
+    this.screenFade = null;
   }
 
   /**

@@ -154,7 +154,13 @@ export class TheSourceComponent extends GameComponent {
       if (this.timer <= 0) {
         this.timer = 0;
         if (this.gameEvent !== -1 && this.onGameEvent) {
-          this.onGameEvent(this.gameEvent, this.gameEventIndex);
+          const callback = this.onGameEvent;
+          const event = this.gameEvent;
+          const index = this.gameEventIndex;
+          const post = (): void => callback(event, index);
+          const fade = sSystemRegistry.screenFade;
+          if (fade) fade.fadeOut(1.5, post);
+          else post();
           this.gameEvent = -1;
         }
       }

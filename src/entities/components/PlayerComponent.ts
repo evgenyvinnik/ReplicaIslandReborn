@@ -484,6 +484,9 @@ export class PlayerComponent extends GameComponent {
     const tileSize = 32;
     
     // Horizontal movement
+    const objectWall = this.collisionSystem.sweepTemporaryBox(
+      position.x, position.y, parent.width, parent.height, velocity.x * deltaTime, 0, parent
+    );
     const newX = position.x + velocity.x * deltaTime;
     const hCollision = this.collisionSystem.checkTileCollision(
       newX, position.y, parent.width, parent.height, velocity.x, 0
@@ -526,7 +529,18 @@ export class PlayerComponent extends GameComponent {
       position.x = newX;
     }
     
+    if (objectWall) {
+      position.x = objectWall.normalX < 0
+        ? Math.min(position.x, objectWall.x) : Math.max(position.x, objectWall.x);
+      velocity.x = 0;
+      if (objectWall.normalX < 0) parent.setLastTouchedRightWallTime(gameTime);
+      else parent.setLastTouchedLeftWallTime(gameTime);
+    }
+
     // Vertical movement
+    const objectFloor = this.collisionSystem.sweepTemporaryBox(
+      position.x, position.y, parent.width, parent.height, 0, velocity.y * deltaTime, parent
+    );
     const newY = position.y + velocity.y * deltaTime;
     const vCollision = this.collisionSystem.checkTileCollision(
       position.x, newY, parent.width, parent.height, 0, velocity.y
@@ -558,6 +572,14 @@ export class PlayerComponent extends GameComponent {
       position.y = newY;
     }
     
+    if (objectFloor) {
+      position.y = objectFloor.normalY < 0
+        ? Math.min(position.y, objectFloor.y) : Math.max(position.y, objectFloor.y);
+      velocity.y = 0;
+      if (objectFloor.normalY < 0) parent.setLastTouchedFloorTime(gameTime);
+      else parent.setLastTouchedCeilingTime(gameTime);
+    }
+
     // Clamp to world bounds
     if (this.levelSystem) {
       const { width: levelWidth, height: levelHeight } = this.levelSystem.getLevelSize();

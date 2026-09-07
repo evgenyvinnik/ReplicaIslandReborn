@@ -383,8 +383,7 @@ export const useGameStore = create<GameStore>()(
 
       collectDiary: (levelId, diaryId) => {
         set((state) => {
-          const existing = state.progress.levels[levelId];
-          if (!existing) return state;
+          const existing = state.progress.levels[levelId] ?? createDefaultLevelProgress(true);
 
           // Check if already collected in this level
           if (existing.diariesCollected.includes(diaryId)) {

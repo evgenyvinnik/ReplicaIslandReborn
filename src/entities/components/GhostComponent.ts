@@ -16,6 +16,7 @@
  */
 
 import { GameComponent } from '../GameComponent';
+import { ChangeComponentsComponent } from './ChangeComponentsComponent';
 import { ComponentPhase, ActionType } from '../../types';
 import type { GameObject } from '../GameObject';
 import type { SystemRegistry } from '../../engine/SystemRegistry';
@@ -79,6 +80,13 @@ export class GhostComponent extends GameComponent {
     super(ComponentPhase.THINK);
     this.config = { ...DEFAULT_GHOST_CONFIG, ...config };
     this.lifeTimeRemaining = this.config.lifeTime;
+  }
+
+  override setParent(parent: GameObject | null): void {
+    // Emplacements reuse the same controller when their possession swap is
+    // activated again. A previous release must not leave it permanently inert.
+    if (parent && parent !== this.parent) this.reset();
+    super.setParent(parent);
   }
 
   /**
@@ -317,11 +325,8 @@ export class GhostComponent extends GameComponent {
         parent.setVisible(false);
         parent.markForRemoval();
       } else {
-        // TODO: Check for ChangeComponentsComponent to swap behaviors
-        // const swap = parent.getComponent(ChangeComponentsComponent);
-        // if (swap) {
-        //   swap.activate(parent);
-        // }
+        const swap = parent.getComponent(ChangeComponentsComponent as unknown as new (...args: unknown[]) => ChangeComponentsComponent);
+        if (swap?.getCurrentlySwapped()) swap.activate(parent);
       }
 
       // Deactivate ghost mode on player

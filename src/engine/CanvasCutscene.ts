@@ -55,7 +55,7 @@ function getAnimatedPosition(
 
 interface CutsceneState {
   cutscene: CutsceneDefinition | null;
-  startTime: number;
+  elapsedTime: number;
   currentFrame: number;
   canSkip: boolean;
   showHint: boolean;
@@ -71,7 +71,7 @@ export class CanvasCutscene {
   // State
   private state: CutsceneState = {
     cutscene: null,
-    startTime: 0,
+    elapsedTime: 0,
     currentFrame: 0,
     canSkip: false,
     showHint: false,
@@ -81,9 +81,8 @@ export class CanvasCutscene {
   // Loaded images
   private images: Map<string, HTMLImageElement> = new Map();
   
-  // Timers
-  private frameTimer: number | null = null;
-  private skipTimer: number | null = null;
+  // A replaced/stopped play cannot finish loading into its successor.
+  private playVersion: number = 0;
   
   // Callbacks
   private onComplete: (() => void) | null = null;
@@ -118,37 +117,34 @@ export class CanvasCutscene {
    * Start playing a cutscene
    */
   async play(cutsceneType: CutsceneType, onComplete: () => void): Promise<void> {
+    this.stop();
+    const version = this.playVersion;
     this.state.cutscene = getCutscene(cutsceneType);
-    this.state.startTime = performance.now();
+    this.state.elapsedTime = 0;
     this.state.currentFrame = 0;
     this.state.canSkip = false;
     this.state.showHint = false;
     this.state.isLoading = true;
     this.onComplete = onComplete;
+    this.hintOpacity = 0.3;
+    this.hintFadeDirection = 1;
     
     // Attach event listeners
     this.attach();
     
     // Preload images
     await this.preloadImages();
+    if (version !== this.playVersion) return;
     
     this.state.isLoading = false;
-    this.state.startTime = performance.now();
-    
-    // Start frame animation timer if needed
-    if (this.state.cutscene?.frameAnimation) {
-      this.startFrameAnimation();
-    }
-    
-    // Start skip timer
-    this.startSkipTimer();
+    this.update(0);
   }
   
   /**
    * Stop cutscene
    */
   stop(): void {
-    this.cleanupTimers();
+    this.playVersion++;
     this.detach();
     this.state.cutscene = null;
     this.onComplete = null;
@@ -209,69 +205,6 @@ export class CanvasCutscene {
   }
   
   /**
-   * Start frame animation timer
-   */
-  private startFrameAnimation(): void {
-    if (!this.state.cutscene?.frameAnimation) return;
-    
-    const { frameDuration } = this.state.cutscene.frameAnimation;
-    
-    this.frameTimer = window.setInterval(() => {
-      this.advanceFrame();
-    }, frameDuration);
-  }
-  
-  /**
-   * Advance to next frame
-   */
-  private advanceFrame(): void {
-    if (!this.state.cutscene?.frameAnimation) return;
-    
-    const { frames, loop } = this.state.cutscene.frameAnimation;
-    const next = this.state.currentFrame + 1;
-    
-    if (next >= frames.length) {
-      if (loop) {
-        this.state.currentFrame = 0;
-      } else {
-        this.state.currentFrame = frames.length - 1;
-        // Auto-complete after a brief pause
-        if (this.state.canSkip) {
-          setTimeout(() => this.complete(), 500);
-        }
-      }
-    } else {
-      this.state.currentFrame = next;
-    }
-  }
-  
-  /**
-   * Start skip timer
-   */
-  private startSkipTimer(): void {
-    if (!this.state.cutscene) return;
-    
-    this.skipTimer = window.setTimeout(() => {
-      this.state.canSkip = true;
-      this.state.showHint = true;
-    }, this.state.cutscene.totalDuration);
-  }
-  
-  /**
-   * Cleanup timers
-   */
-  private cleanupTimers(): void {
-    if (this.frameTimer) {
-      clearInterval(this.frameTimer);
-      this.frameTimer = null;
-    }
-    if (this.skipTimer) {
-      clearTimeout(this.skipTimer);
-      this.skipTimer = null;
-    }
-  }
-  
-  /**
    * Attach event listeners
    */
   private attach(): void {
@@ -294,6 +227,7 @@ export class CanvasCutscene {
    */
   private handleKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+      e.preventDefault();
       this.trySkip();
     }
   }
@@ -319,14 +253,8 @@ export class CanvasCutscene {
    * Complete the cutscene
    */
   private complete(): void {
-    this.cleanupTimers();
-    this.detach();
-    
     const callback = this.onComplete;
-    
-    this.state.cutscene = null;
-    this.onComplete = null;
-    
+    this.stop();
     callback?.();
   }
   
@@ -335,10 +263,24 @@ export class CanvasCutscene {
    */
   update(deltaTime: number): void {
     if (!this.state.cutscene || this.state.isLoading) return;
+    // One display-time clock drives frames, parallax and skip eligibility.
+    // No wall-clock callbacks may outlive this playback or advance a later one.
+    this.state.elapsedTime += Math.max(0, deltaTime) * 1000;
+    const { frameAnimation, totalDuration } = this.state.cutscene;
+    if (frameAnimation) {
+      const frame = Math.floor(this.state.elapsedTime / frameAnimation.frameDuration);
+      if (!frameAnimation.loop && frame >= frameAnimation.frames.length) {
+        this.complete();
+        return;
+      }
+      this.state.currentFrame = frame % frameAnimation.frames.length;
+    }
+    this.state.canSkip = this.state.elapsedTime >= totalDuration;
+    this.state.showHint = this.state.canSkip && !frameAnimation;
     
     // Update hint opacity animation
     if (this.state.showHint) {
-      this.hintOpacity += deltaTime * 0.001 * this.hintFadeDirection;
+      this.hintOpacity += deltaTime * this.hintFadeDirection;
       if (this.hintOpacity >= 0.8) {
         this.hintOpacity = 0.8;
         this.hintFadeDirection = -1;
@@ -367,6 +309,7 @@ export class CanvasCutscene {
       this.renderFrameAnimation();
     } else if (this.state.cutscene.layers) {
       this.renderParallaxLayers();
+      this.renderTextPanel();
     }
     
     // Render skip hint
@@ -411,7 +354,7 @@ export class CanvasCutscene {
   private renderParallaxLayers(): void {
     if (!this.state.cutscene?.layers) return;
     
-    const elapsedTime = performance.now() - this.state.startTime;
+    const elapsedTime = this.state.elapsedTime;
     
     // Sort layers by z-order
     const sortedLayers = [...this.state.cutscene.layers].sort((a, b) => a.zOrder - b.zOrder);
@@ -424,12 +367,34 @@ export class CanvasCutscene {
       
       const pos = getAnimatedPosition(layer, elapsedTime);
       
-      // Center the image in the canvas
-      const x = (this.width - img.width) / 2 + pos.x;
-      const y = (this.height - img.height) / 2 + pos.y;
+      // Original layouts anchor oversized layers at the top-left of a 480×320
+      // stage. Centering each image crops the scene and exposes blank edges.
+      const x = (this.width - 480) / 2 + pos.x;
+      const y = (this.height - 320) / 2 + pos.y;
       
       this.ctx.drawImage(img, x, y);
     }
+  }
+
+  private renderTextPanel(): void {
+    const panel = this.state.cutscene?.textPanel;
+    if (!panel) return;
+    const progress = Math.max(0, Math.min(1,
+      (this.state.elapsedTime - panel.startOffset) / panel.duration));
+    const remaining = 1 - accelerateDecelerateInterpolation(progress);
+    const x = (this.width - 480) / 2 + panel.x + panel.fromX * remaining;
+    const y = (this.height - 320) / 2 + panel.y + panel.fromY * remaining;
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    this.ctx.beginPath();
+    this.ctx.roundRect(x, y, panel.width, panel.height, 10);
+    this.ctx.fill();
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '20px serif';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    const lines = panel.text === 'THANKS FOR PLAYING!' ? ['THANKS FOR', 'PLAYING!'] : [panel.text];
+    lines.forEach((line, index) => this.ctx.fillText(line, x + panel.width / 2,
+      y + panel.height / 2 + (index - (lines.length - 1) / 2) * 24));
   }
   
   /**

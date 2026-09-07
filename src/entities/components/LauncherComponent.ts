@@ -157,11 +157,13 @@ export class LauncherComponent extends GameComponent {
       const factory = sSystemRegistry.gameObjectFactory;
       if (factory) {
         const position = parentObject.getPosition();
-        factory.spawn(
+        const effect = factory.spawn(
           this.launchEffect,
           position.x + this.launchEffectOffsetX * parentObject.facingDirection.x,
-          position.y + this.launchEffectOffsetY * parentObject.facingDirection.y
+          position.y + parentObject.height - this.launchEffectOffsetY * parentObject.facingDirection.y
         );
+        // Original offsets locate the effect's bottom in Y-up coordinates.
+        if (effect) effect.getPosition().y -= effect.height;
 
         // factory.spawn() already queues the effect with the manager.
       }

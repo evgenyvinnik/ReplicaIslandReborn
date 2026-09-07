@@ -169,11 +169,12 @@ export class NPCComponent extends GameComponent {
         if (Math.abs(velocity.x) < 1 && parentObject.touchingGround()) {
           if (this.deathTime < this.deathFadeDelay &&
               this.deathTime + timeDelta >= this.deathFadeDelay) {
-            // The original fades the HUD and sends the event on fade complete
-            // (HudSystem.sendGameEventOnFadeComplete). This port has no HUD
-            // fade, so post the event directly - without this the boss ending
-            // cutscenes never fire when a scripted NPC dies.
-            gameFlowEvent.post(this.gameEvent, this.gameEventIndex);
+            const event = this.gameEvent;
+            const index = this.gameEventIndex;
+            const post = (): void => gameFlowEvent.post(event, index);
+            const fade = sSystemRegistry.screenFade;
+            if (fade) fade.fadeOut(1.5, post);
+            else post(); // Headless scenes without a display system.
             this.gameEvent = -1;
           }
           this.deathTime += timeDelta;
@@ -437,11 +438,13 @@ export class NPCComponent extends GameComponent {
         break;
         
       case HotSpotType.END_LEVEL: {
-        // Trigger level completion
-        // In original, this triggers HUD fade then game event
+        // Original HudSystem sends the transition only after 1.5s of fade.
         const gameFlowEvent = sSystemRegistry.gameFlowEvent;
         if (gameFlowEvent) {
-          gameFlowEvent.postImmediate(GameFlowEventType.GO_TO_NEXT_LEVEL, 0);
+          const post = (): void => gameFlowEvent.post(GameFlowEventType.GO_TO_NEXT_LEVEL, 0);
+          const fade = sSystemRegistry.screenFade;
+          if (fade) fade.fadeOut(1.5, post);
+          else post();
         }
         break;
       }

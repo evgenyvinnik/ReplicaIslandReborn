@@ -1415,4 +1415,49 @@ export class CollisionSystem {
   getTemporarySurfaces(): TemporarySurface[] {
     return this.temporarySurfaces;
   }
+
+  /** Sweep one axis of an actor's box against solid objects, not tile cells. */
+  sweepTemporaryBox(
+    x: number, y: number, width: number, height: number,
+    deltaX: number, deltaY: number, owner: GameObject
+  ): { x: number; y: number; normalX: number; normalY: number } | null {
+    const horizontal = deltaX !== 0;
+    const delta = horizontal ? deltaX : deltaY;
+    if (delta === 0) return null;
+    const direction = Math.sign(delta);
+    const edge = horizontal ? x + (direction > 0 ? width : 0) : y + (direction > 0 ? height : 0);
+    const low = (horizontal ? y : x) + 0.01;
+    const high = (horizontal ? y + height : x + width) - 0.01;
+    let allowed = delta;
+    let hit = false;
+
+    for (const surface of this.temporarySurfaces) {
+      if (surface.owner === owner || surface.owner?.life === 0 ||
+          surface.owner?.isMarkedForRemoval()) continue;
+      const normal = horizontal ? surface.normalX : surface.normalY;
+      if (normal * direction >= -0.001) continue;
+      const a = horizontal ? surface.startY : surface.startX;
+      const b = horizontal ? surface.endY : surface.endX;
+      const from = Math.max(low, Math.min(a, b));
+      const to = Math.min(high, Math.max(a, b));
+      if (from >= to || Math.abs(b - a) < 0.001) continue;
+      const c = horizontal ? surface.startX : surface.startY;
+      const d = horizontal ? surface.endX : surface.endY;
+      const first = c + (d - c) * (from - a) / (b - a);
+      const last = c + (d - c) * (to - a) / (b - a);
+      const boundary = direction > 0 ? Math.min(first, last) : Math.max(first, last);
+      const distance = boundary - edge;
+      // Only cross inward-facing surfaces from outside. This also permits
+      // leaving a door if it closes while an actor is already inside it.
+      if (distance * direction < -0.01 || distance * direction > allowed * direction) continue;
+      allowed = distance;
+      hit = true;
+    }
+    return hit ? {
+      x: x + (horizontal ? allowed : 0),
+      y: y + (horizontal ? 0 : allowed),
+      normalX: horizontal ? -direction : 0,
+      normalY: horizontal ? 0 : -direction,
+    } : null;
+  }
 }

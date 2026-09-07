@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Cutscene visual regression preview</title>
+<style>
+  body { background: #20242a; color: white; font: 16px system-ui; margin: 24px; }
+  main { display: grid; grid-template-columns: repeat(2, 480px); gap: 24px; }
+  canvas { width: 480px; height: 320px; background: black; image-rendering: pixelated; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  button { margin: 0 8px 18px 0; padding: 8px 12px; }
+</style>
+<h1>Cutscene renderer — original assets</h1>
+<p>This development-only preview uses the production CanvasCutscene, not a screenshot mock.</p>
+<button id="start">Initial frames</button><button id="end">Final frames</button>
+<main id="scenes"></main>
+<script type="module">
+  import { CanvasCutscene } from '../src/engine/CanvasCutscene.ts';
+  import { CutsceneType } from '../src/data/cutscenes.ts';
+  const views = ['Kyle', 'Wanda', 'Kabocha', 'Rokudou'].map((name, type) => {
+    const section = document.createElement('section');
+    const label = document.createElement('h2');
+    label.textContent = name;
+    const canvas = document.createElement('canvas');
+    canvas.width = 480; canvas.height = 320;
+    canvas.setAttribute('aria-label', name + ' cutscene');
+    section.append(label, canvas);
+    document.querySelector('#scenes').append(section);
+    return { type, player: new CanvasCutscene(canvas.getContext('2d'), canvas, 480, 320) };
+  });
+  async function show(final) {
+    await Promise.all(views.map(async ({ type, player }) => {
+      await player.play(type, () => {});
+      if (final) player.update(type === CutsceneType.KYLE_DEATH ? 1.25 : 14);
+      player.render();
+    }));
+  }
+  document.querySelector('#start').addEventListener('click', () => show(false));
+  document.querySelector('#end').addEventListener('click', () => show(true));
+  await show(true);
+</script>
+</html>

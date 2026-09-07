@@ -9,6 +9,7 @@ import type { RenderSystem } from './RenderSystem';
 import type { SoundSystem } from './SoundSystem';
 import { assetPath } from '../utils/helpers';
 import { SortConstants } from './SortConstants';
+import { BIG_SMOKE_FRAMES, bigSmokeFrameTimes } from '../data/smokeAnimation';
 
 /**
  * Types of visual effects
@@ -36,9 +37,7 @@ interface EffectConfig {
   frameDuration: number;
   /**
    * Per-frame hold times in the original's 24 FPS units, one per frame.
-   * Several effects are deliberately uneven - smoke rushes through its shape
-   * frames and then sits on one frame for two seconds while it disperses - and
-   * a flat rate makes them flash past.
+   * Several effects deliberately hold the first frame before dispersing.
    */
   frameTimes?: number[];
   width: number;
@@ -143,20 +142,8 @@ const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
   },
   [EffectType.SMOKE_BIG]: {
     type: EffectType.SMOKE_BIG,
-    // Original: 02,03,04,05 at one frame each, then 01 held five times for a
-    // long, deliberately uneven tail - the puff forms quickly and then hangs.
-    frames: [
-      'effect_smoke_big02.png',
-      'effect_smoke_big03.png',
-      'effect_smoke_big04.png',
-      'effect_smoke_big05.png',
-      'effect_smoke_big01.png',
-      'effect_smoke_big01.png',
-      'effect_smoke_big01.png',
-      'effect_smoke_big01.png',
-      'effect_smoke_big01.png',
-    ],
-    frameTimes: [1, 1, 1, 1, 10, 13, 8, 5, 15],
+    frames: BIG_SMOKE_FRAMES,
+    frameTimes: [10, 1, 1, 1, 1], // One of five first-frame holds is selected per spawn.
     frameDuration: 1 / 24,
     width: 32,
     height: 32,
@@ -315,12 +302,8 @@ export class EffectsSystem {
     
     await Promise.all(
       allFrames.map(async (frame) => {
-        try {
-          await this.renderSystem!.loadSingleImage(frame, assetPath(`/assets/sprites/${frame}`));
-          this.loadedSprites.add(frame);
-        } catch {
-          // Failed to load effect sprite - silently ignore
-        }
+        await this.renderSystem!.loadSingleImage(frame, assetPath(`/assets/sprites/${frame}`));
+        this.loadedSprites.add(frame);
       })
     );
     
@@ -331,7 +314,8 @@ export class EffectsSystem {
    * Spawn an effect at a position
    */
   spawn(type: EffectType, x: number, y: number, velocityX: number = 0, velocityY: number = 0): void {
-    const config = EFFECT_CONFIGS[type];
+    const base = EFFECT_CONFIGS[type];
+    const config = type === EffectType.SMOKE_BIG ? { ...base, frameTimes: bigSmokeFrameTimes() } : base;
     if (!config) {
       // console.log(`Unknown effect type: ${type}`);
       return;
@@ -455,11 +439,12 @@ export class EffectsSystem {
       // Update frame timer
       effect.frameTimer += dt;
       const frameTimes = effect.config.frameTimes;
-      const hold = frameTimes
-        ? (frameTimes[effect.frameIndex] ?? 1) / 24
-        : effect.config.frameDuration;
-      if (effect.frameTimer >= hold) {
-        effect.frameTimer = 0;
+      while (effect.alive) {
+        const hold = frameTimes
+          ? (frameTimes[effect.frameIndex] ?? 1) / 24
+          : effect.config.frameDuration;
+        if (effect.frameTimer + 1e-10 < hold) break;
+        effect.frameTimer = Math.max(0, effect.frameTimer - hold);
         effect.frameIndex++;
         
         // Check if animation is complete
@@ -468,10 +453,11 @@ export class EffectsSystem {
             effect.frameIndex = 0;
           } else {
             effect.alive = false;
-            continue;
+            break;
           }
         }
       }
+      if (!effect.alive) continue;
       
       // Update position (for moving effects like smoke)
       if (effect.velocityX || effect.velocityY) {

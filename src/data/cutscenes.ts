@@ -56,6 +56,11 @@ export interface CutsceneDefinition {
   type: CutsceneType;
   /** Animation layers for parallax cutscenes */
   layers?: AnimationLayer[];
+  /** TextView from the original ending layout, animated independently of the artwork. */
+  textPanel?: {
+    text: string; x: number; y: number; width: number; height: number;
+    fromX: number; fromY: number; duration: number; startOffset: number;
+  };
   /** Frame animation for death sequence */
   frameAnimation?: FrameAnimation;
   /** Background color */
@@ -91,7 +96,7 @@ export const CUTSCENES: Record<CutsceneType, CutsceneDefinition> = {
       loop: false,
     },
     backgroundColor: '#000000',
-    totalDuration: 1500, // 16 frames * 83ms + buffer
+    totalDuration: 0, // The original allows touch dismissal immediately; auto-closes after 16×83ms.
     isGameOver: false, // Not a game over - this is enemy Kyle death
     isEnding: false,
   },
@@ -123,7 +128,12 @@ export const CUTSCENES: Record<CutsceneType, CutsceneDefinition> = {
       },
     ],
     backgroundColor: '#000000',
-    totalDuration: 10000,
+    textPanel: {
+      text: 'THANKS FOR PLAYING!', x: 300, y: 20, width: 160, height: 70,
+      fromX: 200, fromY: 0, duration: 6000, startOffset: 8000,
+    },
+    // AnimationPlayerActivity permits dismissal after duration, excluding startOffset.
+    totalDuration: 6000,
     isGameOver: false,
     isEnding: true,
   },
@@ -153,20 +163,13 @@ export const CUTSCENES: Record<CutsceneType, CutsceneDefinition> = {
         startOffset: 2000,
         zOrder: 1,
       },
-      {
-        // Game over text - slides in from left
-        sprite: 'assets/sprites/ui_ending_bad_kabocha_foreground.png', // Reuse for game over overlay
-        fromX: -200,
-        toX: 0, // From kabocha_game_over.xml
-        fromY: 0,
-        toY: 0,
-        duration: 6000,
-        startOffset: 8000,
-        zOrder: 2,
-      },
     ],
     backgroundColor: '#000000',
-    totalDuration: 15000,
+    textPanel: {
+      text: 'GAME OVER', x: 20, y: 250, width: 160, height: 50,
+      fromX: -200, fromY: 0, duration: 6000, startOffset: 8000,
+    },
+    totalDuration: 6000,
     isGameOver: false,
     isEnding: true,
   },
@@ -220,7 +223,11 @@ export const CUTSCENES: Record<CutsceneType, CutsceneDefinition> = {
       },
     ],
     backgroundColor: '#000000',
-    totalDuration: 10000,
+    textPanel: {
+      text: 'GAME OVER', x: 20, y: 20, width: 160, height: 50,
+      fromX: 0, fromY: -200, duration: 6000, startOffset: 8000,
+    },
+    totalDuration: 6000,
     isGameOver: false,
     isEnding: true,
   },

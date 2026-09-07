@@ -33,7 +33,8 @@ import { sSystemRegistry } from '../engine/SystemRegistry';
 import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent } from '../entities/components/PlayerComponent';
-import { SolidSurfaceComponent } from '../entities/components/SolidSurfaceComponent';
+import { SolidSurfaceComponent, setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
+import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { HitType } from '../types';
 import type { GameObject } from '../entities/GameObject';
 
@@ -134,7 +135,7 @@ test('every button the campaign ships can be pressed by standing on it', async (
           // Stand on it: Andou's DEPRESS volume is the bottom 16px of his body.
           player.setPosition(
             target.x + button.width / 2 - player.width / 2,
-            target.y - player.height + 10
+            target.y + button.height - player.height
           );
           player.setGameTime(rig.time.getGameTime());
           button.setGameTime(rig.time.getGameTime());
@@ -201,7 +202,7 @@ test('pressing a button opens the door on its channel', async () => {
         for (let i = 0; i < 30; i++) {
           player.setPosition(
             buttonPos.x + button.width / 2 - player.width / 2,
-            buttonPos.y - player.height + 10
+            buttonPos.y + button.height - player.height
           );
           player.setGameTime(rig.time.getGameTime());
           button.setGameTime(rig.time.getGameTime());
@@ -232,3 +233,52 @@ test('pressing a button opens the door on its channel', async () => {
   expect(failures, 'these doors stayed shut').toEqual([]);
 }, 180_000);
 
+test('walking over the real lab button animates its gate and allows passage, then it closes again', async () => {
+  const rig = (await load('level_0_2_lab'))!;
+  const player = rig.manager.getPlayer()!;
+  const objects = rig.manager.getActiveObjects();
+  const button = objects.find((object) => object.type === 'button')!;
+  const door = objects.find((object) => object.type === 'door' && object.subType === button?.subType)!;
+  expect(button).toBeTruthy();
+  expect(door).toBeTruthy();
+  // Keep the shipped actors/components, but put the mechanism on a flat test
+  // floor so the test measures walking/contact, not route-finding/teleport hits.
+  const collision = new CollisionSystem();
+  expect(await collision.loadCollisionData('/assets/collision.json')).toBe(true);
+  collision.setTileCollision(Array.from({ length: 20 * 12 }, (_, i) => i >= 20 * 10 ? 1 : -1), 20, 12, 32, 32);
+  sSystemRegistry.register(collision, 'collision');
+  setSolidSurfaceSystemRegistry(sSystemRegistry);
+  const input = sSystemRegistry.inputSystem!;
+  player.getComponent(PlayerComponent)!.setSystems(input, collision, sSystemRegistry.soundSystem!, rig.levelSystem);
+  door.setPosition(320, 256);
+  button.setPosition(128, 288);
+  player.setPosition(280, 272);
+  const doorFrames = new Set<string>();
+  const buttonFrames = new Set<string>();
+  const frame = (): void => {
+    rig.time.update(FRAME);
+    const now = rig.time.getGameTime();
+    player.update(FRAME, now);
+    button.update(FRAME, now);
+    door.update(FRAME, now);
+    rig.oc.update(FRAME);
+    collision.updateTemporarySurfaces();
+    doorFrames.add(door.getComponent(SpriteComponent)!.getCurrentDraw()!.sprite);
+    buttonFrames.add(button.getComponent(SpriteComponent)!.getCurrentDraw()!.sprite);
+  };
+  input.setVirtualAxis('horizontal', 1);
+  for (let i = 0; i < 30; i++) frame();
+  expect(player.getPosition().x).toBe(288); // Closed gate blocks the player.
+
+  player.setPosition(32, 272);
+  player.getVelocity().zero();
+  for (let i = 0; i < 110; i++) frame();
+  expect(player.getPosition().x).toBeGreaterThan(352);
+  expect(buttonFrames.has(`object_button_pressed_${button.subType}`)).toBe(true);
+  expect(doorFrames).toEqual(new Set(['01', '02', '03', '04'].map((n) => `object_door_${door.subType}${n}`)));
+  input.setVirtualAxis('horizontal', 0);
+  for (let i = 0; i < 6 * 60; i++) frame();
+  expect(door.getComponent(SpriteComponent)!.getCurrentDraw()!.sprite)
+    .toBe(`object_door_${door.subType}01`);
+  expect(door.getComponents().some((component) => component instanceof SolidSurfaceComponent)).toBe(true);
+});

@@ -37,6 +37,7 @@ import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume
 import { OrbitalMagnetComponent } from '../entities/components/OrbitalMagnetComponent';
 import { MotionBlurComponent } from '../entities/components/MotionBlurComponent';
 import { SortConstants } from '../engine/SortConstants';
+import { drawPriorityFor } from '../data/objectDrawPriority';
 import {
   FadeDrawableComponent, FadeLoopType, FadeFunction,
 } from '../entities/components/FadeDrawableComponent';
@@ -83,65 +84,6 @@ const NO_BACKGROUND_COLLISION_SUBTYPES = new Set(['bat', 'sting', 'karaguin']);
  * fixed emplacements.
  */
 const NO_PHYSICS_SUBTYPES = new Set(['the_source', 'shadowslime', 'turret']);
-
-/**
- * Draw order for each spawned object, transcribed from the setPriority() call
- * in the original's matching spawn function. Anything not named here falls back
- * to its type's default in drawPriorityFor().
- * Ported from: GameObjectFactory.java (spawn* functions) + SortConstants.java.
- */
-const SUBTYPE_PRIORITIES: Readonly<Record<string, number>> = {
-  // The story NPCs and both bosses draw at NPC, which is GENERAL_ENEMY.
-  wanda: SortConstants.NPC,
-  kyle: SortConstants.NPC,
-  kabocha: SortConstants.NPC,
-  evil_kabocha: SortConstants.NPC,
-  rokudou: SortConstants.NPC,
-  // spawnEnemyKyleDead / spawnEnemyAndouDead are ordinary objects, not enemies.
-  kyle_dead: SortConstants.GENERAL_OBJECT,
-  andou_dead: SortConstants.GENERAL_OBJECT,
-  // spawnObjectTurret is GENERAL_OBJECT even though it is an enemy elsewhere.
-  turret: SortConstants.GENERAL_OBJECT,
-  // The ghost draws with the projectiles.
-  ghost: SortConstants.PROJECTILE,
-};
-
-/** Default draw order per object type, where the subType does not override it. */
-const TYPE_PRIORITIES: Readonly<Record<string, number>> = {
-  player: SortConstants.PLAYER,
-  enemy: SortConstants.GENERAL_ENEMY,
-  npc: SortConstants.NPC,
-  projectile: SortConstants.PROJECTILE,
-  ghost: SortConstants.PROJECTILE,
-  // spawnObjectDoor and spawnObjectCannon draw in front of everything else.
-  door: SortConstants.FOREGROUND_OBJECT,
-  cannon: SortConstants.FOREGROUND_OBJECT,
-  // Collectibles, blocks, signs, buttons, spawners and terminals.
-  coin: SortConstants.GENERAL_OBJECT,
-  ruby: SortConstants.GENERAL_OBJECT,
-  pearl: SortConstants.GENERAL_OBJECT,
-  diary: SortConstants.GENERAL_OBJECT,
-  breakable_block: SortConstants.GENERAL_OBJECT,
-  hint_sign: SortConstants.GENERAL_OBJECT,
-  button: SortConstants.GENERAL_OBJECT,
-  spawner: SortConstants.GENERAL_OBJECT,
-  terminal: SortConstants.GENERAL_OBJECT,
-  decoration: SortConstants.GENERAL_OBJECT,
-  effect: SortConstants.EFFECT,
-};
-
-/**
- * Where this object draws in the render queue.
- *
- * Everything used to land on 0 and draw in spawn order, which happened to look
- * right most of the time and produced no way to say "in front of that". Objects
- * now carry the original's priorities.
- */
-function drawPriorityFor(obj: GameObject): number {
-  const bySubType = SUBTYPE_PRIORITIES[obj.subType];
-  if (bySubType !== undefined) return bySubType;
-  return TYPE_PRIORITIES[obj.type] ?? SortConstants.FOREGROUND;
-}
 
 /**
  * Object activation radii, derived from the screen size exactly as the
@@ -278,6 +220,19 @@ export class LevelSystem {
   private isLinearMode: boolean = false;
   /** Player hit points for this run; overridden per difficulty via setPlayerMaxLife(). */
   private playerMaxLife: number = 3;
+  private isDiaryCollected: (levelId: number) => boolean = () => false;
+  private loadVersion: number = 0;
+  private disposed: boolean = false;
+
+  /** Invalidate in-flight loads before this scene's registry is replaced. */
+  dispose(): void {
+    this.disposed = true;
+    this.loadVersion++;
+  }
+
+  setDiaryCollectedQuery(query: (levelId: number) => boolean): void {
+    this.isDiaryCollected = query;
+  }
 
   constructor() {
     this.initializeLevelTree();
@@ -399,7 +354,11 @@ export class LevelSystem {
   /**
    * Load a level by ID
    */
-  async loadLevel(levelId: number): Promise<boolean> {
+  async loadLevel(levelId: number, signal?: globalThis.AbortSignal): Promise<boolean> {
+    if (signal?.aborted || this.disposed) return false;
+    const version = ++this.loadVersion;
+    const cancelled = (): boolean =>
+      this.disposed || version !== this.loadVersion || Boolean(signal?.aborted);
     // console.log(`[LevelSystem] Loading level ${levelId}...`);
     const levelInfo = this.levels.get(levelId);
     if (!levelInfo) {
@@ -411,9 +370,9 @@ export class LevelSystem {
     try {
       // All levels now use JSON format (converted from binary)
       if (levelInfo.binary) {
-        return await this.loadConvertedJsonLevel(levelId, levelInfo);
+        return await this.loadConvertedJsonLevel(levelId, levelInfo, cancelled);
       } else {
-        return await this.loadJsonLevel(levelId, levelInfo);
+        return await this.loadJsonLevel(levelId, levelInfo, cancelled);
       }
     } catch {
       // Error loading level - return false
@@ -424,13 +383,13 @@ export class LevelSystem {
   /**
    * Load a converted JSON level file (originally binary, now in JSON format)
    */
-  private async loadConvertedJsonLevel(levelId: number, levelInfo: LevelInfo): Promise<boolean> {
+  private async loadConvertedJsonLevel(levelId: number, levelInfo: LevelInfo, cancelled: () => boolean): Promise<boolean> {
     // Use .json extension (levels were converted from .bin to .json)
     const url = assetPath(`/assets/levels/${levelInfo.file}.json`);
     
     const parsed = await this.levelParser.parseJsonLevel(url);
     
-    if (!parsed) {
+    if (!parsed || cancelled()) {
       // console.error(`Failed to parse JSON level: ${levelInfo.file}`);
       return false;
     }
@@ -482,13 +441,14 @@ export class LevelSystem {
   /**
    * Load a JSON level file (legacy format)
    */
-  private async loadJsonLevel(levelId: number, levelInfo: LevelInfo): Promise<boolean> {
+  private async loadJsonLevel(levelId: number, levelInfo: LevelInfo, cancelled: () => boolean): Promise<boolean> {
     const response = await fetch(assetPath(`/assets/levels/${levelInfo.file}.json`));
     if (!response.ok) {
       throw new Error(`Failed to load level: ${response.status}`);
     }
 
     const levelData: LevelData = await response.json();
+    if (cancelled()) return false;
     this.currentLevel = levelData;
     this.currentLevelId = levelId;
     this.parsedLevel = null;
@@ -615,6 +575,8 @@ export class LevelSystem {
    */
   private spawnObjectByType(spawn: SpawnInfo): void {
     if (!this.gameObjectManager) return;
+    // Original spawnDiary omits this object after its level's diary is saved.
+    if (spawn.type === GameObjectTypeIndex.DIARY && this.isDiaryCollected(this.currentLevelId)) return;
 
     const typeName = getObjectTypeName(spawn.type);
     // console.log(`[LevelSystem] Spawning object: type=${spawn.type} (${typeName}) at tile(${spawn.tileX},${spawn.tileY}) world(${spawn.x},${spawn.y})`);
@@ -682,8 +644,8 @@ export class LevelSystem {
 
       case GameObjectTypeIndex.COIN:
         obj.type = 'coin';
-        objWidth = 32;
-        objHeight = 32;
+        objWidth = 16;
+        objHeight = 16;
         obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.life = 1;
         // The original picks coins up with HitPlayerComponent - a plain radius
@@ -1290,9 +1252,10 @@ export class LevelSystem {
         // Create dynamic collision component
         const buttonDynCollision = new DynamicCollisionComponent();
         
-        // Create vulnerability volume for button (can be depressed by stomp)
-        // The button is in the top 16px of the 32px collision height
-        const buttonVulnerability = new AABoxCollisionVolume(0, 0, 32, 16, HitType.DEPRESS);
+        // Original AABox(0, 0, 32, 16) sits at the bottom in Y-up space.
+        // On the 32px Y-down sprite it occupies y=16..32, where the art and
+        // a grounded player's feet actually are, not the empty upper half.
+        const buttonVulnerability = new AABoxCollisionVolume(0, 16, 32, 16, HitType.DEPRESS);
         buttonDynCollision.setCollisionVolumes(null, [buttonVulnerability]);
         obj.addComponent(buttonDynCollision);
         

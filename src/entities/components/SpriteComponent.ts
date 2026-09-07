@@ -235,11 +235,12 @@ export class SpriteComponent extends GameComponent {
     if (!this.currentAnimation) return;
 
     // Update animation frame
-    this.frameTimer += deltaTime;
-    const currentFrameData = this.currentAnimation.frames[this.currentFrame];
-
-    if (currentFrameData && this.frameTimer >= currentFrameData.duration) {
-      this.frameTimer -= currentFrameData.duration;
+    this.frameTimer += Math.max(0, deltaTime);
+    while (!this.animationComplete) {
+      const currentFrameData = this.currentAnimation.frames[this.currentFrame];
+      if (!currentFrameData || currentFrameData.duration <= 0 ||
+          this.frameTimer + 1e-10 < currentFrameData.duration) break;
+      this.frameTimer = Math.max(0, this.frameTimer - currentFrameData.duration);
       this.currentFrame++;
 
       // Handle animation end

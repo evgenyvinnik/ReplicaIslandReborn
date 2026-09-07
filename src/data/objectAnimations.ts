@@ -53,9 +53,8 @@ const OBJECT_ART: Record<string, ObjectArt> = {
   // does not spin evenly, which is what a uniform frame time made it do.
   coin: {
     frames: ['coin01', 'coin02', 'coin03', 'coin04', 'coin05'],
-    width: 32,
-    height: 32,
-    centred: true,
+    width: 16,
+    height: 16,
     frameTimes: [30, 2, 2, 1, 2],
   },
   // The original's ruby cycle starts at ruby02; ruby01 is not in it.
@@ -63,7 +62,7 @@ const OBJECT_ART: Record<string, ObjectArt> = {
     frames: ['ruby02', 'ruby03', 'ruby04', 'ruby05'],
     width: 32,
     height: 32,
-    centred: true,
+    centreOnObject: true,
     frameTimes: [2, 1, 1, 2],
   },
   // The port spawns no pearls from level data, but the fallback test level does.
@@ -71,14 +70,14 @@ const OBJECT_ART: Record<string, ObjectArt> = {
     frames: ['ruby02', 'ruby03', 'ruby04', 'ruby05'],
     width: 32,
     height: 32,
-    centred: true,
+    centreOnObject: true,
     frameTimes: [2, 1, 1, 2],
   },
   diary: {
     frames: ['diary02', 'diary01', 'diary02', 'diary03', 'diary04', 'diary05', 'diary06'],
     width: 32,
     height: 32,
-    centred: true,
+    centreOnObject: true,
     frameTimes: [2, 2, 2, 2, 2, 2, 2],
   },
   breakable_block: { frames: ['debris_block'], width: 32, height: 32, frameTimes: [1] },

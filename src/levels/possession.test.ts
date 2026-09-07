@@ -39,12 +39,15 @@ import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
-import { HitType } from '../types';
+import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
+import { HitType, ActionType } from '../types';
 import type { GameObject } from '../entities/GameObject';
 
 const pub = join(import.meta.dir, '../../public');
 const originalFetch = globalThis.fetch;
 const FRAME = 1 / 60;
+const GhostClass = GhostComponent as unknown as new (...args: unknown[]) => GhostComponent;
+const SwapClass = ChangeComponentsComponent as unknown as new (...args: unknown[]) => ChangeComponentsComponent;
 
 beforeAll(() => {
   globalThis.fetch = (async (i: Parameters<typeof fetch>[0]): Promise<Response> => {
@@ -84,6 +87,8 @@ async function loadLevel(resource: string): Promise<Rig> {
   sSystemRegistry.register(new GameFlowEvent(), 'gameFlowEvent');
   sSystemRegistry.register(time, 'time');
   sSystemRegistry.register(factory, 'factory');
+  factory.setSystemRegistry(sSystemRegistry);
+  factory.setCollisionSystem(collision);
   expect(await collision.loadCollisionData('/assets/collision.json')).toBe(true);
   expect(await levelSystem.loadLevel(resourceToLevelId[resource]), resource).toBe(true);
   manager.commitUpdates();
@@ -116,9 +121,7 @@ test('holding attack on the ground charges and spawns the ghost', async () => {
   expect(component.currentState).toBe(PlayerState.FROZEN);
 
   // Game.tsx's half: spawn the ghost object.
-  const ghost = rig.factory.spawnGhost(
-    player.getPosition().x, player.getPosition().y, 0
-  );
+  const ghost = rig.factory.spawnPlayerGhost(player, 0);
   expect(ghost, 'spawnGhost returned nothing').not.toBeNull();
   expect(ghost!.type).toBe('ghost');
   const gc = ghost!.getComponent(
@@ -130,6 +133,14 @@ test('holding attack on the ground charges and spawns the ghost', async () => {
   const dyn = ghost!.getComponent(DynamicCollisionComponent);
   const types = (dyn?.getAttackVolumes() ?? []).map((v) => v.getHitType());
   expect(types, 'the ghost has no POSSESS attack volume').toContain(HitType.POSSESS);
+  expect(ghost!.getPosition().y + ghost!.height).toBe(player.getPosition().y + player.height);
+  // Releasing the charge key and steering must move the orb out of Andou,
+  // not spawn it partly inside the floor where background collision traps it.
+  rig.input.setVirtualButton('stomp', false);
+  rig.input.setVirtualAxis('horizontal', 1);
+  const startX = ghost!.getPosition().x;
+  for (let i = 0; i < 20; i++) ghost!.update(FRAME, rig.time.getGameTime() + i * FRAME);
+  expect(ghost!.getPosition().x).toBeGreaterThan(startX + 20);
 }, 30_000);
 
 test('the ghost survives long enough to be steered anywhere', async () => {
@@ -169,7 +180,7 @@ test('the ghost survives long enough to be steered anywhere', async () => {
   expect(ghost.width, 'the ghost was culled once the camera moved away').toBe(64);
 }, 30_000);
 
-test('a brobot and a turret can both be taken over', async () => {
+test('brobots release on death and turrets support repeated possession and release', async () => {
   // The original calls setPossessionComponent in exactly two spawn functions:
   // spawnEnemyBrobot and spawnObjectTurret.
   const cases: Array<{ resource: string; subType: string }> = [
@@ -244,5 +255,47 @@ test('a brobot and a turret can both be taken over', async () => {
       GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
     );
     expect(driving, `possessing the ${subType} swapped in no GhostComponent`).toBeTruthy();
+    driving!.releaseControl(victim);
+    if (subType === 'brobot') {
+      expect(victim.life).toBe(0);
+      expect(victim.isMarkedForRemoval()).toBe(true);
+      continue;
+    }
+
+    const swap = victim.getComponent(SwapClass)!;
+    expect(victim.life).toBeGreaterThan(0);
+    expect(victim.getComponent(GhostClass)).toBeNull();
+    expect(swap.getCurrentlySwapped()).toBe(false);
+    // Take the same turret over twice more through real collision. Merely
+    // swapping the controller back in is insufficient if it stays released.
+    for (let cycle = 0; cycle < 2; cycle++) {
+      victim.lastReceivedHitType = HitType.INVALID; // Game clears the old handoff marker.
+      const nextOrb = rig.factory.spawnGhost(target.x, target.y, 2)!;
+      rig.manager.commitUpdates();
+      for (let tick = 0; tick < 60 && !victim.getComponent(GhostClass); tick++) {
+        nextOrb.setPosition(target.x + victim.width / 2 - nextOrb.width / 2,
+          target.y + victim.height / 2 - nextOrb.height / 2);
+        rig.camera.setPosition(target.x, target.y);
+        rig.time.update(FRAME);
+        rig.manager.update(FRAME, rig.time.getGameTime());
+        rig.oc.update(FRAME);
+      }
+      const controller = victim.getComponent(GhostClass)!;
+      expect(controller).toBe(driving!); // the same cached component is reused
+      nextOrb.getComponent(GhostClass)!.transferControl(nextOrb);
+      expect(controller.isReleased()).toBe(false);
+      rig.input.setVirtualButton('jump', true);
+      controller.update(FRAME, victim);
+      expect(victim.getCurrentAction()).toBe(ActionType.ATTACK);
+      rig.input.setVirtualButton('jump', false);
+      // A new attack press releases, after the prior update observed it up.
+      rig.input.setVirtualButton('attack', true);
+      controller.update(FRAME, victim);
+      rig.input.setVirtualButton('attack', false);
+      expect(controller.isReleased()).toBe(true);
+      expect(victim.getComponent(GhostClass)).toBeNull();
+      expect(swap.getCurrentlySwapped()).toBe(false);
+      expect(victim.life).toBeGreaterThan(0);
+    }
   }
 }, 60_000);

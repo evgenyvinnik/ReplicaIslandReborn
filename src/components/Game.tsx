@@ -5,11 +5,12 @@
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useGameContext } from '../context/GameContext';
-import { GameState, ActionType, HitType, Team } from '../types';
+import { GameState, HitType, Team } from '../types';
 import { GameLoop } from '../engine/GameLoop';
 import { SystemRegistry, sSystemRegistry } from '../engine/SystemRegistry';
 import { RenderSystem } from '../engine/RenderSystem';
 import { SortConstants } from '../engine/SortConstants';
+import { ScreenFade } from '../engine/ScreenFade';
 import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem, SoundEffects } from '../engine/SoundSystem';
 import { CameraSystem } from '../engine/CameraSystem';
@@ -31,12 +32,12 @@ import { CanvasLevelCompleteScreen } from '../engine/CanvasLevelCompleteScreen';
 import { CanvasDiaryOverlay } from '../engine/CanvasDiaryOverlay';
 import { CanvasEndingStatsScreen } from '../engine/CanvasEndingStatsScreen';
 import { GameObjectManager } from '../entities/GameObjectManager';
-import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
+import { GameObjectFactory } from '../entities/GameObjectFactory';
 import { GameObject } from '../entities/GameObject';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
-import { resetPlayerRuntimeState } from '../entities/resetPlayerRuntimeState';
+import { startLevelAttempt } from '../levels/startLevelAttempt';
+import { focusLevelCamera, LevelBackgroundLoader } from '../levels/LevelView';
 import { applyPlayerAttack } from '../entities/applyPlayerAttack';
-import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { MultiSpriteAnimComponent } from '../entities/components/MultiSpriteAnimComponent';
@@ -49,7 +50,7 @@ import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 import { gameSettings, getDifficultySettings } from '../utils/GameSettings';
 import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
 import { getDialogsForLevel, type Dialog } from '../data/dialogs';
-import { getDiaryByCollectionOrder } from '../data/diaries';
+import { collectNextDiary } from '../stores/diaryProgress';
 import { assetPath } from '../utils/helpers';
 import { CutsceneType, getCutscene } from '../data/cutscenes';
 import { UIStrings } from '../data/strings';
@@ -106,8 +107,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   
   // Zustand store for persistent progress/scores - use individual selectors to avoid infinite loops
   const storeCompleteLevel = useGameStore((s) => s.completeLevel);
-  const storeRecordLevelAttempt = useGameStore((s) => s.recordLevelAttempt);
-  const storeCollectDiary = useGameStore((s) => s.collectDiary);
   const storeAddToTotalStats = useGameStore((s) => s.addToTotalStats);
   const storeLevelProgress = useGameStore((s) => s.progress.levels);
   const storeUnlockExtra = useGameStore((s) => s.unlockExtra);
@@ -120,6 +119,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const effectsSystemRef = useRef<EffectsSystem | null>(null);
   const tileMapRendererRef = useRef<TileMapRenderer | null>(null);
   const backgroundImageRef = useRef<HTMLImageElement | null>(null);
+  const backgroundLoaderRef = useRef<LevelBackgroundLoader | null>(null);
   const levelSystemRef = useRef<LevelSystem | null>(null);
   
   // Canvas-based UI systems
@@ -159,22 +159,29 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   // Player spawn point (set when level loads)
   const playerSpawnRef = useRef({ x: 100, y: 320 });
   
-  // Player state ref for physics (matching original PlayerComponent.java)
-  // Helper function to reset player state (call when loading/restarting levels)
-  const resetPlayerState = useCallback((): void => {
+  // Shared successful-load setup for startup, transitions, and retries.
+  const beginLevelAttempt = useCallback((levelId: number): void => {
+    canvasControlsRef.current?.setOrbControlMode(false);
+    systemRegistryRef.current?.screenFade?.clear();
     const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
     if (gameObjectManager) {
-      const player = gameObjectManager.getPlayer();
-      if (player) {
-        activeGhostRef.current = null;
-        resetPlayerRuntimeState(player);
-      }
+      activeGhostRef.current = null;
+      startLevelAttempt(levelId, gameObjectManager, getDifficultySettings());
+      const level = levelSystemRef.current;
+      const camera = systemRegistryRef.current?.cameraSystem;
+      if (level && camera) focusLevelCamera(level, gameObjectManager, camera, height);
+      systemRegistryRef.current?.timeSystem?.clearScale();
+      backgroundLoaderRef.current?.load(level?.getParsedLevel()?.backgroundImage);
+      levelStartTimeRef.current = Date.now();
+      levelElapsedTimeRef.current = 0;
     }
-  }, []);
+  }, [height]);
   
   const [isInitialized, setIsInitialized] = useState(false);
   const [scale, setScale] = useState(1);
   const [levelLoading, setLevelLoading] = useState(true);
+  const [startupError, setStartupError] = useState<string | null>(null);
+  const [startupAttempt, setStartupAttempt] = useState(0);
 
   const recordAutomaticLevelCompletion = useCallback((levelId: number): void => {
     const inventory = getInventory();
@@ -339,6 +346,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             setLevelLoading(true);
             hasShownIntroDialogRef.current = false;
             levelSystem.loadLevel(nextLevelId).then((success) => {
+              if (levelSystemRef.current !== levelSystem) return;
               if (!success) {
                 // console.error('[Game] Failed to load next level (NPC trigger):', nextLevelId);
                 setLevelLoading(false);
@@ -367,12 +375,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               
               const spawn = levelSystem.playerSpawnPosition;
               playerSpawnRef.current = { ...spawn };
-              resetPlayerState(); // Reset player state for new level
-              
-              // Start timer for new level
-              levelStartTimeRef.current = Date.now();
-              levelElapsedTimeRef.current = 0;
-              storeRecordLevelAttempt(nextLevelId);
+              beginLevelAttempt(nextLevelId);
               
               gameObjectManager.commitUpdates();
               const player = gameObjectManager.getPlayer();
@@ -382,25 +385,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 player.getVelocity().y = 0;
               }
               
-              // Update camera bounds for new level
-              const cameraSystem = systemRegistryRef.current?.cameraSystem;
-              if (cameraSystem) {
-                // A new level: clear the previous one's camera state first. A cutscene
-                // NPC that still holds focus makes every setTarget() below a silent
-                // no-op - see the note at the initial level-load path.
-                cameraSystem.reset();
-                systemRegistryRef.current?.timeSystem?.clearScale();
-                cameraSystem.setBounds({
-                  minX: 0,
-                  minY: 0,
-                  maxX: levelSystem.getLevelWidth(),
-                  maxY: levelSystem.getLevelHeight(),
-                });
-                if (player) {
-                  cameraSystem.setTarget(player);
-                  cameraSystem.setPosition(spawn.x, spawn.y);
-                }
-              }
               
               setLevelLoading(false);
               levelTransitionInProgressRef.current = false;
@@ -426,7 +410,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     return (): void => {
       gameFlowEvent.removeListener(handleGameFlowEvent);
     };
-  }, [isInitialized, setLevel, playCutscene, goToMainMenu, recordAutomaticLevelCompletion, resetPlayerState, storeRecordLevelAttempt]);
+  }, [isInitialized, setLevel, playCutscene, goToMainMenu, recordAutomaticLevelCompletion, beginLevelAttempt]);
 
   // Track previous level to detect level changes
   const prevLevelRef = useRef(state.currentLevel);
@@ -455,7 +439,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     setLevelLoading(true);
     hasShownIntroDialogRef.current = false;
     
-    levelSystem.loadLevel(state.currentLevel).then(() => {
+    levelSystem.loadLevel(state.currentLevel).then((success) => {
+      if (levelSystemRef.current !== levelSystem || currentLevelRef.current !== state.currentLevel) return;
+      if (!success) { setLevelLoading(false); goToMainMenu(); return; }
       gameObjectManager.commitUpdates();
       
       // Check if we need to show memory playback toast
@@ -480,35 +466,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (parsedLevel && tileMapRendererRef.current) {
         tileMapRendererRef.current.initializeFromLevel(parsedLevel);
         
-        // Load background image
-        const backgroundImage = parsedLevel.backgroundImage;
-        const bgPath = assetPath(`/assets/sprites/${backgroundImage}.png`);
-        const bgImg = new Image();
-        bgImg.onload = (): void => {
-          backgroundImageRef.current = bgImg;
-        };
-        bgImg.src = bgPath;
       }
       
-      // Update camera bounds
-      const cameraSystem = systemRegistryRef.current?.cameraSystem;
-      if (cameraSystem) {
-        // A new level: clear the previous one's camera state first. A cutscene
-        // NPC that still holds focus makes every setTarget() below a silent
-        // no-op - see the note at the initial level-load path.
-        cameraSystem.reset();
-        systemRegistryRef.current?.timeSystem?.clearScale();
-        cameraSystem.setBounds({
-          minX: 0,
-          minY: 0,
-          maxX: levelSystem.getLevelWidth(),
-          maxY: levelSystem.getLevelHeight(),
-        });
-      }
       
       const spawn = levelSystem.playerSpawnPosition;
       playerSpawnRef.current = { ...spawn };
-      resetPlayerState();
+      beginLevelAttempt(state.currentLevel);
       
       const player = gameObjectManager.getPlayer();
       if (player) {
@@ -519,7 +482,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       setLevelLoading(false);
     });
-  }, [isInitialized, state.currentLevel, resetPlayerState]);
+  }, [isInitialized, state.currentLevel, beginLevelAttempt, goToMainMenu]);
 
   // Handle Canvas Dialog when activeDialog changes
   useEffect(() => {
@@ -614,6 +577,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
       };
       
+      systemRegistryRef.current?.screenFade?.clear();
       canvasCutscene.play(state.activeCutscene, handleCutsceneComplete);
     } else {
       canvasCutscene.stop();
@@ -658,7 +622,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Retry - reload current level
           const levelSys = levelSystemRef.current;
           if (levelSys) {
-            levelSys.loadLevel(state.currentLevel).then(() => {
+            levelSys.loadLevel(state.currentLevel).then((success) => {
+              if (levelSystemRef.current !== levelSys) return;
+              if (!success) { goToMainMenu(); return; }
               // Initialize tile map renderer for level
               const parsedLevel = levelSys.getParsedLevel();
               if (parsedLevel && tileMapRendererRef.current) {
@@ -667,7 +633,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               
               const spawn = levelSys.playerSpawnPosition;
               playerSpawnRef.current = { ...spawn };
-              resetPlayerState(); // Reset player state for retry
+              beginLevelAttempt(state.currentLevel);
               const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
               gameObjectMgr?.commitUpdates();
               const player = gameObjectMgr?.getPlayer();
@@ -688,7 +654,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     } else {
       canvasGameOver.hide();
     }
-  }, [state.gameState, state.currentLevel, resumeGame, goToMainMenu, resetPlayerState]);
+  }, [state.gameState, state.currentLevel, resumeGame, goToMainMenu, beginLevelAttempt]);
 
   // Handle Canvas Level Complete Screen when game state changes
   useEffect(() => {
@@ -751,6 +717,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setLevelLoading(true); // Mark level as loading
               hasShownIntroDialogRef.current = false;
               levelSys.loadLevel(nextLevelId).then((success) => {
+                if (levelSystemRef.current !== levelSys) return;
                 if (!success) {
                   // console.error('[Game] Failed to load next level:', nextLevelId);
                   setLevelLoading(false);
@@ -778,12 +745,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 
                 const spawn = levelSys.playerSpawnPosition;
                 playerSpawnRef.current = { ...spawn };
-                resetPlayerState(); // Reset player state for new level
-                
-                // Start timer for new level
-                levelStartTimeRef.current = Date.now();
-                levelElapsedTimeRef.current = 0;
-                storeRecordLevelAttempt(nextLevelId);
+                beginLevelAttempt(nextLevelId);
                 
                 const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
                 gameObjectMgr?.commitUpdates();
@@ -794,25 +756,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   player.getVelocity().y = 0;
                 }
                 
-                // Update camera bounds for new level
-                const cameraSystem = systemRegistryRef.current?.cameraSystem;
-                if (cameraSystem) {
-                  // A new level: clear the previous one's camera state first. A cutscene
-                  // NPC that still holds focus makes every setTarget() below a silent
-                  // no-op - see the note at the initial level-load path.
-                  cameraSystem.reset();
-                  systemRegistryRef.current?.timeSystem?.clearScale();
-                  cameraSystem.setBounds({
-                    minX: 0,
-                    minY: 0,
-                    maxX: levelSys.getLevelWidth(),
-                    maxY: levelSys.getLevelHeight(),
-                  });
-                  if (player) {
-                    cameraSystem.setTarget(player);
-                    cameraSystem.setPosition(spawn.x, spawn.y);
-                  }
-                }
                 
                 setLevelLoading(false); // Mark level as loaded
                 resumeGame();
@@ -850,7 +793,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         levelCompleteProcessedRef.current = null;
       }
     }
-  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, resetPlayerState, storeAddToTotalStats, storeCompleteLevel, storeLevelProgress, storeRecordLevelAttempt, storeUnlockExtra]);
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, beginLevelAttempt, storeAddToTotalStats, storeCompleteLevel, storeLevelProgress, storeUnlockExtra]);
 
   // Attach/detach Canvas Controls when settings change
   useEffect(() => {
@@ -888,12 +831,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Reset and reuse the global system registry (Strict Mode will run this twice,
-    // but cleanup will stop the first game loop)
+    const initialization = new globalThis.AbortController();
+    const { signal } = initialization;
+    // Cleanup cancels pending startup as well as stopping the running loop.
+    // A torn-down Strict Mode pass must never populate the replacement registry.
     // Using sSystemRegistry ensures NPCComponent and other components can access systems
     sSystemRegistry.reset();
     const systemRegistry = sSystemRegistry;
     systemRegistryRef.current = systemRegistry;
+    const screenFade = new ScreenFade();
+    systemRegistry.screenFade = screenFade;
+    gameFlowEvent.reset();
 
     // Render system
     const renderSystem = new RenderSystem(canvas);
@@ -902,7 +850,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     systemRegistry.register(renderSystem, 'render');
 
     // Input system
-    const inputSystem = new InputSystem();
+    const inputSystem = new InputSystem({ touchGestures: false });
     inputSystem.initialize();
     systemRegistry.register(inputSystem, 'input');
 
@@ -974,6 +922,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     levelSystem.setSystems(collisionSystem, gameObjectManager, hotSpotSystem);
     levelSystem.setLinearMode(state.isLinearMode); // Set linear mode from context
     levelSystem.setPlayerMaxLife(getDifficultySettings().playerMaxLife);
+    levelSystem.setDiaryCollectedQuery((levelId) =>
+      (useGameStore.getState().progress.levels[levelId]?.diariesCollected.length ?? 0) > 0
+    );
     
     // Set up boss death callback to trigger ending cutscenes
     levelSystem.setOnBossDeathCallback((endingType: string) => {
@@ -996,13 +947,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     systemRegistry.register(levelSystem, 'level');
     levelSystemRef.current = levelSystem;
 
-    // Tile map renderer - reuse existing instance if available (prevents Strict Mode issues)
-    let tileMapRenderer = tileMapRendererRef.current;
-    if (!tileMapRenderer) {
-      tileMapRenderer = new TileMapRenderer();
-      tileMapRendererRef.current = tileMapRenderer;
-    }
+    // Each effect owns its renderer; a late preload cannot change the next run.
+    const tileMapRenderer = new TileMapRenderer();
+    tileMapRendererRef.current = tileMapRenderer;
     tileMapRenderer.setViewport(width, height);
+    const backgroundLoader = new LevelBackgroundLoader(image => { backgroundImageRef.current = image; });
+    backgroundLoaderRef.current = backgroundLoader;
 
     // Placeholder tileset for fallback
     const placeholderTileset = generatePlaceholderTileset(32);
@@ -1018,6 +968,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Canvas Controls
       const canvasControls = new CanvasControls(ctx, canvas, width, height);
       canvasControlsRef.current = canvasControls;
+      canvasControls.setInteractionAllowed(() =>
+        gameStateRef.current === GameState.PLAYING &&
+        !activeDialogRef.current &&
+        !canvasDialogRef.current?.isActive() &&
+        !canvasCutsceneRef.current?.isActive() &&
+        !canvasPauseMenuRef.current?.isShowing() &&
+        !canvasGameOverRef.current?.isShowing() &&
+        !canvasLevelCompleteRef.current?.isShowing() &&
+        !canvasDiaryRef.current?.isVisible() &&
+        !canvasEndingStatsRef.current?.isShowing()
+      );
       
       // Canvas Dialog
       const canvasDialog = new CanvasDialog(ctx, canvas, width, height);
@@ -1050,8 +1011,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // Setup controls callbacks
       canvasControls.setCallbacks(
-        (direction: number): void => {
+        (direction: number, vertical: number): void => {
           inputSystem.setVirtualAxis('horizontal', direction);
+          inputSystem.setVirtualAxis('vertical', vertical);
         },
         (): void => {
           inputSystem.setVirtualButton('fly', true);
@@ -1068,15 +1030,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       );
     }
 
-    // Load background image helper
-    const loadBackgroundImage = (imageName: string): Promise<HTMLImageElement> => {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = (): void => resolve(img);
-        img.onerror = (): void => reject(new Error(`Failed to load ${imageName}`));
-        img.src = assetPath(`/assets/sprites/${imageName}.png`);
-      });
-    };
 
     // Load player sprite sheets (matching original game sprites)
     const loadPlayerSprites = async (): Promise<void> => {
@@ -1141,8 +1094,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       ];
 
       const loadPromises = sprites.map(sprite =>
-        renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), 64, 64)
-          .catch(() => { /* Failed to load sprite - silently ignore */ })
+        renderSystem.loadSingleImage(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`))
       );
 
       await Promise.all(loadPromises);
@@ -1214,8 +1166,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       ];
 
       const loadPromises = sprites.map(sprite =>
-        renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), sprite.w, sprite.h)
-          .catch(() => { /* Failed to load sprite - silently ignore */ })
+        renderSystem.loadSingleImage(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`))
       );
 
       await Promise.all(loadPromises);
@@ -1411,8 +1362,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       ];
 
       const loadPromises = sprites.map(sprite =>
-        renderSystem.loadSprite(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), sprite.w, sprite.h)
-          .catch(() => { /* Failed to load sprite - silently ignore */ })
+        renderSystem.loadSingleImage(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`))
       );
 
       await Promise.all(loadPromises);
@@ -1421,6 +1371,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Load assets and level
     const initializeGame = async (): Promise<void> => {
       setLevelLoading(true);
+      setStartupError(null);
       
       // Reset inventory for new game. Lives come from the selected difficulty,
       // matching DifficultyConstants.getMaxPlayerLife() in the original.
@@ -1429,38 +1380,44 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       try {
         // Load collision segment data (for proper slope handling)
         const collisionLoaded = await collisionSystem.loadCollisionData(assetPath('/assets/collision.json'));
-        if (collisionLoaded) {
-          // console.log('[Game] Collision segment data loaded successfully');
-        } else {
-          // console.warn('[Game] Failed to load collision segment data, using simple tile collision');
-        }
+        signal.throwIfAborted();
+        if (!collisionLoaded) throw new Error('Could not load level collision data.');
         
         // Load tilesets
         await renderSystem.loadAllTilesets();
+        signal.throwIfAborted();
         
         // Load player sprites
         await loadPlayerSprites();
+        signal.throwIfAborted();
         
         // Load collectible sprites
         await loadCollectibleSprites();
+        signal.throwIfAborted();
         
         // Load enemy sprites
         await loadEnemySprites();
+        signal.throwIfAborted();
         
         // Load effect sprites (explosions, smoke, etc.)
         await effectsSystem.preloadSprites();
+        signal.throwIfAborted();
         
         // Load Canvas UI sprites
         if (canvasHUDRef.current) {
           await canvasHUDRef.current.preload();
+          signal.throwIfAborted();
         }
         if (canvasControlsRef.current) {
           await canvasControlsRef.current.preload();
+          signal.throwIfAborted();
         }
         
         // Initialize sound system
         await soundSystem.initialize();
+        signal.throwIfAborted();
         await soundSystem.preloadAllSounds();
+        signal.throwIfAborted();
         
         // Apply sound settings
         const settings = gameSettings.getAll();
@@ -1476,7 +1433,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // console.log('[Game] Loading level:', levelToLoad);
         
         // Try to load the level (JSON format)
-        const levelLoaded = await levelSystem.loadLevel(levelToLoad);
+        const levelLoaded = await levelSystem.loadLevel(levelToLoad, signal);
+        signal.throwIfAborted();
         // console.log('[Game] Level loaded:', levelLoaded);
         
         if (levelLoaded) {
@@ -1493,78 +1451,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             tileMapRenderer.initializeFromLevel(parsedLevel);
             // console.log('[Game] TileMapRenderer initialized, layers:', tileMapRenderer.getLayerCount());
             
-            // Load background image
-            try {
-              const bgImage = await loadBackgroundImage(parsedLevel.backgroundImage);
-              backgroundImageRef.current = bgImage;
-            } catch {
-              // console.log('Failed to load background image');
-            }
           }
           
-          // Clear any camera state left over from the previous level before
-          // aiming it at this one.
-          //
-          // setTarget() is deliberately a no-op while the camera is in NPC
-          // focus mode, so that a cutscene NPC keeps the camera until its
-          // script releases it. A cutscene level has no player to release the
-          // focus *to*, so NPCComponent never calls releaseNPCFocus() there and
-          // the flag survives the level transition - after which every
-          // setTarget(player) on every later level is silently swallowed and
-          // the camera stays pointed at whatever object now occupies the old
-          // NPC's slot. That leaves the player walking off-screen with the
-          // objects around him deactivated, which is unplayable.
-          cameraSystem.reset();
-          systemRegistryRef.current?.timeSystem?.clearScale();
-
-          // Set camera bounds - these are world bounds, not viewport-adjusted
-          // CameraSystem will handle viewport offset internally
-          cameraSystem.setBounds({
-            minX: 0,
-            minY: 0,
-            maxX: levelSystem.getLevelWidth(),
-            maxY: levelSystem.getLevelHeight(),
-          });
-          
-          // Handle cutscene levels (no player spawn)
-          // If there's no player but there is an NPC, focus camera on the NPC
-          const player = gameObjectManager.getPlayer();
-          // console.log('[Game] Player found:', !!player, 'position:', player?.getPosition());
-          
-          if (player) {
-            // Set camera to initially focus on the player
-            cameraSystem.setTarget(player);
-            // Also set camera position directly to player CENTER location immediately
-            // This prevents the camera from "lerping" from (0,0) to the player
-            cameraSystem.setPosition(
-              player.getCenteredPositionX(),
-              player.getCenteredPositionY()
-            );
-            // console.log('[Game] Camera set to player center:', player.getCenteredPositionX(), player.getCenteredPositionY());
-          } else {
-            // Find an NPC to focus on (Wanda, Kyle, Kabocha, or Rokudou)
-            let npcTarget: GameObject | null = null;
-            gameObjectManager.forEach((obj) => {
-              if (obj.type === 'npc' && npcTarget === null) {
-                npcTarget = obj;
-              }
-            });
-            
-            if (npcTarget !== null) {
-              // console.log(`[Game] Found NPC target: ${(npcTarget as GameObject).subType}`);
-              // Set camera to follow the NPC
-              const npc = npcTarget as GameObject;
-              // console.log(`[Game] NPC position: (${npc.getPosition().x}, ${npc.getPosition().y}), size: ${npc.width}x${npc.height}`);
-              cameraSystem.setNPCTarget(npcTarget);
-              // For NPC cutscene levels, set camera to bottom of level where action happens
-              // NPCs typically fall from above and land at the bottom
-              // Use the level height to position camera at the bottom
-              const levelHeight = levelSystem.getLevelHeight();
-              const bottomCenterY = levelHeight - height / 2; // Center camera at bottom
-              cameraSystem.setPosition(npc.getCenteredPositionX(), bottomCenterY);
-              // console.log('[Game] Camera set to bottom of level:', npc.getCenteredPositionX(), bottomCenterY);
-            }
-          }
           
           // Note: Intro dialog is now shown via a separate useEffect after levelLoading becomes false
           
@@ -1575,100 +1463,29 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
           prevLevelInThePastRef.current = initialLevelInfo?.inThePast ?? false;
           
-          // Start level timer
-          levelStartTimeRef.current = Date.now();
-          levelElapsedTimeRef.current = 0;
-          
-          // Record level attempt in store
-          storeRecordLevelAttempt(levelToLoad);
-
-          // Dynamic difficulty: after several attempts at the same level the
-          // player quietly gets extra hit points and refuels faster in the air.
-          // Original: PlayerComponent.adjustDifficulty().
-          const spawnedPlayer = gameObjectManager.getPlayer();
-          const spawnedPlayerComponent = spawnedPlayer?.getComponent(PlayerComponent);
-          if (spawnedPlayer && spawnedPlayerComponent) {
-            const attempts =
-              useGameStore.getState().progress.levels[levelToLoad]?.timesPlayed ?? 1;
-            spawnedPlayerComponent.applyDifficulty(
-              getDifficultySettings(),
-              attempts,
-              spawnedPlayer
-            );
-          }
+          beginLevelAttempt(levelToLoad);
         } else {
-          // Fallback: create test level
-          createTestLevel(factory, gameObjectManager, collisionSystem);
+          throw new Error(`Could not load level ${levelToLoad}.`);
         }
-      } catch {
-        // Create test level as fallback
-        createTestLevel(factory, gameObjectManager, collisionSystem);
+      } catch (error) {
+        if (signal.aborted) return;
+        setStartupError(error instanceof Error ? error.message : 'Could not load game assets.');
+        // Keep loading true so dialogue and controls cannot start on a partial level.
+        return;
       }
       
       setLevelLoading(false);
       
       // Start game loop AFTER initialization completes
-      if (gameLoopRef.current && !gameLoopRef.current.isRunning()) {
-        // console.log('[Game] Starting game loop after initialization');
-        gameLoopRef.current.start();
-      }
+      gameLoop.start();
 
-      // Start background music independently of who started the loop. Strict
-      // Mode runs this effect twice, and the initializeGame() that wins the
-      // loop-start race belongs to the torn-down first pass, whose SoundSystem
-      // has already been destroyed. Keeping this outside the guard lets the
-      // surviving pass start music with its own live SoundSystem.
+      // Only the surviving initialization owns this loop and SoundSystem.
       const settings = gameSettings.getAll();
       if (settings.musicEnabled && soundSystem.isInitialized()) {
         soundSystem.setMusicVolume(settings.musicVolume / 100);
         soundSystem.startBackgroundMusic();
       }
     };
-
-    // Function to create a test level when binary loading fails
-    const createTestLevel = (
-      factory: GameObjectFactory,
-      gameObjectManager: GameObjectManager,
-      collisionSystem: CollisionSystem
-    ): void => {
-      // Create simple floor collision
-      const testWidth = 30;
-      const testHeight = 15;
-      const tiles: number[] = [];
-      for (let y = 0; y < testHeight; y++) {
-        for (let x = 0; x < testWidth; x++) {
-          // Floor at bottom, walls on sides
-          if (y === testHeight - 1 || x === 0 || x === testWidth - 1) {
-            tiles.push(1); // Solid
-          } else if (y === testHeight - 3 && x > 5 && x < 15) {
-            tiles.push(1); // Platform
-          } else {
-            tiles.push(0); // Empty
-          }
-        }
-      }
-      collisionSystem.setTileCollision(tiles, testWidth, testHeight, 32, 32);
-
-      // Spawn player
-      const player = factory.spawn(GameObjectType.PLAYER, 100, 320, false);
-      if (player) {
-        player.type = 'player';
-        player.width = PlayerComponent.WIDTH;
-        player.height = PlayerComponent.HEIGHT;
-        gameObjectManager.setPlayer(player);
-      }
-
-      // Spawn some collectibles
-      factory.spawn(GameObjectType.COIN, 200, 350, false);
-      factory.spawn(GameObjectType.COIN, 250, 350, false);
-      factory.spawn(GameObjectType.PEARL, 300, 300, false);
-    };
-
-    // Start initialization
-    initializeGame().catch((error) => {
-      console.error('[InitializeGame] Unhandled error:', error);
-      setLevelLoading(false);
-    });
 
     // Game loop
     const gameLoop = new GameLoop();
@@ -1832,10 +1649,20 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           time: timeSystem.getGameTime(),
         };
       }
-      if (gameStateRef.current !== GameState.PLAYING) return;
-
-      // Update input
+      // Poll controllers even while paused, so Start can resume the game.
       inputSystem.update();
+      if (inputSystem.isGamepadPausePressed() && !canvasDiaryRef.current?.isVisible()) {
+        if (gameStateRef.current === GameState.PAUSED) { resumeGame(); return; }
+        if (gameStateRef.current === GameState.PLAYING) {
+          canvasControlsRef.current?.releaseAll();
+          pauseGame();
+          return;
+        }
+      }
+      if (gameStateRef.current !== GameState.PLAYING) {
+        canvasControlsRef.current?.releaseAll();
+        return;
+      }
 
       // Get player and input state
       const player = gameObjectManager.getPlayer();
@@ -1852,6 +1679,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // Skip all physics updates when game is paused (dialog active, etc.)
       if (isGamePaused) {
+        canvasControlsRef.current?.releaseAll();
         return; // Skip rest of update, but render will still happen
       }
 
@@ -1877,42 +1705,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         
         // Player update is now handled by PlayerComponent via gameObjectManager.update()
         
-        // Check button collisions BEFORE gameObjectManager.update() so ButtonAnimationComponent
-        // can see the HIT_REACT + DEPRESS state in the same frame
-        const playerPos = player.getPosition();
-        const playerVel = player.getVelocity();
-        const playerBottom = playerPos.y + player.height;
-        const playerLeft = playerPos.x;
-        const playerRight = playerPos.x + player.width;
-        
-        gameObjectManager.forEach((obj) => {
-          if (obj === player || !obj.isVisible() || obj.type !== 'button') return;
-          
-          const objPos = obj.getPosition();
-          // Button pressable area is the top 16px (vulnerability volume is 0,0,32,16)
-          const buttonRect = {
-            x: objPos.x,
-            y: objPos.y,
-            width: obj.width,
-            height: 16,
-          };
-          
-          // Check horizontal overlap
-          const horizontalOverlap = playerRight > buttonRect.x && 
-                                   playerLeft < buttonRect.x + buttonRect.width;
-          
-          // Check if player's feet are touching button's top area
-          const verticalContact = playerBottom >= buttonRect.y && 
-                                 playerBottom <= buttonRect.y + buttonRect.height + 8;
-          
-          // Player must be moving down or stationary (not jumping up through button)
-          const isLanding = playerVel.y >= 0;
-          
-          if (horizontalOverlap && verticalContact && isLanding) {
-            obj.setCurrentAction(ActionType.HIT_REACT);
-            obj.lastReceivedHitType = HitType.DEPRESS;
-          }
-        });
+        // Buttons receive Andou's DEPRESS volume through the same collision
+        // pipeline as possessed brobots; no second, differently placed AABB.
       }
 
       // Update all game objects (use gameDelta so game freezes during pause-on-attack)
@@ -1942,17 +1736,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           const previousGhostComponent = previousGhost.getComponent(
             GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
           );
-          if (previousGhostComponent?.isReleased() && previousGhost.type === 'enemy') {
-            // Reverse the swap that possessed it: the GhostComponent goes out
-            // and the AI comes back. ChangeComponentsComponent ping-pongs, so
-            // activating it a second time undoes the first.
-            previousGhost.removeComponent(previousGhostComponent);
-            const swap = previousGhost.getComponent(
-              ChangeComponentsComponent as unknown as new (...args: unknown[]) => ChangeComponentsComponent
-            );
-            if (swap?.getCurrentlySwapped()) {
-              swap.activate(previousGhost);
-            }
+          if (!previousGhostComponent || previousGhostComponent.isReleased()) {
+            // releaseControl restores surviving targets itself, including
+            // emplacements that are not classified as enemies.
             previousGhost.lastReceivedHitType = HitType.INVALID;
             activeGhostRef.current = null;
           } else if (previousGhost.life <= 0 || previousGhost.isMarkedForRemoval()) {
@@ -1962,8 +1748,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
         if (playerComp?.ghostActive && activeGhostRef.current === null) {
           const factory = systemRegistryRef.current?.gameObjectFactory;
-          const position = player.getPosition();
-          const ghost = factory?.spawnGhost(position.x, position.y, getInventory().rubyCount) ?? null;
+          const ghost = factory?.spawnPlayerGhost(player, getInventory().rubyCount) ?? null;
           if (ghost) {
             activeGhostRef.current = ghost;
             cameraSystem.setTarget(ghost);
@@ -2005,6 +1790,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
       }
       
+      canvasControlsRef.current?.setOrbControlMode(activeGhostRef.current?.type === 'ghost');
+
       // Update temporary collision surfaces (moving platforms, doors, etc.)
       // This must happen after gameObjectManager.update() so objects can submit their surfaces,
       // and before collision checks so the surfaces are active
@@ -2156,6 +1943,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               setLevelLoading(true); // Mark level as loading
               // Reload the level system
               levelSys.loadLevel(nextLevelId).then((success) => {
+                if (signal.aborted || levelSystemRef.current !== levelSys) return;
                 if (!success) {
                   setLevelLoading(false);
                   levelTransitionInProgressRef.current = false;
@@ -2183,6 +1971,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 
                 // Store new spawn position
                 playerSpawnRef.current = { ...levelSys.playerSpawnPosition };
+                beginLevelAttempt(nextLevelId);
                 // Reset player position
                 const spawn = levelSys.playerSpawnPosition;
                 
@@ -2195,25 +1984,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   newPlayer.getVelocity().y = 0;
                 }
                 
-                // Update camera bounds for new level
-                const cameraSystem = systemRegistryRef.current?.cameraSystem;
-                if (cameraSystem) {
-                  // A new level: clear the previous one's camera state first. A cutscene
-                  // NPC that still holds focus makes every setTarget() below a silent
-                  // no-op - see the note at the initial level-load path.
-                  cameraSystem.reset();
-                  systemRegistryRef.current?.timeSystem?.clearScale();
-                  cameraSystem.setBounds({
-                    minX: 0,
-                    minY: 0,
-                    maxX: levelSys.getLevelWidth(),
-                    maxY: levelSys.getLevelHeight(),
-                  });
-                  if (newPlayer) {
-                    cameraSystem.setTarget(newPlayer);
-                    cameraSystem.setPosition(spawn.x, spawn.y);
-                  }
-                }
                 
                 setLevelLoading(false); // Mark level as loaded
                 levelTransitionInProgressRef.current = false;
@@ -2277,7 +2047,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               // Reload current level
               const levelSys = levelSystemRef.current;
               if (levelSys) {
-                levelSys.loadLevel(currentLevelRef.current).then(() => {
+                levelSys.loadLevel(currentLevelRef.current).then((success) => {
+                  if (signal.aborted || levelSystemRef.current !== levelSys) return;
+                  if (!success) { goToMainMenu(); return; }
                   // Initialize tile map renderer for level
                   const parsedLevel = levelSys.getParsedLevel();
                   if (parsedLevel && tileMapRendererRef.current) {
@@ -2286,7 +2058,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   
                   const spawn = levelSys.playerSpawnPosition;
                   playerSpawnRef.current = { ...spawn };
-                  resetPlayerState();
+                  beginLevelAttempt(currentLevelRef.current);
                   
                   const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
                   gameObjectMgr?.commitUpdates();
@@ -2385,7 +2157,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                     timeSystem.applyScale(WIN_TIME_SCALE, WIN_TIME_SCALE_DURATION, true);
 
                     setTimeout(() => {
-                      completeLevel();
+                      if (!signal.aborted) completeLevel();
                     }, WIN_COMPLETE_DELAY_MS);
                   }
                 }
@@ -2393,6 +2165,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 setInventory({ pearls: inv.pearls + 1, score: inv.score + 5 });
                 soundSystem.playSfx(SoundEffects.GEM2, 0.5);
               } else if (obj.type === 'diary') {
+                const diaryEntry = collectNextDiary(currentLevelRef.current);
+                if (!diaryEntry) return;
                 const newDiaryCount = inv.diaryCount + 1;
                 setInventory({ diaryCount: newDiaryCount, score: inv.score + 50 });
                 soundSystem.playSfx(SoundEffects.DING, 0.5);
@@ -2402,12 +2176,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   canvasHUDRef.current.showToast(UIStrings.diary_found, false); // Short duration
                 }
                 
-                // Save diary collection to persistent store
-                storeCollectDiary(currentLevelRef.current, newDiaryCount);
-                
                 // Show diary overlay with entry content
                 const canvasDiary = canvasDiaryRef.current;
-                const diaryEntry = getDiaryByCollectionOrder(newDiaryCount);
                 if (canvasDiary && diaryEntry) {
                   // Pause the game while showing diary
                   playerComponent.currentState = PlayerState.FROZEN;
@@ -2735,6 +2505,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         canvasDialog.render();
       }
       
+      // Original HUD fades cover the world/HUD and deliver their event only
+      // at full black; a separate cutscene then draws over the transition.
+      screenFade.update(displayDelta);
+      if (ctx) screenFade.render(ctx, width, height);
+
       // Update and render Canvas Cutscene (if active)
       const canvasCutscene = canvasCutsceneRef.current;
       if (canvasCutscene && canvasCutscene.isActive()) {
@@ -2790,17 +2565,31 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     setIsInitialized(true);
 
-    // NOTE: Game loop is started by initializeGame() after level loads
-    // This prevents rendering before tiles are ready
+    // Start only after the loop's callbacks are configured. It stays stopped
+    // until assets and the level have finished loading.
+    initializeGame().catch((error) => {
+      if (signal.aborted) return;
+      console.error('[InitializeGame] Unhandled error:', error);
+      setStartupError(error instanceof Error ? error.message : 'Could not start the game.');
+    });
 
     // Cleanup
     return (): void => {
+      initialization.abort();
+      backgroundLoader.dispose();
+      screenFade.clear();
+      levelSystem.dispose();
+      if (levelSystemRef.current === levelSystem) levelSystemRef.current = null;
       hasShownIntroDialogRef.current = false; // Reset for strict mode double-render
       gameLoop.stop();
+      canvasDiaryRef.current?.hide();
+      canvasDialogRef.current?.hide();
+      canvasControlsRef.current?.detach();
+      canvasCutsceneRef.current?.stop();
       inputSystem.destroy();
       soundSystem.destroy();
     };
-  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, goToMainMenu, recordAutomaticLevelCompletion, resetPlayerState, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.isLinearMode, storeRecordLevelAttempt, storeCollectDiary]);
+  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, goToMainMenu, recordAutomaticLevelCompletion, beginLevelAttempt, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.isLinearMode, startupAttempt]);
 
   // Handle resize
   useEffect(() => {
@@ -2839,6 +2628,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   // Handle pause key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
+      // The diary owns navigation/close keys while it is on screen.
+      if (canvasDiaryRef.current?.isVisible()) return;
       if (e.code === 'Escape' || e.code === 'KeyP') {
         if (state.gameState === GameState.PLAYING) {
           pauseGame();
@@ -2890,7 +2681,18 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }}
         />
         
-        {/* All UI is now Canvas-based, rendered in the game loop */}
+        {/* Startup recovery must remain usable while the canvas loop is stopped. */}
+        {startupError && (
+          <div role="alert" style={{ position: 'absolute', inset: 0, background: '#1a1a2e', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 20, textAlign: 'center' }}>
+            <h2 style={{ margin: 0 }}>Unable to load game</h2>
+            <p style={{ margin: 0 }}>{startupError}</p>
+            <p style={{ margin: 0 }}>Check your connection, then retry.</p>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button type="button" onClick={(): void => setStartupAttempt(attempt => attempt + 1)}>Retry</button>
+              <button type="button" onClick={goToMainMenu}>Main menu</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

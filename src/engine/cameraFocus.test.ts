@@ -91,28 +91,19 @@ describe('camera focus', () => {
     expect(camera.getTarget()).toBe(player);
   });
 
-  test('every level-load path clears the camera before aiming it', () => {
-    // Game.tsx sets the camera up in several places - initial load, two level
-    // transitions, a respawn - and each one calls setBounds() and then aims at
-    // the new player. Any of them that forgets to clear first inherits a
-    // cutscene NPC's focus and silently ignores its own setTarget(), which is
-    // how this shipped broken. Four of the five sites had no reset at all.
+  test('every level-load path uses the shared attempt and view setup', () => {
+    // Behavior is exercised with real campaign loads in LevelView.test.ts.
+    // Keep a wiring guard here so a new Game load path cannot quietly bypass it.
     const source = readFileSync(
       join(import.meta.dir, '../components/Game.tsx'),
       'utf8'
     );
-    const lines = source.split('\n');
-    const missing: number[] = [];
-    lines.forEach((line, index) => {
-      if (!line.includes('cameraSystem.setBounds({')) return;
-      // The reset must appear in the few lines immediately before it.
-      const preceding = lines.slice(Math.max(0, index - 8), index).join('\n');
-      if (!preceding.includes('cameraSystem.reset()')) missing.push(index + 1);
-    });
-    expect(missing, `camera setup without a reset at Game.tsx line(s) ${missing.join(', ')}`)
-      .toEqual([]);
-    // Guard against the check silently matching nothing if the code moves.
-    const sites = lines.filter((l) => l.includes('cameraSystem.setBounds({')).length;
-    expect(sites).toBeGreaterThanOrEqual(4);
+    const loads = source.match(/\.loadLevel\(/g) ?? [];
+    const setups = source.match(/\bbeginLevelAttempt\(/g) ?? [];
+    expect(loads).toHaveLength(7);
+    expect(setups).toHaveLength(loads.length);
+    const sharedSetup = source.slice(source.indexOf('const beginLevelAttempt ='), source.indexOf('const [isInitialized'));
+    expect(sharedSetup).toContain('focusLevelCamera(level, gameObjectManager, camera, height)');
+    expect(sharedSetup).toContain('backgroundLoaderRef.current?.load(');
   });
 });

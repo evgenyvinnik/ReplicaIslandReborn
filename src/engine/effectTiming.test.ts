@@ -1,12 +1,9 @@
 /**
  * Effect frame timing, checked against the original.
  *
- * EffectsSystem gave every effect one flat `frameDuration`, but several of the
- * original's are deliberately uneven. The big smoke puff is the clearest: it
- * runs through its four shape frames at 24fps and then sits on a single frame
- * for another 51 frames while it disperses - a two-second life. Flattened to
- * one rate it flashed past in a fifth of a second, which is why smoke in this
- * port never looked like smoke.
+ * Big smoke chooses one of five animations: hold 01, then disperse through
+ * 02–05. The five first-frame holds belong to separate animations, not one
+ * 55-frame sequence. Tests must preserve that distinction from the Java source.
  *
  * Numbers are the `Utils.framesToTime(24, n)` arguments in the matching
  * spawnEffect* function of GameObjectFactory.java.
@@ -31,11 +28,15 @@ function lifetimeOf(type: EffectType): number {
 }
 
 describe('effect timing', () => {
-  test('big smoke lingers instead of flashing past', () => {
-    // 4 shape frames + 10 + 13 + 8 + 5 + 15 = 55 frames at 24fps.
-    const seconds = lifetimeOf(EffectType.SMOKE_BIG);
-    expect(seconds).toBeGreaterThan(1.8);
-    expect(seconds).toBeLessThan(2.7);
+  test('big smoke selects one of the five original first-frame holds', () => {
+    const random = Math.random;
+    try {
+      for (const [variant, hold] of [10, 13, 8, 5, 15].entries()) {
+        Math.random = (): number => (variant + 0.5) / 5;
+        const seconds = lifetimeOf(EffectType.SMOKE_BIG);
+        expect(Math.abs(seconds - (hold + 4) / 24)).toBeLessThanOrEqual(1 / 60 + 1e-8);
+      }
+    } finally { Math.random = random; }
   });
 
   test('small smoke holds its first frame then rushes', () => {
@@ -58,9 +59,11 @@ describe('effect timing', () => {
     expect(giant).toBeGreaterThan(large);
   });
 
-  test('smoke outlasts the explosion that usually accompanies it', () => {
-    expect(lifetimeOf(EffectType.SMOKE_BIG))
-      .toBeGreaterThan(lifetimeOf(EffectType.EXPLOSION_LARGE));
+  test('a delayed frame consumes elapsed animation time instead of extending effects', () => {
+    const system = new EffectsSystem();
+    system.spawn(EffectType.EXPLOSION_SMALL, 0, 0);
+    system.update(1);
+    expect(system.getActiveCount()).toBe(0);
   });
 
   test('a crush flash is two layers, one behind the object and one in front', () => {

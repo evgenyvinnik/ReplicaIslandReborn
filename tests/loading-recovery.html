@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Loading recovery verification</title>
+<link rel="stylesheet" href="/src/index.css">
+<style>
+  #test-controls { position: fixed; top: 8px; left: 8px; z-index: 100; color: white; background: #232638; padding: 12px; font: 14px system-ui; }
+  #test-controls button { padding: 6px 10px; margin-right: 8px; }
+</style>
+<aside id="test-controls">
+  <p>Development-only: real App, isolated in-memory save storage.</p>
+  <button id="fail">Fail collision loading</button>
+  <button id="restore">Restore requests</button>
+  <span id="status" role="status">Requests work normally</span>
+  <p>Timed keyboard-input checks (use after dismissing dialogue):</p>
+  <button id="right">Right 0.6s</button>
+  <button id="left">Left 0.6s</button>
+  <button id="fly">Fly 0.6s</button>
+  <button id="right-fly">Right + fly 0.6s</button>
+  <button id="left-fly">Left + fly 0.6s</button>
+  <button id="long-fly">Fly 1.5s</button>
+  <button id="stomp">Stomp</button>
+  <button id="orb">Charge orb 1s</button>
+  <span id="input-status" role="status">Input ready</span>
+  <p><button id="orb-up">Charge orb + drag pad up</button><span id="orb-status" role="status">Orb pad not checked</span></p>
+  <p>Staged scenario: load lab (ID 2), dismiss its intro, then place Andou near the original green gate. No terrain or gate state is changed.</p>
+  <button id="gate-left">Place left of green gate</button>
+  <button id="gate-right">Place right of green button</button>
+  <span id="gate-status" role="status">Gate scenario not staged</span>
+</aside>
+<div id="root"></div>
+<script type="module">
+  import React from 'react';
+  import { createRoot } from 'react-dom/client';
+  import App from '../src/App.tsx';
+  import { useGameStore } from '../src/stores/useGameStore.ts';
+  import { sSystemRegistry } from '../src/engine/SystemRegistry.ts';
+  import { SpriteComponent } from '../src/entities/components/SpriteComponent.ts';
+  import { resetPlayerRuntimeState } from '../src/entities/resetPlayerRuntimeState.ts';
+  // Copy the initial save into memory. Test attempts never persist to the user's save.
+  const memory = new Map();
+  useGameStore.persist.setOptions({ storage: {
+    getItem: key => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, value),
+    removeItem: key => memory.delete(key),
+  } });
+  let fail = false;
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (fail && url.endsWith('/assets/collision.json')) {
+      document.querySelector('#status').textContent = 'Collision request failed (503)';
+      return Promise.resolve(new Response(null, { status: 503 }));
+    }
+    return originalFetch(input, init);
+  };
+  document.querySelector('#fail').onclick = () => {
+    fail = true;
+    document.querySelector('#status').textContent = 'Collision failure armed';
+  };
+  document.querySelector('#restore').onclick = () => {
+    fail = false;
+    document.querySelector('#status').textContent = 'Requests restored — Retry should load the game';
+  };
+  // Exercise the actual InputSystem event listeners, without changing actor state.
+  let inputRunning = false;
+  function hold(codes, duration = 600) {
+    if (inputRunning) return;
+    inputRunning = true;
+    document.querySelector('#input-status').textContent = 'Input running';
+    const keyFor = code => code === 'Space' ? ' ' : code === 'KeyX' ? 'x' : code;
+    for (const code of codes) window.dispatchEvent(new KeyboardEvent('keydown', { code, key: keyFor(code) }));
+    setTimeout(() => {
+      for (const code of codes) window.dispatchEvent(new KeyboardEvent('keyup', { code, key: keyFor(code) }));
+      inputRunning = false;
+      document.querySelector('#input-status').textContent = 'Input complete';
+    }, duration);
+  }
+  document.querySelector('#right').onclick = () => hold(['ArrowRight']);
+  document.querySelector('#left').onclick = () => hold(['ArrowLeft']);
+  document.querySelector('#fly').onclick = () => hold(['Space']);
+  document.querySelector('#right-fly').onclick = () => hold(['ArrowRight', 'Space']);
+  document.querySelector('#left-fly').onclick = () => hold(['ArrowLeft', 'Space']);
+  document.querySelector('#long-fly').onclick = () => hold(['Space'], 1500);
+  document.querySelector('#stomp').onclick = () => hold(['KeyX'], 100);
+  document.querySelector('#orb').onclick = () => hold(['KeyX'], 1000);
+  document.querySelector('#orb-up').onclick = () => {
+    if (inputRunning) return;
+    const canvas = document.querySelector('#root canvas');
+    if (!canvas) return;
+    inputRunning = true;
+    const status = document.querySelector('#orb-status');
+    status.textContent = 'Charging orb, then holding the visible pad upward';
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', key: 'x' }));
+    setTimeout(() => {
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', key: 'x' }));
+      const orb = sSystemRegistry.gameObjectManager?.getActiveObjects().find(o => o.type === 'ghost');
+      if (!orb) {
+        status.textContent = 'No orb spawned — dismiss dialogue and try again';
+        inputRunning = false;
+        return;
+      }
+      // Read actor state only; steering goes through real canvas mouse listeners.
+      const startY = orb.getPosition().y;
+      let minY = startY;
+      let sawUp = false;
+      let sampling = true;
+      const rect = canvas.getBoundingClientRect();
+      const point = { button: 0, buttons: 1, clientX: rect.left + rect.width * 84 / 480,
+        clientY: rect.top + rect.height * 190 / 320 };
+      canvas.dispatchEvent(new MouseEvent('mousedown', point));
+      const sample = () => {
+        if (!sampling) return;
+        minY = Math.min(minY, orb.getPosition().y);
+        sawUp ||= sSystemRegistry.inputSystem?.getInputState().up ?? false;
+        requestAnimationFrame(sample);
+      };
+      sample();
+      setTimeout(() => {
+        window.dispatchEvent(new MouseEvent('mouseup', { ...point, buttons: 0 }));
+        sampling = false;
+        status.textContent = `Pad check complete: up=${sawUp}; start y=${startY.toFixed(1)}; minimum y=${minY.toFixed(1)}; released=${!sSystemRegistry.inputSystem?.getInputState().up}`;
+        inputRunning = false;
+      }, 600);
+    }, 1000);
+  };
+  let gateStaged = false;
+  const gateFrames = new Set();
+  function stageGate(x) {
+    const player = sSystemRegistry.gameObjectManager?.getPlayer();
+    if (!player || sSystemRegistry.levelSystem?.getCurrentLevelId() !== 2) {
+      document.querySelector('#gate-status').textContent = 'Load lab ID 2 first';
+      return;
+    }
+    resetPlayerRuntimeState(player);
+    // Shipped green door: x736, feet y96; button: x768, feet y96.
+    player.setPosition(x, 96 - player.height);
+    sSystemRegistry.cameraSystem?.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
+    gateFrames.clear();
+    gateStaged = true;
+  }
+  document.querySelector('#gate-left').onclick = () => stageGate(696);
+  document.querySelector('#gate-right').onclick = () => stageGate(812);
+  function reportGate() {
+    if (gateStaged) {
+      const manager = sSystemRegistry.gameObjectManager;
+      const gate = manager?.getActiveObjects().find(o => o.type === 'door' && o.subType === 'green');
+      const frame = gate?.getComponent(SpriteComponent)?.getCurrentDraw()?.sprite;
+      if (frame) gateFrames.add(frame);
+      const x = manager?.getPlayer()?.getPosition().x;
+      document.querySelector('#gate-status').textContent = `${frame ?? 'Gate out of view'}; player x=${x?.toFixed(1)}; observed ${[...gateFrames].join(', ')}`;
+    }
+    requestAnimationFrame(reportGate);
+  }
+  requestAnimationFrame(reportGate);
+  createRoot(document.querySelector('#root')).render(React.createElement(React.StrictMode, null, React.createElement(App)));
+</script>
+</html>

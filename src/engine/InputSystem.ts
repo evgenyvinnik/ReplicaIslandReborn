@@ -6,6 +6,8 @@
 import type { InputState } from '../types';
 
 export interface InputConfig {
+  /** Disable legacy window-wide gestures when canvas controls own touch input. */
+  touchGestures: boolean;
   keyBindings: {
     left: string[];
     right: string[];
@@ -27,10 +29,17 @@ const DEFAULT_KEY_BINDINGS: InputConfig['keyBindings'] = {
   pause: ['Escape', 'KeyP'],
 };
 
+const GAMEPAD_BINDINGS = {
+  left: 'GamepadLeft', right: 'GamepadRight', up: 'GamepadUp', down: 'GamepadDown',
+  jump: 'GamepadA', attack: 'GamepadB', pause: 'GamepadStart',
+} as const;
+
 export class InputSystem {
   private keys: Set<string> = new Set();
   private keysPressedThisFrame: Set<string> = new Set();
   private keysReleasedThisFrame: Set<string> = new Set();
+  private pendingKeyPresses: Set<string> = new Set();
+  private pendingKeyReleases: Set<string> = new Set();
   private keyBindings: InputConfig['keyBindings'];
 
   // Touch state
@@ -47,6 +56,8 @@ export class InputSystem {
 
   // Gamepad state
   private gamepadIndex: number = -1;
+  private gamepadHorizontal = 0;
+  private readonly touchGestures: boolean;
 
   // Listeners bound for cleanup
   private boundKeyDown: (e: KeyboardEvent) => void;
@@ -59,6 +70,7 @@ export class InputSystem {
   private boundBlur: () => void;
 
   constructor(config?: Partial<InputConfig>) {
+    this.touchGestures = config?.touchGestures ?? true;
     this.keyBindings = { ...DEFAULT_KEY_BINDINGS, ...config?.keyBindings };
 
     // Bind event handlers
@@ -78,10 +90,12 @@ export class InputSystem {
   initialize(): void {
     window.addEventListener('keydown', this.boundKeyDown);
     window.addEventListener('keyup', this.boundKeyUp);
-    window.addEventListener('touchstart', this.boundTouchStart, { passive: false });
-    window.addEventListener('touchmove', this.boundTouchMove, { passive: false });
-    window.addEventListener('touchend', this.boundTouchEnd);
-    window.addEventListener('touchcancel', this.boundTouchEnd);
+    if (this.touchGestures) {
+      window.addEventListener('touchstart', this.boundTouchStart, { passive: false });
+      window.addEventListener('touchmove', this.boundTouchMove, { passive: false });
+      window.addEventListener('touchend', this.boundTouchEnd);
+      window.addEventListener('touchcancel', this.boundTouchEnd);
+    }
     window.addEventListener('gamepadconnected', this.boundGamepadConnected);
     window.addEventListener('gamepaddisconnected', this.boundGamepadDisconnected);
     window.addEventListener('blur', this.boundBlur);
@@ -106,9 +120,16 @@ export class InputSystem {
    * Update input state (call at start of each frame)
    */
   update(): void {
-    // Clear per-frame state
-    this.keysPressedThisFrame.clear();
-    this.keysReleasedThisFrame.clear();
+    // Browser events arrive between simulation steps. Publish them for one
+    // step before clearing, including taps pressed and released between ticks.
+    const previousPresses = this.keysPressedThisFrame;
+    const previousReleases = this.keysReleasedThisFrame;
+    this.keysPressedThisFrame = this.pendingKeyPresses;
+    this.keysReleasedThisFrame = this.pendingKeyReleases;
+    this.pendingKeyPresses = previousPresses;
+    this.pendingKeyReleases = previousReleases;
+    this.pendingKeyPresses.clear();
+    this.pendingKeyReleases.clear();
 
     // Update gamepad state
     this.updateGamepad();
@@ -142,6 +163,9 @@ export class InputSystem {
     // report a whole -1 or 1, as a d-pad does.
     if (Math.abs(this.virtualJoystickX) > 0.001) {
       state.horizontal = Math.max(-1, Math.min(1, this.virtualJoystickX));
+    } else if (this.gamepadHorizontal !== 0 &&
+      ![...this.keyBindings.left, ...this.keyBindings.right].some(key => this.keys.has(key))) {
+      state.horizontal = this.gamepadHorizontal;
     } else {
       state.horizontal = (state.right ? 1 : 0) - (state.left ? 1 : 0);
     }
@@ -160,8 +184,9 @@ export class InputSystem {
     if (action === 'attack' && this.keys.has('VirtualAttack')) {
       return true;
     }
+    if (action === 'jump' && this.keys.has('VirtualJump')) return true;
     
-    return keyActive;
+    return keyActive || this.keys.has(GAMEPAD_BINDINGS[action]);
   }
 
   /**
@@ -169,7 +194,10 @@ export class InputSystem {
    */
   isActionPressed(action: keyof typeof DEFAULT_KEY_BINDINGS): boolean {
     const keys = this.keyBindings[action];
-    return keys.some((key) => this.keysPressedThisFrame.has(key));
+    return keys.some((key) => this.keysPressedThisFrame.has(key)) ||
+      this.keysPressedThisFrame.has(GAMEPAD_BINDINGS[action]) ||
+      (action === 'jump' && this.keysPressedThisFrame.has('VirtualJump')) ||
+      (action === 'attack' && this.keysPressedThisFrame.has('VirtualAttack'));
   }
 
   /**
@@ -177,7 +205,14 @@ export class InputSystem {
    */
   isActionReleased(action: keyof typeof DEFAULT_KEY_BINDINGS): boolean {
     const keys = this.keyBindings[action];
-    return keys.some((key) => this.keysReleasedThisFrame.has(key));
+    return keys.some((key) => this.keysReleasedThisFrame.has(key)) ||
+      this.keysReleasedThisFrame.has(GAMEPAD_BINDINGS[action]) ||
+      (action === 'jump' && this.keysReleasedThisFrame.has('VirtualJump')) ||
+      (action === 'attack' && this.keysReleasedThisFrame.has('VirtualAttack'));
+  }
+
+  isGamepadPausePressed(): boolean {
+    return this.keysPressedThisFrame.has(GAMEPAD_BINDINGS.pause);
   }
 
   /**
@@ -187,10 +222,13 @@ export class InputSystem {
     this.keys.clear();
     this.keysPressedThisFrame.clear();
     this.keysReleasedThisFrame.clear();
+    this.pendingKeyPresses.clear();
+    this.pendingKeyReleases.clear();
     this.touchActive = false;
     this.touchJump = false;
     this.virtualJoystickX = 0;
     this.virtualJoystickY = 0;
+    this.gamepadHorizontal = 0;
   }
 
   /**
@@ -242,22 +280,15 @@ export class InputSystem {
    */
   setVirtualButton(button: 'jump' | 'attack' | 'fly' | 'stomp', pressed: boolean): void {
     // 'fly' maps to jump, 'stomp' maps to attack
-    if (button === 'jump' || button === 'fly') {
-      this.touchJump = pressed;
-    }
-    // For stomp/attack, we simulate key press
-    if (button === 'attack' || button === 'stomp') {
-      if (pressed) {
-        if (!this.keys.has('VirtualAttack')) {
-          this.keys.add('VirtualAttack');
-          this.keysPressedThisFrame.add('VirtualAttack');
-        }
-      } else {
-        if (this.keys.has('VirtualAttack')) {
-          this.keys.delete('VirtualAttack');
-          this.keysReleasedThisFrame.add('VirtualAttack');
-        }
-      }
+    this.queueKey(button === 'jump' || button === 'fly' ? 'VirtualJump' : 'VirtualAttack', pressed);
+  }
+
+  private queueKey(key: string, pressed: boolean): void {
+    if (pressed && !this.keys.has(key)) {
+      this.keys.add(key);
+      this.pendingKeyPresses.add(key);
+    } else if (!pressed && this.keys.delete(key)) {
+      this.pendingKeyReleases.add(key);
     }
   }
 
@@ -269,17 +300,11 @@ export class InputSystem {
       e.preventDefault();
     }
 
-    if (!this.keys.has(e.code)) {
-      this.keys.add(e.code);
-      this.keysPressedThisFrame.add(e.code);
-    }
+    this.queueKey(e.code, true);
   }
 
   private handleKeyUp(e: KeyboardEvent): void {
-    if (this.keys.has(e.code)) {
-      this.keys.delete(e.code);
-      this.keysReleasedThisFrame.add(e.code);
-    }
+    this.queueKey(e.code, false);
   }
 
   private handleTouchStart(e: TouchEvent): void {
@@ -331,61 +356,57 @@ export class InputSystem {
   private handleGamepadDisconnected(e: GamepadEvent): void {
     if (this.gamepadIndex === e.gamepad.index) {
       this.gamepadIndex = -1;
+      this.clearGamepad();
     }
   }
 
   private updateGamepad(): void {
-    if (this.gamepadIndex < 0) return;
-
-    const gamepads = navigator.getGamepads();
-    const gamepad = gamepads[this.gamepadIndex];
-    if (!gamepad) return;
-
-    // D-pad or left stick for movement
-    const deadzone = 0.2;
-
-    // Left stick
-    if (Math.abs(gamepad.axes[0]) > deadzone) {
-      if (gamepad.axes[0] < 0) {
-        this.keys.add('GamepadLeft');
-      } else {
-        this.keys.add('GamepadRight');
-      }
-    } else {
-      this.keys.delete('GamepadLeft');
-      this.keys.delete('GamepadRight');
+    let gamepads: (globalThis.Gamepad | null)[] = [];
+    try {
+      if (typeof navigator !== 'undefined' && navigator.getGamepads) gamepads = navigator.getGamepads();
+    } catch {
+      // Browsers can deny controller access; keyboard and touch must keep working.
     }
-
-    if (Math.abs(gamepad.axes[1]) > deadzone) {
-      if (gamepad.axes[1] < 0) {
-        this.keys.add('GamepadUp');
-      } else {
-        this.keys.add('GamepadDown');
-      }
-    } else {
-      this.keys.delete('GamepadUp');
-      this.keys.delete('GamepadDown');
+    const selected = gamepads[this.gamepadIndex];
+    const gamepad = selected?.connected ? selected : gamepads.find(pad => pad?.connected);
+    if (!gamepad) {
+      this.gamepadIndex = -1;
+      this.clearGamepad();
+      return;
     }
+    // Polling also discovers a controller connected before this game mounted.
+    this.gamepadIndex = gamepad.index;
+    const axis = (value: number | undefined): number =>
+      value !== undefined && Number.isFinite(value) && Math.abs(value) > 0.2 ? Math.max(-1, Math.min(1, value)) : 0;
+    const pressed = (index: number): boolean => gamepad.buttons[index]?.pressed ?? false;
+    const dpadX = Number(pressed(15)) - Number(pressed(14));
+    const dpadY = Number(pressed(13)) - Number(pressed(12));
+    const x = pressed(14) || pressed(15) ? dpadX : axis(gamepad.axes[0]);
+    const y = pressed(12) || pressed(13) ? dpadY : axis(gamepad.axes[1]);
+    this.gamepadHorizontal = x;
+    this.setGamepadKey('left', x < 0);
+    this.setGamepadKey('right', x > 0);
+    this.setGamepadKey('up', y < 0);
+    this.setGamepadKey('down', y > 0);
+    this.setGamepadKey('jump', pressed(0));
+    this.setGamepadKey('attack', pressed(1) || pressed(2));
+    this.setGamepadKey('pause', pressed(9));
+  }
 
-    // A button for jump (usually index 0)
-    if (gamepad.buttons[0]?.pressed) {
-      this.keys.add('GamepadA');
-    } else {
-      this.keys.delete('GamepadA');
+  private setGamepadKey(action: keyof typeof GAMEPAD_BINDINGS, held: boolean): void {
+    const key = GAMEPAD_BINDINGS[action];
+    if (held && !this.keys.has(key)) {
+      this.keys.add(key);
+      this.keysPressedThisFrame.add(key);
+    } else if (!held && this.keys.delete(key)) {
+      this.keysReleasedThisFrame.add(key);
     }
+  }
 
-    // B/X button for attack (usually index 1 or 2)
-    if (gamepad.buttons[1]?.pressed || gamepad.buttons[2]?.pressed) {
-      this.keys.add('GamepadB');
-    } else {
-      this.keys.delete('GamepadB');
-    }
-
-    // Start button for pause (usually index 9)
-    if (gamepad.buttons[9]?.pressed) {
-      this.keys.add('GamepadStart');
-    } else {
-      this.keys.delete('GamepadStart');
+  private clearGamepad(): void {
+    this.gamepadHorizontal = 0;
+    for (const action of Object.keys(GAMEPAD_BINDINGS) as (keyof typeof GAMEPAD_BINDINGS)[]) {
+      this.setGamepadKey(action, false);
     }
   }
 

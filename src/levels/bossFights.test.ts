@@ -44,6 +44,7 @@ import { ActionType, Team } from '../types';
 import type { CutsceneType } from '../data/cutscenes';
 import { TimeSystem } from '../engine/TimeSystem';
 import { TheSourceComponent } from '../entities/components/TheSourceComponent';
+import { ScreenFade } from '../engine/ScreenFade';
 import type { EffectsSystem } from '../engine/EffectsSystem';
 
 const originalFetch = globalThis.fetch;
@@ -101,6 +102,7 @@ async function loadBossLevel(onBossDeath?: (ending: string) => void): Promise<Ar
   // never get a target velocity.
   sSystemRegistry.register(hotSpots, 'hotSpot');
   sSystemRegistry.channelSystem = new ChannelSystem();
+  sSystemRegistry.screenFade = new ScreenFade();
 
   expect(await levelSystem.loadLevel(resourceToLevelId[BOSS_LEVEL])).toBe(true);
   manager.commitUpdates();
@@ -375,6 +377,7 @@ describe('boss death posts its ending cutscene', () => {
       arena.time.update(1 / 60);
       source.update(1 / 60, arena.time.getGameTime());
       arena.collision.update(1 / 60);
+      sSystemRegistry.screenFade!.update(1 / 60);
     };
     for (let hit = 0; hit < 3; hit++) {
       // Factory shots carry the real team, attack sphere and hit reaction.
@@ -407,7 +410,11 @@ describe('boss death posts its ending cutscene', () => {
     expect(source.getPosition().y - startY).toBeCloseTo(29 * 20, 5);
     expect(explosions.length).toBeGreaterThan(200);
     expect(new Set(explosions)).toEqual(new Set(['giant']));
-    for (let i = 0; i < 3 * 60; i++) frame();
+    for (let i = 0; i < 90; i++) frame();
+    expect(endings).toEqual([]);
+    expect(sSystemRegistry.screenFade!.getOpacity()).toBeGreaterThan(0);
+    expect(sSystemRegistry.screenFade!.getOpacity()).toBeLessThan(1);
+    for (let i = 0; i < 90; i++) frame();
     expect(endings).toEqual(['WANDA_ENDING']);
   });
 
@@ -438,12 +445,18 @@ describe('boss death posts its ending cutscene', () => {
         boss.setLastTouchedFloorTime(time);
         boss.getVelocity().set(0, 0);
         npc.update(1 / 60, boss);
+        sSystemRegistry.screenFade!.update(1 / 60);
         gameFlowEvent.update();
+        if (frame === 300) {
+          expect(events).toEqual([]); // 4s death delay, then a 1.5s fade.
+          expect(sSystemRegistry.screenFade!.getOpacity()).toBeGreaterThan(0);
+          expect(sSystemRegistry.screenFade!.getOpacity()).toBeLessThan(1);
+        }
       }
       gameFlowEvent.removeListener(listener);
 
       const animations = events.filter((e) => e.event === GameFlowEventType.SHOW_ANIMATION);
-      expect(animations.length).toBeGreaterThan(0);
+      expect(animations).toHaveLength(1);
       expect(animations[0].index).toBe(expected as unknown as CutsceneType);
     });
   }

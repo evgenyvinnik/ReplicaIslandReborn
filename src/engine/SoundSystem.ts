@@ -150,6 +150,7 @@ export class SoundSystem {
   };
 
   private initialized: boolean = false;
+  private destroyed: boolean = false;
   private suspended: boolean = false;
 
   constructor() {
@@ -160,7 +161,7 @@ export class SoundSystem {
    * Initialize the audio context (must be called after user interaction)
    */
   async initialize(): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized || this.destroyed) return;
 
     try {
       this.audioContext = new AudioContext();
@@ -220,6 +221,7 @@ export class SoundSystem {
       }
       
       const arrayBuffer = await response.arrayBuffer();
+      if (this.destroyed) return;
       
       // Check if we got actual audio data (at least a few bytes)
       if (arrayBuffer.byteLength < 100) {
@@ -230,6 +232,7 @@ export class SoundSystem {
       }
       
       const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      if (this.destroyed) return;
 
       this.sounds.set(name, {
         buffer: audioBuffer,
@@ -421,12 +424,15 @@ export class SoundSystem {
       }
       
       const arrayBuffer = await response.arrayBuffer();
+      if (this.destroyed) return false;
       if (arrayBuffer.byteLength < 100) {
         // console.log('Music file too small or empty');
         return false;
       }
       
-      this.musicBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      const buffer = await this.audioContext.decodeAudioData(arrayBuffer);
+      if (this.destroyed) return false;
+      this.musicBuffer = buffer;
       this.startPendingMusic();
       return true;
     } catch {
@@ -459,6 +465,7 @@ export class SoundSystem {
         duration?: number;
         notes?: Array<{ time: number; duration: number; pitch: number; velocity: number }>;
       };
+      if (this.destroyed) return false;
       const notes = score.notes ?? [];
       if (notes.length === 0) return false;
 
@@ -477,7 +484,9 @@ export class SoundSystem {
         this.renderNote(offline, master, note);
       }
 
-      this.musicBuffer = await offline.startRendering();
+      const buffer = await offline.startRendering();
+      if (this.destroyed) return false;
+      this.musicBuffer = buffer;
       this.startPendingMusic();
       return true;
     } catch {
@@ -666,6 +675,7 @@ export class SoundSystem {
    * Cleanup
    */
   destroy(): void {
+    this.destroyed = true;
     this.stopAll();
     this.stopBackgroundMusic();
     this.musicBuffer = null;
@@ -681,6 +691,7 @@ export class SoundSystem {
    * Preload all game sounds
    */
   async preloadAllSounds(): Promise<void> {
+    if (this.destroyed) return;
     const soundFiles = [
       'deep_clang',
       'ding',
@@ -713,10 +724,12 @@ export class SoundSystem {
     );
 
     await Promise.all(loadPromises);
+    if (this.destroyed) return;
     
     // Background music. Prefer a real audio file if one has been dropped in,
     // otherwise synthesize the original's bwv_115.mid from its converted score.
     const loadedAudioFile = await this.loadBackgroundMusic(assetPath('/assets/sounds/music.ogg'));
+    if (this.destroyed) return;
     if (!loadedAudioFile) {
       await this.loadBackgroundMusicScore(assetPath('/assets/sounds/bwv_115.json'));
     }

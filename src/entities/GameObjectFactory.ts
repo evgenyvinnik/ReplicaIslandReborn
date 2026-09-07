@@ -30,7 +30,8 @@ import {
   selectEnemyAttackVolumes,
 } from './enemyCollisionProfiles';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
-import { SortConstants } from '../engine/SortConstants';
+import { drawPriorityFor } from '../data/objectDrawPriority';
+import { BIG_SMOKE_FRAMES, bigSmokeFrameTimes } from '../data/smokeAnimation';
 import {
   SimpleCollisionComponent,
   setSimpleCollisionSystemRegistry,
@@ -76,6 +77,8 @@ export enum GameObjectType {
   CANNON = 'cannon',
   CRUSHER = 'crusher',
   SMOKE_POOF = 'smoke_poof',
+  SMOKE_BIG = 'smoke_big',
+  SMOKE_SMALL = 'smoke_small',
   GEM = 'gem',
   BREAKABLE_BLOCK = 'breakable_block',
   TURRET = 'turret',
@@ -225,6 +228,12 @@ export class GameObjectFactory {
       case GameObjectType.SMOKE_POOF:
         this.configureSmokePoof(obj);
         break;
+      case GameObjectType.SMOKE_BIG:
+        this.configureSmokeParticle(obj, true);
+        break;
+      case GameObjectType.SMOKE_SMALL:
+        this.configureSmokeParticle(obj, false);
+        break;
       case GameObjectType.GHOST:
         this.configureGhost(obj);
         break;
@@ -252,10 +261,7 @@ export class GameObjectFactory {
    * need the same treatment LevelSystem gives level-placed objects.
    */
   private attachObjectSprite(obj: GameObject): void {
-    // Runtime projectiles must draw above actors, just like level-placed ones.
-    if (obj.type === 'projectile') {
-      obj.getComponent(SpriteComponent)?.setPriority(SortConstants.PROJECTILE);
-    }
+    obj.getComponent(SpriteComponent)?.setPriority(drawPriorityFor(obj));
     if (obj.getComponent(SpriteComponent)?.getCurrentAnimation()) return;
 
     const animation = createObjectAnimation(obj.type, obj.width, obj.height, obj.subType);
@@ -263,7 +269,7 @@ export class GameObjectFactory {
 
     const sprite = obj.getComponent(SpriteComponent) ?? new SpriteComponent();
     if (!obj.getComponent(SpriteComponent)) obj.addComponent(sprite);
-    if (obj.type === 'projectile') sprite.setPriority(SortConstants.PROJECTILE);
+    sprite.setPriority(drawPriorityFor(obj));
     if (this.renderSystem) sprite.setRenderSystem(this.renderSystem);
     sprite.addAnimation(animation.name ?? obj.type, animation);
     sprite.playAnimation(animation.name ?? obj.type);
@@ -273,6 +279,7 @@ export class GameObjectFactory {
    * Configure the player character
    */
   private configurePlayer(obj: GameObject): void {
+    obj.type = 'player';
     // spawnPlayer: object.activationRadius = mAlwaysActive.
     obj.activationRadius = ALWAYS_ACTIVE;
     obj.team = Team.PLAYER;
@@ -450,30 +457,50 @@ export class GameObjectFactory {
    * Configure smoke poof effect
    */
   private configureSmokePoof(obj: GameObject): void {
-    // spawnEffectSmokeBig: object.activationRadius = mTightActivationRadius.
     obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.team = Team.NONE;
-    obj.width = 32;
-    obj.height = 32;
+    obj.type = 'effect';
+    obj.subType = 'smoke_poof';
+    obj.width = obj.height = 1;
+    obj.life = 1;
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(0.5);
+    obj.addComponent(lifetime);
+    // Original spawnSmokePoof is an invisible emitter with two three-shot guns.
+    for (const type of [GameObjectType.SMOKE_BIG, GameObjectType.SMOKE_SMALL]) {
+      obj.addComponent(new LaunchProjectileComponent({
+        objectTypeToSpawn: type, setsPerActivation: 1, projectilesInSet: 3,
+        delayBetweenShots: 0, velocityX: 200, velocityY: -200,
+        offsetX: 16, offsetY: 16, thetaError: 1,
+      }));
+    }
+  }
+
+  private configureSmokeParticle(obj: GameObject, big: boolean): void {
+    obj.activationRadius = big ? TIGHT_ACTIVATION_RADIUS : ALWAYS_ACTIVE;
+    obj.team = Team.NONE;
+    obj.type = 'effect';
+    obj.subType = big ? 'smoke_big' : 'smoke_small';
+    const size = big ? 32 : 16;
+    obj.width = obj.height = size;
     obj.life = 1;
 
-    // Add sprite with one-shot animation
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('smoke');
-      sprite.setRenderSystem(this.renderSystem);
-      sprite.addAnimation('poof', {
-        frames: [
-          { x: 0, y: 0, width: 32, height: 32, duration: 0.08 },
-          { x: 32, y: 0, width: 32, height: 32, duration: 0.08 },
-          { x: 64, y: 0, width: 32, height: 32, duration: 0.08 },
-          { x: 96, y: 0, width: 32, height: 32, duration: 0.08 },
-        ],
-        loop: false,
-      });
-      sprite.playAnimation('poof');
-      obj.addComponent(sprite);
-    }
+    const holds = big ? bigSmokeFrameTimes() : [10, 1, 1, 1, 1];
+    const frames = big ? BIG_SMOKE_FRAMES : [1, 2, 3, 4, 5].map(n => `effect_smoke_small0${n}.png`);
+    const sprite = new SpriteComponent();
+    if (this.renderSystem) sprite.setRenderSystem(this.renderSystem);
+    sprite.addAnimation('poof', {
+      frames: frames.map((name, i) => ({
+        sprite: name, x: 0, y: 0, width: size, height: size, duration: holds[i] / 24,
+      })),
+      loop: false,
+    });
+    sprite.playAnimation('poof');
+    obj.addComponent(sprite);
+    obj.addComponent(new MovementComponent());
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(holds.reduce((sum, frames) => sum + frames, 0) / 24);
+    obj.addComponent(lifetime);
   }
 
   /**
@@ -914,33 +941,16 @@ export class GameObjectFactory {
     obj.height = 64;
     obj.life = 1;
 
-    // Add sprite component (ghost sprite)
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('ghost');
-      sprite.setRenderSystem(this.renderSystem);
-      sprite.addAnimation('float', {
-        frames: [
-          { x: 0, y: 0, width: 32, height: 32, duration: 0.1 },
-        ],
-        loop: true,
-      });
-      sprite.playAnimation('float');
-      obj.addComponent(sprite);
-    }
-
-    // Add physics for movement
-    const physics = this.componentPools.physics.allocate();
-    if (physics) {
-      physics.setUseGravity(false);  // Ghost floats, no gravity
-      physics.setMaxVelocity(300, 300);  // Allow movement in all directions
-      obj.addComponent(physics);
-    }
+    // attachObjectSprite supplies the four energy-ball frames. ghost.png is
+    // an unused android image, not the possession orb.
+    // GhostComponent's acceleration is a steering rate, consumed by Movement.
+    // PhysicsComponent would also add it as a constant down-right force.
 
     // Add movement component
     const movement = this.componentPools.movement.allocate();
     if (movement) {
-      // MovementComponent doesn't have setMaxSpeed, velocity is handled by physics
+      if (this.collisionSystem) movement.setCollisionSystem(this.collisionSystem);
+      movement.setBounciness(0.6);
       obj.addComponent(movement);
     }
 
@@ -955,9 +965,9 @@ export class GameObjectFactory {
 
     // Add ghost component for possession behavior
     const ghost = new GhostComponent({
-      movementSpeed: 200,
+      movementSpeed: 2000,
       jumpImpulse: 250,
-      acceleration: 500,
+      acceleration: 700,
       useOrientationSensor: true,  // Allow free movement in all directions
       delayOnRelease: 0.3,
       killOnRelease: true,  // Remove ghost when released
@@ -969,9 +979,14 @@ export class GameObjectFactory {
     obj.addComponent(ghost);
   }
 
-  /**
-   * Spawn a ghost at the player's position with gem-based duration
-   */
+  /** Align the orb with Andou's sprite centre and feet, converting Y-up spawn placement. */
+  spawnPlayerGhost(player: GameObject, gemCount: number): GameObject | null {
+    const position = player.getPosition();
+    return this.spawnGhost(position.x + player.width / 2 - 32,
+      position.y + player.height - 64, gemCount);
+  }
+
+  /** Spawn an orb at a Y-down top-left position with gem-based duration. */
   spawnGhost(playerX: number, playerY: number, gemCount: number): GameObject | null {
     const ghost = this.spawn(GameObjectType.GHOST, playerX, playerY);
     if (ghost) {
