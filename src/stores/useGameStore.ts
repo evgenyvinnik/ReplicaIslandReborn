@@ -479,10 +479,9 @@ export const useGameStore = create<GameStore>()(
       },
 
       resetEverything: () => {
-        // First, clear the persisted storage to ensure a clean slate
-        localStorage.removeItem('replica-island-save-data');
-        
-        // Then reset all state to defaults
+        // Persist middleware replaces the saved payload through its configured
+        // adapter. A direct localStorage delete would bypass that adapter,
+        // potentially erase a different save, and fail when access is denied.
         set({
           settings: DEFAULT_SETTINGS,
           progress: DEFAULT_PROGRESS,

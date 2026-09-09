@@ -79,6 +79,7 @@ export enum GameObjectType {
   SMOKE_POOF = 'smoke_poof',
   SMOKE_BIG = 'smoke_big',
   SMOKE_SMALL = 'smoke_small',
+  DUST = 'dust',
   GEM = 'gem',
   BREAKABLE_BLOCK = 'breakable_block',
   TURRET = 'turret',
@@ -233,6 +234,9 @@ export class GameObjectFactory {
         break;
       case GameObjectType.SMOKE_SMALL:
         this.configureSmokeParticle(obj, false);
+        break;
+      case GameObjectType.DUST:
+        this.configureDust(obj);
         break;
       case GameObjectType.GHOST:
         this.configureGhost(obj);
@@ -501,6 +505,37 @@ export class GameObjectFactory {
     const lifetime = new LifetimeComponent();
     lifetime.setTimeUntilDeath(holds.reduce((sum, frames) => sum + frames, 0) / 24);
     obj.addComponent(lifetime);
+  }
+
+  /** Original spawnDust: stationary, five 24 FPS frames, removed after 0.3s. */
+  private configureDust(obj: GameObject): void {
+    obj.type = 'effect';
+    obj.subType = 'dust';
+    obj.team = Team.NONE;
+    obj.width = obj.height = 32;
+    obj.life = 1;
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
+    obj.destroyOnDeactivation = true;
+    const sprite = new SpriteComponent();
+    if (this.renderSystem) sprite.setRenderSystem(this.renderSystem);
+    sprite.addAnimation('dust', {
+      frames: [1, 2, 3, 4, 5].map(n => ({
+        sprite: `dust0${n}.png`, x: 0, y: 0, width: 32, height: 32, duration: 1 / 24,
+      })),
+      loop: false,
+    });
+    sprite.playAnimation('dust');
+    obj.addComponent(sprite);
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(0.3);
+    obj.addComponent(lifetime);
+  }
+
+  /** Spawn a dust puff at a Canvas-space top-left position. */
+  spawnDust(x: number, y: number, flipHorizontal: boolean): GameObject | null {
+    const dust = this.spawn(GameObjectType.DUST, x, y);
+    if (dust) dust.facingDirection.x = flipHorizontal ? -1 : 1;
+    return dust;
   }
 
   /**

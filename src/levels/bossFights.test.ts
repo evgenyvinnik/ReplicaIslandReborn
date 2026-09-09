@@ -237,6 +237,9 @@ describe('boss fight composition', () => {
       const target = boss.getPosition();
       let time = 0;
       for (let hit = 0; hit < 3 && boss.life > 0; hit++) {
+        // This stages separate attacks; do not carry the previous stomp's
+        // completed landing/recovery state into the next sweep.
+        component.reset();
         reaction?.setInvincible(false);
         // Sweep him down through the boss while stomping, as a landed stomp does.
         for (let i = 0; i < 40 && boss.life > startLife - hit - 1; i++) {

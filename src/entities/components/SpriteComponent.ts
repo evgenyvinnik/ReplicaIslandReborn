@@ -233,6 +233,14 @@ export class SpriteComponent extends GameComponent {
    */
   update(deltaTime: number, parent: GameObject): void {
     if (!this.currentAnimation) return;
+    if (this.currentAnimation.frames.length === 0) {
+      // An explicit empty animation (Andou's FROZEN) is not a missing frame
+      // definition: the original clears both drawing and collision here.
+      this.animationComplete = true;
+      const collision = this.collisionComponent ?? parent.getComponent(DynamicCollisionComponent);
+      collision?.setCollisionVolumes(null, null);
+      return;
+    }
 
     // Update animation frame
     this.frameTimer += Math.max(0, deltaTime);
@@ -263,6 +271,7 @@ export class SpriteComponent extends GameComponent {
 
   override render(parent: GameObject): void {
     if (!this.currentAnimation || !this.renderSystem || !this.visible) return;
+    if (this.currentAnimation.frames.length === 0) return;
 
     const frameData = this.currentAnimation.frames[this.currentFrame];
     // A frame may name its own image; the port's art is individual files rather
@@ -347,6 +356,7 @@ export class SpriteComponent extends GameComponent {
     offsetY: number;
     priority: number;
   } | null {
+    if (this.currentAnimation?.frames.length === 0) return null;
     const frameData = this.currentAnimation?.frames[this.currentFrame];
     const sprite = frameData?.sprite ?? this.spriteName;
     if (!sprite) return null;

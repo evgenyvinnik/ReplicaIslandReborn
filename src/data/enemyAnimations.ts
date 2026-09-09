@@ -185,9 +185,9 @@ const ENEMY_ART: Record<string, EnemyArt> = {
   turret: {
     width: 64,
     height: 64,
-    // The original idles on the closed barrel alone.
-    idle: ['object_gunturret_idle'],
-    idleFrameTimes: [1],
+    // spawnObjectTurret holds frame 01 for one second, then briefly closes.
+    idle: ['object_gunturret01', 'object_gunturret_idle'],
+    idleFrameTimes: [24, 1],
     attack: [
       'object_gunturret02', 'object_gunturret01',
       'object_gunturret03', 'object_gunturret01',

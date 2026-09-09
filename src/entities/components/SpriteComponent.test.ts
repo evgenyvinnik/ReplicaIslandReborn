@@ -102,6 +102,30 @@ describe('SpriteComponent per-frame data', () => {
     expect(collision.getVulnerabilityVolumes()).toBeNull();
   });
 
+  test('an empty animation clears collision and drawing, then restores both on return', () => {
+    const body = [new AABoxCollisionVolume(0, 0, 32, 32, HitType.HIT)];
+    sprite.setSprite('fallback-body');
+    sprite.addAnimation('idle', {
+      frames: [frame('idle01', 1, { attackVolumes: body, vulnerabilityVolumes: body })],
+      loop: false,
+    });
+    sprite.addAnimation('frozen', { frames: [], loop: false });
+    sprite.playAnimation('idle');
+    sprite.update(0, object);
+    expect(collision.getAttackVolumes()).toBe(body);
+    sprite.playAnimation('frozen');
+    sprite.update(1, object);
+    expect(collision.getAttackVolumes()).toBeNull();
+    expect(collision.getVulnerabilityVolumes()).toBeNull();
+    expect(sprite.getCurrentDraw()).toBeNull();
+    expect(sprite.animationFinished()).toBe(true);
+    sprite.playAnimation('idle');
+    sprite.update(0, object);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('idle01');
+    expect(collision.getAttackVolumes()).toBe(body);
+    expect(collision.getVulnerabilityVolumes()).toBe(body);
+  });
+
   test('a one-shot animation finishes after the last frame duration, not on entry', () => {
     sprite.addAnimation('attack', {
       frames: [frame('attack01', 0.1), frame('attack02', 0.2)],

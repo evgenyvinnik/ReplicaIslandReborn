@@ -2307,22 +2307,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
       }
 
-      // Camera shake on landing from high jump or stomp
-      if (playerComponent.stomping && playerComponent.touchingGround && !playerComponent.stompLanded) {
-        const cameraSys = systemRegistryRef.current?.cameraSystem;
-        if (cameraSys) {
-          cameraSys.shake(PlayerComponent.STOMP_SHAKE_MAGNITUDE, PlayerComponent.STOMP_VIBRATE_TIME);
-        }
-        // Vibrate device - removed as not in SystemRegistry
-        /*
-        const vibrationSys = systemRegistryRef.current?.vibrationSystem;
-        if (vibrationSys) {
-          vibrationSys.vibrate(PlayerComponent.STOMP_VIBRATE_TIME * 1000);
-        }
-        */
-        playerComponent.stompLanded = true; // Mark stomp as landed to prevent repeated shakes
-      }
-
     });
 
     // Render callback

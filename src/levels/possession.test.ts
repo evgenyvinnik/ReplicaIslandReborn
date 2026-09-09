@@ -39,6 +39,7 @@ import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
+import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { HitType, ActionType } from '../types';
 import type { GameObject } from '../entities/GameObject';
@@ -119,6 +120,7 @@ test('holding attack on the ground charges and spawns the ghost', async () => {
 
   expect(component.ghostActive, 'the ghost never charged').toBe(true);
   expect(component.currentState).toBe(PlayerState.FROZEN);
+  expect(player.getCurrentAction()).toBe(ActionType.FROZEN);
 
   // Game.tsx's half: spawn the ghost object.
   const ghost = rig.factory.spawnPlayerGhost(player, 0);
@@ -179,6 +181,63 @@ test('the ghost survives long enough to be steered anywhere', async () => {
   }
   expect(ghost.width, 'the ghost was culled once the camera moved away').toBe(64);
 }, 30_000);
+
+test('a grounded player can charge and steer an orb into a shipped ceiling turret', async () => {
+  const rig = await loadLevel('level_3_3_sewer');
+  const player = rig.manager.getPlayer()!;
+  const component = player.getComponent(PlayerComponent)!;
+  component.setSystems(rig.input, rig.collision, rig.sound, rig.levelSystem);
+  // Existing floor at y256, below the unchanged ceiling-mounted turrets.
+  player.setPosition(1280, 256 - player.height);
+  rig.camera.setTarget(player);
+  rig.camera.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
+  const tick = (): void => {
+    rig.time.update(FRAME);
+    rig.manager.update(FRAME, rig.time.getGameTime());
+    rig.collision.updateTemporarySurfaces();
+    rig.oc.update(FRAME);
+  };
+  for (let frame = 0; frame < 30; frame++) tick();
+  expect(player.touchingGround()).toBe(true);
+  const turrets = rig.manager.getActiveObjects().filter(object => object.subType === 'turret');
+  expect(turrets.length).toBeGreaterThan(0);
+  rig.input.setVirtualButton('attack', true);
+  for (let frame = 0; frame < 90 && !component.ghostActive; frame++) tick();
+  expect(component.ghostActive).toBe(true);
+  const body = player.getComponent(DynamicCollisionComponent)!;
+  const sprite = player.getComponent(SpriteComponent)!;
+  expect(body.getAttackVolumes()).toBeNull();
+  expect(body.getVulnerabilityVolumes()).toBeNull();
+  expect(sprite.getCurrentDraw()).toBeNull();
+  const orb = rig.factory.spawnPlayerGhost(player, 0)!;
+  rig.manager.commitUpdates();
+  rig.input.setVirtualButton('attack', false);
+  rig.input.setVirtualAxis('vertical', -1);
+  let target: GameObject | undefined;
+  for (let frame = 0; frame < 120 && !target; frame++) {
+    tick();
+    target = turrets.find(turret => turret.getComponent(GhostClass));
+  }
+  expect(target, `Orb at ${orb.getPosition().x},${orb.getPosition().y} never reached ceiling turret`).toBeDefined();
+  expect(target!.lastReceivedHitType).toBe(HitType.POSSESS);
+  // Complete the same handoff Game performs after collision; do not move the orb.
+  orb.getComponent(GhostClass)!.transferControl(orb);
+  rig.input.setVirtualAxis('vertical', 0);
+  const lifeWhilePossessed = player.life;
+  // Keep the real enemies and their projectiles running. The frozen body's
+  // stale charge-frame vulnerability previously let Andou die during control.
+  for (let frame = 0; frame < 600; frame++) tick();
+  expect(player.life).toBe(lifeWhilePossessed);
+  expect(component.ghostActive).toBe(true);
+  expect(body.getVulnerabilityVolumes()).toBeNull();
+  target!.getComponent(GhostClass)!.releaseControl(target!);
+  expect(component.ghostActive).toBe(false);
+  expect(target!.life).toBeGreaterThan(0);
+  for (let frame = 0; frame < 120 && component.currentState !== PlayerState.MOVE; frame++) tick();
+  tick();
+  expect(sprite.getCurrentDraw()).not.toBeNull();
+  expect(body.getVulnerabilityVolumes()).not.toBeNull();
+});
 
 test('brobots release on death and turrets support repeated possession and release', async () => {
   // The original calls setPossessionComponent in exactly two spawn functions:

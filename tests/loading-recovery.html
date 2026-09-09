@@ -4,7 +4,7 @@
 <title>Loading recovery verification</title>
 <link rel="stylesheet" href="/src/index.css">
 <style>
-  #test-controls { position: fixed; top: 8px; left: 8px; z-index: 100; color: white; background: #232638; padding: 12px; font: 14px system-ui; }
+  #test-controls { position: fixed; top: 8px; left: 8px; z-index: 100; color: white; background: #232638; padding: 12px; font: 14px system-ui; max-width: calc(100vw - 16px); max-height: 220px; overflow: auto; box-sizing: border-box; }
   #test-controls button { padding: 6px 10px; margin-right: 8px; }
 </style>
 <aside id="test-controls">
@@ -27,6 +27,7 @@
   <button id="gate-left">Place left of green gate</button>
   <button id="gate-right">Place right of green button</button>
   <span id="gate-status" role="status">Gate scenario not staged</span>
+  <p><button id="possession-stage">Place below sewer turrets (ID 24)</button><span id="possession-status" role="status">Possession scenario not staged</span></p>
 </aside>
 <div id="root"></div>
 <script type="module">
@@ -36,6 +37,8 @@
   import { useGameStore } from '../src/stores/useGameStore.ts';
   import { sSystemRegistry } from '../src/engine/SystemRegistry.ts';
   import { SpriteComponent } from '../src/entities/components/SpriteComponent.ts';
+  import { GhostComponent } from '../src/entities/components/GhostComponent.ts';
+  import { PlayerComponent } from '../src/entities/components/PlayerComponent.ts';
   import { resetPlayerRuntimeState } from '../src/entities/resetPlayerRuntimeState.ts';
   // Copy the initial save into memory. Test attempts never persist to the user's save.
   const memory = new Map();
@@ -111,7 +114,10 @@
       canvas.dispatchEvent(new MouseEvent('mousedown', point));
       const sample = () => {
         if (!sampling) return;
-        minY = Math.min(minY, orb.getPosition().y);
+        // A transferred orb is recycled; its reset position is not movement.
+        if (orb.type === 'ghost' && sSystemRegistry.gameObjectManager?.getActiveObjects().includes(orb)) {
+          minY = Math.min(minY, orb.getPosition().y);
+        }
         sawUp ||= sSystemRegistry.inputSystem?.getInputState().up ?? false;
         requestAnimationFrame(sample);
       };
@@ -122,7 +128,7 @@
         status.textContent = `Pad check complete: up=${sawUp}; start y=${startY.toFixed(1)}; minimum y=${minY.toFixed(1)}; released=${!sSystemRegistry.inputSystem?.getInputState().up}`;
         inputRunning = false;
       }, 600);
-    }, 1000);
+    }, 1500);
   };
   let gateStaged = false;
   const gateFrames = new Set();
@@ -141,6 +147,32 @@
   }
   document.querySelector('#gate-left').onclick = () => stageGate(696);
   document.querySelector('#gate-right').onclick = () => stageGate(812);
+  let possessionStaged = false;
+  let previousControlledTurret = null;
+  let takeovers = 0;
+  let releases = 0;
+  const turretCounts = new Map();
+  const controlledFrames = new Set();
+  const muzzleShots = new Set();
+  document.querySelector('#possession-stage').onclick = () => {
+    const player = sSystemRegistry.gameObjectManager?.getPlayer();
+    if (!player || sSystemRegistry.levelSystem?.getCurrentLevelId() !== 24) {
+      document.querySelector('#possession-status').textContent = 'Load Memory #023 / level_3_3_sewer (ID 24) first';
+      return;
+    }
+    if (player.getComponent(PlayerComponent)?.ghostActive) return;
+    resetPlayerRuntimeState(player);
+    // Reset/refill Andou and place him on the existing floor just right of the
+    // five left-facing turrets. Targets, collision geometry and AI are unchanged.
+    player.setPosition(1408, 256 - player.height);
+    sSystemRegistry.cameraSystem?.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
+    possessionStaged = true;
+    previousControlledTurret = null;
+    takeovers = releases = 0;
+    turretCounts.clear();
+    controlledFrames.clear();
+    muzzleShots.clear();
+  };
   function reportGate() {
     if (gateStaged) {
       const manager = sSystemRegistry.gameObjectManager;
@@ -149,6 +181,35 @@
       if (frame) gateFrames.add(frame);
       const x = manager?.getPlayer()?.getPosition().x;
       document.querySelector('#gate-status').textContent = `${frame ?? 'Gate out of view'}; player x=${x?.toFixed(1)}; observed ${[...gateFrames].join(', ')}`;
+    }
+    if (possessionStaged) {
+      const manager = sSystemRegistry.gameObjectManager;
+      const player = manager?.getPlayer();
+      const target = sSystemRegistry.cameraSystem?.getTarget();
+      const controller = target?.getComponent?.(GhostComponent);
+      const turret = target?.subType === 'turret' && controller && !controller.isReleased() ? target : null;
+      if (turret && turret !== previousControlledTurret) {
+        takeovers++;
+        turretCounts.set(turret, (turretCounts.get(turret) ?? 0) + 1);
+      }
+      if (previousControlledTurret && !turret) releases++;
+      previousControlledTurret = turret;
+      if (turret) {
+        const frame = turret.getComponent(SpriteComponent)?.getCurrentDraw()?.sprite;
+        if (frame) controlledFrames.add(frame);
+        // Read newly emitted shots beside this rightmost, left-facing turret's
+        // muzzle. Other turrets sit to its left and fire away from this zone.
+        const p = turret.getPosition();
+        for (const shot of manager.getActiveObjects()) {
+          if (shot.subType !== 'turret_bullet') continue;
+          const q = shot.getPosition();
+          if (q.x >= p.x - 20 && q.x <= p.x + 5 && q.y >= p.y + 20 && q.y <= p.y + 70) {
+            muzzleShots.add(shot.id);
+          }
+        }
+      }
+      const maxSameTarget = Math.max(0, ...turretCounts.values());
+      document.querySelector('#possession-status').textContent = `Control=${turret ? 'turret' : target?.type ?? 'none'}; player ghost=${player?.getComponent(PlayerComponent)?.ghostActive}; player life=${player?.life}; takeovers=${takeovers}; releases=${releases}; same-target maximum=${maxSameTarget}; action=${turret?.getCurrentAction() ?? 'none'}; muzzle shots=${muzzleShots.size}; frames=${[...controlledFrames].join(',')}`;
     }
     requestAnimationFrame(reportGate);
   }

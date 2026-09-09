@@ -46,7 +46,7 @@ export type PlayerAnimationName =
   | 'idle' | 'move' | 'move_fast'
   | 'boost_up' | 'boost_move' | 'boost_move_fast'
   | 'fall' | 'fall_move' | 'fall_fast'
-  | 'stomp' | 'hit' | 'dead' | 'charge';
+  | 'stomp' | 'hit' | 'dead' | 'charge' | 'frozen';
 
 interface PlayerArt {
   frames: string[];
@@ -58,6 +58,9 @@ interface PlayerArt {
 }
 
 const PLAYER_ART: Record<PlayerAnimationName, PlayerArt> = {
+  // Original FROZEN has no frames: neither a body nor collision volumes while
+  // Andou controls an orb/enemy (including the camera's return delay).
+  frozen: { frames: [], loop: false, volumes: 'normal', durations: [] },
   // A full second per frame: Andou stands very still.
   idle: { frames: ['andou_stand'], loop: false, volumes: 'normal', durations: [IDLE_HOLD] },
   move: { frames: ['andou_diag01'], loop: false, volumes: 'normal', durations: [FRAME] },
@@ -153,6 +156,7 @@ export function createPlayerAnimations(
  * combination of state, ground contact, jets and speed.
  */
 export function selectPlayerAnimation(state: {
+  frozen?: boolean;
   hitReacting: boolean;
   dying: boolean;
   stomping: boolean;
@@ -164,6 +168,7 @@ export function selectPlayerAnimation(state: {
 }): PlayerAnimationName {
   if (state.hitReacting) return 'hit';
   if (state.dying) return 'dead';
+  if (state.frozen) return 'frozen';
   if (state.stomping) return 'stomp';
   if (state.charging) return 'charge';
 

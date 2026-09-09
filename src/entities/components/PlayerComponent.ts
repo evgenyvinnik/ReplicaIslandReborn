@@ -145,6 +145,7 @@ export class PlayerComponent extends GameComponent {
   public stompTime: number = 0;
   public stompHangTime: number = 0;
   public stompLanded: boolean = false;
+  private stompLandingTime: number = -1;
   
   public invincible: boolean = false;
   public invincibleTime: number = 0;
@@ -256,8 +257,7 @@ export class PlayerComponent extends GameComponent {
     // transition later in the same session.
     const gameTime = parent.getGameTime();
     this.stateTimer += deltaTime;
-    const acceptsPlayerInput = this.currentState === PlayerState.MOVE ||
-      this.currentState === PlayerState.STOMP;
+    const acceptsPlayerInput = this.currentState === PlayerState.MOVE;
 
     // Save previous ground state for landing detection
     this.wasTouchingGround = this.touchingGround;
@@ -265,13 +265,6 @@ export class PlayerComponent extends GameComponent {
     // Check if grounded
     this.touchingGround = parent.touchingGround();
     
-    // Detect landing
-    const justLanded = this.touchingGround && !this.wasTouchingGround;
-    if (justLanded) {
-      // TODO: Spawn dust effect via EffectsSystem (need to pass it in or use singleton)
-      // For now, we'll skip effects in this component update and handle them via events or callbacks
-    }
-
     // Refuel. Rates come from the difficulty's DifficultyConstants, and the
     // air rate is what DDA speeds up after repeated attempts at a level.
     if (this.fuel < PlayerComponent.FUEL_AMOUNT) {
@@ -382,6 +375,9 @@ export class PlayerComponent extends GameComponent {
       this.stompTime = gameTime;
       this.stompHangTime = PlayerComponent.STOMP_AIR_HANG_TIME;
       this.stompLanded = false;
+      this.stompLandingTime = -1;
+      velocity.x = 0;
+      this.rocketsOn = false;
       
       if (PlayerComponent.STOMP_AIR_HANG_TIME > 0) {
         velocity.x = 0;
@@ -403,9 +399,24 @@ export class PlayerComponent extends GameComponent {
       }
     }
 
-    // Reset stomp when landing
+    // A stomp falls straight down and ignores movement/jet input until the
+    // original's landing recovery ends.
+    if (this.stomping) velocity.x = 0;
+
+    // Emit the landing effects here, before the state changes. Checking these
+    // flags later in Game misses the transition entirely.
     if (this.stomping && this.touchingGround && !this.stompLanded) {
       this.stompLanded = true;
+      this.stompLandingTime = gameTime;
+      sSystemRegistry.cameraSystem?.shake(
+        PlayerComponent.STOMP_SHAKE_MAGNITUDE, PlayerComponent.STOMP_DELAY_TIME
+      );
+      // Original sprite is 64px wide, centred over our 32px collision body.
+      // Dust starts 16px below the feet in Y-up, hence feet - 16 in Canvas.
+      const dustX = position.x + parent.width / 2 - 32;
+      const dustY = position.y + parent.height - 16;
+      sSystemRegistry.gameObjectFactory?.spawnDust(dustX, dustY, true);
+      sSystemRegistry.gameObjectFactory?.spawnDust(dustX + 32, dustY, false);
       // The stomp's impact with the ground. The original plays `thump` here -
       // gated on the stomp action, not on landing generally - and rate-limits
       // it so a flurry of stomps does not machine-gun the clip.
@@ -415,7 +426,9 @@ export class PlayerComponent extends GameComponent {
         this.soundSystem.playSfx(SoundEffects.THUMP, 1.0, false, SoundPriority.HIGH);
         this.landThumpDelay = gameTime + LAND_THUMP_DELAY;
       }
-      // Remaining effects handled in Game.tsx (camera shake, dust)
+    }
+    if (this.stomping && this.stompLanded &&
+        gameTime - this.stompLandingTime > PlayerComponent.STOMP_DELAY_TIME) {
       this.stomping = false;
       this.currentState = PlayerState.MOVE;
     }
@@ -437,6 +450,10 @@ export class PlayerComponent extends GameComponent {
     if (this.ghostActive) {
       velocity.zero();
       parent.getTargetVelocity().zero();
+      // Movement stops, but animation must still enter FROZEN and clear the
+      // body's hitboxes before this frame's object collisions run.
+      this.updateAnimation(parent, deltaTime);
+      this.updateCurrentAction(parent);
       return;
     }
     
@@ -636,6 +653,8 @@ export class PlayerComponent extends GameComponent {
     this.updateRocketSound();
 
     const next = selectPlayerAnimation({
+      frozen: this.currentState === PlayerState.FROZEN ||
+        this.currentState === PlayerState.POST_GHOST_DELAY,
       hitReacting: this.currentState === PlayerState.HIT_REACT,
       dying: this.currentState === PlayerState.DEAD || this.isDying,
       stomping: this.stomping,
@@ -824,6 +843,7 @@ export class PlayerComponent extends GameComponent {
     this.stompTime = 0;
     this.stompHangTime = 0;
     this.stompLanded = false;
+    this.stompLandingTime = -1;
     this.invincible = false;
     this.invincibleTime = 0;
     this.lastHitTime = 0;

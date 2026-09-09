@@ -98,6 +98,9 @@ test('every breakable block the campaign ships can be broken by a stomp', async 
       if (blocks.length === 0) continue;
 
       for (const block of blocks) {
+        // Each staged contact starts a new stomp, not the previous block's
+        // already-completed landing recovery.
+        component.reset();
         const target = block.getPosition();
         camera.setPosition(target.x, target.y);
         let broken = false;

@@ -15,6 +15,8 @@ import { createEnemyAnimations } from './enemyAnimations';
 import { createObjectAnimation } from './objectAnimations';
 import { createPlayerAnimations } from './playerAnimations';
 import { EnemyAnimation } from '../entities/components/EnemyAnimationComponent';
+import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { GameObject } from '../entities/GameObject';
 import type { SpriteFrame } from '../types';
 
 /** Frame hold times back in the original's 24 FPS units. */
@@ -59,9 +61,21 @@ describe('enemy frame timing', () => {
     const attack = animations.get(EnemyAnimation.ATTACK)!;
     expect(attack.loop).toBe(true);
     expect(holdFrames(attack.frames)).toEqual([1, 1, 2, 1]);
-    // The idle is the closed barrel alone.
-    expect(animations.get(EnemyAnimation.IDLE)!.frames.map((f) => f.sprite))
-      .toEqual(['object_gunturret_idle']);
+    const idle = animations.get(EnemyAnimation.IDLE)!;
+    expect(idle.frames.map((f) => f.sprite))
+      .toEqual(['object_gunturret01', 'object_gunturret_idle']);
+    expect(holdFrames(idle.frames)).toEqual([24, 1]);
+    expect(idle.loop).toBe(true);
+    const sprite = new SpriteComponent();
+    const turret = new GameObject();
+    sprite.addAnimation('idle', idle);
+    sprite.playAnimation('idle');
+    sprite.update(0.999, turret);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('object_gunturret01');
+    sprite.update(0.001, turret);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('object_gunturret_idle');
+    sprite.update(1 / 24, turret);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('object_gunturret01');
   });
 
   test('pink namazu breathes slowly in its sleep', () => {
