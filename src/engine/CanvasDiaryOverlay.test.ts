@@ -40,6 +40,29 @@ test('log entries support keyboard scrolling/closing and touch scrolling without
     send(keys, 'keydown', { key: 'Enter' });
     expect(closes).toBe(1); // The close handler was detached.
 
+    // The mouse wheel is how this is read on a desktop, and it was the input
+    // the "can't scroll the log entries" report came from. It has to move the
+    // text and, like a touch drag, must not close the overlay.
+    overlay.show(DiaryEntries[0], () => { closes++; });
+    overlay.update(0.25);
+    labels.length = 0;
+    overlay.render();
+    const beforeWheel = labels.find((label) => label.text === 'FOUND OLD DIARY')!.y;
+    send(canvas, 'wheel', { deltaY: 120 });
+    labels.length = 0;
+    overlay.render();
+    expect(labels.find((label) => label.text === 'FOUND OLD DIARY')!.y,
+      'the wheel should scroll the entry').toBeLessThan(beforeWheel);
+    expect(overlay.isVisible(), 'the wheel must not close the overlay').toBe(true);
+    // And scrolling back up returns to the top rather than running negative.
+    send(canvas, 'wheel', { deltaY: -10000 });
+    labels.length = 0;
+    overlay.render();
+    expect(labels.find((label) => label.text === 'FOUND OLD DIARY')!.y).toBe(beforeWheel);
+    send(keys, 'keydown', { key: 'Enter' });
+    overlay.update(0.25);
+    closes--; // that close is accounted for by the wheel section
+
     overlay.show(DiaryEntries[1], () => { closes++; });
     overlay.update(0.25);
     send(canvas, 'touchstart', { touches: [{ clientY: 200 }] });
