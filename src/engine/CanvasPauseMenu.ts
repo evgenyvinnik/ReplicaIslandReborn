@@ -6,6 +6,8 @@
  */
 
 import { assetPath } from '../utils/helpers';
+import type { MenuCommand } from './CanvasMenuInput';
+import { attachModalKeyboard, detachModalKeyboard, claimModalPointer, ModalPriority } from './ModalKeyboard';
 
 export class CanvasPauseMenu {
   private ctx: CanvasRenderingContext2D;
@@ -87,12 +89,16 @@ export class CanvasPauseMenu {
   isShowing(): boolean {
     return this.isActive;
   }
+
+  handleMenuCommand(command: MenuCommand): void {
+    if (this.isActive && (command === 'confirm' || command === 'back')) this.resume();
+  }
   
   /**
    * Attach event listeners
    */
   private attach(): void {
-    window.addEventListener('keydown', this.boundHandleKeyDown);
+    attachModalKeyboard(this, ModalPriority.pause, this.boundHandleKeyDown, this.canvas);
     this.canvas.addEventListener('click', this.boundHandleClick);
     this.canvas.addEventListener('touchend', this.boundHandleClick);
   }
@@ -101,7 +107,7 @@ export class CanvasPauseMenu {
    * Detach event listeners
    */
   private detach(): void {
-    window.removeEventListener('keydown', this.boundHandleKeyDown);
+    detachModalKeyboard(this);
     this.canvas.removeEventListener('click', this.boundHandleClick);
     this.canvas.removeEventListener('touchend', this.boundHandleClick);
   }
@@ -111,6 +117,9 @@ export class CanvasPauseMenu {
    */
   private handleKeyDown(e: KeyboardEvent): void {
     e.preventDefault();
+    // One fresh press dismisses Pause; it is not also a gameplay action.
+    e.stopImmediatePropagation();
+    if (e.repeat) return;
     this.resume();
   }
   
@@ -118,7 +127,7 @@ export class CanvasPauseMenu {
    * Handle click/tap
    */
   private handleClick(e: MouseEvent | TouchEvent): void {
-    e.preventDefault();
+    if (!claimModalPointer(this, e)) return;
     this.resume();
   }
   

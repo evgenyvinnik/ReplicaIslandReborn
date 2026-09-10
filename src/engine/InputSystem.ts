@@ -4,8 +4,14 @@
  */
 
 import type { InputState } from '../types';
+import { isSurfaceActive } from './GameSurfaceActivity';
 
 export interface InputConfig {
+  surface?: globalThis.HTMLElement;
+  movementSensitivity: number; // Persisted 0-100 preference.
+  clickAttackEnabled: boolean;
+  /** A newly mounted screen must not reuse a held controller confirmation. */
+  blockInitialGamepadInput: boolean;
   /** Disable legacy window-wide gestures when canvas controls own touch input. */
   touchGestures: boolean;
   keyBindings: {
@@ -32,6 +38,7 @@ const DEFAULT_KEY_BINDINGS: InputConfig['keyBindings'] = {
 const GAMEPAD_BINDINGS = {
   left: 'GamepadLeft', right: 'GamepadRight', up: 'GamepadUp', down: 'GamepadDown',
   jump: 'GamepadA', attack: 'GamepadB', pause: 'GamepadStart',
+  clickAttack: 'GamepadStickClick',
 } as const;
 
 export class InputSystem {
@@ -41,6 +48,9 @@ export class InputSystem {
   private pendingKeyPresses: Set<string> = new Set();
   private pendingKeyReleases: Set<string> = new Set();
   private keyBindings: InputConfig['keyBindings'];
+  private movementSensitivity = 1;
+  private clickAttackEnabled = true;
+  private readonly surface?: globalThis.HTMLElement;
 
   // Touch state
   private touchActive: boolean = false;
@@ -57,7 +67,12 @@ export class InputSystem {
   // Gamepad state
   private gamepadIndex: number = -1;
   private gamepadHorizontal = 0;
+  private consumedGamepadKeys: Set<string> = new Set();
+  private focusBlockedGamepadKeys: Set<string> = new Set();
+  private focused = true;
+  private suppressNextGamepadPoll = false;
   private readonly touchGestures: boolean;
+  private readonly blockInitialGamepadInput: boolean;
 
   // Listeners bound for cleanup
   private boundKeyDown: (e: KeyboardEvent) => void;
@@ -68,10 +83,14 @@ export class InputSystem {
   private boundGamepadConnected: (e: GamepadEvent) => void;
   private boundGamepadDisconnected: (e: GamepadEvent) => void;
   private boundBlur: () => void;
+  private boundFocus: () => void;
 
   constructor(config?: Partial<InputConfig>) {
+    this.surface = config?.surface;
     this.touchGestures = config?.touchGestures ?? true;
+    this.blockInitialGamepadInput = config?.blockInitialGamepadInput ?? false;
     this.keyBindings = { ...DEFAULT_KEY_BINDINGS, ...config?.keyBindings };
+    this.setControlSettings(config ?? {});
 
     // Bind event handlers
     this.boundKeyDown = this.handleKeyDown.bind(this);
@@ -81,13 +100,24 @@ export class InputSystem {
     this.boundTouchEnd = this.handleTouchEnd.bind(this);
     this.boundGamepadConnected = this.handleGamepadConnected.bind(this);
     this.boundGamepadDisconnected = this.handleGamepadDisconnected.bind(this);
-    this.boundBlur = this.releaseAllKeys.bind(this);
+    this.boundBlur = (): void => {
+      this.focused = false;
+      this.releaseAllKeys();
+    };
+    this.boundFocus = (): void => {
+      this.focused = true;
+      // Polling may have stopped in the background. Buttons pressed there
+      // must be released before they can operate the game or a modal.
+      this.suppressNextGamepadPoll = true;
+    };
   }
 
   /**
    * Initialize input listeners
    */
   initialize(): void {
+    this.suppressNextGamepadPoll = this.blockInitialGamepadInput;
+    this.focused = window.document?.hasFocus?.() ?? true;
     window.addEventListener('keydown', this.boundKeyDown);
     window.addEventListener('keyup', this.boundKeyUp);
     if (this.touchGestures) {
@@ -99,6 +129,7 @@ export class InputSystem {
     window.addEventListener('gamepadconnected', this.boundGamepadConnected);
     window.addEventListener('gamepaddisconnected', this.boundGamepadDisconnected);
     window.addEventListener('blur', this.boundBlur);
+    window.addEventListener('focus', this.boundFocus);
   }
 
   /**
@@ -114,6 +145,7 @@ export class InputSystem {
     window.removeEventListener('gamepadconnected', this.boundGamepadConnected);
     window.removeEventListener('gamepaddisconnected', this.boundGamepadDisconnected);
     window.removeEventListener('blur', this.boundBlur);
+    window.removeEventListener('focus', this.boundFocus);
   }
 
   /**
@@ -133,6 +165,10 @@ export class InputSystem {
 
     // Update gamepad state
     this.updateGamepad();
+    if (!this.focused || this.suppressNextGamepadPoll) {
+      this.blockGamepadForFocus();
+      this.suppressNextGamepadPoll = false;
+    }
   }
 
   /**
@@ -164,13 +200,21 @@ export class InputSystem {
     if (Math.abs(this.virtualJoystickX) > 0.001) {
       state.horizontal = Math.max(-1, Math.min(1, this.virtualJoystickX));
     } else if (this.gamepadHorizontal !== 0 &&
+      !this.consumedGamepadKeys.has(this.gamepadHorizontal < 0 ? GAMEPAD_BINDINGS.left : GAMEPAD_BINDINGS.right) &&
       ![...this.keyBindings.left, ...this.keyBindings.right].some(key => this.keys.has(key))) {
       state.horizontal = this.gamepadHorizontal;
     } else {
       state.horizontal = (state.right ? 1 : 0) - (state.left ? 1 : 0);
     }
 
+    state.horizontal *= this.movementSensitivity;
     return state;
+  }
+
+  /** Android InputGameInterface KEY_FILTER/SLIDER_FILTER are both 0.25.
+   * Keep normalized UI axes separate from the magnitude consumed by actors. */
+  getDirectionalPadX(): number {
+    return this.getInputState().horizontal * 0.25;
   }
 
   /**
@@ -186,7 +230,10 @@ export class InputSystem {
     }
     if (action === 'jump' && this.keys.has('VirtualJump')) return true;
     
-    return keyActive || this.keys.has(GAMEPAD_BINDINGS[action]);
+    const padKey = GAMEPAD_BINDINGS[action];
+    return keyActive || (this.keys.has(padKey) && !this.consumedGamepadKeys.has(padKey)) ||
+      (action === 'attack' && this.clickAttackEnabled && this.isGamepadActionActive('clickAttack') &&
+        !this.consumedGamepadKeys.has(GAMEPAD_BINDINGS.clickAttack));
   }
 
   /**
@@ -195,7 +242,8 @@ export class InputSystem {
   isActionPressed(action: keyof typeof DEFAULT_KEY_BINDINGS): boolean {
     const keys = this.keyBindings[action];
     return keys.some((key) => this.keysPressedThisFrame.has(key)) ||
-      this.keysPressedThisFrame.has(GAMEPAD_BINDINGS[action]) ||
+      (this.keysPressedThisFrame.has(GAMEPAD_BINDINGS[action]) && !this.consumedGamepadKeys.has(GAMEPAD_BINDINGS[action])) ||
+      (action === 'attack' && this.clickAttackEnabled && this.isGamepadActionPressed('clickAttack')) ||
       (action === 'jump' && this.keysPressedThisFrame.has('VirtualJump')) ||
       (action === 'attack' && this.keysPressedThisFrame.has('VirtualAttack'));
   }
@@ -207,18 +255,49 @@ export class InputSystem {
     const keys = this.keyBindings[action];
     return keys.some((key) => this.keysReleasedThisFrame.has(key)) ||
       this.keysReleasedThisFrame.has(GAMEPAD_BINDINGS[action]) ||
+      (action === 'attack' && this.clickAttackEnabled && this.keysReleasedThisFrame.has(GAMEPAD_BINDINGS.clickAttack)) ||
       (action === 'jump' && this.keysReleasedThisFrame.has('VirtualJump')) ||
       (action === 'attack' && this.keysReleasedThisFrame.has('VirtualAttack'));
   }
 
   isGamepadPausePressed(): boolean {
-    return this.keysPressedThisFrame.has(GAMEPAD_BINDINGS.pause);
+    return this.isGamepadActionPressed('pause');
+  }
+
+  isGamepadActionPressed(action: keyof typeof GAMEPAD_BINDINGS): boolean {
+    const key = GAMEPAD_BINDINGS[action];
+    return this.focused && this.keysPressedThisFrame.has(key) &&
+      !this.consumedGamepadKeys.has(key) && !this.focusBlockedGamepadKeys.has(key);
+  }
+
+  isGamepadActionActive(action: keyof typeof GAMEPAD_BINDINGS): boolean {
+    const key = GAMEPAD_BINDINGS[action];
+    return this.focused && this.keys.has(key) && !this.focusBlockedGamepadKeys.has(key);
+  }
+
+  consumeGamepadForMenu(): void {
+    for (const key of Object.values(GAMEPAD_BINDINGS)) {
+      if (this.keys.has(key)) this.consumedGamepadKeys.add(key);
+    }
+  }
+
+  private blockGamepadForFocus(): void {
+    this.consumeGamepadForMenu();
+    for (const key of Object.values(GAMEPAD_BINDINGS)) {
+      if (this.keys.has(key)) this.focusBlockedGamepadKeys.add(key);
+    }
   }
 
   /**
-   * Release all keys (called on window blur, pause, etc.)
+   * Sample and block held controller controls after a menu/view handoff.
    */
+  blockHeldGamepadOnNextPoll(): void {
+    this.suppressNextGamepadPoll = true;
+  }
+
+  /** Release all keys (called on window blur, pause, etc.). */
   releaseAllKeys(): void {
+    this.blockGamepadForFocus();
     this.keys.clear();
     this.keysPressedThisFrame.clear();
     this.keysReleasedThisFrame.clear();
@@ -295,6 +374,9 @@ export class InputSystem {
   // Private event handlers
 
   private handleKeyDown(e: KeyboardEvent): void {
+    if (!isSurfaceActive(this.surface)) return;
+    // After blur/suspension a still-held key must not re-enter through OS repeat.
+    if (e.repeat && !this.keys.has(e.code)) return;
     // Prevent default for game keys
     if (this.isGameKey(e.code)) {
       e.preventDefault();
@@ -390,11 +472,18 @@ export class InputSystem {
     this.setGamepadKey('down', y > 0);
     this.setGamepadKey('jump', pressed(0));
     this.setGamepadKey('attack', pressed(1) || pressed(2));
+    // Web counterpart of the original optional navigation-center click.
+    // Kept separate from B/X so it never becomes a menu Back command.
+    this.setGamepadKey('clickAttack', pressed(10));
     this.setGamepadKey('pause', pressed(9));
   }
 
   private setGamepadKey(action: keyof typeof GAMEPAD_BINDINGS, held: boolean): void {
     const key = GAMEPAD_BINDINGS[action];
+    if (!held) {
+      this.consumedGamepadKeys.delete(key);
+      this.focusBlockedGamepadKeys.delete(key);
+    }
     if (held && !this.keys.has(key)) {
       this.keys.add(key);
       this.keysPressedThisFrame.add(key);
@@ -422,6 +511,16 @@ export class InputSystem {
    */
   setKeyBindings(bindings: Partial<InputConfig['keyBindings']>): void {
     this.keyBindings = { ...this.keyBindings, ...bindings };
+  }
+
+  /** Apply the persisted controls at startup and when preferences change. */
+  setControlSettings(settings: Partial<Pick<InputConfig, 'keyBindings' | 'movementSensitivity' | 'clickAttackEnabled'>>): void {
+    if (settings.keyBindings) this.setKeyBindings(settings.keyBindings);
+    if (settings.movementSensitivity !== undefined) {
+      this.movementSensitivity = Number.isFinite(settings.movementSensitivity)
+        ? Math.max(0, Math.min(100, settings.movementSensitivity)) / 100 : 1;
+    }
+    if (settings.clickAttackEnabled !== undefined) this.clickAttackEnabled = settings.clickAttackEnabled;
   }
 
   /**

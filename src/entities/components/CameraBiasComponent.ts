@@ -17,6 +17,7 @@ import { GameComponent } from '../GameComponent';
 import { ComponentPhase } from '../../types';
 import type { GameObject } from '../GameObject';
 import type { SystemRegistry } from '../../engine/SystemRegistry';
+import { Vector2 } from '../../utils/Vector2';
 
 // Global system registry reference
 let sSystemRegistry: SystemRegistry | null = null;
@@ -26,6 +27,8 @@ export function setCameraBiasSystemRegistry(registry: SystemRegistry): void {
 }
 
 export class CameraBiasComponent extends GameComponent {
+  private readonly anchor = new Vector2();
+
   constructor() {
     super(ComponentPhase.THINK);
   }
@@ -36,7 +39,11 @@ export class CameraBiasComponent extends GameComponent {
   update(_deltaTime: number, parent: GameObject): void {
     const camera = sSystemRegistry?.cameraSystem;
     if (camera) {
-      camera.addCameraBias(parent.getPosition());
+      // Original position is bottom-left in Y-up space. Keep that authored
+      // point after converting to Canvas coordinates, without moving the actor.
+      const position = parent.getPosition();
+      this.anchor.set(position.x, position.y + parent.height);
+      camera.addCameraBias(this.anchor);
     }
   }
 

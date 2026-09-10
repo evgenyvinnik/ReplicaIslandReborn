@@ -15,6 +15,9 @@ import { useGameContext } from '../context/GameContext';
 import { GameState } from '../types';
 import { assetPath } from '../utils/helpers';
 import { useGameStore } from '../stores/useGameStore';
+import { useMenuGamepad } from './useMenuGamepad';
+import { isSurfaceActive } from '../engine/GameSurfaceActivity';
+import { useMenuSelectionTransition } from './useMenuSelectionTransition';
 
 export type Difficulty = 'baby' | 'kids' | 'adults';
 
@@ -30,12 +33,14 @@ interface DifficultyMenuProps {
 }
 
 export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Element {
-  const { dispatch, startGame, state } = useGameContext();
+  const { dispatch, confirmNewGame } = useGameContext();
   const [selectedIndex, setSelectedIndex] = useState(1); // Default to Kids (Normal)
   const [fadeOut, setFadeOut] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const [flickeringButton, setFlickeringButton] = useState<Difficulty | null>(null);
   const loadedCount = useRef(0);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const selectionTransition = useMenuSelectionTransition();
 
   // Descriptions matching original strings.xml
   const difficultyOptions: DifficultyOption[] = useMemo(() => [
@@ -69,6 +74,14 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
 
   const handleSelect = useCallback((option: DifficultyOption): void => {
     if (fadeOut || flickeringButton) return;
+    // Claim synchronously: two input sources can arrive before React rerenders.
+    if (!selectionTransition.start(() => {
+      useGameStore.getState().addToTotalStats({ gamesStarted: 1 });
+      confirmNewGame();
+    }, () => setFadeOut(true))) return;
+
+    // Gameplay reads difficulty from the persisted store, not React config.
+    useGameStore.getState().setSetting('difficulty', option.id);
 
     // Set difficulty in config
     const difficultyMap: Record<number, 'easy' | 'normal' | 'hard'> = {
@@ -90,25 +103,25 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
       onSelect(option.id);
     }
 
-    useGameStore.getState().addToTotalStats({ gamesStarted: 1 });
-    
-    // Trigger fade out after flicker animation
-    setTimeout(() => {
-      setFadeOut(true);
-    }, 300);
-    
-    // After fade out, start the game
-    // Use level 1 (intro cutscene) for new games - state.currentLevel should be 1
-    // after startNewGame was called, but capture it here to be safe
-    const levelToStart = state.currentLevel || 1;
-    setTimeout(() => {
-      startGame(levelToStart);
-    }, 800);
-  }, [dispatch, onSelect, startGame, state.currentLevel, fadeOut, flickeringButton]);
+  }, [dispatch, onSelect, confirmNewGame, fadeOut, flickeringButton, selectionTransition]);
+
+  useMenuGamepad({ menuRef, viewKey: 'difficulty',
+    onBack: (): void => {
+      if (!fadeOut && !flickeringButton) dispatch({ type: 'SET_GAME_STATE', payload: GameState.MAIN_MENU });
+    },
+    onCommand: (command): boolean => {
+      if (fadeOut || flickeringButton) return true;
+      if (command === 'confirm') handleSelect(difficultyOptions[selectedIndex]);
+      else if (command === 'up' || command === 'left') setSelectedIndex(index => (index + difficultyOptions.length - 1) % difficultyOptions.length);
+      else if (command === 'down' || command === 'right') setSelectedIndex(index => (index + 1) % difficultyOptions.length);
+      return true;
+    },
+  });
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
+      if (!isSurfaceActive(menuRef.current)) return;
       if (fadeOut || flickeringButton) return;
       
       switch (e.key) {
@@ -148,6 +161,8 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
 
   return (
     <div
+      data-menu-layout="difficulty"
+      ref={menuRef}
       style={{
         width: '100%',
         height: '100%',
@@ -180,7 +195,13 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
           transform: 'translate(-50%, -50%)',
           backgroundColor: 'rgba(0, 0, 0, 0.6)', // #99000000 = 60% opacity black
           borderRadius: '10px',
-          padding: '40px',
+          // Original difficulty_menu.xml uses 10dp. The previous 40px and
+          // shrink-to-fit width wrapped descriptions into the navigation hint.
+          padding: '10px',
+          width: '320px',
+          maxWidth: 'calc(100% - 24px)',
+          maxHeight: 'calc(100% - 40px)',
+          overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -197,6 +218,7 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
+              flexShrink: 0,
               marginTop: index > 0 ? '15px' : '0',
               opacity: fadeOut && flickeringButton !== option.id ? 0 : 1,
               transition: 'opacity 0.3s ease-out',
@@ -249,13 +271,18 @@ export function DifficultyMenu({ onSelect }: DifficultyMenuProps): React.JSX.Ele
 
       {/* Navigation hint - for keyboard users */}
       <div
+        data-menu-hint
         style={{
           position: 'absolute',
-          bottom: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
+          bottom: '6px',
+          left: '8px',
+          right: '8px',
+          textAlign: 'center',
           fontSize: '10px',
-          color: 'rgba(255, 255, 255, 0.5)',
+          color: '#FFFFFF',
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          borderRadius: '3px',
+          padding: '2px',
           fontFamily: 'monospace',
           opacity: imagesLoaded && !fadeOut ? 1 : 0,
           transition: 'opacity 0.5s ease-in-out',

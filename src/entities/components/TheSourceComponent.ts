@@ -9,6 +9,7 @@ import { GameComponent } from '../GameComponent';
 import { ComponentPhase, ActionType } from '../../types';
 import type { GameObject } from '../GameObject';
 import { sSystemRegistry } from '../../engine/SystemRegistry';
+import { GameObjectType } from '../GameObjectFactory';
 
 // Configuration constants from original
 const SHAKE_TIME = 0.6;
@@ -17,7 +18,7 @@ const EXPLOSION_TIME = 0.1;
 const SHAKE_MAGNITUDE = 5.0;
 const SHAKE_SCALE = 300.0;
 const CAMERA_HIT_SHAKE_MAGNITUDE = 3.0;
-const SINK_SPEED = 20; // Positive = down in canvas coordinates (original used -20 for up)
+const SINK_SPEED = 20; // Down in Canvas coordinates; Android's Y-up space uses -20.
 
 export interface TheSourceConfig {
   gameEvent?: number;
@@ -90,7 +91,7 @@ export class TheSourceComponent extends GameComponent {
   update(dt: number, parent: GameObject): void {
     const currentAction = parent.getCurrentAction();
     const cameraSystem = sSystemRegistry?.cameraSystem;
-    const effectsSystem = sSystemRegistry?.effectsSystem;
+    const factory = sSystemRegistry?.gameObjectFactory;
     const gameObjectManager = sSystemRegistry?.gameObjectManager;
     
     // Handle hit reaction
@@ -136,15 +137,16 @@ export class TheSourceComponent extends GameComponent {
       
       // Spawn explosions
       this.explosionTimer -= dt;
-      if (this.explosionTimer < 0 && effectsSystem) {
+      if (this.explosionTimer < 0 && factory) {
         // Random position within the boss
         const x = (Math.random() - 0.5) * (parent.width * 0.75);
         const y = (Math.random() - 0.5) * (parent.height * 0.75);
         
-        effectsSystem.spawnExplosion(
+        factory.spawn(
+          GameObjectType.EXPLOSION_GIANT,
           parent.getPosition().x + parent.width / 2 + x,
-          parent.getPosition().y + parent.height / 2 + y,
-          'giant'
+          // Original spawn position is the blast's bottom-left, not centre.
+          parent.getPosition().y + parent.height / 2 + y - 64
         );
         
         this.explosionTimer = EXPLOSION_TIME;

@@ -77,16 +77,16 @@ export const UIStrings = {
   preference_enable_sound_summary: 'Disabling sound may improve performance on some devices.',
   // Preferences - Controls
   preference_configure_controls: 'Configure Controls',
-  preference_enable_click_attack: 'Click Attack',
-  preference_enable_click_attack_summary: 'Use the trackball click or directional pad center button to attack.',
+  preference_enable_click_attack: 'Stick Click Attack',
+  preference_enable_click_attack_summary: 'Also attack by clicking the controller left stick (L3). Keyboard, B/X and the on-screen attack button always work.',
   preference_enable_screen_controls: 'On-Screen Controls',
-  preference_enable_screen_controls_summary: 'Displays movement pad and buttons on screen. Suggested for devices without a d-pad or trackball. Requires multitouch.',
+  preference_enable_screen_controls_summary: 'Shows a movement slider and Fly/Attack buttons for touch or mouse. Use multiple fingers to move and fly together.',
   preference_movement_sensitivity: 'Motion Sensitivity',
-  preference_movement_sensitivity_summary: 'Adjusts the sensitivity of the trackball, d-pad, or optical sensor.',
+  preference_movement_sensitivity_summary: 'Adjusts horizontal movement strength for keyboard, controller and the on-screen slider. Does not change orb steering or menu navigation.',
   preference_movement_min: 'Slow',
   preference_movement_max: 'Fast',
   preference_key_config: 'Configure Keyboard',
-  preference_key_config_summary: 'Customize keys for phones with hard keyboards.',
+  preference_key_config_summary: 'Customize the keyboard keys used to move, fly and attack.',
   preference_key_config_dialog_title: 'Configure Keyboard',
   preference_key_config_dialog_ok: 'Save',
   preference_key_config_dialog_cancel: 'Cancel',
@@ -272,13 +272,16 @@ export const KyleDialogs: Record<string, string> = {
 };
 
 // Kabocha's dialog strings
+// Control instructions are adapted for web input; story content and script
+// page order remain intact. Named keyboard shortcuts are explicitly defaults
+// because players can remap them in Options.
 export const KabochaDialogs: Record<string, string> = {
   // Level 0-2
   'Kabocha_0_2_1_1': "System check looks good, unit tests are passing, bootstrap is complete! Oh jolly, he's responding!",
   'Kabocha_0_2_1_2': "Hello there, Android. I'm Dr. Woodrow Lichtenstein Kabochanomizu, your humble creator. You're going to help me find something very precious that I've been studying for most of my life: The Source.",
-  'Kabocha_0_2_1_3': "But first, we should go over some of the basics. Use the trackball or directional pad to roll left and right. You only need to make very small movements to move effectively. Try rolling down that hill.",
-  'Kabocha_0_2_2_1': "Jolly good! You learn exactly as quickly as I calculated you would. Fantastique! Remember, the trackball and directional pad are just for changing direction. You do not need to press them constantly.",
-  'Kabocha_0_2_2_2': "Now, rolling around is a pleasurable way to move, but to really travel in style you should fly. Tap the blue button on the bottom of the screen to jump, and hold it down to fly. Be careful though--your batteries can only hold you aloft for a short time before they need to recharge. Watch the meter at the top left of the screen to see your remaining flight power.",
+  'Kabocha_0_2_1_3': "But first, we should go over some of the basics. Use your movement keys (A/D or Left/Right by default), a controller's left stick, or the bottom-left slider to roll left and right. Try rolling down that hill.",
+  'Kabocha_0_2_2_1': "Jolly good! You learn exactly as quickly as I calculated you would. Fantastique! Remember, you can use the same movement controls to steer in the air. Small adjustments will help you land where you want.",
+  'Kabocha_0_2_2_2': "Now, rolling around is a pleasurable way to move, but to really travel in style you should fly. Press your jump key (Space by default) or the blue button to jump, and hold it down to fly. Be careful though--your batteries can only hold you aloft for a short time before they need to recharge. Watch the meter at the top left of the screen to see your remaining flight power.",
   'Kabocha_0_2_2_3': "Try flying up this shaft.",
   'Kabocha_0_2_3_1': "Bravo! Fantastique! It's a little scary at first, yes? Don't worry, you'll get the hang of it. The trick is to just make small movements left and right while in the air.",
   'Kabocha_0_2_3_2': "Now my friend, let us give you a more complicated test. I had my robots turn this part of the lab into something of an obstacle course. Let's see if you can make it to the other side. I'll be waiting for you there.",
@@ -287,7 +290,7 @@ export const KabochaDialogs: Record<string, string> = {
   'Kabocha_0_2_4_3': "Jolly good. Let's move on. Push the red button on the ground over there to open the door with the red mark.",
   'Kabocha_0_2_5_1': "This entire island flows from The Source. Its power affects the things that get close to it, and this island is consequently full of unique forms of life. One of them, I'm sorry to say, is my fault.",
   'Kabocha_0_2_5_2': "Years ago I released some small robots on the island in an attempt to pinpoint the exact location of The Source. The mistake I made was allowing them to replicate on their own. The Source twisted them such that I lost control, and since then they have multiplied at such a rate that the little pests have almost overrun the island.",
-  'Kabocha_0_2_5_3': "I've given you a useful maneuver to dispose of these pesky troublemakers. While in the air, press the red attack button to drop your full weight onto enemies and crush them. Give it a shot on that fellow to the left.",
+  'Kabocha_0_2_5_3': "I've given you a useful maneuver to dispose of these pesky troublemakers. While in the air, press your attack key (X by default) or the red attack button to drop your full weight onto enemies and crush them. Give it a shot on that fellow to the left.",
   'Kabocha_0_2_6_1': "Jolly good! Way to drop the hammer! (My calculations suggest that phrase is the preferred selection given the state of contemporary language) Of course, you can always just avoid these robotic cretins if you like, but you'll be doing the island a great service if you destroy them. Remember, if you get hurt you can collect pearls to restore your health and help me put a dent in my credit card bill.",
   'Kabocha_0_2_6_2': "One more important point I almost forgot to mention. Your internal battery uses red gems to synthesize power from extremely low-light conditions. I did a survey of the island and concluded that every major area has enough gems to keep you going, but it is imperative that you collect them whenever you see them. My research suggests that there should be at least three gems in each area, and to get to the next area you must collect all three.",
   'Kabocha_0_2_6_3': "Ho ho, we can't be sending you off into the wild without knowing things like that, can we? Right-o, ahead is an area with three gems. Find them and we can move on to more complicated topics, like what you're doing here and how The Source is going to help me save the world.",
@@ -295,8 +298,8 @@ export const KabochaDialogs: Record<string, string> = {
   // Level 0-3
   'Kabocha_0_3_1_1': "Jolly ho, my little creation! You are almost ready to venture out by yourself. I need to tell you about your mission, which is of critical importance to the future of this planet. But before that, let me show you a trick.",
   'Kabocha_0_3_1_2': "First, make your way through this maze. Make sure you pick up the red gem on the way.",
-  'Kabocha_0_3_2_1': "I've outfitted you with a special type of energy weapon that allows you to control machines. While standing on the ground, hold down the attack button for a few seconds to charge up the Possession Orb.",
-  'Kabocha_0_3_2_2': "Once the Possession Orb is released, you can control its movement by tilting the phone. Running it into a mechanical object will allow you to possess that object. Pressing the attack button will destroy it and return control to your body.",
+  'Kabocha_0_3_2_1': "I've outfitted you with a special type of energy weapon that allows you to control machines. While on the ground, hold your attack key (X by default) or the red attack button until the Possession Orb appears.",
+  'Kabocha_0_3_2_2': "Steer the Possession Orb in any direction with your movement keys (WASD or arrows by default), a controller's left stick, or the round on-screen pad. Touch a mechanical object with the orb to possess it. Press your attack control again (X by default, or the red button) to destroy it and return to your body.",
   'Kabocha_0_3_2_3': "Try possessing that robot down there and using him to break through those blue blocks. Here's a hint: releasing a possessed robot causes it to explode.",
   'Kabocha_0_3_3_1': "Jolly good work! You're already asymptotically equal to my best neural net model.",
   'Kabocha_0_3_3_2': "One more thing about possession: those energy orbs require a lot of power to maintain, so you can only use them for a short time if you have not collected any gems. Collecting gems will extend the amount of time the orb can survive before dissipating.",

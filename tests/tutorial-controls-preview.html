@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Web tutorial control verification</title>
+<style>
+  body { background: #202638; color: white; font: 15px system-ui; }
+  button { padding: 8px; margin: 4px; }
+  canvas { display: block; width: min(960px, 92vw, calc((100vh - 130px) * 1.5)); aspect-ratio: 3 / 2; }
+</style>
+<p>Actual tutorial pages and CanvasDialog renderer. No save or game state. Click a page below; Enter advances.</p>
+<button id="movement">Movement</button><button id="flight">Flight</button>
+<button id="stomp">Stomp</button><button id="possession">Possession</button>
+<p id="status" role="status">Choose a tutorial</p>
+<canvas width="480" height="320"></canvas>
+<script type="module">
+  import { CanvasDialog } from '../src/engine/CanvasDialog.ts';
+  import { LevelDialogs } from '../src/data/dialogs.ts';
+  const canvas = document.querySelector('canvas'), ctx = canvas.getContext('2d');
+  const dialog = new CanvasDialog(ctx, canvas, 480, 320);
+  const lab = LevelDialogs.level_0_2_dialog_kabocha;
+  const choices = {
+    movement: [lab.conversations[0].pages[2], lab.conversations[1].pages[0]],
+    flight: [lab.conversations[1].pages[1]],
+    stomp: [lab.conversations[4].pages[2]],
+    possession: LevelDialogs.level_0_3_dialog_kabocha.conversations[1].pages,
+  };
+  for (const [id, pages] of Object.entries(choices)) document.getElementById(id).onclick = () => {
+    dialog.hide();
+    const close = () => { document.querySelector('#status').textContent = `${id}: complete`; };
+    dialog.show({ conversations: [{ pages }] }, close, close);
+    document.querySelector('#status').textContent = `${id}: showing actual tutorial pages`;
+  };
+  let previous = performance.now();
+  function frame(now) {
+    ctx.fillStyle = '#101725'; ctx.fillRect(0, 0, 480, 320);
+    dialog.update(Math.min(0.1, (now - previous) / 1000)); previous = now;
+    dialog.render(); requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</html>

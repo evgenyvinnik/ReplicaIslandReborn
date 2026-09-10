@@ -84,7 +84,7 @@ export function AndroidRecentsScreen({ onResume }: AndroidRecentsScreenProps): R
         <div
           style={{
             flex: 1,
-            backgroundImage: 'url(/assets/sprites/title_background.png)',
+            backgroundImage: `url(${assetPath('/assets/sprites/title_background.png')})`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             position: 'relative',

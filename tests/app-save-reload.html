@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>App save and resume verification</title>
+<link rel="stylesheet" href="/src/index.css">
+<style>
+  aside { position: fixed; top: 8px; left: 8px; z-index: 100; padding: 10px; color: white; background: #232638; font: 14px system-ui; max-width: calc(100vw - 32px); }
+</style>
+<aside>
+  <p>Real App; isolated session-storage save. Use the normal menus, then reload.</p>
+  <p id="saved" role="status">Initializing isolated save</p>
+  <p id="loaded">No level loaded</p>
+  <p id="campaign-stats" hidden></p>
+  <div id="audio-controls" hidden>
+    <p>Audio check: hold the initial collision request, then use Home before releasing it. Real Web Audio; no actor staging.</p>
+    <button id="audio-release">Release startup request</button>
+    <button id="audio-pause">Pause / Resume (P)</button>
+    <button id="audio-skip">Skip dialogue (Escape)</button>
+    <p id="audio-load-status">Initial collision request will wait</p>
+    <p id="audio-status" role="status">Audio not initialized</p>
+  </div>
+  <div id="controller-controls" hidden>
+    <p>Simulated standard gamepad through the real App input poll; no actor staging.</p>
+    <button id="pad-a">Hold A</button><button id="pad-b">Hold B</button><button id="pad-start">Hold Start</button>
+    <button id="pad-release">Release controller</button>
+    <button id="pad-blur">Simulate blur</button><button id="pad-focus">Restore focus</button>
+    <button id="tab-hidden">Simulate hidden-tab event</button>
+    <div id="settings-controls" hidden>
+      <p>Prepared settings: H/F movement, Q fly, E attack, R pause, sensitivity 50%, stick-click attack off. Real input only; no actor staging.</p>
+      <div id="settings-keys"></div>
+      <button id="pad-right">Hold D-pad Right</button><button id="pad-click">Hold L3</button>
+      <p id="settings-status" role="status"></p>
+    </div>
+    <p id="controller-status" role="status">Ready</p>
+  </div>
+  <div id="fade-controls" hidden>
+    <p>Scripted fade test: normal opening sewer route; automatically pause its authored transition at 40% black.</p>
+    <p id="fade-status" role="status">Waiting for scripted fade</p>
+  </div>
+  <div id="clock-controls" hidden>
+    <p>Clock test: staged recovery/power-up timers, smoke and 0.1× speed; automatic hit-stop and pause.</p>
+    <button id="clock-start">Stage world-clock check</button>
+    <button id="clock-normal">Restore normal speed</button>
+    <p id="clock-status" role="status">Ready</p>
+  </div>
+  <div id="win-controls" hidden>
+    <p>Win test: prepared two-ruby inventory; teleport to a real lab ruby, then normal collision/completion.</p>
+    <button id="win-delay">Stage final ruby; pause before fade</button>
+    <button id="win-fade">Stage final ruby; pause during fade</button>
+    <p id="win-status" role="status">Ready</p>
+  </div>
+  <div id="death-controls" hidden>
+    <p>Death test: prepared lab save; staged fatal hit, real App retry.</p>
+    <button id="fatal-air">Fatal hit 96px above spawn</button>
+    <button id="defeat-enemy">Stage a fatal hit on a spawned snail</button>
+    <button id="hold-retry">Hold next level request</button>
+    <button id="release-retry">Release held request</button>
+    <button id="fail-retry">Fail held request</button>
+    <p id="death-status" role="status">Ready</p>
+  </div>
+  <div id="ending-controls" hidden>
+    <p>Ending test: prepared final-arena save; staged real enemy projectile into The Source.</p>
+    <button id="source-shot">Shoot The Source once</button>
+    <button id="boss-blast" hidden>Stage a boss hit</button>
+    <p id="ending-status" role="status">Waiting for arena</p>
+  </div>
+</aside>
+<div id="root"></div>
+<script type="module">
+  import React from 'react';
+  import { createRoot } from 'react-dom/client';
+  import { createJSONStorage } from 'zustand/middleware';
+  // Protect the player's real save even during initial auto-hydration.
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: {
+    getItem: () => null, setItem: () => {}, removeItem: () => {},
+  } });
+  let useGameStore;
+  try {
+    ({ useGameStore } = await import('../src/stores/useGameStore.ts'));
+    const scenario = new URLSearchParams(location.search).get('case');
+    const saveName = 'replica-island-app-verification-v1' + (scenario ? ':' + scenario : '');
+    const hasScenarioSave = sessionStorage.getItem(saveName) !== null;
+    useGameStore.persist.setOptions({
+      name: saveName,
+      storage: createJSONStorage(() => sessionStorage),
+    });
+    await useGameStore.persist.rehydrate();
+    if (['death', 'win', 'clock', 'controller', 'controls', 'audio'].includes(scenario) && !hasScenarioSave) {
+      useGameStore.getState().completeLevel(1, 0, 0);
+      useGameStore.getState().setCurrentLevel(2);
+    }
+    if (scenario === 'controls' && !hasScenarioSave) {
+      useGameStore.getState().updateSettings({ movementSensitivity: 50, clickAttackEnabled: false,
+        keyBindings: { left: ['KeyF'], right: ['KeyH'], up: ['ArrowUp', 'KeyW'], down: ['ArrowDown', 'KeyS'],
+          jump: ['KeyQ'], attack: ['KeyE'], pause: ['KeyR'] } });
+    }
+    if (scenario === 'fade' && !hasScenarioSave) {
+      // Only prepare an attempted-but-uncompleted opening save for Continue.
+      useGameStore.getState().setCurrentLevel(1);
+      useGameStore.getState().recordLevelAttempt(1);
+    }
+    if (scenario === 'ending-stats' && !hasScenarioSave) {
+      useGameStore.getState().addToTotalStats({ totalPlayTime: 5000, totalScore: 80000,
+        totalDeaths: 40, totalCoinsCollected: 900, totalRubiesCollected: 60,
+        totalEnemiesDefeated: 300, gamesCompleted: 1 });
+      useGameStore.getState().startNewCampaign('story');
+      // Prepared prior-level results in a second campaign, not a played route.
+      useGameStore.getState().addToTotalStats({ totalPlayTime: 65, totalScore: 120,
+        totalDeaths: 2, totalCoinsCollected: 7, totalRubiesCollected: 3, totalEnemiesDefeated: 4 });
+    }
+    if (scenario?.startsWith('ending') && !hasScenarioSave) {
+      useGameStore.getState().completeLevel(1, 0, 0);
+      useGameStore.getState().setCurrentLevel(41);
+    }
+  } finally {
+    if (descriptor) Object.defineProperty(window, 'localStorage', descriptor);
+    else delete window.localStorage;
+  }
+  const { default: App } = await import('../src/App.tsx');
+  const { sSystemRegistry } = await import('../src/engine/SystemRegistry.ts');
+  const { PlayerComponent, PlayerState } = await import('../src/entities/components/PlayerComponent.ts');
+  const { EffectType } = await import('../src/engine/EffectsSystem.ts');
+  const { HitReactionComponent } = await import('../src/entities/components/HitReactionComponent.ts');
+  const { GameObject } = await import('../src/entities/GameObject.ts');
+  const { HitType } = await import('../src/types/index.ts');
+  const { GameObjectType } = await import('../src/entities/GameObjectFactory.ts');
+  const { GameObjectTypeIndex } = await import('../src/types/GameObjectTypes.ts');
+  const { getInventory, setInventory } = await import('../src/entities/components/InventoryComponent.ts');
+  const statsCase = new URLSearchParams(location.search).get('case') === 'ending-stats';
+  const scenario = new URLSearchParams(location.search).get('case');
+  const fadeCase = scenario === 'fade';
+  if (scenario === 'audio') {
+    document.querySelector('#audio-controls').hidden = false;
+    Object.assign(document.querySelector('aside').style, { maxHeight: '240px', overflowY: 'auto' });
+    const nativeFetch = window.fetch.bind(window);
+    let releaseStartup;
+    const startupGate = new Promise(resolve => { releaseStartup = resolve; });
+    window.fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.endsWith('/assets/collision.json')) {
+        document.querySelector('#audio-load-status').textContent = 'Collision request held before audio initialization';
+        await startupGate;
+        document.querySelector('#audio-load-status').textContent = 'Collision request released';
+      }
+      return nativeFetch(input, init);
+    };
+    document.querySelector('#audio-release').onclick = () => releaseStartup();
+    for (const [id, code] of [['audio-pause', 'KeyP'], ['audio-skip', 'Escape']]) {
+      document.getElementById(id).onclick = () => {
+        const target = document.querySelector('#root canvas') ?? document.body;
+        const key = code === 'KeyP' ? 'p' : 'Escape';
+        target.dispatchEvent(new KeyboardEvent('keydown', { code, key, bubbles: true }));
+        target.dispatchEvent(new KeyboardEvent('keyup', { code, key, bubbles: true }));
+      };
+    }
+    setInterval(() => {
+      const sound = sSystemRegistry.soundSystem;
+      document.querySelector('#audio-status').textContent = sound
+        ? `Audio initialized=${sound.isInitialized()}; context=${sound.audioContext?.state ?? 'none'}; master=${sound.masterGain?.gain.value ?? '-'}; music gain=${sound.musicGain?.gain.value ?? '-'}; music playing=${sound.isMusicPlaying()}; enabled=${sound.getSoundEnabled()}`
+        : 'Audio not initialized';
+    }, 250);
+  }
+  if (scenario === 'controller' || scenario === 'controls') {
+    document.querySelector('#controller-controls').hidden = false;
+    const buttons = Array.from({ length: 17 }, () => ({ pressed: false, touched: false, value: 0 }));
+    const pad = { connected: true, index: 0, mapping: 'standard', axes: [0, 0], buttons };
+    Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [pad] });
+    for (const [id, index] of [['pad-a', 0], ['pad-b', 1], ['pad-start', 9], ['pad-right', 15], ['pad-click', 10]]) {
+      document.getElementById(id).onclick = () => { buttons[index].pressed = true; buttons[index].value = 1; };
+    }
+    document.querySelector('#pad-release').onclick = () => buttons.forEach(button => { button.pressed = false; button.value = 0; });
+    document.querySelector('#pad-blur').onclick = () => window.dispatchEvent(new Event('blur'));
+    document.querySelector('#pad-focus').onclick = () => window.dispatchEvent(new Event('focus'));
+    document.querySelector('#tab-hidden').onclick = () => {
+      const descriptor = Object.getOwnPropertyDescriptor(document, 'hidden');
+      try {
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+      } finally {
+        if (descriptor) Object.defineProperty(document, 'hidden', descriptor);
+        else delete document.hidden;
+      }
+    };
+    if (scenario === 'controls') {
+      document.querySelector('#settings-controls').hidden = false;
+      Object.assign(document.querySelector('aside').style, { maxHeight: '240px', overflowY: 'auto' });
+      for (const [label, code] of [['Old Right', 'ArrowRight'], ['Right H', 'KeyH'], ['Left F', 'KeyF'],
+        ['Old Fly', 'Space'], ['Fly Q', 'KeyQ'], ['Attack E', 'KeyE'], ['Pause R', 'KeyR'], ['Skip dialog', 'Escape']]) {
+        const button = document.createElement('button'); button.textContent = `${label} (0.3s)`;
+        button.onclick = () => {
+          window.dispatchEvent(new KeyboardEvent('keydown', { code, key: code.startsWith('Key') ? code.slice(3).toLowerCase() : code, bubbles: true, cancelable: true }));
+          setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code, bubbles: true, cancelable: true })), 300);
+        };
+        document.querySelector('#settings-keys').append(button);
+      }
+    }
+    function reportController() {
+      const player = sSystemRegistry.gameObjectManager?.getPlayer();
+      const input = sSystemRegistry.inputSystem?.getInputState();
+      document.querySelector('#controller-status').textContent = `State: ${window.__ri?.state}; gates: ${JSON.stringify(window.__ri?.gates)}; position: ${Math.round(player?.position.x ?? 0)},${Math.round(player?.position.y ?? 0)}; jump: ${input?.jump}; attack: ${input?.attack}`;
+      if (scenario === 'controls') {
+        const settings = useGameStore.getState().settings;
+        document.querySelector('#settings-status').textContent = `Saved sensitivity=${settings.movementSensitivity}; click attack=${settings.clickAttackEnabled}; keys=${JSON.stringify(settings.keyBindings)}; input horizontal=${input?.horizontal}; filtered=${sSystemRegistry.inputSystem?.getDirectionalPadX()}; vx=${player?.velocity.x.toFixed(2)}`;
+      }
+      requestAnimationFrame(reportController);
+    }
+    requestAnimationFrame(reportController);
+  }
+  let pauseScriptedFade = fadeCase;
+  if (fadeCase) document.querySelector('#fade-controls').hidden = false;
+  const clockCase = scenario === 'clock';
+  let clockStart = null, clockStage = '', clockHistory = [];
+  if (clockCase) {
+    document.querySelector('#clock-controls').hidden = false;
+    document.querySelector('#clock-start').onclick = () => {
+      const player = sSystemRegistry.gameObjectManager?.getPlayer();
+      const control = player?.getComponent(PlayerComponent), clock = sSystemRegistry.timeSystem;
+      if (!control || !clock || window.__ri?.gates?.dialog || window.__ri?.gates?.pauseMenu) return;
+      control.currentState = PlayerState.HIT_REACT; control.hitReactTimer = 0.5;
+      control.invincible = true; control.invincibleTime = 2;
+      control.activateGlow(3);
+      sSystemRegistry.effectsSystem?.spawn(EffectType.SMOKE_SMALL,
+        player.getCenteredPositionX() + 48, player.getPosition().y, 100, -50);
+      sSystemRegistry.cameraSystem?.shake(10, 1);
+      clock.applyScale(0.1, 100, false);
+      clockStart = { real: clock.getRealTime(), game: clock.getGameTime() };
+      clockStage = 'slow'; clockHistory = [];
+    };
+    document.querySelector('#clock-normal').onclick = () => sSystemRegistry.timeSystem?.clearScale();
+  }
+  const winCase = scenario === 'win';
+  let winPause = null, winStarted = null, winHistory = [], lastWinPhase = '';
+  if (winCase) {
+    document.querySelector('#win-controls').hidden = false;
+    const stageWin = phase => {
+      const player = sSystemRegistry.gameObjectManager?.getPlayer();
+      const control = player?.getComponent(PlayerComponent);
+      const level = sSystemRegistry.levelSystem?.getParsedLevel();
+      const gates = window.__ri?.gates;
+      if (!player || !control || control.levelWon || !level?.objectLayer || gates?.dialog || gates?.pauseMenu) return;
+      const layer = level.objectLayer;
+      for (let x = 0; x < layer.width; x++) for (let y = 0; y < layer.height; y++) {
+        if (layer.tiles[x]?.[y] !== GameObjectTypeIndex.RUBY) continue;
+        setInventory({ rubyCount: 2, score: 6 });
+        player.setPosition(x * 32, y * 32 - 8); player.getVelocity().zero();
+        sSystemRegistry.cameraSystem?.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
+        winPause = phase; winStarted = null; winHistory = []; lastWinPhase = '';
+        return;
+      }
+    };
+    document.querySelector('#win-delay').onclick = () => stageWin('delay');
+    document.querySelector('#win-fade').onclick = () => stageWin('fade');
+  }
+  const endingCase = scenario?.startsWith('ending');
+  const alternateBoss = scenario === 'ending-kabocha' ? 'evil_kabocha'
+    : scenario === 'ending-rokudou' ? 'rokudou' : null;
+  if (statsCase) {
+    document.querySelector('#campaign-stats').hidden = false;
+    document.querySelector('#ending-controls p').textContent = 'Prepared two-campaign statistics; staged real enemy shots into The Source. Not a played campaign.';
+  }
+  const endingHistory = [];
+  const observedBosses = new Map();
+  const observedBossObjects = new Map();
+  let lastEndingPhase = '';
+  if (endingCase) {
+    document.querySelector('#ending-controls').hidden = false;
+    document.querySelector('#source-shot').onclick = () => {
+      const source = sSystemRegistry.gameObjectManager?.getActiveObjects().find(o => o.subType === 'the_source');
+      if (!source || source.life <= 0) return;
+      sSystemRegistry.gameObjectFactory?.spawn(GameObjectType.ENERGY_BALL,
+        source.getCenteredPositionX() - 16, source.getCenteredPositionY() - 16);
+    };
+    if (alternateBoss) {
+      document.querySelector('#source-shot').hidden = true;
+      const button = document.querySelector('#boss-blast');
+      button.hidden = false;
+      button.textContent = `Follow and blast ${alternateBoss}`;
+      document.querySelector('#ending-controls p').textContent = 'Prepared final-arena save; staged real blasts and camera follow. No forced death, grounding or ending event. Not a normal-input fight.';
+      button.onclick = () => {
+        if (window.__ri?.gates?.dialog || window.__ri?.gates?.cutscene) return;
+        const boss = sSystemRegistry.gameObjectManager?.getActiveObjects().find(o => o.subType === alternateBoss);
+        if (!boss || boss.life <= 0) return;
+        // A remotely staged hit can knock the boss out of the stationary
+        // player's activation range. Keep the test subject in camera range.
+        sSystemRegistry.cameraSystem?.setNPCTarget(boss);
+        sSystemRegistry.gameObjectFactory?.spawn(GameObjectType.EXPLOSION_GIANT,
+          boss.getCenteredPositionX() - 32, boss.getCenteredPositionY() - 32);
+      };
+    }
+  }
+  const deathCase = new URLSearchParams(location.search).get('case') === 'death';
+  const deathEvents = [];
+  let lastDeathState = '', holdNext = false, held = null, levelRequests = 0;
+  if (deathCase) {
+    document.querySelector('#death-controls').hidden = false;
+    document.querySelector('#defeat-enemy').onclick = () => {
+      const player = sSystemRegistry.gameObjectManager?.getPlayer();
+      if (!player || player.life <= 0 || window.__ri?.gates?.dialog || window.__ri?.gates?.pauseMenu) return;
+      const enemy = sSystemRegistry.gameObjectFactory?.spawn(GameObjectType.ENEMY_SNAILBOMB,
+        player.getPosition().x + 96, player.getPosition().y);
+      // Real enemy hit reaction; Game's normal update resolves the death.
+      enemy?.getComponent(HitReactionComponent)?.receivedHit(enemy, player, HitType.HIT);
+    };
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, options) => {
+      const url = typeof input === 'string' ? input : input.url ?? String(input);
+      if (url.includes('/assets/levels/') && url.endsWith('.json')) {
+        levelRequests++;
+        if (holdNext) {
+          holdNext = false;
+          deathEvents.push('Level request held');
+          return new Promise(resolve => { held = {
+            release: () => resolve(originalFetch(input, options)),
+            fail: () => resolve(new Response('Test retry failure', { status: 503 })),
+          }; });
+        }
+      }
+      return originalFetch(input, options);
+    };
+    document.querySelector('#hold-retry').onclick = () => { holdNext = true; deathEvents.push('Next request will wait'); };
+    document.querySelector('#release-retry').onclick = () => { held?.release(); held = null; };
+    document.querySelector('#fail-retry').onclick = () => { held?.fail(); held = null; };
+    document.querySelector('#fatal-air').onclick = () => {
+      const player = sSystemRegistry.gameObjectManager?.getPlayer();
+      const control = player?.getComponent(PlayerComponent);
+      if (!player || !control || control.isDying || sSystemRegistry.levelSystem?.getCurrentLevelId() !== 2) return;
+      const spawn = sSystemRegistry.levelSystem.playerSpawnPosition;
+      player.setPosition(spawn.x, spawn.y - 96); player.setLastTouchedFloorTime(0);
+      player.getVelocity().set(0, 100); player.life = 1;
+      player.getComponent(HitReactionComponent)?.receivedHit(player, new GameObject(), HitType.HIT);
+      deathEvents.push('Staged fatal airborne HIT');
+    };
+  }
+  function reportSave() {
+    const { progress, settings } = useGameStore.getState();
+    const completed = Object.entries(progress.levels).filter(([, level]) => level.completed).map(([id]) => id).join(', ') || 'none';
+    document.querySelector('#saved').textContent = `Saved level: ${progress.currentLevel}; linear: ${progress.isLinearMode}; completed: ${completed}; difficulty: ${settings.difficulty}; sound: ${settings.soundEnabled}`;
+    if (statsCase) {
+      const describe = stats => `time=${stats.totalPlayTime.toFixed(1)}, score=${stats.totalScore}, coins=${stats.totalCoinsCollected}, rubies=${stats.totalRubiesCollected}, enemies=${stats.totalEnemiesDefeated}, deaths=${stats.totalDeaths}`;
+      document.querySelector('#campaign-stats').textContent = `Campaign: ${describe(progress.campaignStats)}. Lifetime: ${describe(progress.totalStats)}.`;
+    }
+  }
+  useGameStore.subscribe(reportSave);
+  reportSave();
+  function reportLoaded() {
+    const id = sSystemRegistry.levelSystem?.getCurrentLevelId();
+    const attempt = id == null ? 0 : useGameStore.getState().progress.levels[id]?.timesPlayed ?? 0;
+    const player = sSystemRegistry.gameObjectManager?.getPlayer();
+    document.querySelector('#loaded').textContent = id == null ? 'No level loaded' : `Loaded level: ${id}; linear: ${sSystemRegistry.levelSystem?.getLinearMode()}; attempts: ${attempt}; player health: ${player?.life ?? 'none'}/${player?.maxLife ?? 'none'}`;
+    if (fadeCase) {
+      const opacity = sSystemRegistry.screenFade?.getOpacity() ?? 0;
+      if (pauseScriptedFade && opacity >= 0.4 && opacity < 1) {
+        pauseScriptedFade = false;
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' }));
+      }
+      const progress = useGameStore.getState().progress;
+      document.querySelector('#fade-status').textContent = `level=${id ?? '-'}; real=${sSystemRegistry.timeSystem?.getRealTime().toFixed(2) ?? '-'}; opacity=${opacity.toFixed(2)}; paused=${!!window.__ri?.gates?.pauseMenu}; opening completions=${progress.levels[1]?.timesCompleted ?? 0}; lab completed=${!!progress.levels[2]?.completed}`;
+    }
+    if (clockCase && clockStart) {
+      const control = player?.getComponent(PlayerComponent), clock = sSystemRegistry.timeSystem;
+      const real = clock.getRealTime() - clockStart.real, game = clock.getGameTime() - clockStart.game;
+      const sample = `real=${real.toFixed(2)}, game=${game.toFixed(2)}, recovery=${control.hitReactTimer.toFixed(2)}, invincible=${control.invincibleTime.toFixed(2)}, glow=${control.glowTime.toFixed(2)}, effects=${sSystemRegistry.effectsSystem?.getActiveCount()}`;
+      if (clockStage === 'slow' && real >= 1) {
+        clockHistory.push(sample); clock.freeze(1); clockStage = 'freeze';
+      } else if (clockStage === 'freeze' && real >= 1.5) {
+        clockHistory.push(sample); clockStage = 'paused';
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' }));
+      }
+      document.querySelector('#clock-status').textContent = `${sample}; state=${control.currentState}; paused=${!!window.__ri?.gates?.pauseMenu}; snapshots: ${clockHistory.join(' → ')}`;
+    }
+    if (winCase) {
+      const control = player?.getComponent(PlayerComponent);
+      const now = sSystemRegistry.timeSystem?.getRealTime() ?? 0;
+      if (control?.levelWon && winStarted === null) winStarted = now;
+      const elapsed = winStarted === null ? 0 : now - winStarted;
+      const opacity = control?.winFadeOpacity ?? 0;
+      const phase = window.__ri?.gates?.levelComplete ? 'Results' : !control?.levelWon ? 'Playing' : opacity > 0 ? 'Fading' : 'Celebrating';
+      if (phase !== lastWinPhase) { winHistory.push(`${phase} at ${elapsed.toFixed(2)}s`); lastWinPhase = phase; }
+      if (control?.levelWon && ((winPause === 'delay' && elapsed >= 0.5) || (winPause === 'fade' && opacity >= 0.4))) {
+        winPause = null;
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape' }));
+        window.dispatchEvent(new KeyboardEvent('keyup', { code: 'Escape', key: 'Escape' }));
+      }
+      document.querySelector('#win-status').textContent = `rubies=${getInventory().rubyCount}; state=${control?.currentState ?? '-'}; elapsed=${elapsed.toFixed(2)}; opacity=${opacity.toFixed(2)}; paused=${!!window.__ri?.gates?.pauseMenu}; completions=${useGameStore.getState().progress.levels[2]?.timesCompleted ?? 0}; ${winHistory.join(' → ')}`;
+    }
+    if (deathCase) {
+      const control = player?.getComponent(PlayerComponent);
+      const phase = control?.fadeToRestart ? 'Fading' : control?.deathPresentationStarted ? 'Death animation'
+        : control?.isDying ? 'Falling while dead' : player ? 'Alive' : 'No player';
+      if (phase !== lastDeathState) { deathEvents.push(phase); lastDeathState = phase; }
+      const store = useGameStore.getState();
+      document.querySelector('#death-status').textContent = `Requests: ${levelRequests}; deaths: ${store.progress.totalStats.totalDeaths}; kills pending/campaign/lifetime: ${store.activeAttempt?.enemiesDefeated ?? 'none'}/${store.progress.campaignStats.totalEnemiesDefeated}/${store.progress.totalStats.totalEnemiesDefeated}; phase: ${phase}; fade remaining: ${control?.fadeTime.toFixed(2) ?? '-'}; history: ${deathEvents.slice(-10).join(' → ')}`;
+    }
+    if (endingCase) {
+      const objects = sSystemRegistry.gameObjectManager?.getActiveObjects() ?? [];
+      const bosses = objects.filter(o => ['the_source', 'evil_kabocha', 'rokudou'].includes(o.subType));
+      for (const boss of bosses) {
+        observedBosses.set(boss.subType, boss.life);
+        observedBossObjects.set(boss.subType, boss);
+      }
+      const snapshot = [...observedBosses].sort(([a], [b]) => a.localeCompare(b))
+        .map(([name, life]) => `${name}=${life}`).join(', ');
+      const gates = window.__ri?.gates;
+      const phase = gates?.endingStats ? 'Ending stats' : gates?.cutscene ? 'Cutscene'
+        : gates?.dialog ? 'Dialogue' : snapshot || 'No bosses';
+      if (phase !== lastEndingPhase) { endingHistory.push(phase); lastEndingPhase = phase; }
+      const progress = useGameStore.getState().progress;
+      const boss = observedBossObjects.get(alternateBoss);
+      const deathDetail = boss ? `; target active=${objects.includes(boss)}, removed=${boss.isMarkedForRemoval()}, action=${boss.getCurrentAction()}, grounded=${boss.touchingGround()}, position=${boss.getPosition().x.toFixed(0)},${boss.getPosition().y.toFixed(0)}, velocity=${boss.getVelocity().x.toFixed(1)},${boss.getVelocity().y.toFixed(1)}` : '';
+      document.querySelector('#ending-status').textContent = `${snapshot}${deathDetail}; blasts=${objects.filter(o => o.subType === 'explosion_giant').length}; completed41=${!!progress.levels[41]?.completed}; gamesCompleted=${progress.totalStats.gamesCompleted}; extras=${JSON.stringify(progress.extrasUnlocked)}; history: ${endingHistory.slice(-10).join(' → ')}`;
+    }
+    requestAnimationFrame(reportLoaded);
+  }
+  requestAnimationFrame(reportLoaded);
+  createRoot(document.querySelector('#root')).render(React.createElement(React.StrictMode, null, React.createElement(App)));
+</script>
+</html>

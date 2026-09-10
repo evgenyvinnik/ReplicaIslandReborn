@@ -28,6 +28,9 @@ const read = (p: string): string => readFileSync(join(root, p), 'utf8');
 function sourceText(): string {
   const files = [
     'src/components/Game.tsx',
+    'src/entities/breakableBlock.ts',
+    'src/entities/resolveEnemyDeath.ts',
+    'src/entities/giantExplosion.ts',
     'src/entities/components/PlayerComponent.ts',
     'src/levels/LevelSystemNew.ts',
     'src/entities/components/GhostComponent.ts',

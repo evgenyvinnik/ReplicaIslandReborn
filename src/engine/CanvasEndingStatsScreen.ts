@@ -4,7 +4,10 @@
  * Shows total stats across the playthrough: play time, score, enemies defeated, etc.
  */
 
-interface EndingStats {
+import { DiaryEntries } from '../data/diaries';
+import { attachModalKeyboard, detachModalKeyboard, claimModalPointer, ModalPriority } from './ModalKeyboard';
+
+export interface EndingStats {
   totalPlayTime: number; // In seconds
   totalScore: number;
   totalCoinsCollected: number;
@@ -12,8 +15,8 @@ interface EndingStats {
   totalEnemiesDefeated: number;
   totalDeaths: number;
   diariesCollected: number;
-  totalDiaries: number;
   ending: 'good' | 'bad' | 'neutral';
+  partialHistory?: boolean;
 }
 
 export class CanvasEndingStatsScreen {
@@ -95,7 +98,7 @@ export class CanvasEndingStatsScreen {
    * Attach event listeners
    */
   private attach(): void {
-    window.addEventListener('keydown', this.boundHandleKeyDown);
+    attachModalKeyboard(this, ModalPriority.endingStats, this.boundHandleKeyDown, this.canvas);
     this.canvas.addEventListener('click', this.boundHandleClick);
   }
   
@@ -103,7 +106,7 @@ export class CanvasEndingStatsScreen {
    * Detach event listeners
    */
   private detach(): void {
-    window.removeEventListener('keydown', this.boundHandleKeyDown);
+    detachModalKeyboard(this);
     this.canvas.removeEventListener('click', this.boundHandleClick);
   }
   
@@ -116,6 +119,7 @@ export class CanvasEndingStatsScreen {
     // Any key to continue
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
       e.preventDefault();
+      if (e.repeat) return;
       this.selectContinue();
     }
   }
@@ -124,6 +128,7 @@ export class CanvasEndingStatsScreen {
    * Handle click input
    */
   private handleClick(e: MouseEvent): void {
+    if (!claimModalPointer(this, e)) return;
     if (!this.isActive || !this.canContinue) return;
     
     e.preventDefault();
@@ -133,11 +138,16 @@ export class CanvasEndingStatsScreen {
   /**
    * Select continue option
    */
+  handleMenuCommand(command: import('./CanvasMenuInput').MenuCommand): void {
+    if (this.isActive && this.canContinue && (command === 'confirm' || command === 'back')) this.selectContinue();
+  }
+
   private selectContinue(): void {
-    if (this.onContinue) {
-      this.hide();
-      this.onContinue();
-    }
+    // hide() clears callbacks and listeners. Retain the continuation before
+    // teardown so the ending can actually return to the main menu.
+    const onContinue = this.onContinue;
+    this.hide();
+    onContinue?.();
   }
   
   /**
@@ -232,7 +242,8 @@ export class CanvasEndingStatsScreen {
     ctx.textAlign = 'left';
     
     const statStartY = boxY + 70;
-    const lineHeight = 28;
+    // Reserve footer space at the game's native 480x320 size too.
+    const lineHeight = Math.min(28, (boxHeight - 130) / 6);
     const labelX = boxX + 30;
     const valueX = boxX + boxWidth - 30;
     
@@ -243,7 +254,7 @@ export class CanvasEndingStatsScreen {
       { label: 'Rubies', value: this.stats.totalRubiesCollected.toLocaleString() },
       { label: 'Enemies', value: this.stats.totalEnemiesDefeated.toLocaleString() },
       { label: 'Deaths', value: this.stats.totalDeaths.toLocaleString() },
-      { label: 'Diaries', value: `${this.stats.diariesCollected}/${this.stats.totalDiaries}` },
+      { label: 'Diaries', value: `${this.stats.diariesCollected}/${DiaryEntries.length}` },
     ];
     
     // Draw revealed stat lines
@@ -271,8 +282,9 @@ export class CanvasEndingStatsScreen {
       ctx.strokeStyle = 'rgba(100, 150, 255, 0.5)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(labelX, statStartY + statLines.length * lineHeight + 5);
-      ctx.lineTo(valueX, statStartY + statLines.length * lineHeight + 5);
+      const separatorY = statStartY + (statLines.length - 1) * lineHeight + 12;
+      ctx.moveTo(labelX, separatorY);
+      ctx.lineTo(valueX, separatorY);
       ctx.stroke();
     }
     
@@ -289,6 +301,7 @@ export class CanvasEndingStatsScreen {
     ctx.fillStyle = 'rgba(180, 180, 220, 0.8)';
     ctx.font = '8px "Press Start 2P", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('Thanks for playing!', this.width / 2, boxY + boxHeight - 10);
+    ctx.fillText(this.stats.partialHistory ? 'Stats since save upgrade' : 'Thanks for playing!',
+      this.width / 2, boxY + boxHeight - 10);
   }
 }

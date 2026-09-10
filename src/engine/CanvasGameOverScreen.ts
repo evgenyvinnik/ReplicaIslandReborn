@@ -6,6 +6,7 @@
  */
 
 import { getInventory, resetInventory } from '../entities/components/InventoryComponent';
+import { attachModalKeyboard, detachModalKeyboard, claimModalPointer, ModalPriority } from './ModalKeyboard';
 
 interface MenuOption {
   label: string;
@@ -95,7 +96,7 @@ export class CanvasGameOverScreen {
    * Attach event listeners
    */
   private attach(): void {
-    window.addEventListener('keydown', this.boundHandleKeyDown);
+    attachModalKeyboard(this, ModalPriority.gameOver, this.boundHandleKeyDown, this.canvas);
     this.canvas.addEventListener('click', this.boundHandleClick);
   }
   
@@ -103,7 +104,7 @@ export class CanvasGameOverScreen {
    * Detach event listeners
    */
   private detach(): void {
-    window.removeEventListener('keydown', this.boundHandleKeyDown);
+    detachModalKeyboard(this);
     this.canvas.removeEventListener('click', this.boundHandleClick);
   }
   
@@ -111,6 +112,8 @@ export class CanvasGameOverScreen {
    * Handle keyboard input
    */
   private handleKeyDown(e: KeyboardEvent): void {
+    if (['ArrowUp', 'ArrowDown', 'w', 'W', 's', 'S', 'Enter', ' '].includes(e.key)) e.preventDefault();
+    if (e.repeat && (e.key === 'Enter' || e.key === ' ')) return;
     if (this.isFlickering) return;
     
     switch (e.key) {
@@ -135,6 +138,7 @@ export class CanvasGameOverScreen {
    * Handle click
    */
   private handleClick(e: MouseEvent): void {
+    if (!claimModalPointer(this, e)) return;
     if (this.isFlickering) return;
     
     const rect = this.canvas.getBoundingClientRect();
@@ -163,6 +167,14 @@ export class CanvasGameOverScreen {
   /**
    * Select current option
    */
+  handleMenuCommand(command: import('./CanvasMenuInput').MenuCommand): void {
+    if (!this.isActive || this.isFlickering) return;
+    if (command === 'confirm') this.selectOption();
+    else if (command === 'up' || command === 'down') {
+      this.selectedOption = (this.selectedOption + (command === 'down' ? 1 : -1) + this.options.length) % this.options.length;
+    }
+  }
+
   private selectOption(): void {
     this.isFlickering = true;
     this.flickerTimer = 0.4;

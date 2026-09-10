@@ -45,4 +45,23 @@ describe('NPC animation data', () => {
     expect(rokudouDeath.frames).toHaveLength(5);
     expect(rokudouShoot.loop).toBe(true);
   });
+
+  for (const boss of ['evil_kabocha', 'rokudou']) {
+    test(`${boss} owns vulnerable and protected animation hitboxes`, () => {
+      for (const state of [NPCAnimation.IDLE, NPCAnimation.WALK, NPCAnimation.SHOOT]) {
+        const frames = createNpcAnimations(boss, 128, 128)!.get(state)?.frames;
+        if (!frames) continue; // Kabocha has no shooting animation.
+        for (const frame of frames) {
+          expect(frame.attackVolumes).toBeNull();
+          expect(frame.vulnerabilityVolumes).toHaveLength(1);
+        }
+      }
+      for (const state of [NPCAnimation.TAKE_HIT, NPCAnimation.SURPRISED, NPCAnimation.DEATH]) {
+        for (const frame of animation(boss, state).frames) {
+          expect(frame.attackVolumes).toBeNull();
+          expect(frame.vulnerabilityVolumes).toBeNull();
+        }
+      }
+    });
+  }
 });

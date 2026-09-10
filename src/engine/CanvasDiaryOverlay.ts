@@ -7,13 +7,15 @@
 
 import { DiaryEntry } from '../data/diaries';
 import { assetPath } from '../utils/helpers';
+import type { MenuCommand } from './CanvasMenuInput';
+import { attachModalKeyboard, detachModalKeyboard, claimModalPointer, isTopModal, ModalPriority } from './ModalKeyboard';
 
 // Layout constants
 const PADDING = 20;
 const TITLE_FONT_SIZE = 18;
 const TEXT_FONT_SIZE = 14;
 const LINE_HEIGHT = 1.4;
-const MAX_TEXT_WIDTH_RATIO = 0.85;
+const BODY_FONT = `${TEXT_FONT_SIZE}px "Courier New", monospace`;
 
 export class CanvasDiaryOverlay {
   private ctx: CanvasRenderingContext2D;
@@ -38,6 +40,7 @@ export class CanvasDiaryOverlay {
   private scrollY: number = 0;
   private maxScrollY: number = 0;
   private lastY: number = 0;
+  private startY: number = 0;
   private touchMoved: boolean = false;
   
   // Bound handlers
@@ -58,7 +61,9 @@ export class CanvasDiaryOverlay {
     this.boundWheelHandler = this.handleWheel.bind(this);
     this.boundTouchMoveHandler = this.handleTouchMove.bind(this);
     this.boundTouchStartHandler = (e): void => {
+      if (!isTopModal(this)) return;
       this.lastY = e.touches[0]?.clientY ?? 0;
+      this.startY = this.lastY;
       this.touchMoved = false;
     };
     this.boundKeyHandler = this.handleKey.bind(this);
@@ -101,7 +106,7 @@ export class CanvasDiaryOverlay {
     this.canvas.addEventListener('wheel', this.boundWheelHandler);
     this.canvas.addEventListener('touchmove', this.boundTouchMoveHandler, { passive: false });
     this.canvas.addEventListener('touchstart', this.boundTouchStartHandler, { passive: true });
-    window.addEventListener('keydown', this.boundKeyHandler);
+    attachModalKeyboard(this, ModalPriority.diary, this.boundKeyHandler, this.canvas);
   }
   
   /**
@@ -116,7 +121,7 @@ export class CanvasDiaryOverlay {
     this.canvas.removeEventListener('wheel', this.boundWheelHandler);
     this.canvas.removeEventListener('touchmove', this.boundTouchMoveHandler);
     this.canvas.removeEventListener('touchstart', this.boundTouchStartHandler);
-    window.removeEventListener('keydown', this.boundKeyHandler);
+    detachModalKeyboard(this);
   }
   
   /**
@@ -125,9 +130,15 @@ export class CanvasDiaryOverlay {
   isVisible(): boolean {
     return this.visible || this.fadeAlpha > 0;
   }
+
+  handleMenuCommand(command: MenuCommand): void {
+    if (!this.isVisible() || this.targetAlpha === 0) return;
+    if (command === 'confirm' || command === 'back') this.close();
+    else this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY + (command === 'down' ? 28 : -28)));
+  }
   
   private handleClick(e: MouseEvent | TouchEvent): void {
-    e.preventDefault();
+    if (!claimModalPointer(this, e)) return;
     if (this.touchMoved) return;
     this.close();
   }
@@ -145,30 +156,37 @@ export class CanvasDiaryOverlay {
   private handleKey(e: KeyboardEvent): void {
     if (['Escape', 'Enter', ' '].includes(e.key)) {
       e.preventDefault();
+      e.stopImmediatePropagation();
+      // A diary collected while flying must not close on held Space repeats.
+      if (e.repeat) return;
       this.close();
     } else {
       const delta = e.key === 'ArrowDown' ? 28 : e.key === 'ArrowUp' ? -28 :
         e.key === 'PageDown' ? this.height / 2 : e.key === 'PageUp' ? -this.height / 2 : 0;
       if (delta !== 0) {
         e.preventDefault();
+        e.stopImmediatePropagation();
         this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY + delta));
       }
     }
   }
   
   private handleWheel(e: globalThis.Event): void {
-    e.preventDefault();
+    if (!claimModalPointer(this, e)) return;
     const wheelEvent = e as unknown as { deltaY: number };
     this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY + wheelEvent.deltaY * 0.5));
   }
   
   private handleTouchMove(e: TouchEvent): void {
-    e.preventDefault();
+    if (!claimModalPointer(this, e)) return;
     if (e.touches.length === 1) {
       const touch = e.touches[0];
       const deltaY = this.lastY - touch.clientY;
-      if (Math.abs(deltaY) > 2) this.touchMoved = true;
-      this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY + deltaY));
+      // Measure the whole gesture: many small moves are still a drag.
+      if (Math.abs(this.startY - touch.clientY) > 2) this.touchMoved = true;
+      const displayHeight = this.canvas.getBoundingClientRect().height;
+      const scale = displayHeight > 0 ? this.height / displayHeight : 1;
+      this.scrollY = Math.max(0, Math.min(this.maxScrollY, this.scrollY + deltaY * scale));
       this.lastY = touch.clientY;
     }
   }
@@ -179,12 +197,16 @@ export class CanvasDiaryOverlay {
       return;
     }
     
-    const maxWidth = this.width * MAX_TEXT_WIDTH_RATIO;
-    const lines = this.wrapText(this.currentEntry.text, maxWidth);
+    // Measure exactly the font and inner width used by render(), not the font
+    // left on this shared context by a HUD, dialogue or previous diary frame.
+    this.ctx.save();
+    this.ctx.font = BODY_FONT;
+    const lines = this.wrapText(this.currentEntry.text, this.width - PADDING * 4);
+    this.ctx.restore();
     const textHeight = lines.length * TEXT_FONT_SIZE * LINE_HEIGHT;
-    const totalHeight = PADDING * 3 + TITLE_FONT_SIZE * 2 + textHeight + PADDING * 2;
-    
-    this.maxScrollY = Math.max(0, totalHeight - this.height + PADDING * 2);
+    const bodyTop = PADDING * 3 + TITLE_FONT_SIZE * 2 + TEXT_FONT_SIZE * LINE_HEIGHT + PADDING / 2;
+    // Leave the final line above the fixed close hint and bottom clipping edge.
+    this.maxScrollY = Math.max(0, bodyTop + textHeight - (this.height - PADDING * 2));
   }
   
   /**
@@ -273,7 +295,7 @@ export class CanvasDiaryOverlay {
     y += TEXT_FONT_SIZE * LINE_HEIGHT + PADDING / 2;
     
     // Draw entry text with word wrapping
-    this.ctx.font = `${TEXT_FONT_SIZE}px "Courier New", monospace`;
+    this.ctx.font = BODY_FONT;
     this.ctx.fillStyle = 'rgba(60, 40, 20, 1)';
     
     const maxWidth = bgWidth - PADDING * 2;

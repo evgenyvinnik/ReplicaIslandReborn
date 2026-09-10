@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Brobot detonation verification</title>
+<style>
+  body { margin: 24px; color: #eee; background: #20242a; font: 16px system-ui; }
+  canvas { width: 720px; height: 360px; image-rendering: pixelated; }
+  button { margin: 8px 8px 8px 0; padding: 8px 12px; }
+</style>
+<h1>Brobot possession and detonation</h1>
+<p>Staged encounter using real factory, possession collision, release and enemy-death code. No campaign save changes.</p>
+<button id="possess" disabled>Possess left brobot</button>
+<button id="release" disabled>Release possession</button>
+<button id="step" disabled>Advance one frame</button>
+<button id="finish" disabled>Finish effects</button>
+<p id="status" role="status">Loading</p>
+<canvas width="480" height="240" aria-label="Staged brobot chain reaction"></canvas>
+<script type="module">
+  window.addEventListener('unhandledrejection', event => {
+    document.querySelector('#status').textContent = `Preview error: ${event.reason}`;
+  });
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: {
+    getItem: () => null, setItem: () => {}, removeItem: () => {},
+  } });
+  let modules;
+  try {
+    modules = await Promise.all([
+      import('../src/entities/GameObjectFactory.ts'), import('../src/entities/GameObjectManager.ts'),
+      import('../src/entities/GameObject.ts'), import('../src/engine/RenderSystem.ts'),
+      import('../src/engine/SystemRegistry.ts'), import('../src/engine/GameObjectCollisionSystem.ts'),
+      import('../src/entities/components/DynamicCollisionComponent.ts'), import('../src/entities/components/GhostComponent.ts'),
+      import('../src/entities/resolveEnemyDeath.ts'), import('../src/stores/useGameStore.ts'),
+    ]);
+  } finally {
+    if (descriptor) Object.defineProperty(window, 'localStorage', descriptor);
+    else delete window.localStorage;
+  }
+  const [{ GameObjectFactory, GameObjectType }, { GameObjectManager }, { GameObject }, { RenderSystem },
+    { sSystemRegistry }, { GameObjectCollisionSystem }, { DynamicCollisionComponent }, { GhostComponent },
+    { resolveEnemyDeath }, { useGameStore }] = modules;
+  const manager = new GameObjectManager(), factory = new GameObjectFactory(manager);
+  const renderer = new RenderSystem(document.querySelector('canvas'));
+  const collision = new GameObjectCollisionSystem();
+  sSystemRegistry.register(manager, 'gameObject'); sSystemRegistry.register(factory, 'factory');
+  sSystemRegistry.register(collision, 'gameObjectCollision');
+  factory.setSystemRegistry(sSystemRegistry); factory.setRenderSystem(renderer);
+  const player = new GameObject();
+  player.life = 3; player.getVelocity().y = 37;
+  manager.setPlayer(player);
+  await Promise.all([
+    ...['idle01', 'idle02', 'idle03', 'walk01', 'walk02', 'walk03'].map(s => ['brobot_' + s, 'enemy_brobot_' + s + '.png']),
+    ...['big', 'small'].flatMap(p => Array.from({ length: p === 'big' ? 9 : 7 }, (_, i) => {
+      const name = `effect_explosion_${p}${String(i + 1).padStart(2, '0')}.png`;
+      return [name, name];
+    })),
+  ].map(([key, file]) => renderer.loadSingleImage(key, '/assets/sprites/' + file)));
+  const first = factory.spawn(GameObjectType.ENEMY_BROBOT, 140, 90);
+  const second = factory.spawn(GameObjectType.ENEMY_BROBOT, 200, 90);
+  manager.commitUpdates();
+  let controller, elapsed = 0;
+  const buttons = Object.fromEntries(['possess', 'release', 'step', 'finish'].map(id => [id, document.getElementById(id)]));
+  function show(label) {
+    renderer.clear('#151d2a'); manager.render(); renderer.render();
+    const objects = manager.getActiveObjects().filter(o => !o.isMarkedForRemoval());
+    document.querySelector('#status').textContent = `${label}; brobots: ${objects.filter(o => o.subType === 'brobot').length}; blasts: ${objects.filter(o => o.subType === 'explosion_giant').length}; destroyed: ${useGameStore.getState().progress.totalStats.totalEnemiesDefeated}; Andou vertical speed: ${player.getVelocity().y}`;
+  }
+  buttons.possess.disabled = false;
+  show('Ready');
+  buttons.possess.onclick = () => {
+    const orb = factory.spawnGhost(140, 90, 0);
+    first.getComponent(DynamicCollisionComponent).update(0, first);
+    orb.getComponent(DynamicCollisionComponent).update(0, orb);
+    collision.update(0);
+    controller = first.getComponent(GhostComponent);
+    if (!controller) throw new Error('Possession collision failed');
+    orb.getComponent(GhostComponent).transferControl(orb);
+    buttons.possess.disabled = true; buttons.release.disabled = false;
+    show('Possessed left brobot');
+  };
+  buttons.release.onclick = () => {
+    controller.releaseControl(first);
+    manager.commitUpdates();
+    buttons.release.disabled = true; buttons.step.disabled = false; buttons.finish.disabled = false;
+    show('Released');
+  };
+  function step(dt) {
+    elapsed += dt;
+    manager.update(dt, elapsed);
+    collision.update(dt);
+    manager.forEach(o => resolveEnemyDeath(o));
+    manager.commitUpdates();
+    show('Advanced simulation');
+  }
+  buttons.step.onclick = () => step(1 / 24);
+  buttons.finish.onclick = () => { for (let i = 0; i < 60; i++) step(1 / 60); show('Effects finished'); };
+</script>
+</html>

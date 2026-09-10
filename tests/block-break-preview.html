@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Block destruction verification</title>
+<style>
+  body { margin: 24px; color: #eee; background: #20242a; font: 16px system-ui; }
+  canvas { width: 720px; height: 480px; image-rendering: pixelated; }
+  button { margin: 8px 8px 8px 0; padding: 8px 12px; }
+</style>
+<h1>Block destruction</h1>
+<p>Isolated scene: real player physics/input, block collision and debris. Cyan outline is the diagnostic player body. Reload for a fresh scene; no save changes.</p>
+<button id="land" disabled>Land without attacking</button>
+<button id="stomp" disabled>Stomp block</button>
+<button id="finish" disabled>Finish debris</button>
+<p id="status" role="status">Loading</p>
+<canvas width="480" height="320" aria-label="Block and debris physics"></canvas>
+<script type="module">
+  const status = document.querySelector('#status');
+  window.addEventListener('unhandledrejection', e => { status.textContent = `Preview error: ${e.reason}`; });
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: {
+    getItem: () => null, setItem: () => {}, removeItem: () => {},
+  } });
+  let modules;
+  try {
+    modules = await Promise.all([
+      import('../src/entities/GameObjectFactory.ts'), import('../src/entities/GameObjectManager.ts'),
+      import('../src/entities/GameObject.ts'), import('../src/engine/RenderSystem.ts'),
+      import('../src/engine/SystemRegistry.ts'), import('../src/engine/GameObjectCollisionSystem.ts'),
+      import('../src/entities/components/DynamicCollisionComponent.ts'), import('../src/entities/components/PlayerComponent.ts'),
+      import('../src/entities/breakableBlock.ts'), import('../src/engine/TimeSystem.ts'),
+      import('../src/engine/CollisionSystemNew.ts'), import('../src/engine/InputSystem.ts'),
+      import('../src/entities/components/SolidSurfaceComponent.ts'), import('../src/types/index.ts'),
+      import('../src/entities/components/SpriteComponent.ts'),
+    ]);
+  } finally {
+    if (descriptor) Object.defineProperty(window, 'localStorage', descriptor);
+    else delete window.localStorage;
+  }
+  const [{ GameObjectFactory, GameObjectType }, { GameObjectManager }, { GameObject }, { RenderSystem },
+    { sSystemRegistry }, { GameObjectCollisionSystem }, { DynamicCollisionComponent }, { PlayerComponent },
+    { resolveBreakableBlockDeath }, { TimeSystem }, { CollisionSystem }, { InputSystem },
+    { SolidSurfaceComponent, setSolidSurfaceSystemRegistry }, { Team }, { SpriteComponent }] = modules;
+  const canvas = document.querySelector('canvas'), renderer = new RenderSystem(canvas);
+  const manager = new GameObjectManager(), factory = new GameObjectFactory(manager);
+  const dynamic = new GameObjectCollisionSystem(), collision = new CollisionSystem();
+  const input = new InputSystem(), clock = new TimeSystem(); clock.update(1);
+  const sounds = [];
+  const sound = { playSfx: name => sounds.push(name) };
+  for (const [system, name] of [[manager, 'gameObject'], [factory, 'factory'], [dynamic, 'gameObjectCollision'],
+    [collision, 'collision'], [clock, 'time'], [sound, 'sound']]) sSystemRegistry.register(system, name);
+  factory.setSystemRegistry(sSystemRegistry); factory.setCollisionSystem(collision); factory.setRenderSystem(renderer);
+  setSolidSurfaceSystemRegistry(sSystemRegistry);
+  await Promise.all([['debris_block', 'object_debris_block.png'], ['debris_piece', 'object_debris_piece.png']]
+    .map(([name, file]) => renderer.loadSingleImage(name, '/assets/sprites/' + file)));
+  const player = new GameObject();
+  player.type = 'player'; player.team = Team.PLAYER; player.activationRadius = -1;
+  player.width = 32; player.height = 48; player.setPosition(220, 60);
+  const control = new PlayerComponent();
+  control.setSystems(input, collision, sound, { getLevelSize: () => ({ width: 480, height: 4096 }) });
+  // The animator publishes the actual per-frame attack volumes even though
+  // this fixture draws a diagnostic outline instead of Andou's sprite art.
+  player.addComponent(control); player.addComponent(new SpriteComponent()); player.addComponent(new DynamicCollisionComponent());
+  manager.add(player); manager.setPlayer(player);
+  const block = factory.spawn(GameObjectType.BREAKABLE_BLOCK, 220, 180);
+  const blockId = block.id;
+  const floor = new GameObject(); floor.width = 480; floor.height = 32; floor.setPosition(0, 300); floor.activationRadius = -1;
+  const surface = new SolidSurfaceComponent(); surface.createRectangle(480, 32); floor.addComponent(surface); manager.add(floor);
+  manager.commitUpdates(); block.update(0, 1); floor.update(0, 1); collision.updateTemporarySurfaces();
+  function frame() {
+    clock.update(1 / 60); const dt = clock.getFrameDelta();
+    manager.update(dt, clock.getGameTime()); dynamic.update(dt);
+    manager.forEach(o => resolveBreakableBlockDeath(o)); collision.updateTemporarySurfaces();
+  }
+  function show(label) {
+    renderer.clear('#151d2a'); manager.render(); renderer.render();
+    const ctx = canvas.getContext('2d'); ctx.strokeStyle = '#63e1ef'; ctx.lineWidth = 1;
+    ctx.strokeRect(player.getPosition().x, player.getPosition().y, 32, 48);
+    ctx.fillStyle = '#526575'; ctx.fillRect(0, 300, 480, 20);
+    const objects = manager.getActiveObjects().filter(o => !o.isMarkedForRemoval());
+    status.textContent = `${label}; block visible: ${objects.some(o => o.id === blockId)}; debris pieces: ${objects.filter(o => o.subType === 'block_piece').length}; break sounds: ${sounds.filter(s => s === 'sound_break_block').length}`;
+  }
+  const land = document.querySelector('#land'), stomp = document.querySelector('#stomp'), finish = document.querySelector('#finish');
+  land.disabled = stomp.disabled = false; show('Ready');
+  land.onclick = () => { for (let i = 0; i < 90; i++) frame(); land.disabled = true; show('Normal landing'); };
+  stomp.onclick = () => {
+    // If already standing on the block, first jump using normal fly input.
+    // Wait beyond Android's 0.3-second floor-contact grace period before stomping.
+    if (player.touchingGround()) { input.setVirtualButton('fly', true); for (let i = 0; i < 20; i++) frame(); input.setVirtualButton('fly', false); }
+    input.setVirtualButton('attack', true); frame(); input.setVirtualButton('attack', false);
+    for (let i = 0; i < 90 && !block.isMarkedForRemoval(); i++) frame();
+    for (let i = 0; i < 8; i++) frame();
+    stomp.disabled = land.disabled = true; finish.disabled = false; show('After stomp');
+  };
+  finish.onclick = () => { for (let i = 0; i < 240; i++) frame(); show('Debris finished'); };
+</script>
+</html>

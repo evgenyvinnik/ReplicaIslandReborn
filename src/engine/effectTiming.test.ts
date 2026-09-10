@@ -46,22 +46,9 @@ describe('effect timing', () => {
     expect(seconds).toBeLessThan(0.85);
   });
 
-  test('the small explosion is a seven-frame flash', () => {
-    const seconds = lifetimeOf(EffectType.EXPLOSION_SMALL);
-    expect(seconds).toBeGreaterThan(0.2);
-    expect(seconds).toBeLessThan(0.45);
-  });
-
-  test('the giant explosion runs the big blast then the small one', () => {
-    // Sixteen frames, where the port previously stopped after nine.
-    const giant = lifetimeOf(EffectType.EXPLOSION_GIANT);
-    const large = lifetimeOf(EffectType.EXPLOSION_LARGE);
-    expect(giant).toBeGreaterThan(large);
-  });
-
   test('a delayed frame consumes elapsed animation time instead of extending effects', () => {
     const system = new EffectsSystem();
-    system.spawn(EffectType.EXPLOSION_SMALL, 0, 0);
+    system.spawn(EffectType.SMOKE_SMALL, 0, 0);
     system.update(1);
     expect(system.getActiveCount()).toBe(0);
   });

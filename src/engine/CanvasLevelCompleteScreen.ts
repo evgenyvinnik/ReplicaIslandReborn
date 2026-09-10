@@ -4,6 +4,8 @@
  */
 
 import { getInventory, resetInventory } from '../entities/components/InventoryComponent';
+import { calculateLevelScore } from '../levels/levelResult';
+import { attachModalKeyboard, detachModalKeyboard, claimModalPointer, ModalPriority } from './ModalKeyboard';
 
 interface MenuOption {
   label: string;
@@ -103,9 +105,9 @@ export class CanvasLevelCompleteScreen {
     this.pulseTimer = 0;
     
     // Calculate life bonus
-    const inventory = getInventory();
-    this.lifeBonus = inventory.lives * 1000;
-    this.finalScore = inventory.score + this.lifeBonus;
+    const score = calculateLevelScore(getInventory());
+    this.lifeBonus = score.lifeBonus;
+    this.finalScore = score.finalScore;
     
     // Store stats and check for new records
     if (stats) {
@@ -142,7 +144,7 @@ export class CanvasLevelCompleteScreen {
    * Attach event listeners
    */
   private attach(): void {
-    window.addEventListener('keydown', this.boundHandleKeyDown);
+    attachModalKeyboard(this, ModalPriority.levelComplete, this.boundHandleKeyDown, this.canvas);
     this.canvas.addEventListener('click', this.boundHandleClick);
   }
   
@@ -150,7 +152,7 @@ export class CanvasLevelCompleteScreen {
    * Detach event listeners
    */
   private detach(): void {
-    window.removeEventListener('keydown', this.boundHandleKeyDown);
+    detachModalKeyboard(this);
     this.canvas.removeEventListener('click', this.boundHandleClick);
   }
   
@@ -158,6 +160,8 @@ export class CanvasLevelCompleteScreen {
    * Handle keyboard input
    */
   private handleKeyDown(e: KeyboardEvent): void {
+    if (['ArrowUp', 'ArrowDown', 'w', 'W', 's', 'S', 'Enter', ' '].includes(e.key)) e.preventDefault();
+    if (e.repeat && (e.key === 'Enter' || e.key === ' ')) return;
     if (this.isFlickering) return;
     
     switch (e.key) {
@@ -182,6 +186,7 @@ export class CanvasLevelCompleteScreen {
    * Handle click
    */
   private handleClick(e: MouseEvent): void {
+    if (!claimModalPointer(this, e)) return;
     if (this.isFlickering) return;
     
     const rect = this.canvas.getBoundingClientRect();
@@ -210,6 +215,14 @@ export class CanvasLevelCompleteScreen {
   /**
    * Select current option
    */
+  handleMenuCommand(command: import('./CanvasMenuInput').MenuCommand): void {
+    if (!this.isActive || this.isFlickering) return;
+    if (command === 'confirm') this.selectOption();
+    else if (command === 'up' || command === 'down') {
+      this.selectedOption = (this.selectedOption + (command === 'down' ? 1 : -1) + this.options.length) % this.options.length;
+    }
+  }
+
   private selectOption(): void {
     this.isFlickering = true;
     this.flickerTimer = 0.4;
@@ -311,7 +324,7 @@ export class CanvasLevelCompleteScreen {
       const boxX = this.width / 2 - 110;
       const boxY = 90;
       const boxWidth = 220;
-      const boxHeight = 150;  // Increased height for time display
+      const boxHeight = 144; // Leave a gap before Continue at the native 480x320 size.
       
       // Stats box background
       this.ctx.fillStyle = 'rgba(0, 30, 0, 0.7)';
@@ -326,42 +339,39 @@ export class CanvasLevelCompleteScreen {
       this.ctx.fillStyle = '#aaaaaa';
       this.ctx.textAlign = 'center';
       this.ctx.textBaseline = 'top';
-      this.ctx.fillText('Score', this.width / 2, boxY + 10);
+      const scoreX = this.width / 2 - 52;
+      const timeX = this.width / 2 + 52;
+      this.ctx.fillText('Base Score', scoreX, boxY + 10);
       
-      // Score value with high score indicator
+      // Base score and time share a row; the record badge belongs to the final score.
       this.ctx.font = '14px "Press Start 2P", monospace';
-      this.ctx.fillStyle = this.isNewHighScore ? '#44ff44' : '#ffcc00';
-      this.ctx.fillText(inventory.score.toLocaleString(), this.width / 2, boxY + 22);
-      if (this.isNewHighScore) {
-        this.ctx.font = '6px "Press Start 2P", monospace';
-        this.ctx.fillStyle = '#44ff44';
-        this.ctx.fillText('NEW HIGH!', this.width / 2, boxY + 40);
-      }
+      this.ctx.fillStyle = '#ffcc00';
+      this.ctx.fillText(inventory.score.toLocaleString(), scoreX, boxY + 22);
       
       // Time display
-      const timeY = boxY + (this.isNewHighScore ? 52 : 44);
+      const timeY = boxY + 10;
       this.ctx.font = '8px "Press Start 2P", monospace';
       this.ctx.fillStyle = '#aaaaaa';
-      this.ctx.fillText('Time', this.width / 2, timeY);
+      this.ctx.fillText('Time', timeX, timeY);
       
       const currentTime = this.formatTime(this.levelStats.currentTime);
       this.ctx.font = '10px "Press Start 2P", monospace';
       this.ctx.fillStyle = this.isNewBestTime ? '#44ff44' : '#88ccff';
-      this.ctx.fillText(currentTime, this.width / 2, timeY + 12);
+      this.ctx.fillText(currentTime, timeX, timeY + 12);
       
       if (this.isNewBestTime) {
         this.ctx.font = '6px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#44ff44';
-        this.ctx.fillText('BEST TIME!', this.width / 2, timeY + 24);
+        this.ctx.fillText('BEST TIME!', timeX, timeY + 24);
       } else if (this.levelStats.bestTime !== null) {
         this.ctx.font = '6px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#888888';
-        this.ctx.fillText(`Best: ${this.formatTime(this.levelStats.bestTime)}`, this.width / 2, timeY + 24);
+        this.ctx.fillText(`Best: ${this.formatTime(this.levelStats.bestTime)}`, timeX, timeY + 24);
       }
       
       // Collectibles row
       this.ctx.font = '8px "Press Start 2P", monospace';
-      const statsY = boxY + (this.isNewHighScore || this.isNewBestTime ? 82 : 74);
+      const statsY = boxY + 50;
       const col1 = boxX + 30;
       const col2 = boxX + 80;
       const col3 = boxX + 130;
@@ -394,7 +404,7 @@ export class CanvasLevelCompleteScreen {
       
       // Life bonus section
       if (this.showBonus) {
-        const bonusBaseY = statsY + 16;
+        const bonusBaseY = boxY + 64;
         
         // Divider line
         this.ctx.strokeStyle = '#44aa44';
@@ -407,21 +417,27 @@ export class CanvasLevelCompleteScreen {
         // Life Bonus
         this.ctx.font = '8px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#aaaaaa';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText('Life Bonus', this.width / 2, bonusBaseY + 10);
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('Life Bonus', boxX + 20, bonusBaseY + 10);
         
         this.ctx.font = '11px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#44ff44';
-        this.ctx.fillText('+' + this.lifeBonus.toLocaleString(), this.width / 2, bonusBaseY + 24);
+        this.ctx.textAlign = 'right';
+        this.ctx.fillText('+' + this.lifeBonus.toLocaleString(), boxX + boxWidth - 20, bonusBaseY + 10);
         
         // Final Score
         this.ctx.font = '8px "Press Start 2P", monospace';
         this.ctx.fillStyle = '#ffcc00';
-        this.ctx.fillText('Final Score', this.width / 2, bonusBaseY + 40);
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('Final Score', this.width / 2, bonusBaseY + 30);
         
         this.ctx.font = '11px "Press Start 2P", monospace';
-        this.ctx.fillStyle = '#ffff44';
-        this.ctx.fillText(this.finalScore.toLocaleString(), this.width / 2, bonusBaseY + 54);
+        this.ctx.fillStyle = this.isNewHighScore ? '#44ff44' : '#ffff44';
+        this.ctx.fillText(this.finalScore.toLocaleString(), this.width / 2, bonusBaseY + 44);
+        if (this.isNewHighScore) {
+          this.ctx.font = '6px "Press Start 2P", monospace';
+          this.ctx.fillText('NEW HIGH!', this.width / 2, bonusBaseY + 60);
+        }
       }
     }
     

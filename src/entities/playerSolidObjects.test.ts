@@ -64,7 +64,9 @@ test('removing a door surface lets the same player walk through', () => {
   for (let i = 0; i < 30; i++) frame();
   expect(player.getPosition().x).toBe(128);
   solid.removeAllComponents();
-  for (let i = 0; i < 30; i++) frame();
+  // Allow acceleration through the doorway at Android's filtered input rate.
+  // The assertion is passage, not the old four-times-stronger half-second ramp.
+  for (let i = 0; i < 60 && player.getPosition().x <= 192; i++) frame();
   expect(player.getPosition().x).toBeGreaterThan(192);
 });
 

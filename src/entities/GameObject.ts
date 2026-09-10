@@ -44,6 +44,7 @@ export class GameObject implements Poolable {
   public life: number = DEFAULT_LIFE;
   public maxLife: number = DEFAULT_LIFE;
   public lastReceivedHitType: HitType = HitType.INVALID;
+  public lastDamageSource: GameObject | null = null;
   public facingDirection: Vector2 = new Vector2(1, 0);
   public width: number = 0;
   public height: number = 0;
@@ -100,6 +101,7 @@ export class GameObject implements Poolable {
     this.width = 0;
     this.height = 0;
     this.lastReceivedHitType = HitType.INVALID;
+    this.lastDamageSource = null;
 
     this.lastTouchedFloorTime = 0;
     this.lastTouchedCeilingTime = 0;

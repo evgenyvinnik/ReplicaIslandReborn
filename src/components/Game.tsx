@@ -12,6 +12,8 @@ import { RenderSystem } from '../engine/RenderSystem';
 import { SortConstants } from '../engine/SortConstants';
 import { ScreenFade } from '../engine/ScreenFade';
 import { InputSystem } from '../engine/InputSystem';
+import { GameSurfaceActivity, isSurfaceActive } from '../engine/GameSurfaceActivity';
+import { CanvasMenuInput } from '../engine/CanvasMenuInput';
 import { SoundSystem, SoundEffects } from '../engine/SoundSystem';
 import { CameraSystem } from '../engine/CameraSystem';
 import { CollisionSystem } from '../engine/CollisionSystemNew';
@@ -36,12 +38,16 @@ import { GameObjectFactory } from '../entities/GameObjectFactory';
 import { GameObject } from '../entities/GameObject';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { startLevelAttempt } from '../levels/startLevelAttempt';
+import { LevelAttemptTimer } from '../levels/LevelAttemptTimer';
+import { recordLevelResult } from '../levels/levelResult';
 import { focusLevelCamera, LevelBackgroundLoader } from '../levels/LevelView';
-import { applyPlayerAttack } from '../entities/applyPlayerAttack';
+import { resolveBreakableBlockDeath } from '../entities/breakableBlock';
+import { preloadExplosionSprites } from '../entities/explosion';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { MultiSpriteAnimComponent } from '../entities/components/MultiSpriteAnimComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
+import { resolveEnemyDeath } from '../entities/resolveEnemyDeath';
 import { GhostComponent } from '../entities/components/GhostComponent';
 import { setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
 import { LevelSystem } from '../levels/LevelSystemNew';
@@ -55,25 +61,13 @@ import { assetPath } from '../utils/helpers';
 import { CutsceneType, getCutscene } from '../data/cutscenes';
 import { UIStrings } from '../data/strings';
 import { useGameStore } from '../stores/useGameStore';
+import { createEndingStats } from '../levels/endingResult';
 import { resourceToLevelId } from '../data/levelTree';
 
 /**
  * The pickup sound for the 1st, 2nd and 3rd ruby of a level.
  * Original: AnimationComponent.setRubySounds(gem1, gem2, gem3).
  */
-/**
- * The win flourish: the original slows the clock to a tenth for eight seconds
- * as the last gem is collected, easing in and out.
- * Original: PlayerComponent.gotoWin() -> TimeSystem.appyScale(0.1f, 8.0f, true).
- */
-const WIN_TIME_SCALE = 0.1;
-const WIN_TIME_SCALE_DURATION = 8.0;
-/**
- * How long the slow-motion plays before the level-complete screen takes over.
- * Real milliseconds, so the scaled clock does not stretch it.
- */
-const WIN_COMPLETE_DELAY_MS = 1500;
-
 const RUBY_SOUNDS: Record<number, string> = {
   1: SoundEffects.GEM1,
   2: SoundEffects.GEM2,
@@ -108,11 +102,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   // Zustand store for persistent progress/scores - use individual selectors to avoid infinite loops
   const storeCompleteLevel = useGameStore((s) => s.completeLevel);
   const storeAddToTotalStats = useGameStore((s) => s.addToTotalStats);
-  const storeLevelProgress = useGameStore((s) => s.progress.levels);
   const storeUnlockExtra = useGameStore((s) => s.unlockExtra);
   
   // Systems refs
   const gameLoopRef = useRef<GameLoop | null>(null);
+  const surfaceActivityRef = useRef<GameSurfaceActivity | null>(null);
   const systemRegistryRef = useRef<SystemRegistry | null>(null);
   const renderSystemRef = useRef<RenderSystem | null>(null);
   const soundSystemRef = useRef<SoundSystem | null>(null);
@@ -134,8 +128,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const canvasEndingStatsRef = useRef<CanvasEndingStatsScreen | null>(null);
   
   // Level timing tracking
-  const levelStartTimeRef = useRef<number>(0);
-  const levelElapsedTimeRef = useRef<number>(0);
+  const levelAttemptTimerRef = useRef(new LevelAttemptTimer());
   
   // Track if level completion has been processed (to prevent infinite loops)
   const levelCompleteProcessedRef = useRef<number | null>(null);
@@ -172,8 +165,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (level && camera) focusLevelCamera(level, gameObjectManager, camera, height);
       systemRegistryRef.current?.timeSystem?.clearScale();
       backgroundLoaderRef.current?.load(level?.getParsedLevel()?.backgroundImage);
-      levelStartTimeRef.current = Date.now();
-      levelElapsedTimeRef.current = 0;
+      levelAttemptTimerRef.current.start(systemRegistryRef.current?.timeSystem);
     }
   }, [height]);
   
@@ -185,7 +177,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
   const recordAutomaticLevelCompletion = useCallback((levelId: number): void => {
     const inventory = getInventory();
-    const elapsedTime = Math.max(0, (Date.now() - levelStartTimeRef.current) / 1000);
+    const elapsedTime = levelAttemptTimerRef.current.elapsed();
 
     markLevelComplete(levelId);
     storeCompleteLevel(levelId, inventory.score, elapsedTime);
@@ -536,9 +528,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // Show ending stats screen
           const canvasEndingStats = canvasEndingStatsRef.current;
           if (canvasEndingStats) {
-            // Get total stats from store
+            // Campaign counters, not accumulated lifetime records.
             const gameState = useGameStore.getState();
-            const totalStats = gameState.progress.totalStats;
             
             // Determine ending type based on cutscene
             let endingType: 'good' | 'bad' | 'neutral' = 'neutral';
@@ -549,17 +540,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               endingType = 'bad';
             }
             
-            canvasEndingStats.show({
-              totalPlayTime: totalStats.totalPlayTime,
-              totalScore: totalStats.totalScore,
-              totalCoinsCollected: totalStats.totalCoinsCollected,
-              totalRubiesCollected: totalStats.totalRubiesCollected,
-              totalEnemiesDefeated: totalStats.totalEnemiesDefeated,
-              totalDeaths: totalStats.totalDeaths,
-              diariesCollected: gameState.progress.diariesCollected.length,
-              totalDiaries: 20, // Total diaries in the game
-              ending: endingType,
-            }, () => {
+            canvasEndingStats.show(createEndingStats(gameState.progress, endingType), () => {
               // Return to main menu after stats
               goToMainMenu();
             });
@@ -662,24 +643,21 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     if (!canvasLevelComplete) return;
     
     if (state.gameState === GameState.LEVEL_COMPLETE) {
-      // Prevent infinite loop - only process level completion once per level
-      if (levelCompleteProcessedRef.current === state.currentLevel) {
+      // One result per LEVEL_COMPLETE episode. Continue changes currentLevel
+      // before its asynchronous load resumes PLAYING; comparing IDs here
+      // would award the destination the previous level's score and rubies.
+      if (levelCompleteProcessedRef.current !== null) {
         return;
       }
       levelCompleteProcessedRef.current = state.currentLevel;
       
       // Calculate elapsed time and save progress to store
-      const elapsedTime = (Date.now() - levelStartTimeRef.current) / 1000; // In seconds
-      levelElapsedTimeRef.current = elapsedTime;
+      const elapsedTime = levelAttemptTimerRef.current.elapsed();
       const inventory = getInventory();
       
-      // Get previous best stats before saving (for comparison display)
-      const levelProgress = storeLevelProgress[state.currentLevel];
-      const previousBestTime = levelProgress?.bestTime ?? null;
-      const previousBestScore = levelProgress?.bestScore ?? 0;
-      
-      // Save level completion with score and time to persistent store
-      storeCompleteLevel(state.currentLevel, inventory.score, elapsedTime);
+      // Compare against the old record, then persist the same final score
+      // (including the existing web life bonus) that the result screen shows.
+      const previousStats = recordLevelResult(state.currentLevel, inventory, elapsedTime);
       
       // Unlock extras when final boss is defeated (level 41 = level_final_boss_lab)
       // This enables Linear Mode and Level Select in the Extras menu
@@ -688,14 +666,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         storeUnlockExtra('levelSelect');
         // console.log('[Game] Final boss defeated! Unlocking extras (Linear Mode, Level Select)');
       }
-      
-      // Update total stats
-      storeAddToTotalStats({
-        totalPlayTime: elapsedTime,
-        totalScore: inventory.score,
-        totalCoinsCollected: inventory.coinCount,
-        totalRubiesCollected: inventory.rubyCount,
-      });
       
       const levelName = levelSystemRef.current?.getLevelInfo(state.currentLevel)?.name ?? 'Level';
       canvasLevelComplete.show(
@@ -779,11 +749,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           goToMainMenu();
         },
         // Pass level stats for display
-        {
-          bestTime: previousBestTime,
-          bestScore: previousBestScore,
-          currentTime: elapsedTime,
-        }
+        previousStats
       );
     } else {
       canvasLevelComplete.hide();
@@ -793,7 +759,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         levelCompleteProcessedRef.current = null;
       }
     }
-  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, beginLevelAttempt, storeAddToTotalStats, storeCompleteLevel, storeLevelProgress, storeUnlockExtra]);
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, beginLevelAttempt, storeUnlockExtra]);
 
   // Attach/detach Canvas Controls when settings change
   useEffect(() => {
@@ -815,6 +781,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   useEffect(() => {
     const unsubscribe = gameSettings.subscribe((settings) => {
       setCurrentSettings(settings);
+      systemRegistryRef.current?.inputSystem?.setControlSettings(settings);
       // Apply sound settings immediately
       const soundSystem = systemRegistryRef.current?.soundSystem;
       if (soundSystem) {
@@ -839,8 +806,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     sSystemRegistry.reset();
     const systemRegistry = sSystemRegistry;
     systemRegistryRef.current = systemRegistry;
-    const screenFade = new ScreenFade();
-    systemRegistry.screenFade = screenFade;
     gameFlowEvent.reset();
 
     // Render system
@@ -850,7 +815,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     systemRegistry.register(renderSystem, 'render');
 
     // Input system
-    const inputSystem = new InputSystem({ touchGestures: false });
+    const inputSystem = new InputSystem({ touchGestures: false, blockInitialGamepadInput: true, surface: canvas });
+    inputSystem.setControlSettings(gameSettings.getAll());
     inputSystem.initialize();
     systemRegistry.register(inputSystem, 'input');
 
@@ -880,6 +846,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Time system
     const timeSystem = new TimeSystem();
     systemRegistry.register(timeSystem, 'time');
+    const screenFade = new ScreenFade(() => timeSystem.getRealTime());
+    systemRegistry.screenFade = screenFade;
 
     // Channel system (for button/door communication)
     const channelSystem = new ChannelSystem();
@@ -969,6 +937,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const canvasControls = new CanvasControls(ctx, canvas, width, height);
       canvasControlsRef.current = canvasControls;
       canvasControls.setInteractionAllowed(() =>
+        isSurfaceActive(canvas) &&
         gameStateRef.current === GameState.PLAYING &&
         !activeDialogRef.current &&
         !canvasDialogRef.current?.isActive() &&
@@ -1400,7 +1369,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         signal.throwIfAborted();
         
         // Load effect sprites (explosions, smoke, etc.)
-        await effectsSystem.preloadSprites();
+        await Promise.all([effectsSystem.preloadSprites(), preloadExplosionSprites(renderSystem)]);
         signal.throwIfAborted();
         
         // Load Canvas UI sprites
@@ -1413,6 +1382,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           signal.throwIfAborted();
         }
         
+        // Home/Recents can cover startup before the stopped loop sees a frame.
+        // Preserve that suspension before creating an AudioContext.
+        if (!isSurfaceActive(canvas)) surfaceActivity.suspend();
         // Initialize sound system
         await soundSystem.initialize();
         signal.throwIfAborted();
@@ -1513,16 +1485,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         if (!overlaps) return;
 
         block.life = 0;
-        block.setVisible(false);
-        effectsSystem.spawnExplosion(
-          blockPosition.x + block.width / 2,
-          blockPosition.y + block.height / 2,
-          'small'
-        );
-        // The block's own death sound. The original sets it on the block's
-        // LifetimeComponent (`sound_break_block`); this port was playing the
-        // generic explosion instead, though the right clip ships and loads.
-        soundSystem.playSfx(SoundEffects.BREAK_BLOCK);
+        resolveBreakableBlockDeath(block, systemRegistry);
       });
     };
 
@@ -1532,6 +1495,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
      * yet sampled" (fresh level or respawn).
      */
     let lastPlayerLife = -1;
+    let deathReloadInProgress = false;
 
     /**
      * Translate the hits GameObjectCollisionSystem just applied into game
@@ -1559,29 +1523,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // scripted characters own their own death sequence (NPCComponent plays
       // the animation and posts the ending cutscene), so they are left alone.
       gameObjectManager.forEach((obj) => {
-        if (obj.type !== 'enemy' || !obj.isVisible() || obj.life > 0) return;
-        const scripted = obj.getComponent(
-          NPCComponent as unknown as new (...args: unknown[]) => NPCComponent
-        );
-        if (scripted || obj.subType === 'the_source') return;
-        if (obj.isMarkedForRemoval()) return;
-
-        const objPos = obj.getPosition();
-        effectsSystem.spawnCrushFlash(objPos.x + obj.width / 2, objPos.y + obj.height / 2);
-        soundSystem.playSfx(SoundEffects.STOMP);
-        timeSystem.freeze(PlayerComponent.ATTACK_PAUSE_DELAY);
-
-        obj.setVisible(false);
-        obj.markForRemoval();
-
-        const inv = getInventory();
-        setInventory({ score: inv.score + 25 });
-        useGameStore.getState().addToTotalStats({ totalEnemiesDefeated: 1 });
-
-        // The original bounces Andou off whatever he just stomped.
-        if (player) {
-          player.getVelocity().y = -200;
-        }
+        resolveEnemyDeath(obj, systemRegistry);
+        resolveBreakableBlockDeath(obj, systemRegistry);
       });
 
       void gameTime;
@@ -1591,8 +1534,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
      * The player just lost a hit point to something in the collision world.
      */
     const onPlayerHit = (player: GameObject, playerComponent: PlayerComponent): void => {
-      const playerPos = player.getPosition();
       setInventory({ lives: player.life });
+      // Original stateWin cannot be interrupted by hit/death state changes.
+      if (playerComponent.levelWon) return;
       // Original: hitReact.setTakeHitSound(HitType.HIT, deep_clang) in
       // spawnPlayer. `thump` is the stomp's landing impact, not the hurt
       // sound - PlayerComponent plays that one.
@@ -1600,17 +1544,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       cameraSystem.shake(8, 0.3);
 
       if (player.life <= 0) {
-        playerComponent.currentState = PlayerState.DEAD;
-        playerComponent.isDying = true;
-        playerComponent.deathTime = 2.0;
-        playerComponent.fadeToRestart = false;
-        player.getVelocity().zero();
-        effectsSystem.spawnExplosion(
-          playerPos.x + player.width / 2,
-          playerPos.y + player.height / 2,
-          'large'
-        );
-        useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
+        if (playerComponent.beginDeath(player)) {
+          useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
+        }
         return;
       }
 
@@ -1621,6 +1557,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     };
 
     // Update callback - Full game physics
+    const surfaceActivity = new GameSurfaceActivity(canvas, inputSystem, soundSystem,
+      () => canvasControlsRef.current?.releaseAll());
+    surfaceActivityRef.current = surfaceActivity;
+    const gamepadMenus = new CanvasMenuInput(inputSystem);
     let frameCount = 0;
     gameLoop.setUpdateCallback((deltaTime: number) => {
       frameCount++;
@@ -1649,9 +1589,28 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           time: timeSystem.getGameTime(),
         };
       }
+      if (!surfaceActivity.allowFrame()) {
+        gamepadMenus.update(null, 0);
+        return;
+      }
       // Poll controllers even while paused, so Start can resume the game.
       inputSystem.update();
-      if (inputSystem.isGamepadPausePressed() && !canvasDiaryRef.current?.isVisible()) {
+      // Match the overlay render priority. A dismissal owns its whole frame,
+      // even if its callback synchronously changes the game state.
+      const menuTarget = canvasEndingStatsRef.current?.isShowing() ? canvasEndingStatsRef.current :
+        canvasDiaryRef.current?.isVisible() ? canvasDiaryRef.current :
+        canvasLevelCompleteRef.current?.isShowing() ? canvasLevelCompleteRef.current :
+        canvasGameOverRef.current?.isShowing() ? canvasGameOverRef.current :
+        canvasPauseMenuRef.current?.isShowing() ? canvasPauseMenuRef.current :
+        canvasCutsceneRef.current?.isActive() ? canvasCutsceneRef.current :
+        canvasDialogRef.current?.isActive() ? canvasDialogRef.current : null;
+      if (gamepadMenus.update(menuTarget, deltaTime)) {
+        canvasControlsRef.current?.releaseAll();
+        return;
+      }
+      if (inputSystem.isGamepadPausePressed() && !canvasDiaryRef.current?.isVisible() &&
+          !canvasDialogRef.current?.isActive()) {
+        inputSystem.consumeGamepadForMenu();
         if (gameStateRef.current === GameState.PAUSED) { resumeGame(); return; }
         if (gameStateRef.current === GameState.PLAYING) {
           canvasControlsRef.current?.releaseAll();
@@ -1659,7 +1618,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           return;
         }
       }
-      if (gameStateRef.current !== GameState.PLAYING) {
+      if (gameStateRef.current !== GameState.PLAYING || deathReloadInProgress) {
         canvasControlsRef.current?.releaseAll();
         return;
       }
@@ -1798,7 +1757,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       collisionSystem.updateTemporarySurfaces();
       
       // Update effects system (explosions, smoke, etc.)
-      effectsSystem.update(deltaTime);
+      effectsSystem.update(gameDelta);
 
       // The broken android smoulders. The original hangs two
       // LaunchProjectileComponents off the object itself - SMOKE_BIG every
@@ -1816,8 +1775,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         if (!obj.isVisible()) return;
 
         const timers = smokeTimers.get(obj) ?? { big: 0, small: 0 };
-        timers.big += deltaTime;
-        timers.small += deltaTime;
+        timers.big += gameDelta;
+        timers.small += gameDelta;
 
         const pos = obj.getPosition();
         // Original offsets are Y-up from the object's bottom; this port
@@ -1860,7 +1819,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const npcComponent = obj.getComponent(
           NPCComponent as unknown as new (...args: unknown[]) => NPCComponent
         );
-        npcComponent?.checkHotSpotsPostPhysics(obj, deltaTime);
+        npcComponent?.checkHotSpotsPostPhysics(obj, gameDelta);
       });
 
       // Check hot spots
@@ -1887,38 +1846,24 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         const levelBottom = levelSystemRef.current?.getLevelHeight() ?? Infinity;
         const fellOutOfWorld = player.getPosition().y > levelBottom;
 
-        if ((hotSpot === HotSpotType.DIE || fellOutOfWorld) && !playerComponent.isDying) {
+        if ((hotSpot === HotSpotType.DIE || fellOutOfWorld) && !playerComponent.isDying && !playerComponent.levelWon) {
           // Player death from death zone - matching original behavior:
           // 1. Play death animation in-game
           // 2. After 2 seconds, fade to black
           // 3. Restart level automatically (no game over screen)
-          playerComponent.isDying = true;
-          playerComponent.deathTime = 2.0; // 2 seconds until fade starts (matching original)
-          playerComponent.currentState = PlayerState.DEAD;
-          playerComponent.fadeToRestart = false; // Will be set true after deathTime expires
-          soundSystem.playSfx(SoundEffects.EXPLODE);
-          
-          // Spawn explosion effect at player position
-          // The blast belongs at his middle, not at the sample point above
-          // his feet that the hot spot lookup uses.
-          effectsSystem.spawnExplosion(
-            px,
-            player.getPosition().y + player.height / 2,
-            'large'
-          );
+          playerComponent.beginDeath(player, hotSpot === HotSpotType.DIE);
+          setInventory({ lives: player.life });
+          lastPlayerLife = player.life;
           
           // Screen shake for death
           cameraSystem.shake(15, 0.5);
-          
-          // Stop player movement
-          player.getVelocity().x = 0;
-          player.getVelocity().y = 0;
           
           // Track death for stats
           useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
         } else if (
           hotSpot === HotSpotType.END_LEVEL &&
           !playerComponent.isDying &&
+          !playerComponent.levelWon &&
           !levelTransitionInProgressRef.current
         ) {
           // Level complete
@@ -2003,10 +1948,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
       }
       
-      // Handle death animation and respawn (matching original behavior)
-      // Original flow: death animation plays for 2s, then fade to black over 1.5s, then restart
+      // Original: after two game seconds and death-action readiness, fade for
+      // 1.5 unscaled seconds and reload once. Airborne deaths wait for landing.
       const pComp = player?.getComponent(PlayerComponent);
       if (pComp) { // Ensure playerComponent exists
+        if (pComp.advanceWin(timeSystem.getRealTime())) {
+          completeLevel();
+          return;
+        }
         // World effects share the simulation clock: they freeze with dialogue
         // and slow down with the rest of the game, regardless of display Hz.
         const frameTime = 1 / 24;
@@ -2025,65 +1974,45 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
         }
 
-        if (pComp.isDying) {
-          pComp.deathTime -= deltaTime;
-          
-          if (pComp.deathTime <= 0 && !pComp.fadeToRestart) {
-            // Start fade to black (1.5 seconds, matching original)
-            pComp.fadeToRestart = true;
-            pComp.fadeTime = 1.5;
-          }
-          
-          if (pComp.fadeToRestart) {
-            pComp.fadeTime -= deltaTime;
-            
-            if (pComp.fadeTime <= 0) {
-              // Fade complete - restart level
-              pComp.isDying = false;
-              pComp.deathTime = 0;
-              pComp.fadeToRestart = false;
-              pComp.fadeTime = 0;
-              
-              // Reload current level
-              const levelSys = levelSystemRef.current;
-              if (levelSys) {
-                levelSys.loadLevel(currentLevelRef.current).then((success) => {
-                  if (signal.aborted || levelSystemRef.current !== levelSys) return;
-                  if (!success) { goToMainMenu(); return; }
-                  // Initialize tile map renderer for level
-                  const parsedLevel = levelSys.getParsedLevel();
-                  if (parsedLevel && tileMapRendererRef.current) {
-                    tileMapRendererRef.current.initializeFromLevel(parsedLevel);
-                  }
-                  
-                  const spawn = levelSys.playerSpawnPosition;
-                  playerSpawnRef.current = { ...spawn };
-                  beginLevelAttempt(currentLevelRef.current);
-                  
-                  const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
-                  gameObjectMgr?.commitUpdates();
-                  const playerObj = gameObjectMgr?.getPlayer();
-                  if (playerObj) {
-                    playerObj.setPosition(spawn.x, spawn.y);
-                    playerObj.getVelocity().x = 0;
-                    playerObj.getVelocity().y = 0;
-                  }
-                });
+        if (pComp.advanceDeath(gameTime, timeSystem.getRealTime())) {
+          // Keep the frame fully black and prevent another reload while
+          // asynchronous level loading is in progress.
+          deathReloadInProgress = true;
+          const levelSys = levelSystemRef.current;
+          if (levelSys) {
+            levelSys.loadLevel(currentLevelRef.current).then((success) => {
+              if (signal.aborted || levelSystemRef.current !== levelSys) return;
+              if (!success) { deathReloadInProgress = false; goToMainMenu(); return; }
+              const parsedLevel = levelSys.getParsedLevel();
+              if (parsedLevel && tileMapRendererRef.current) {
+                tileMapRendererRef.current.initializeFromLevel(parsedLevel);
               }
-            }
+              const spawn = levelSys.playerSpawnPosition;
+              playerSpawnRef.current = { ...spawn };
+              beginLevelAttempt(currentLevelRef.current);
+              const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
+              gameObjectMgr?.commitUpdates();
+              const playerObj = gameObjectMgr?.getPlayer();
+              if (playerObj) {
+                playerObj.setPosition(spawn.x, spawn.y);
+                playerObj.getVelocity().zero();
+              }
+              lastPlayerLife = -1;
+              deathReloadInProgress = false;
+            }).catch(() => {
+              if (signal.aborted) return;
+              deathReloadInProgress = false;
+              goToMainMenu();
+            });
+          } else {
+            deathReloadInProgress = false;
+            goToMainMenu();
           }
         }
       }
       
       // Check collectible pickups
       if (player) {
-        const playerPos = player.getPosition();
-        const playerRect = {
-          x: playerPos.x,
-          y: playerPos.y,
-          width: player.width,
-          height: player.height,
-        };
         const playerComponent = player.getComponent(PlayerComponent);
         if (!playerComponent) return; // Should always exist for player object
 
@@ -2146,19 +2075,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 
                 // WIN CONDITION: Collecting 3 rubies (MAX_GEMS_PER_LEVEL) completes the level
                 if (newRubyCount >= PlayerComponent.MAX_GEMS_PER_LEVEL) {
-                  if (!playerComponent.levelWon) {
-                    playerComponent.levelWon = true;
-                    playerComponent.currentState = PlayerState.WIN;
+                  if (playerComponent.beginWin(timeSystem)) {
                     soundSystem.playSfx(SoundEffects.DING, 1.0);
-
-                    // The original drops into slow motion as the last gem is
-                    // taken and holds it while the level ends.
-                    // Original: PlayerComponent.gotoWin().
-                    timeSystem.applyScale(WIN_TIME_SCALE, WIN_TIME_SCALE_DURATION, true);
-
-                    setTimeout(() => {
-                      if (!signal.aborted) completeLevel();
-                    }, WIN_COMPLETE_DELAY_MS);
                   }
                 }
               } else if (obj.type === 'pearl') {
@@ -2224,27 +2142,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         gameObjectManager.forEach((obj) => {
           if (obj === player || !obj.isVisible()) return;
 
-          if (obj.type === 'breakable_block' && obj.life > 0) {
-            const blockPosition = obj.getPosition();
-            const overlaps = playerRect.x < blockPosition.x + obj.width &&
-              playerRect.x + playerRect.width > blockPosition.x &&
-              playerRect.y < blockPosition.y + obj.height &&
-              playerRect.y + playerRect.height > blockPosition.y;
-            const attackingFromAbove = playerComponent.stomping ||
-              (player.getVelocity().y > 0 && playerPos.y < blockPosition.y);
-            if (overlaps && attackingFromAbove) {
-              applyPlayerAttack(obj);
-              effectsSystem.spawnExplosion(
-                blockPosition.x + obj.width / 2,
-                blockPosition.y + obj.height / 2,
-                'small'
-              );
-              player.getVelocity().y = -200;
-              soundSystem.playSfx(SoundEffects.BREAK_BLOCK);
-              timeSystem.freeze(PlayerComponent.ATTACK_PAUSE_DELAY);
-            }
-            return;
-          }
+          // Blocks are damaged and cleaned up by the component collision path.
           
           // Enemy contact and stomps are resolved by GameObjectCollisionSystem
           // against the volumes in enemyCollisionProfiles.ts, and turned into
@@ -2275,43 +2173,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (player && !cameraSystem.isNPCFocusMode() && !cameraPlayerComponent?.ghostActive) {
         cameraSystem.setTarget(player);
       }
-      cameraSystem.update(deltaTime);
-      
-      // Update player state machine (using existing playerComponent from death handling above)
-      const playerComponent = player?.getComponent(PlayerComponent);
-      if (!player || !playerComponent) return; // No player = cutscene level, skip player-specific logic
-      
-      // Update HIT_REACT state timer
-      if (playerComponent.currentState === PlayerState.HIT_REACT) {
-        playerComponent.hitReactTimer -= deltaTime;
-        if (playerComponent.hitReactTimer <= 0) {
-          playerComponent.currentState = PlayerState.MOVE;
-          playerComponent.hitReactTimer = 0;
-        }
-      }
-      
-      // Update invincibility timer
-      if (playerComponent.invincible) {
-        playerComponent.invincibleTime -= deltaTime;
-        if (playerComponent.invincibleTime <= 0) {
-          playerComponent.invincible = false;
-        }
-      }
-      
-      // Update glow mode timer (separate from invincibility in case we extend glow)
-      if (playerComponent.glowMode) {
-        playerComponent.glowTime -= deltaTime;
-        if (playerComponent.glowTime <= 0) {
-          playerComponent.glowMode = false;
-          playerComponent.glowTime = 0;
-        }
-      }
+      cameraSystem.update(gameDelta);
 
     });
 
     // Render callback
     let renderCount = 0;
     gameLoop.setRenderCallback((_interpolation: number, displayDelta: number): void => {
+      if (!surfaceActivity.allowFrame()) return;
       renderCount++;
       if (renderCount === 1 || renderCount === 60) {
         // console.log('[Game Render]', { renderCount, tileMapLayers: tileMapRendererRef.current?.getLayerCount() });
@@ -2491,7 +2360,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // Original HUD fades cover the world/HUD and deliver their event only
       // at full black; a separate cutscene then draws over the transition.
-      screenFade.update(displayDelta);
+      screenFade.update();
       if (ctx) screenFade.render(ctx, width, height);
 
       // Update and render Canvas Cutscene (if active)
@@ -2501,6 +2370,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         canvasCutscene.render();
       }
       
+      // The win fade advances only in the unpaused update, not display time.
+      const playerCompForWinFade = player?.getComponent(PlayerComponent);
+      if (playerCompForWinFade?.winFadeOpacity) {
+        renderSystem.drawScreenOverlay('#000000', playerCompForWinFade.winFadeOpacity);
+      }
+
       // Update and render Canvas Pause Menu (if active)
       const canvasPauseMenu = canvasPauseMenuRef.current;
       if (canvasPauseMenu && canvasPauseMenu.isShowing()) {
@@ -2510,11 +2385,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Render death fade-to-black
       // Use existing player variable from outer scope
       const playerCompForFade = player?.getComponent(PlayerComponent);
-      if (playerCompForFade && playerCompForFade.fadeToRestart) {
+      if (deathReloadInProgress || playerCompForFade?.fadeToRestart) {
         // Calculate alpha based on fade time (1.5s total)
         // fadeTime goes from 1.5 to 0
         // alpha should go from 0 to 1
-        const alpha = Math.min(1, Math.max(0, 1 - (playerCompForFade.fadeTime / 1.5)));
+        const alpha = deathReloadInProgress ? 1
+          : Math.min(1, Math.max(0, 1 - (playerCompForFade!.fadeTime / 1.5)));
         renderSystem.drawScreenOverlay('#000000', alpha);
       }
       
@@ -2566,6 +2442,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (levelSystemRef.current === levelSystem) levelSystemRef.current = null;
       hasShownIntroDialogRef.current = false; // Reset for strict mode double-render
       gameLoop.stop();
+      if (surfaceActivityRef.current === surfaceActivity) surfaceActivityRef.current = null;
       canvasDiaryRef.current?.hide();
       canvasDialogRef.current?.hide();
       canvasControlsRef.current?.detach();
@@ -2600,6 +2477,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   // Handle visibility change (pause when tab hidden)
   useEffect(() => {
     const handleVisibilityChange = (): void => {
+      if (document.hidden) surfaceActivityRef.current?.suspend();
       if (document.hidden && state.gameState === GameState.PLAYING) {
         pauseGame();
       }
@@ -2612,9 +2490,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   // Handle pause key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
-      // The diary owns navigation/close keys while it is on screen.
-      if (canvasDiaryRef.current?.isVisible()) return;
-      if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (!isSurfaceActive(canvasRef.current)) return;
+      // Modal readers own their keys; P/Start must not open another overlay.
+      if (e.repeat || canvasDiaryRef.current?.isVisible() || canvasDialogRef.current?.isActive()) return;
+      if (gameSettings.get('keyBindings').pause.includes(e.code)) {
         if (state.gameState === GameState.PLAYING) {
           pauseGame();
         } else if (state.gameState === GameState.PAUSED) {

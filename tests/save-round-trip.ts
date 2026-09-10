@@ -55,6 +55,68 @@ assert.equal(store.getState().progress.totalStats.totalCoinsCollected, 7);
 assert.equal(store.getState().settings.difficulty, 'kids');
 assert.equal(store.getState().settings.soundVolume, 37);
 
+store.getState().startNewCampaign('linear');
+const linearStart = store.getState().progress.currentLevel;
+assert.notEqual(linearStart, 1); // Chronological mode starts in the lab.
+await reloadFromStorage();
+assert.equal(store.getState().progress.isLinearMode, true);
+assert.equal(store.getState().progress.currentLevel, linearStart);
+assert.equal(store.getState().progress.extrasUnlocked.soundTest, true);
+store.getState().startNewCampaign('levelSelect');
+store.getState().addToTotalStats({ totalPlayTime: 20, totalScore: 50, totalDeaths: 2,
+  totalCoinsCollected: 7, totalRubiesCollected: 3, totalEnemiesDefeated: 4 });
+await reloadFromStorage();
+assert.equal(store.getState().progress.isLinearMode, false);
+assert.equal(store.getState().progress.currentLevel, 1);
+assert.deepEqual(store.getState().progress.campaignStats, {
+  totalPlayTime: 20, totalScore: 50, totalDeaths: 2,
+  totalCoinsCollected: 7, totalRubiesCollected: 3, totalEnemiesDefeated: 4,
+});
+assert.equal(store.getState().progress.campaignStatsPartial, false);
+
+// Version 3 had no persisted mode. Upgrade it to story without erasing saves.
+const legacy = JSON.parse(configuredStorage.getItem(key)!);
+legacy.version = 3;
+delete legacy.state.progress.isLinearMode;
+delete legacy.state.progress.campaignStats;
+delete legacy.state.progress.campaignStatsPartial;
+legacy.state.progress.currentLevel = 5;
+configuredStorage.setItem(key, JSON.stringify(legacy));
+await reloadFromStorage();
+assert.equal(store.getState().progress.isLinearMode, false);
+assert.equal(store.getState().progress.currentLevel, 5);
+assert.equal(store.getState().progress.extrasUnlocked.soundTest, true);
+assert.equal(store.getState().settings.soundVolume, 37);
+assert.equal(store.getState().progress.campaignStatsPartial, true);
+assert.equal(store.getState().progress.campaignStats.totalScore, 0);
+assert.equal(store.getState().progress.totalStats.totalScore, 50);
+store.getState().addToTotalStats({ totalScore: 9 });
+await reloadFromStorage();
+assert.equal(store.getState().progress.campaignStats.totalScore, 9);
+assert.equal(store.getState().progress.campaignStatsPartial, true);
+assert.equal(store.getState().progress.totalStats.totalScore, 59);
+
+store.getState().recordLevelAttempt(2);
+const lifetimeKills = store.getState().progress.totalStats.totalEnemiesDefeated;
+store.getState().recordEnemyDefeat();
+assert.equal(store.getState().activeAttempt?.enemiesDefeated, 1);
+assert.equal(JSON.parse(configuredStorage.getItem(key)!).state.activeAttempt, undefined);
+await reloadFromStorage();
+assert.equal(store.getState().activeAttempt, null);
+assert.equal(store.getState().progress.totalStats.totalEnemiesDefeated, lifetimeKills + 1);
+store.getState().recordLevelAttempt(2);
+store.getState().recordEnemyDefeat();
+store.getState().completeLevel(2, 0, 0);
+const campaignKills = store.getState().progress.campaignStats.totalEnemiesDefeated;
+await reloadFromStorage();
+assert.equal(store.getState().progress.campaignStats.totalEnemiesDefeated, campaignKills);
+assert.equal(store.getState().progress.totalStats.totalEnemiesDefeated, lifetimeKills + 2);
+store.getState().startNewCampaign('story');
+await reloadFromStorage();
+assert.equal(store.getState().progress.campaignStats.totalScore, 0);
+assert.equal(store.getState().progress.campaignStatsPartial, false);
+assert.equal(store.getState().progress.totalStats.totalScore, 59);
+
 // Progress-only reset preserves preferences and persists erased progress.
 store.getState().resetAllProgress();
 await reloadFromStorage();

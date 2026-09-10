@@ -43,6 +43,7 @@ import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { HitType, ActionType } from '../types';
 import type { GameObject } from '../entities/GameObject';
+import type { RenderSystem } from '../engine/RenderSystem';
 
 const pub = join(import.meta.dir, '../../public');
 const originalFetch = globalThis.fetch;
@@ -314,10 +315,51 @@ test('brobots release on death and turrets support repeated possession and relea
       GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
     );
     expect(driving, `possessing the ${subType} swapped in no GhostComponent`).toBeTruthy();
+    const player = rig.manager.getPlayer()!;
+    const playerControl = player.getComponent(PlayerComponent)!;
+    const playerSprite = player.getComponent(SpriteComponent)!;
+    const playerBody = player.getComponent(DynamicCollisionComponent)!;
+    const draws: string[] = [];
+    if (subType === 'brobot') {
+      // Exercise the off-screen body's return, not only the target's death.
+      // Stage the already-charged player state; charging itself is covered above.
+      playerControl.setSystems(rig.input, rig.collision, rig.sound, rig.levelSystem);
+      playerControl.ghostActive = true;
+      playerControl.currentState = PlayerState.FROZEN;
+      playerSprite.setRenderSystem({
+        hasSprite: () => true,
+        drawSprite: (name: string): void => { draws.push(name); },
+      } as unknown as RenderSystem);
+      player.update(0, rig.time.getGameTime());
+      rig.camera.setPosition(player.getPosition().x + 2000, player.getPosition().y);
+      expect(playerSprite.getCurrentDraw()).toBeNull();
+      expect(playerBody.getVulnerabilityVolumes()).toBeNull();
+    }
     driving!.releaseControl(victim);
     if (subType === 'brobot') {
       expect(victim.life).toBe(0);
       expect(victim.isMarkedForRemoval()).toBe(true);
+      expect(playerControl.ghostActive).toBe(false);
+      expect(playerControl.currentState).toBe(PlayerState.POST_GHOST_DELAY);
+      // Paused display frames do not advance the 1.5-second simulation delay.
+      for (let frame = 0; frame < 120; frame++) player.render();
+      expect(draws).toEqual([]);
+      for (let frame = 0; frame < 40; frame++) {
+        rig.time.update(FRAME);
+        player.update(FRAME, rig.time.getGameTime());
+        player.render();
+      }
+      expect(draws).toEqual([]);
+      expect(playerBody.getVulnerabilityVolumes()).toBeNull();
+      for (let frame = 0; frame < 60; frame++) {
+        rig.time.update(FRAME);
+        player.update(FRAME, rig.time.getGameTime());
+        player.render();
+      }
+      expect<PlayerState>(playerControl.currentState).toBe(PlayerState.MOVE);
+      expect(playerSprite.getCurrentDraw()).not.toBeNull();
+      expect(playerBody.getVulnerabilityVolumes()).not.toBeNull();
+      expect(draws.some(name => name.startsWith('andou_'))).toBe(true);
       continue;
     }
 

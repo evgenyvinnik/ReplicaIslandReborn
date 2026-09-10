@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Giant explosion verification</title>
+<style>
+  body { margin: 24px; color: #eee; background: #20242a; font: 16px system-ui; }
+  #frames { display: flex; flex-wrap: wrap; gap: 16px; }
+  figure { margin: 0; }
+  canvas { width: 240px; height: 180px; image-rendering: pixelated; }
+  button { padding: 8px 16px; margin: 16px 0; }
+</style>
+<h1>The Source: giant explosion</h1>
+<p>Real factory and renderer. Four simultaneous layers, with satellite starts at 0, 4 and 8 frames (24 FPS). No campaign save changes.</p>
+<div id="frames"></div>
+<button id="play" disabled>Play explosion</button>
+<p id="status" role="status">Loading sprites</p>
+<canvas id="live" width="240" height="180" aria-label="Live giant explosion"></canvas>
+<script type="module">
+  // Factory imports can transitively initialize the store. Keep that hydration
+  // and its captured persistence adapter away from the player's real save.
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: {
+    getItem: () => null, setItem: () => {}, removeItem: () => {},
+  } });
+  let GameObjectManager, GameObjectFactory, GameObjectType, RenderSystem, preloadExplosionSprites;
+  try {
+    ({ GameObjectManager } = await import('../src/entities/GameObjectManager.ts'));
+    ({ GameObjectFactory, GameObjectType } = await import('../src/entities/GameObjectFactory.ts'));
+    ({ RenderSystem } = await import('../src/engine/RenderSystem.ts'));
+    ({ preloadExplosionSprites } = await import('../src/entities/explosion.ts'));
+  } finally {
+    if (descriptor) Object.defineProperty(window, 'localStorage', descriptor);
+    else delete window.localStorage;
+  }
+  const requested = new URLSearchParams(location.search).get('size');
+  const variant = requested === 'small' || requested === 'large' ? requested : 'giant';
+  const kind = variant === 'small' ? GameObjectType.EXPLOSION_SMALL
+    : variant === 'large' ? GameObjectType.EXPLOSION_LARGE : GameObjectType.EXPLOSION_GIANT;
+  const size = variant === 'small' ? 32 : 64;
+  const snapshots = variant === 'small' ? [0, 2, 4, 6] : variant === 'large' ? [0, 3, 6, 8] : [0, 4, 8, 14];
+  document.title = `${variant} explosion verification`;
+  document.querySelector('h1').textContent = `${variant} explosion`;
+  if (variant !== 'giant') document.querySelector('h1 + p').textContent =
+    `Real factory and renderer: ${size}px, ${variant === 'small' ? 7 : 9} frames at 24 FPS. No campaign save changes. Collision and sound are covered separately by automated tests.`;
+  async function setup(canvas) {
+    const renderer = new RenderSystem(canvas);
+    const manager = new GameObjectManager();
+    const factory = new GameObjectFactory(manager);
+    factory.setRenderSystem(renderer);
+    await preloadExplosionSprites(renderer);
+    return { renderer, manager, factory };
+  }
+  function paint(renderer, manager) {
+    renderer.clear('#151d2a');
+    manager.getActiveObjects().forEach(obj => obj.render());
+    renderer.render();
+  }
+  for (const frame of snapshots) {
+    const figure = document.createElement('figure');
+    const caption = document.createElement('figcaption');
+    caption.textContent = `Frame ${frame} / 24 FPS`;
+    const canvas = document.createElement('canvas');
+    canvas.width = 240; canvas.height = 180;
+    figure.append(caption, canvas);
+    document.querySelector('#frames').append(figure);
+    const { renderer, manager, factory } = await setup(canvas);
+    factory.spawn(kind, (240 - size) / 2, (180 - size) / 2);
+    manager.update(frame / 24, frame / 24);
+    paint(renderer, manager);
+  }
+  const live = await setup(document.querySelector('#live'));
+  const button = document.querySelector('#play');
+  button.textContent = `Play ${variant} explosion`;
+  document.querySelector('#live').setAttribute('aria-label', `Live ${variant} explosion`);
+  const status = document.querySelector('#status');
+  button.disabled = false;
+  status.textContent = 'Ready: static frames above use the same production effect as gameplay';
+  button.addEventListener('click', () => {
+    button.disabled = true;
+    live.factory.spawn(kind, (240 - size) / 2, (180 - size) / 2);
+    let previous = performance.now();
+    let elapsed = 0;
+    function tick(now) {
+      const dt = (now - previous) / 1000;
+      previous = now; elapsed += dt;
+      live.manager.update(dt, elapsed);
+      live.manager.commitUpdates();
+      paint(live.renderer, live.manager);
+      if (live.manager.getActiveObjects().length) {
+        status.textContent = 'Playing';
+        requestAnimationFrame(tick);
+      } else {
+        status.textContent = 'Completed: zero live explosion objects';
+        button.disabled = false;
+      }
+    }
+    requestAnimationFrame(tick);
+  });
+</script>
+</html>

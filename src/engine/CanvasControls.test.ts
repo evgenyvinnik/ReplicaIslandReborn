@@ -194,7 +194,7 @@ test.each(['detach', 'blur', 'overlay'])('%s cancels all held controls and ignor
 
 test('Game delegates touches exclusively to controls and gates them behind overlays', () => {
   const source = readFileSync(join(import.meta.dir, '../components/Game.tsx'), 'utf8');
-  expect(source).toContain('new InputSystem({ touchGestures: false })');
+  expect(source).toMatch(/new InputSystem\(\{[^}]*touchGestures:\s*false/);
   expect(source).toContain("setOrbControlMode(activeGhostRef.current?.type === 'ghost')");
   const gate = source.slice(source.indexOf('canvasControls.setInteractionAllowed('), source.indexOf('// Canvas Ending Stats Screen'));
   for (const overlay of ['canvasDialogRef', 'canvasCutsceneRef', 'canvasPauseMenuRef', 'canvasGameOverRef', 'canvasLevelCompleteRef', 'canvasDiaryRef', 'canvasEndingStatsRef']) {

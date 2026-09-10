@@ -1,5 +1,5 @@
 /**
- * Effects System - Manages visual effects like explosions, smoke, dust
+ * Effects System - Manages visual effects like smoke, dust and flashes
  * Ported from: Original/src/com/replica/replicaisland/GameObjectFactory.java
  * 
  * Effects are short-lived animated objects that don't interact with gameplay.
@@ -15,9 +15,6 @@ import { BIG_SMOKE_FRAMES, bigSmokeFrameTimes } from '../data/smokeAnimation';
  * Types of visual effects
  */
 export enum EffectType {
-  EXPLOSION_SMALL = 'explosion_small',
-  EXPLOSION_LARGE = 'explosion_large',
-  EXPLOSION_GIANT = 'explosion_giant',
   SMOKE_BIG = 'smoke_big',
   SMOKE_SMALL = 'smoke_small',
   CRUSH_FLASH = 'crush_flash',
@@ -44,7 +41,6 @@ interface EffectConfig {
   height: number;
   loop: boolean;
   sound?: string;
-  hasAttackVolume?: boolean;
   /**
    * Draw order for this effect, when it differs from the queue's default.
    * The crush flash is the reason this exists: the original draws its back
@@ -73,73 +69,6 @@ interface ActiveEffect {
  * Pre-configured effect definitions
  */
 const EFFECT_CONFIGS: Record<EffectType, EffectConfig> = {
-  [EffectType.EXPLOSION_SMALL]: {
-    type: EffectType.EXPLOSION_SMALL,
-    frames: [
-      'effect_explosion_small01.png',
-      'effect_explosion_small02.png',
-      'effect_explosion_small03.png',
-      'effect_explosion_small04.png',
-      'effect_explosion_small05.png',
-      'effect_explosion_small06.png',
-      'effect_explosion_small07.png',
-    ],
-    frameDuration: 1 / 24, // 24fps
-    width: 32,
-    height: 32,
-    loop: false,
-    sound: 'quick_explosion',
-    hasAttackVolume: true,
-  },
-  [EffectType.EXPLOSION_LARGE]: {
-    type: EffectType.EXPLOSION_LARGE,
-    frames: [
-      'effect_explosion_big01.png',
-      'effect_explosion_big02.png',
-      'effect_explosion_big03.png',
-      'effect_explosion_big04.png',
-      'effect_explosion_big05.png',
-      'effect_explosion_big06.png',
-      'effect_explosion_big07.png',
-      'effect_explosion_big08.png',
-      'effect_explosion_big09.png',
-    ],
-    frameDuration: 1 / 24,
-    width: 64,
-    height: 64,
-    loop: false,
-    sound: 'sound_explode',
-    hasAttackVolume: true,
-  },
-  [EffectType.EXPLOSION_GIANT]: {
-    type: EffectType.EXPLOSION_GIANT,
-    frames: [
-      'effect_explosion_big01.png',
-      'effect_explosion_big02.png',
-      'effect_explosion_big03.png',
-      'effect_explosion_big04.png',
-      'effect_explosion_big05.png',
-      'effect_explosion_big06.png',
-      'effect_explosion_big07.png',
-      'effect_explosion_big08.png',
-      'effect_explosion_big09.png',
-      // The giant blast is the big explosion followed by the small one -
-      // sixteen frames, not nine. Original: spawnEffectExplosionGiant().
-      'effect_explosion_small01.png',
-      'effect_explosion_small02.png',
-      'effect_explosion_small03.png',
-      'effect_explosion_small04.png',
-      'effect_explosion_small05.png',
-      'effect_explosion_small06.png',
-      'effect_explosion_small07.png',
-    ],
-    frameDuration: 1 / 24,
-    width: 128,
-    height: 128,
-    loop: false,
-    sound: 'sound_explode',
-    hasAttackVolume: true,
-  },
   [EffectType.SMOKE_BIG]: {
     type: EffectType.SMOKE_BIG,
     frames: BIG_SMOKE_FRAMES,
@@ -260,12 +189,12 @@ export class EffectsSystem {
     // Pre-allocate effect pool
     for (let i = 0; i < MAX_EFFECTS; i++) {
       this.activeEffects.push({
-        type: EffectType.EXPLOSION_SMALL,
+        type: EffectType.SMOKE_SMALL,
         x: 0,
         y: 0,
         frameIndex: 0,
         frameTimer: 0,
-        config: EFFECT_CONFIGS[EffectType.EXPLOSION_SMALL],
+        config: EFFECT_CONFIGS[EffectType.SMOKE_SMALL],
         alive: false,
       });
     }
@@ -351,18 +280,6 @@ export class EffectsSystem {
     if (config.sound && this.soundSystem) {
       this.soundSystem.playSfx(config.sound, 0.8);
     }
-  }
-  
-  /**
-   * Spawn an explosion effect
-   */
-  spawnExplosion(x: number, y: number, size: 'small' | 'large' | 'giant' = 'small'): void {
-    const type = size === 'giant' 
-      ? EffectType.EXPLOSION_GIANT 
-      : size === 'large' 
-        ? EffectType.EXPLOSION_LARGE 
-        : EffectType.EXPLOSION_SMALL;
-    this.spawn(type, x, y);
   }
   
   /**

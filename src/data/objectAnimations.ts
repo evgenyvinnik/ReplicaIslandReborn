@@ -88,6 +88,7 @@ const OBJECT_ART: Record<string, ObjectArt> = {
 
 /** Objects whose art depends on their subType, keyed `type:subType`. */
 const SUBTYPE_ART: Record<string, ObjectArt> = {
+  'effect:block_piece': { frames: ['debris_piece'], width: 16, height: 16, frameTimes: [1] },
   // spawnEnemyAndouDead draws the last explosion frame.
   'decoration:andou_dead': {
     frames: ['andou_dead'], width: 64, height: 64, frameTimes: [1],

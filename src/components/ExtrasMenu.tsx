@@ -9,8 +9,10 @@
  * - Controls: Configure control settings
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useMenuGamepad } from './useMenuGamepad';
 import { useGameStore } from '../stores/useGameStore';
+import { hasPersistedGameProgress } from '../stores/progressUtils';
 import { assetPath } from '../utils/helpers';
 
 interface ExtrasMenuProps {
@@ -29,13 +31,15 @@ export function ExtrasMenu({
   const [showLockedDialog, setShowLockedDialog] = useState(false);
   const [showNewGameDialog, setShowNewGameDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<'linear' | 'levelSelect' | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   
   // Get extras unlock status from store
   const extrasUnlocked = useGameStore(state => state.progress.extrasUnlocked);
   const levelProgress = useGameStore(state => state.progress.levels);
+  const currentLevel = useGameStore(state => state.progress.currentLevel);
   
-  // Check if any levels have been completed (for new game warning)
-  const hasProgress = Object.values(levelProgress).some(level => level.completed);
+  // Warn for unfinished attempts as well as completed route progress.
+  const hasProgress = hasPersistedGameProgress(levelProgress, currentLevel);
   
   // Check if all extras are unlocked (game completed)
   const allExtrasUnlocked = extrasUnlocked.linearMode && extrasUnlocked.levelSelect;
@@ -83,8 +87,16 @@ export function ExtrasMenu({
     setPendingAction(null);
   };
 
+  useMenuGamepad({ menuRef, viewKey: showLockedDialog ? 'locked' : showNewGameDialog ? 'new-game' : 'extras',
+    onBack: (): void => {
+      if (showLockedDialog) setShowLockedDialog(false);
+      else if (showNewGameDialog) cancelNewGame();
+      else onBack();
+    },
+  });
+
   return (
-    <div style={{
+    <div ref={menuRef} data-menu-layout="extras" style={{
       width: '100%',
       height: '100%',
       position: 'relative',
@@ -112,7 +124,7 @@ export function ExtrasMenu({
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: '20px',
+        padding: '12px',
       }}>
         {/* Title */}
         <h1 style={{
@@ -120,7 +132,8 @@ export function ExtrasMenu({
           fontSize: '24px',
           fontFamily: 'sans-serif',
           textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)',
-          marginBottom: '30px',
+          marginBottom: '12px',
+          flexShrink: 0,
           letterSpacing: '2px',
         }}>
           EXTRAS
@@ -130,7 +143,8 @@ export function ExtrasMenu({
         <div style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: '12px',
+          gap: '8px',
+          flexShrink: 0,
           alignItems: 'center',
         }}>
           {/* Linear Mode */}
@@ -158,7 +172,7 @@ export function ExtrasMenu({
           <button
             onClick={onBack}
             style={{
-              marginTop: '20px',
+              marginTop: '4px',
               padding: '8px 24px',
               backgroundColor: 'rgba(100, 100, 100, 0.8)',
               border: '2px solid #888',
@@ -183,7 +197,8 @@ export function ExtrasMenu({
         {/* Unlock Hint */}
         {!allExtrasUnlocked && (
           <p style={{
-            marginTop: '30px',
+            marginTop: '12px',
+            flexShrink: 0,
             color: 'rgba(255, 255, 255, 0.6)',
             fontSize: '10px',
             fontFamily: 'sans-serif',
@@ -244,7 +259,7 @@ export function ExtrasMenu({
               Start New Game?
             </h2>
             <p style={{ color: '#CCC', fontSize: '14px', marginBottom: '16px' }}>
-              This will start a new game. Your level progress will be saved, but you&apos;ll begin from the start.
+              This will replace your current campaign progress. Unlocked extras, collected diaries and lifetime records will be kept.
             </p>
             <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
               <button
@@ -362,6 +377,7 @@ function DialogOverlay({ children, onClose }: DialogOverlayProps): React.JSX.Ele
   return (
     <div 
       onClick={onClose}
+      data-menu-controller-dialog
       style={{
         position: 'absolute',
         top: 0,

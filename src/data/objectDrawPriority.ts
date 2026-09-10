@@ -6,6 +6,7 @@ const SUBTYPE_PRIORITIES: Readonly<Record<string, number>> = {
   evil_kabocha: SortConstants.NPC, rokudou: SortConstants.NPC,
   kyle_dead: SortConstants.GENERAL_OBJECT, andou_dead: SortConstants.GENERAL_OBJECT,
   turret: SortConstants.GENERAL_OBJECT, ghost: SortConstants.PROJECTILE,
+  block_piece: SortConstants.GENERAL_OBJECT,
 };
 const TYPE_PRIORITIES: Readonly<Record<string, number>> = {
   player: SortConstants.PLAYER, enemy: SortConstants.GENERAL_ENEMY, npc: SortConstants.NPC,

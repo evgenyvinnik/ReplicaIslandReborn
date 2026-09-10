@@ -34,6 +34,28 @@ function send(type: string, fields: Record<string, unknown>): void {
   events.dispatchEvent(event);
 }
 
+test('fresh menu/game receivers require release of controller buttons held during handoff', () => {
+  input.destroy();
+  input = new InputSystem({ touchGestures: false, blockInitialGamepadInput: true });
+  input.initialize();
+  buttons[0].pressed = true;
+  axes[0] = 1;
+  input.update();
+  expect(input.isGamepadActionPressed('jump')).toBe(false);
+  expect(input.getInputState().jump).toBe(false);
+  expect(input.getInputState().horizontal).toBe(0);
+  input.update();
+  expect(input.isGamepadActionActive('right')).toBe(false);
+  buttons[0].pressed = false;
+  axes[0] = 0;
+  input.update();
+  buttons[0].pressed = true;
+  axes[0] = 1;
+  input.update();
+  expect(input.isGamepadActionPressed('jump')).toBe(true);
+  expect(input.getInputState().horizontal).toBe(1);
+});
+
 test('already-connected pads drive analogue movement, flight and attack without a connection event', () => {
   axes[0] = 0.5;
   axes[1] = -1;
@@ -130,4 +152,40 @@ test('Game polls controllers before the paused-state gate so Start can resume', 
   expect(block).toContain('inputSystem.isGamepadPausePressed()');
   expect(block).toContain('resumeGame()');
   expect(block).toContain('pauseGame()');
+});
+
+test('a consumed controller press cannot become a new menu action across blur and focus', () => {
+  buttons[0].pressed = true;
+  input.update();
+  input.consumeGamepadForMenu();
+  send('blur', {});
+  input.update();
+  expect(input.isGamepadActionPressed('jump')).toBe(false);
+  expect(input.getInputState().jump).toBe(false);
+  send('focus', {});
+  input.update();
+  expect(input.isGamepadActionPressed('jump')).toBe(false);
+  expect(input.getInputState().jump).toBe(false);
+  buttons[0].pressed = false; input.update();
+  buttons[0].pressed = true; input.update();
+  expect(input.isGamepadActionPressed('jump')).toBe(true);
+  expect(input.getInputState().jump).toBe(true);
+});
+
+test('unfocused controllers stay inert and focus requires release even if background polling stopped', () => {
+  send('blur', {});
+  axes[0] = 0.75; buttons[1].pressed = true;
+  input.update();
+  expect(input.getInputState().horizontal).toBe(0);
+  expect(input.isGamepadActionActive('right')).toBe(false);
+  expect(input.isGamepadActionPressed('attack')).toBe(false);
+  // A different button was pressed while the browser stopped running frames.
+  buttons[9].pressed = true;
+  send('focus', {}); input.update();
+  expect(input.isGamepadPausePressed()).toBe(false);
+  expect(input.getInputState().attack).toBe(false);
+  buttons[1].pressed = false; buttons[9].pressed = false; axes[0] = 0; input.update();
+  buttons[9].pressed = true; axes[0] = -0.5; input.update();
+  expect(input.isGamepadPausePressed()).toBe(true);
+  expect(input.getInputState().horizontal).toBe(-0.5);
 });

@@ -116,6 +116,43 @@ export function chooseEvictionVictim(
 }
 
 export class SoundSystem {
+  private audioUnlockTarget: typeof window | null = null;
+  private readonly requestAudioUnlock = (): void => {
+    const context = this.audioContext;
+    if (!context || this.destroyed || this.suspended) return;
+    // Autoplay permission can leave resume() pending until a later gesture.
+    // It must never hold up asset loading or the game loop.
+    void context.resume().then(() => {
+      // A gesture resume may resolve after the surface was covered again.
+      if (context === this.audioContext && this.suspended) {
+        this.suspendContext(context);
+        return;
+      }
+      if (context === this.audioContext && context.state === 'running') {
+        this.removeAudioUnlockListeners();
+      }
+    }).catch(() => {
+      // A rejected autoplay request may succeed on the next real gesture.
+    });
+  };
+
+  private removeAudioUnlockListeners(): void {
+    this.audioUnlockTarget?.removeEventListener('pointerdown', this.requestAudioUnlock);
+    this.audioUnlockTarget?.removeEventListener('keydown', this.requestAudioUnlock);
+    this.audioUnlockTarget?.removeEventListener('touchend', this.requestAudioUnlock);
+    this.audioUnlockTarget = null;
+  }
+
+  private resumeWithGestureFallback(): void {
+    if (typeof window !== 'undefined' && !this.audioUnlockTarget) {
+      this.audioUnlockTarget = window;
+      window.addEventListener('pointerdown', this.requestAudioUnlock, { passive: true });
+      window.addEventListener('keydown', this.requestAudioUnlock, { passive: true });
+      window.addEventListener('touchend', this.requestAudioUnlock, { passive: true });
+    }
+    this.requestAudioUnlock();
+  }
+
   private audioContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
@@ -130,11 +167,10 @@ export class SoundSystem {
   private musicBuffer: AudioBuffer | null = null;
   private musicPlaying: boolean = false;
   private musicVolume: number = 0.5;
+  private musicPaused: boolean = false;
   /**
-   * Set when startBackgroundMusic() is called before the music buffer finishes
-   * loading. Music is fetched (and, for the synthesized score, rendered)
-   * asynchronously during preload, so the game's start request usually arrives
-   * first; without this the track would simply never play.
+   * Playback intent survives asynchronous loading, Pause and the sound toggle.
+   * Only an explicit Stop cancels it; muting must not permanently lose music.
    */
   private musicStartRequested: boolean = false;
 
@@ -158,7 +194,7 @@ export class SoundSystem {
   }
 
   /**
-   * Initialize the audio context (must be called after user interaction)
+   * Initialize audio without making gameplay wait for autoplay permission.
    */
   async initialize(): Promise<void> {
     if (this.initialized || this.destroyed) return;
@@ -181,9 +217,11 @@ export class SoundSystem {
 
       this.initialized = true;
 
-      // Resume context if suspended
-      if (this.audioContext.state === 'suspended') {
-        await this.audioContext.resume();
+      // The page may have been hidden before asset loading created audio.
+      if (this.suspended) {
+        this.suspendContext(this.audioContext);
+      } else if (this.audioContext.state === 'suspended') {
+        this.resumeWithGestureFallback();
       }
     } catch {
       // Failed to initialize audio context - silently ignore
@@ -353,19 +391,29 @@ export class SoundSystem {
    * Pause all sounds
    */
   pauseAll(): void {
-    if (this.audioContext && !this.suspended) {
-      this.audioContext.suspend();
-      this.suspended = true;
-    }
+    if (this.suspended) return;
+    this.suspended = true;
+    // Silence immediately, even if suspend() is delayed or denied.
+    this.updateVolumes();
+    if (this.audioContext) this.suspendContext(this.audioContext);
+  }
+
+  private suspendContext(context: AudioContext): void {
+    void context.suspend().catch(() => {
+      // The master gain remains muted until an explicit resume.
+    });
   }
 
   /**
    * Resume all sounds
    */
   resumeAll(): void {
-    if (this.audioContext && this.suspended) {
-      this.audioContext.resume();
+    if (this.suspended) {
       this.suspended = false;
+      this.updateVolumes();
+      // Returning from an overlay or background tab can require a fresh
+      // gesture too, even when audio was allowed before the pause.
+      if (this.audioContext) this.resumeWithGestureFallback();
     }
   }
 
@@ -392,7 +440,9 @@ export class SoundSystem {
     this.config.enabled = enabled;
     if (!enabled) {
       this.stopAll();
-      this.stopBackgroundMusic();
+      this.clearMusicSource();
+    } else {
+      this.startPendingMusic();
     }
   }
 
@@ -540,7 +590,7 @@ export class SoundSystem {
    * Honour a startBackgroundMusic() call that arrived before the buffer loaded.
    */
   private startPendingMusic(): void {
-    if (this.musicStartRequested && !this.musicPlaying) {
+    if (this.musicStartRequested && !this.musicPlaying && !this.musicPaused) {
       this.startBackgroundMusic();
     }
   }
@@ -549,19 +599,20 @@ export class SoundSystem {
    * Start playing background music (loops)
    */
   startBackgroundMusic(): void {
-    if (!this.audioContext || !this.musicGain || !this.config.enabled) {
+    if (this.destroyed) return;
+    this.musicStartRequested = true;
+    if (!this.audioContext || !this.musicGain || !this.config.enabled || this.musicPaused) {
       return;
     }
 
     if (!this.musicBuffer) {
       // Buffer still loading; play as soon as it is ready.
-      this.musicStartRequested = true;
       return;
     }
-    this.musicStartRequested = false;
 
     // Stop existing music if playing
-    this.stopBackgroundMusic();
+    this.clearMusicSource();
+    this.musicGain.gain.value = this.musicVolume;
 
     this.musicSource = this.audioContext.createBufferSource();
     this.musicSource.buffer = this.musicBuffer;
@@ -576,6 +627,10 @@ export class SoundSystem {
    */
   stopBackgroundMusic(): void {
     this.musicStartRequested = false;
+    this.clearMusicSource();
+  }
+
+  private clearMusicSource(): void {
     if (this.musicSource) {
       try {
         this.musicSource.stop();
@@ -592,8 +647,11 @@ export class SoundSystem {
    * Pause background music (with fade)
    */
   pauseBackgroundMusic(): void {
+    this.musicPaused = true;
     if (this.musicGain && this.audioContext && this.musicPlaying) {
       this.musicGain.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + 0.3);
+    } else if (this.musicGain) {
+      this.musicGain.gain.value = 0;
     }
   }
 
@@ -601,9 +659,11 @@ export class SoundSystem {
    * Resume background music (with fade)
    */
   resumeBackgroundMusic(): void {
+    this.musicPaused = false;
     if (this.musicGain && this.audioContext && this.musicPlaying) {
       this.musicGain.gain.linearRampToValueAtTime(this.musicVolume, this.audioContext.currentTime + 0.3);
     }
+    this.startPendingMusic();
   }
 
   /**
@@ -612,7 +672,7 @@ export class SoundSystem {
   setMusicVolume(volume: number): void {
     this.musicVolume = Math.max(0, Math.min(1, volume));
     if (this.musicGain) {
-      this.musicGain.gain.value = this.musicVolume;
+      this.musicGain.gain.value = this.musicPaused ? 0 : this.musicVolume;
     }
   }
 
@@ -664,7 +724,7 @@ export class SoundSystem {
 
   private updateVolumes(): void {
     if (this.masterGain) {
-      this.masterGain.gain.value = this.config.masterVolume;
+      this.masterGain.gain.value = this.suspended ? 0 : this.config.masterVolume;
     }
     if (this.sfxGain) {
       this.sfxGain.gain.value = this.config.sfxVolume;
@@ -676,6 +736,7 @@ export class SoundSystem {
    */
   destroy(): void {
     this.destroyed = true;
+    this.removeAudioUnlockListeners();
     this.stopAll();
     this.stopBackgroundMusic();
     this.musicBuffer = null;

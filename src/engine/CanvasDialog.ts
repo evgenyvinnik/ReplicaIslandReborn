@@ -5,8 +5,10 @@
  * Matches the original ConversationDialogActivity.java layout from Replica Island
  */
 
-import type { Dialog, Conversation, Character } from '../data/dialogs';
+import type { Dialog, DialogPage, Conversation, Character } from '../data/dialogs';
 import { getCharacterName } from '../data/dialogs';
+import type { MenuCommand } from './CanvasMenuInput';
+import { attachModalKeyboard, detachModalKeyboard, claimModalPointer, ModalPriority } from './ModalKeyboard';
 
 // Character name colors
 const CHARACTER_COLORS: Record<Character, string> = {
@@ -55,6 +57,9 @@ export class CanvasDialog {
   
   // Single conversation mode - only show one conversation then complete
   private singleConversation: boolean = false;
+  // A source page may need several screens. Track words, not wrapped lines,
+  // so resizing between presses cannot skip unread text.
+  private wordOffset: number = 0;
   
   // Bound handlers
   private boundHandleKeyDown: (e: KeyboardEvent) => void;
@@ -97,6 +102,7 @@ export class CanvasDialog {
     this.onComplete = onComplete;
     this.onSkip = onSkip ?? null;
     this.singleConversation = singleConversation;
+    this.wordOffset = 0;
     
     // Clamp conversation index to valid range
     const validConvIndex = Math.min(
@@ -130,6 +136,16 @@ export class CanvasDialog {
   isActive(): boolean {
     return this.dialog !== null;
   }
+
+  handleMenuCommand(command: MenuCommand): void {
+    if (!this.isActive()) return;
+    if (command === 'confirm') this.advance();
+    else if (command === 'back' && this.onSkip) {
+      const skip = this.onSkip;
+      this.hide();
+      skip();
+    }
+  }
   
   /**
    * Preload portrait images
@@ -160,7 +176,8 @@ export class CanvasDialog {
    * Attach event listeners
    */
   private attach(): void {
-    window.addEventListener('keydown', this.boundHandleKeyDown);
+    // Modal dialogue gets first refusal, before the game's bubble listeners.
+    attachModalKeyboard(this, ModalPriority.dialog, this.boundHandleKeyDown, this.canvas);
     this.canvas.addEventListener('click', this.boundHandleClick);
     this.canvas.addEventListener('touchstart', this.boundHandleClick);
   }
@@ -169,7 +186,7 @@ export class CanvasDialog {
    * Detach event listeners
    */
   private detach(): void {
-    window.removeEventListener('keydown', this.boundHandleKeyDown);
+    detachModalKeyboard(this);
     this.canvas.removeEventListener('click', this.boundHandleClick);
     this.canvas.removeEventListener('touchstart', this.boundHandleClick);
   }
@@ -178,12 +195,17 @@ export class CanvasDialog {
    * Handle keyboard input
    */
   private handleKeyDown(e: KeyboardEvent): void {
-    if (e.key === 'Enter' || e.key === ' ' || e.key === 'x' || e.key === 'X') {
-      e.preventDefault();
+    const advancing = e.key === 'Enter' || e.key === ' ' || e.key === 'x' || e.key === 'X';
+    if (!advancing && e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.repeat) return;
+    if (advancing) {
       this.advance();
-    } else if (e.key === 'Escape' && this.onSkip) {
-      e.preventDefault();
-      this.onSkip();
+    } else if (this.onSkip) {
+      const skip = this.onSkip;
+      this.hide();
+      skip();
     }
   }
   
@@ -191,7 +213,7 @@ export class CanvasDialog {
    * Handle click/tap
    */
   private handleClick(e: MouseEvent | TouchEvent): void {
-    e.preventDefault();
+    if (!claimModalPointer(this, e)) return;
     this.advance();
   }
   
@@ -204,6 +226,16 @@ export class CanvasDialog {
     const currentConversation: Conversation | undefined = this.dialog.conversations[this.state.conversationIndex];
     
     if (!currentConversation) return;
+
+    const page = currentConversation.pages[this.state.pageIndex];
+    if (page) {
+      const layout = this.layoutPage(page);
+      if (layout.hasMore) {
+        this.wordOffset += layout.visibleLines.join(' ').split(/\s+/).length;
+        return;
+      }
+    }
+    this.wordOffset = 0;
     
     // Advance to next page
     if (this.state.pageIndex < currentConversation.pages.length - 1) {
@@ -247,6 +279,25 @@ export class CanvasDialog {
       this.lastCursorBlink = now;
     }
   }
+
+  private layoutPage(page: DialogPage): { boxHeight: number; visibleLines: string[]; hasMore: boolean } {
+    const textWidth = this.width - DIALOG_BOX_MARGIN * 2 - DIALOG_BOX_PADDING * 2
+      - (page.character ? PORTRAIT_SIZE + TEXT_GAP : 0);
+    const oldFont = this.ctx.font;
+    this.ctx.font = '11px monospace';
+    const remaining = page.text.trim().split(/\s+/).slice(this.wordOffset).join(' ');
+    const lines = this.wrapText(remaining, textWidth);
+    this.ctx.font = oldFont;
+    const overhead = DIALOG_BOX_PADDING * 2 + 24 + 16;
+    const textHeight = Math.max(lines.length * TEXT_LINE_HEIGHT, PORTRAIT_SIZE - 24);
+    const minBoxHeight = PORTRAIT_SIZE + DIALOG_BOX_PADDING * 2 + 20;
+    const boxHeight = Math.min(Math.max(minBoxHeight, overhead + textHeight), this.height * 0.55);
+    const capacity = Math.max(1, Math.floor((boxHeight - overhead) / TEXT_LINE_HEIGHT));
+    // Balance continuation screens instead of leaving a lone final word.
+    const screenCount = Math.max(1, Math.ceil(lines.length / capacity));
+    const visibleCount = Math.ceil(lines.length / screenCount);
+    return { boxHeight, visibleLines: lines.slice(0, visibleCount), hasMore: lines.length > visibleCount };
+  }
   
   /**
    * Render dialog to canvas
@@ -269,25 +320,8 @@ export class CanvasDialog {
     // Narration pages carry no speaker or portrait - the original's XML omits
     // both - so the text runs the full width of the box.
     const isNarration = !currentPage.character;
-    const textWidth = isNarration
-      ? boxWidth - DIALOG_BOX_PADDING * 2
-      : boxWidth - DIALOG_BOX_PADDING * 2 - PORTRAIT_SIZE - TEXT_GAP;
-    
-    // Pre-calculate wrapped text lines to determine box height
-    this.ctx.font = '11px monospace';
-    const fullTextLines = this.wrapText(currentPage.text, textWidth);
-    const textHeight = Math.max(fullTextLines.length * TEXT_LINE_HEIGHT, PORTRAIT_SIZE - 24); // At least portrait height minus name
-    
-    // Calculate dialog box dimensions dynamically based on content
-    // Height = padding + name line + text lines + padding + hint line
-    const minBoxHeight = PORTRAIT_SIZE + DIALOG_BOX_PADDING * 2 + 20; // Minimum height with portrait
-    const contentBoxHeight = DIALOG_BOX_PADDING + 24 + textHeight + DIALOG_BOX_PADDING + 16; // name(24) + text + hint(16)
-    const boxHeight = Math.max(minBoxHeight, contentBoxHeight);
-    
-    // Position dialog at top of screen so it doesn't cover the action below
-    // But cap it so it doesn't exceed a reasonable portion of the screen
-    const maxBoxHeight = this.height * 0.55; // Max 55% of screen height for long dialogs
-    const finalBoxHeight = Math.min(boxHeight, maxBoxHeight);
+    const layout = this.layoutPage(currentPage);
+    const finalBoxHeight = layout.boxHeight;
     const boxY = DIALOG_BOX_MARGIN;
     
     // Draw dialog box background
@@ -343,32 +377,21 @@ export class CanvasDialog {
     
     // Dialog text with word wrap - show full text immediately
     this.ctx.font = '11px monospace';
+    this.ctx.textBaseline = 'top';
     this.ctx.fillStyle = '#ffffff';
     this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
     this.ctx.shadowBlur = 1;
     
-    const lines = this.wrapText(currentPage.text, textWidth);
-    // Calculate how many lines can fit in the available space
-    const availableTextHeight = finalBoxHeight - DIALOG_BOX_PADDING - 24 - DIALOG_BOX_PADDING - 16;
-    const maxVisibleLines = Math.floor(availableTextHeight / TEXT_LINE_HEIGHT);
-    const visibleLines = lines.slice(0, maxVisibleLines);
-    
     let lineY = textY + 22;
-    for (const line of visibleLines) {
+    for (const line of layout.visibleLines) {
       this.ctx.fillText(line, textX, lineY);
       lineY += TEXT_LINE_HEIGHT;
-    }
-    
-    // Show indicator if text was truncated
-    if (lines.length > maxVisibleLines) {
-      this.ctx.fillStyle = 'rgba(255, 255, 200, 0.6)';
-      this.ctx.fillText('...', textX + textWidth - 20, lineY - TEXT_LINE_HEIGHT);
     }
     
     // "Tap to continue" hint with blinking effect
     this.ctx.shadowBlur = 0;
     
-    const hintText = 'TAP to continue';
+    const hintText = layout.hasMore ? 'TAP for more' : 'TAP to continue';
     
     this.ctx.font = '10px monospace';
     this.ctx.fillStyle = this.cursorVisible ? 'rgba(255, 255, 255, 0.7)' : 'rgba(255, 255, 255, 0.3)';

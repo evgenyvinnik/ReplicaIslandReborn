@@ -843,17 +843,19 @@ export function completedLevelIdsToResourceSet(
  * @param completedLevels Set of completed level resources
  * @param onlyAllowThePast If true, only show past levels plus the next unlocked present level
  * @param useLinearTree If true, use the linear level tree (Extras mode - all levels unlocked)
+ * @param unlockAll Enable all entries without changing the selected progression tree
  */
 export function generateLevelList(
   completedLevels: Set<string>,
   onlyAllowThePast: boolean = true,
-  useLinearTree: boolean = false
+  useLinearTree: boolean = false,
+  unlockAll: boolean = false
 ): LevelMetaData[] {
   const result: LevelMetaData[] = [];
   const tree = useLinearTree ? linearLevelTree : levelTree;
   
-  // In linear mode, all levels are enabled
-  if (useLinearTree) {
+  // Extras Level Select unlocks the story tree independently of Linear Mode.
+  if (useLinearTree || unlockAll) {
     for (let x = 0; x < tree.length; x++) {
       const group = tree[x];
       for (let y = 0; y < group.levels.length; y++) {
@@ -863,7 +865,7 @@ export function generateLevelList(
           level,
           row: x,
           index: y,
-          enabled: true, // All levels enabled in linear mode
+          enabled: true,
         });
       }
     }

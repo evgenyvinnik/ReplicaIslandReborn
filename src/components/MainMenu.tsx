@@ -7,7 +7,8 @@
  * - Buttons styled to match the original Android UI
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { useMenuGamepad } from './useMenuGamepad';
 import { useGameContext } from '../context/GameContext';
 import { assetPath } from '../utils/helpers';
 import { useGameStore } from '../stores/useGameStore';
@@ -17,12 +18,16 @@ export function MainMenu(): React.JSX.Element {
   const { startNewGame, startGame, goToLevelSelect, goToOptions, goToExtras } = useGameContext();
   const [imagesLoaded, setImagesLoaded] = useState(false);
   const progress = useGameStore((store) => store.progress);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useMenuGamepad({ menuRef, viewKey: 'main' });
 
   // Determine if there's a saved game to continue
   const hasSavedProgress = hasPersistedGameProgress(progress.levels, progress.currentLevel);
 
   return (
     <div
+      data-menu-layout="main"
+      ref={menuRef}
       style={{
         width: '100%',
         height: '100%',
@@ -54,18 +59,25 @@ export function MainMenu(): React.JSX.Element {
           flexDirection: 'column',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '20px',
+          gap: '4px',
+          padding: '8px',
           opacity: imagesLoaded ? 1 : 0,
           transition: 'opacity 0.5s ease-in',
         }}
       >
         {/* Title Logo */}
-        <div style={{ marginTop: '20px' }}>
+        {/* Let the logo use the space left by the four 44px controls. Fixed
+            title/margins pushed Extras outside the 314px screen interior. */}
+        <div style={{ flex: '1 1 0', minHeight: 0, width: 'min(280px, 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <img
             src={assetPath('/assets/sprites/title.png')}
             alt="Replica Island"
             style={{
-              maxWidth: '280px',
+              display: 'block',
+              flex: '1 1 0',
+              minHeight: 0,
+              width: '100%',
+              objectFit: 'contain',
               imageRendering: 'pixelated',
               filter: 'drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.5))',
             }}
@@ -74,10 +86,11 @@ export function MainMenu(): React.JSX.Element {
             style={{
               textAlign: 'center',
               color: '#FFFFFF',
-              fontSize: '14px',
+              flexShrink: 0,
+              fontSize: '12px',
+              lineHeight: '16px',
               fontFamily: 'sans-serif',
               textShadow: '1px 1px 2px rgba(0, 0, 0, 0.8)',
-              marginTop: '4px',
               letterSpacing: '4px',
             }}
           >
@@ -90,8 +103,8 @@ export function MainMenu(): React.JSX.Element {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '8px',
-            marginBottom: '30px',
+            flexShrink: 0,
+            gap: '4px',
             alignItems: 'center',
           }}
         >
@@ -130,6 +143,8 @@ export function MainMenu(): React.JSX.Element {
         <div
           style={{
             fontSize: '8px',
+            lineHeight: '10px',
+            flexShrink: 0,
             color: 'rgba(255, 255, 255, 0.5)',
             textAlign: 'center',
             fontFamily: 'sans-serif',
@@ -162,6 +177,11 @@ function ImageButton({ src, alt, onClick }: ImageButtonProps): React.JSX.Element
       onMouseUp={(): void => setIsPressed(false)}
       style={{
         padding: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '44px',
+        flexShrink: 0,
         background: 'none',
         border: 'none',
         cursor: 'pointer',

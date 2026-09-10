@@ -16,6 +16,7 @@ import {
   type CutsceneDefinition,
   type AnimationLayer,
 } from '../data/cutscenes';
+import { attachModalKeyboard, detachModalKeyboard, claimModalPointer, ModalPriority } from './ModalKeyboard';
 import { assetPath } from '../utils/helpers';
 
 /**
@@ -208,7 +209,7 @@ export class CanvasCutscene {
    * Attach event listeners
    */
   private attach(): void {
-    window.addEventListener('keydown', this.boundHandleKeyDown);
+    attachModalKeyboard(this, ModalPriority.cutscene, this.boundHandleKeyDown, this.canvas);
     this.canvas.addEventListener('click', this.boundHandleClick);
     this.canvas.addEventListener('touchend', this.boundHandleClick);
   }
@@ -217,7 +218,7 @@ export class CanvasCutscene {
    * Detach event listeners
    */
   private detach(): void {
-    window.removeEventListener('keydown', this.boundHandleKeyDown);
+    detachModalKeyboard(this);
     this.canvas.removeEventListener('click', this.boundHandleClick);
     this.canvas.removeEventListener('touchend', this.boundHandleClick);
   }
@@ -228,6 +229,7 @@ export class CanvasCutscene {
   private handleKeyDown(e: KeyboardEvent): void {
     if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
       e.preventDefault();
+      if (e.repeat) return;
       this.trySkip();
     }
   }
@@ -236,13 +238,17 @@ export class CanvasCutscene {
    * Handle click/tap
    */
   private handleClick(e: MouseEvent | TouchEvent): void {
-    e.preventDefault();
+    if (!claimModalPointer(this, e)) return;
     this.trySkip();
   }
   
   /**
    * Try to skip cutscene
    */
+  handleMenuCommand(command: import('./CanvasMenuInput').MenuCommand): void {
+    if (this.isActive() && (command === 'confirm' || command === 'back')) this.trySkip();
+  }
+
   private trySkip(): void {
     if (this.state.canSkip) {
       this.complete();

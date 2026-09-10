@@ -5,14 +5,24 @@ import { GameFlowEvent, GameFlowEventType } from './GameFlowEvent';
 import { HotSpotSystem, HotSpotType } from './HotSpotSystem';
 import { GameObject } from '../entities/GameObject';
 import { NPCComponent } from '../entities/components/NPCComponent';
+import { readFileSync } from 'node:fs';
+import { TimeSystem } from './TimeSystem';
+
+test('App transition fades use the paused unscaled clock rather than display-frame deltas', () => {
+  const source = readFileSync(new URL('../components/Game.tsx', import.meta.url), 'utf8');
+  expect(source.includes('screenFade.update(displayDelta)')).toBe(false);
+  expect(source.includes('new ScreenFade(() => timeSystem.getRealTime())')).toBe(true);
+});
 
 afterEach(() => sSystemRegistry.reset());
 
 test('fade renders intermediate opacity, delivers once at black, and cancels on clear', () => {
-  const fade = new ScreenFade();
+  const clock = new TimeSystem();
+  const fade = new ScreenFade(() => clock.getRealTime());
+  const advance = (dt: number): void => { clock.update(dt); fade.update(); };
   let events = 0;
   fade.fadeOut(1.5, () => { events++; });
-  fade.update(0.75);
+  advance(0.75);
   expect(events).toBe(0);
   let opacity = -1;
   const ctx = {
@@ -22,21 +32,23 @@ test('fade renders intermediate opacity, delivers once at black, and cancels on 
   fade.render(ctx as unknown as CanvasRenderingContext2D, 480, 320);
   expect(opacity).toBe(0.5);
   fade.fadeOut(1.5, () => { events += 100; }); // Repeated contact must not reset it.
-  fade.update(0.75);
+  advance(0.75);
   expect(fade.getOpacity()).toBe(1);
   expect(events).toBe(1);
-  fade.update(10);
+  advance(10);
   expect(events).toBe(1);
   fade.clear();
   expect(fade.getOpacity()).toBe(0);
   fade.fadeOut(1.5, () => { events++; });
   fade.clear();
-  fade.update(10);
+  advance(10);
   expect(events).toBe(1);
 });
 
 test('an NPC end-level hotspot waits for the full fade before dispatching its transition', () => {
-  const fade = new ScreenFade();
+  const clock = new TimeSystem();
+  const fade = new ScreenFade(() => clock.getRealTime());
+  const advance = (dt: number): void => { clock.update(dt); fade.update(); };
   const flow = new GameFlowEvent();
   sSystemRegistry.screenFade = fade;
   sSystemRegistry.register(flow, 'gameFlowEvent');
@@ -56,14 +68,41 @@ test('an NPC end-level hotspot waits for the full fade before dispatching its tr
   npc.update(1 / 60, object);
   flow.update();
   expect(events).toEqual([]);
-  fade.update(1.49);
+  advance(1.49);
   flow.update();
   expect(events).toEqual([]);
   expect(fade.getOpacity()).toBeGreaterThan(0.9);
-  fade.update(0.02);
+  advance(0.02);
   flow.update();
   expect(events).toEqual([GameFlowEventType.GO_TO_NEXT_LEVEL]);
-  fade.update(2);
+  advance(2);
   flow.update();
   expect(events).toHaveLength(1);
+});
+
+test('extra display frames and paused clocks cannot advance a fade, but hit-stop and scaling do not stretch it', () => {
+  const clock = new TimeSystem();
+  const fade = new ScreenFade(() => clock.getRealTime());
+  let events = 0;
+  clock.applyScale(0.1, 100, false); clock.freeze(10);
+  fade.fadeOut(1.5, () => { events++; });
+  fade.update();
+  expect(fade.getOpacity()).toBe(0); // no time spent on the initiating frame
+  clock.update(0.75); fade.update();
+  expect(clock.getGameTime()).toBe(0);
+  expect(fade.getOpacity()).toBe(0.5);
+  for (let i = 0; i < 1000; i++) fade.update();
+  expect(fade.getOpacity()).toBe(0.5);
+  expect(events).toBe(0);
+  clock.update(0.75); fade.update();
+  expect(fade.getOpacity()).toBe(1);
+  expect(events).toBe(1);
+  for (let i = 0; i < 1000; i++) fade.update();
+  expect(events).toBe(1);
+  fade.clear(); clock.update(100);
+  fade.fadeOut(1.5, () => { events++; });
+  fade.update();
+  expect(fade.getOpacity()).toBe(0);
+  clock.update(1.5); fade.update();
+  expect(events).toBe(2);
 });

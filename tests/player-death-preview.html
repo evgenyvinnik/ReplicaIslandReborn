@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Player death verification</title>
+<style>
+  body { margin: 24px; color: #eee; background: #20242a; font: 16px system-ui; }
+  canvas { width: 720px; height: 480px; image-rendering: pixelated; }
+  button { margin: 8px 8px 8px 0; padding: 8px 12px; }
+</style>
+<h1>Player death presentation</h1>
+<p>Staged death entry with the real player controller, animations, factory and renderer. Sound calls are counted, not played. No campaign save changes.</p>
+<button id="ordinary" disabled>Ordinary fatal hit</button>
+<button id="hazard" disabled>Lethal hazard</button>
+<button id="advance" disabled>Advance 0.25 seconds</button>
+<button id="finish" disabled>Finish effects</button>
+<button id="reset" disabled>Reset player</button>
+<p id="status" role="status">Loading</p>
+<canvas width="480" height="320" aria-label="Player death and explosion scene"></canvas>
+<script type="module">
+  const status = document.querySelector('#status');
+  window.addEventListener('unhandledrejection', e => { status.textContent = `Preview error: ${e.reason}`; });
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: {
+    getItem: () => null, setItem: () => {}, removeItem: () => {},
+  } });
+  let modules;
+  try {
+    modules = await Promise.all([
+      import('../src/entities/GameObjectFactory.ts'), import('../src/entities/GameObjectManager.ts'),
+      import('../src/entities/GameObject.ts'), import('../src/engine/RenderSystem.ts'),
+      import('../src/engine/SystemRegistry.ts'), import('../src/entities/components/PlayerComponent.ts'),
+      import('../src/entities/components/SpriteComponent.ts'), import('../src/entities/components/DynamicCollisionComponent.ts'),
+      import('../src/engine/InputSystem.ts'), import('../src/engine/CollisionSystemNew.ts'),
+      import('../src/data/playerAnimations.ts'), import('../src/entities/components/SolidSurfaceComponent.ts'),
+    ]);
+  } finally {
+    if (descriptor) Object.defineProperty(window, 'localStorage', descriptor); else delete window.localStorage;
+  }
+  const [{ GameObjectFactory }, { GameObjectManager }, { GameObject }, { RenderSystem },
+    { sSystemRegistry }, { PlayerComponent }, { SpriteComponent }, { DynamicCollisionComponent },
+    { InputSystem }, { CollisionSystem }, { createPlayerAnimations },
+    { SolidSurfaceComponent, setSolidSurfaceSystemRegistry }] = modules;
+  const renderer = new RenderSystem(document.querySelector('canvas'));
+  const manager = new GameObjectManager(), factory = new GameObjectFactory(manager);
+  const collision = new CollisionSystem(), sounds = [];
+  const sound = { playSfx: name => { sounds.push(name); return 1; }, stopSound: () => {} };
+  sSystemRegistry.reset();
+  sSystemRegistry.register(manager, 'gameObject'); sSystemRegistry.register(factory, 'factory');
+  sSystemRegistry.register(collision, 'collision'); sSystemRegistry.register(sound, 'sound');
+  sSystemRegistry.register(renderer, 'render');
+  setSolidSurfaceSystemRegistry(sSystemRegistry); factory.setRenderSystem(renderer);
+  const names = new Set([...createPlayerAnimations().values()].flatMap(a => a.frames.map(f => f.sprite)));
+  for (const prefix of ['big', 'small']) for (let i = 1; i <= (prefix === 'big' ? 9 : 7); i++)
+    names.add(`effect_explosion_${prefix}${String(i).padStart(2, '0')}.png`);
+  await Promise.all([...names].map(name => renderer.loadSingleImage(name,
+    `/assets/sprites/${name}${name.endsWith('.png') ? '' : '.png'}`)));
+  const player = new GameObject(); player.type = 'player'; player.width = 32; player.height = 48;
+  player.activationRadius = -1; player.setPosition(220, 200);
+  const control = new PlayerComponent(), sprite = new SpriteComponent(); sprite.setRenderSystem(renderer);
+  control.setSystems(new InputSystem(), collision, sound, { getLevelSize: () => ({ width: 4096, height: 4096 }) });
+  player.addComponent(control); player.addComponent(sprite); player.addComponent(new DynamicCollisionComponent());
+  manager.add(player); manager.setPlayer(player);
+  const floor = new GameObject(); floor.width = 480; floor.height = 32; floor.setPosition(0, 248);
+  floor.activationRadius = -1;
+  const surface = new SolidSurfaceComponent(); surface.createRectangle(480, 32); floor.addComponent(surface);
+  manager.add(floor);
+  let time = 1;
+  function step(dt) { time += dt; manager.update(dt, time); manager.commitUpdates(); collision.updateTemporarySurfaces(); }
+  function show(label) {
+    renderer.clear('#151d2a');
+    manager.getActiveObjects().forEach(o => o.render());
+    renderer.drawRect(0, 248, 480, 32, '#526879', 0); renderer.render();
+    status.textContent = `${label}; player frame: ${sprite.getCurrentDraw()?.sprite ?? 'hidden'}; giant blasts: ${manager.getActiveObjects().filter(o => o.subType === 'explosion_giant').length}; sound calls: ${sounds.join(', ') || 'none'}`;
+  }
+  const ordinary = document.querySelector('#ordinary'), hazard = document.querySelector('#hazard');
+  const advance = document.querySelector('#advance'), finish = document.querySelector('#finish'), reset = document.querySelector('#reset');
+  function die(hazardous) {
+    control.beginDeath(player, hazardous); step(0);
+    ordinary.disabled = hazard.disabled = true;
+    advance.disabled = finish.disabled = reset.disabled = false;
+    show(hazardous ? 'Hazard death' : 'Ordinary death');
+  }
+  ordinary.onclick = () => die(false); hazard.onclick = () => die(true);
+  advance.onclick = () => { for (let i = 0; i < 15; i++) step(1 / 60); show('Advanced'); };
+  finish.onclick = () => { for (let i = 0; i < 120; i++) step(1 / 60); show('Effects finished'); };
+  reset.onclick = () => {
+    for (let i = 0; i < 120; i++) step(1 / 60);
+    control.reset(); player.life = 3; player.setPosition(220, 200); player.getVelocity().zero();
+    sounds.length = 0; step(0);
+    ordinary.disabled = hazard.disabled = false; advance.disabled = finish.disabled = true;
+    show('Player reset');
+  };
+  step(0); step(1 / 60); ordinary.disabled = hazard.disabled = false; show('Ready');
+</script>
+</html>

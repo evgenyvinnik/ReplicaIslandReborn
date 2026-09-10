@@ -18,6 +18,9 @@ import { SleeperComponent } from '../entities/components/SleeperComponent';
 import { PopOutComponent } from '../entities/components/PopOutComponent';
 import { TheSourceComponent } from '../entities/components/TheSourceComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { configureGiantExplosion } from '../entities/giantExplosion';
+import { configureExplosion } from '../entities/explosion';
+import { configureBreakableBlock } from '../entities/breakableBlock';
 import { DoorAnimationComponent, DoorAnimation } from '../entities/components/DoorAnimationComponent';
 import { ButtonAnimationComponent, ButtonAnimation } from '../entities/components/ButtonAnimationComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
@@ -1459,6 +1462,12 @@ export class LevelSystem {
         obj.addComponent(rokudouCollision);
         obj.addComponent(rokudouHitReact);
 
+        // Original spawnEnemyRokudou adds gravity only on death. His ending
+        // waits for ground contact, so an airborne death must fall first.
+        const rokudouDeathSwap = new ChangeComponentsComponent({ swapOnAction: ActionType.DEATH });
+        rokudouDeathSwap.addSwapInComponent(new GravityComponent());
+        obj.addComponent(rokudouDeathSwap);
+
         // Two guns, both gated on ActionType.ATTACK so they only fire while the
         // hot-spot script has him attacking: a slow energy ball and a faster
         // five-round burst.
@@ -1492,36 +1501,9 @@ export class LevelSystem {
       }
       
       case GameObjectTypeIndex.BREAKABLE_BLOCK: {
-        // Breakable/destructible block (type 41)
-        // Can be destroyed by player attacks
-        obj.type = 'breakable_block';
+        configureBreakableBlock(obj);
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS; // Large radius to ensure blocks are active when NPC approaches
-        obj.life = 1;
-        obj.team = Team.ENEMY; // Can be damaged by player
-        
-        // console.log(`[LevelSystem] Spawning breakable_block at tile (${spawn.tileX}, ${spawn.tileY}) world (${spawn.x}, ${spawn.y})`);
-        
-        // Add dynamic collision component for hit detection
-        const blockCollision = new DynamicCollisionComponent();
-        // Vulnerability volume - can be hit from any direction
-        const blockVulnerability = new AABoxCollisionVolume(7, 0, 32 - 7, 42, HitType.HIT);
-        blockCollision.setCollisionVolumes(null, [blockVulnerability]);
-        obj.addComponent(blockCollision);
-        
-        // Hit reaction - takes damage and dies
-        const blockHitReact = new HitReactionComponent({
-          forceInvincibility: false
-        });
-        blockCollision.setHitReactionComponent(blockHitReact);
-        obj.addComponent(blockHitReact);
-        
-        // Add solid surface component so player can stand on the block
-        const solidSurface = new SolidSurfaceComponent();
-        // Create a 32x32 rectangular solid
-        solidSurface.createRectangle(32, 32);
-        obj.addComponent(solidSurface);
         break;
       }
 
@@ -1739,7 +1721,8 @@ export class LevelSystem {
         obj.type = 'camera_bias';
         objWidth = 32;
         objHeight = 32;
-        obj.activationRadius = ALWAYS_ACTIVE;
+        // Original spawnCameraBias: only nearby markers influence the view.
+        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
         obj.team = Team.NONE;
         
         // Camera bias component
@@ -2089,29 +2072,23 @@ export class LevelSystem {
       // EFFECTS (spawnable as level objects)
       // ============================================
 
-      case GameObjectTypeIndex.DUST:
+      case GameObjectTypeIndex.EXPLOSION_GIANT:
+        configureGiantExplosion(obj, sSystemRegistry.renderSystem);
+        objWidth = objHeight = 64;
+        break;
+
       case GameObjectTypeIndex.EXPLOSION_SMALL:
       case GameObjectTypeIndex.EXPLOSION_LARGE:
-      case GameObjectTypeIndex.EXPLOSION_GIANT: {
+        configureExplosion(obj, spawn.type === GameObjectTypeIndex.EXPLOSION_LARGE, sSystemRegistry.renderSystem);
+        objWidth = objHeight = obj.width;
+        break;
+
+      case GameObjectTypeIndex.DUST: {
         // Effects - short-lived animated sprites
         obj.type = 'effect';
-        if (spawn.type === GameObjectTypeIndex.DUST) {
-          obj.subType = 'dust';
-          objWidth = 16;
-          objHeight = 16;
-        } else if (spawn.type === GameObjectTypeIndex.EXPLOSION_SMALL) {
-          obj.subType = 'explosion_small';
-          objWidth = 32;
-          objHeight = 32;
-        } else if (spawn.type === GameObjectTypeIndex.EXPLOSION_LARGE) {
-          obj.subType = 'explosion_large';
-          objWidth = 64;
-          objHeight = 64;
-        } else {
-          obj.subType = 'explosion_giant';
-          objWidth = 128;
-          objHeight = 128;
-        }
+        obj.subType = 'dust';
+        objWidth = 16;
+        objHeight = 16;
         obj.activationRadius = ALWAYS_ACTIVE;
         obj.team = Team.NONE;
         

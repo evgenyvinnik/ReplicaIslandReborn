@@ -21,10 +21,19 @@ const GAME_WIDTH = 480;
 const GAME_HEIGHT = 320;
 
 function AppContent(): React.JSX.Element {
-  const { state, dispatch, goToMainMenu, goToLevelSelect, goToOptions, startNewGame, startGame, pauseGame, resumeGame } = useGameContext();
+  const { state, dispatch, goToMainMenu, goToOptions, startNewGame, startGame, pauseGame, resumeGame } = useGameContext();
   const [osMode, setOsMode] = useState<'app' | 'home' | 'recents'>('app');
   // Track if we paused the game due to going to recents/home (vs user manually pausing)
   const pausedByOsRef = useRef(false);
+
+  const handleAppLaunch = useCallback(() => {
+    setOsMode('app');
+    // All OS-return paths preserve an existing manual pause.
+    if (state.gameState === GameState.PAUSED && pausedByOsRef.current) {
+      pausedByOsRef.current = false;
+      resumeGame();
+    }
+  }, [state.gameState, resumeGame]);
 
   // Handle debug level selection from options menu
   const handleDebugStartLevel = useCallback((levelId: number) => {
@@ -35,7 +44,7 @@ function AppContent(): React.JSX.Element {
   const handleBack = useCallback(() => {
     if (osMode !== 'app') {
       if (osMode === 'recents') {
-        setOsMode('app');
+        handleAppLaunch();
       }
       return;
     }
@@ -52,13 +61,14 @@ function AppContent(): React.JSX.Element {
       case GameState.LEVEL_SELECT:
       case GameState.DIFFICULTY_SELECT:
       case GameState.OPTIONS:
+      case GameState.EXTRAS:
         goToMainMenu();
         break;
       case GameState.MAIN_MENU:
         // Already at main menu
         break;
     }
-  }, [state.gameState, goToMainMenu, osMode]);
+  }, [state.gameState, goToMainMenu, osMode, handleAppLaunch]);
 
   const handleHome = useCallback(() => {
     setOsMode('home');
@@ -70,7 +80,7 @@ function AppContent(): React.JSX.Element {
 
   const handleRecents = useCallback(() => {
     if (osMode === 'recents') {
-      setOsMode('app');
+      handleAppLaunch();
     } else {
       setOsMode('recents');
       if (state.gameState === GameState.PLAYING || state.gameState === GameState.DIALOG) {
@@ -78,16 +88,7 @@ function AppContent(): React.JSX.Element {
         pauseGame();
       }
     }
-  }, [osMode, state.gameState, pauseGame]);
-
-  const handleAppLaunch = useCallback(() => {
-    setOsMode('app');
-    // Only auto-resume if we paused due to going to recents/home
-    if (state.gameState === GameState.PAUSED && pausedByOsRef.current) {
-      pausedByOsRef.current = false;
-      resumeGame();
-    }
-  }, [state.gameState, resumeGame]);
+  }, [osMode, state.gameState, pauseGame, handleAppLaunch]);
 
   // Simulate initial loading
   useEffect(() => {
@@ -105,17 +106,13 @@ function AppContent(): React.JSX.Element {
 
   // Start linear mode (Extras menu) - all levels accessible in chronological order
   const startLinearMode = useCallback(() => {
-    // Set linear mode flag before starting the game
-    dispatch({ type: 'SET_LINEAR_MODE', payload: true });
-    startNewGame();
-  }, [dispatch, startNewGame]);
+    startNewGame('linear');
+  }, [startNewGame]);
   
   // Go to level select with all levels unlocked (Extras menu)
   const goToExtrasLevelSelect = useCallback(() => {
-    // Set linear mode to enable all levels in level select
-    dispatch({ type: 'SET_LINEAR_MODE', payload: true });
-    goToLevelSelect();
-  }, [dispatch, goToLevelSelect]);
+    startNewGame('levelSelect');
+  }, [startNewGame]);
 
   // Determine which screen to show
   const renderScreen = (): React.JSX.Element => {
@@ -166,6 +163,7 @@ function AppContent(): React.JSX.Element {
       <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
         <div 
            className="app-container"
+           inert={osMode !== 'app'}
            style={{ display: osMode === 'home' ? 'none' : 'block' }}
         >
            {renderScreen()}

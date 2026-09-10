@@ -23,6 +23,9 @@ import {
 import { assetPath } from '../utils/helpers';
 import { useGameStore } from '../stores/useGameStore';
 import { getCompletedLevelIds } from '../stores/progressUtils';
+import { useMenuGamepad } from './useMenuGamepad';
+import { isSurfaceActive } from '../engine/GameSurfaceActivity';
+import { useMenuSelectionTransition } from './useMenuSelectionTransition';
 
 // Row height in pixels - matches original 70dp at mdpi (1:1 pixel ratio)
 // This means ~4-5 rows visible at a time with scrolling
@@ -170,15 +173,17 @@ export function LevelSelect(): React.JSX.Element {
   const levelProgress = useGameStore((store) => store.progress.levels);
   const [selectedIndex, setSelectedIndex] = useState<number>(-1);
   const [flickeringIndex, setFlickeringIndex] = useState<number>(-1);
+  const selectionTransition = useMenuSelectionTransition();
   const [levelList, setLevelList] = useState<LevelMetaData[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Generate level list based on completed levels and mode
   useEffect(() => {
     const completedSet = completedLevelIdsToResourceSet(getCompletedLevelIds(levelProgress));
 
     // Generate level list - use linear tree in linear mode (all levels enabled)
-    const list = generateLevelList(completedSet, true, state.isLinearMode);
+    const list = generateLevelList(completedSet, true, state.isLinearMode, state.unlockAllLevelSelect);
     const sorted = sortLevelsByTime(list);
     setLevelList(sorted);
 
@@ -187,7 +192,7 @@ export function LevelSelect(): React.JSX.Element {
     if (firstEnabledIndex >= 0) {
       setSelectedIndex(firstEnabledIndex);
     }
-  }, [levelProgress, state.isLinearMode]);
+  }, [levelProgress, state.isLinearMode, state.unlockAllLevelSelect]);
 
   // The list is sorted chronologically, so the only playable level can sit far
   // down it (Memory #000 is stamped + 07:12:03 and lands near the bottom).
@@ -205,24 +210,23 @@ export function LevelSelect(): React.JSX.Element {
   const handleLevelClick = useCallback(
     (index: number, levelData: LevelMetaData) => {
       if (!levelData.enabled) return;
+      // Keep the first choice and cancel its launch if Back unmounts this menu.
+      if (!selectionTransition.start(() => {
+        setFlickeringIndex(-1);
+        const levelId = resourceToLevelId[levelData.level.resource] || 1;
+        startGame(levelId);
+      })) return;
 
       setSelectedIndex(index);
       setFlickeringIndex(index);
-
-      // Start flicker animation, then start game (800ms total animation)
-      setTimeout(() => {
-        setFlickeringIndex(-1);
-        // Get the numeric level ID from the resource mapping
-        const levelId = resourceToLevelId[levelData.level.resource] || 1;
-        startGame(levelId);
-      }, 800);
     },
-    [startGame]
+    [startGame, selectionTransition]
   );
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
+      if (!isSurfaceActive(menuRef.current)) return;
       if (flickeringIndex !== -1) return; // Don't navigate during animation
 
       const enabledIndices = levelList
@@ -292,8 +296,29 @@ export function LevelSelect(): React.JSX.Element {
     }
   };
 
+  useMenuGamepad({ menuRef, viewKey: 'level-select',
+    onBack: (): void => { if (flickeringIndex === -1) goToMainMenu(); },
+    onCommand: (command): boolean => {
+      if (flickeringIndex !== -1) return true;
+      const enabled = levelList.map((level, index) => level.enabled ? index : -1).filter(index => index >= 0);
+      if (!enabled.length) return true;
+      if (command === 'confirm') {
+        const index = levelList[selectedIndex]?.enabled ? selectedIndex : enabled[0];
+        handleLevelClick(index, levelList[index]);
+      } else {
+        const direction = command === 'up' || command === 'left' ? -1 : 1;
+        const current = Math.max(0, enabled.indexOf(selectedIndex));
+        const index = enabled[Math.max(0, Math.min(enabled.length - 1, current + direction))];
+        setSelectedIndex(index);
+        scrollToIndex(index);
+      }
+      return true;
+    },
+  });
+
   return (
     <div
+      ref={menuRef}
       style={{
         width: '100%',
         height: '100%',

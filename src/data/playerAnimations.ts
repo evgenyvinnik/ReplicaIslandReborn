@@ -139,8 +139,10 @@ export function createPlayerAnimations(
       sprite,
       offsetX: OFFSET,
       offsetY: OFFSET,
-      attackVolumes: set.attack as SpriteFrame['attackVolumes'],
-      vulnerabilityVolumes: set.vulnerability as SpriteFrame['vulnerabilityVolumes'],
+      // Original DEATH frames have neither attacks nor vulnerability, even
+      // when the glow animation set was active on the previous frame.
+      attackVolumes: name === 'dead' ? null : set.attack as SpriteFrame['attackVolumes'],
+      vulnerabilityVolumes: name === 'dead' ? null : set.vulnerability as SpriteFrame['vulnerabilityVolumes'],
     }));
 
     animations.set(name, { name, frames, loop: art.loop });

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Ending statistics verification</title>
+<style>
+  body { margin: 24px; color: #eee; background: #20242a; font: 16px system-ui; }
+  canvas { width: 480px; height: 320px; image-rendering: pixelated; }
+  button { margin: 8px 12px 16px 0; padding: 8px 12px; }
+</style>
+<h1>Ending statistics — production renderer</h1>
+<p>Development-only sample data. No save storage or campaign completion is changed.</p>
+<button id="show">Show completed diary collection</button>
+<button id="partial">Show migrated campaign statistics</button>
+<p id="status" role="status">Preview ready</p>
+<canvas width="480" height="320" aria-label="Ending statistics"></canvas>
+<script type="module">
+  import { CanvasEndingStatsScreen } from '../src/engine/CanvasEndingStatsScreen.ts';
+  import { DiaryEntries } from '../src/data/diaries.ts';
+  const canvas = document.querySelector('canvas');
+  const screen = new CanvasEndingStatsScreen(canvas.getContext('2d'), canvas, 480, 320);
+  function show(partialHistory = false) {
+    document.querySelector('#status').textContent = 'All diary entries collected';
+    screen.show({
+      totalPlayTime: 3723, totalScore: 15000, totalCoinsCollected: 321,
+      totalRubiesCollected: 90, totalEnemiesDefeated: 47, totalDeaths: 3,
+      diariesCollected: DiaryEntries.length, ending: 'good',
+      partialHistory,
+    }, () => { document.querySelector('#status').textContent = 'Continue callback received'; });
+    screen.update(3);
+    screen.render();
+  }
+  document.querySelector('#show').addEventListener('click', () => show());
+  document.querySelector('#partial').addEventListener('click', () => show(true));
+  show();
+</script>
+</html>

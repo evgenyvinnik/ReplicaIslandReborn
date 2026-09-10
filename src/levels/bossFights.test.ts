@@ -45,7 +45,7 @@ import type { CutsceneType } from '../data/cutscenes';
 import { TimeSystem } from '../engine/TimeSystem';
 import { TheSourceComponent } from '../entities/components/TheSourceComponent';
 import { ScreenFade } from '../engine/ScreenFade';
-import type { EffectsSystem } from '../engine/EffectsSystem';
+import { GravityComponent } from '../entities/components/GravityComponent';
 
 const originalFetch = globalThis.fetch;
 const publicDirectory = join(import.meta.dir, '../../public');
@@ -102,7 +102,7 @@ async function loadBossLevel(onBossDeath?: (ending: string) => void): Promise<Ar
   // never get a target velocity.
   sSystemRegistry.register(hotSpots, 'hotSpot');
   sSystemRegistry.channelSystem = new ChannelSystem();
-  sSystemRegistry.screenFade = new ScreenFade();
+  sSystemRegistry.screenFade = new ScreenFade(() => time.getRealTime());
 
   expect(await levelSystem.loadLevel(resourceToLevelId[BOSS_LEVEL])).toBe(true);
   manager.commitUpdates();
@@ -150,6 +150,16 @@ function resolveHit(arena: Arena, player: GameObject, boss: GameObject, time: nu
   arena.collision.update(1 / 60);
 }
 
+/** Let both the hit animation and invincibility expire between staged attacks. */
+function recoverBoss(arena: Arena, boss: GameObject, time: number): number {
+  for (let frame = 0; frame < 120; frame++) {
+    time += 1 / 60;
+    boss.update(1 / 60, time);
+    arena.collision.update(1 / 60);
+  }
+  return time;
+}
+
 describe('boss fight composition', () => {
   for (const [subType, label] of [['evil_kabocha', 'Evil Kabocha'], ['rokudou', 'Rokudou']] as const) {
     test(`${label} is a scripted NPC, not a bespoke boss AI`, async () => {
@@ -178,14 +188,11 @@ describe('boss fight composition', () => {
     test(`${label} takes three stomps, not one`, async () => {
       const arena = await loadBossLevel();
       const boss = findBoss(arena.manager, subType);
-      const player = makeStompingPlayer(boss);
-      const reaction = componentOf<HitReactionComponent>(boss, HitReactionComponent);
-
       let time = 0;
       const lives: number[] = [];
       for (let hit = 0; hit < 3; hit++) {
-        // Clear the post-hit invincibility window between stomps.
-        reaction?.setInvincible(false);
+        if (hit > 0) time = recoverBoss(arena, boss, time);
+        const player = makeStompingPlayer(boss);
         time += 1;
         resolveHit(arena, player, boss, time);
         lives.push(boss.life);
@@ -230,7 +237,6 @@ describe('boss fight composition', () => {
         new InputSystem(), sSystemRegistry.collisionSystem as CollisionSystem,
         new SoundSystem(), sSystemRegistry.levelSystem as unknown as LevelSystem
       );
-      const reaction = componentOf<HitReactionComponent>(boss, HitReactionComponent);
       const startLife = boss.life;
       expect(startLife).toBe(3);
 
@@ -240,7 +246,7 @@ describe('boss fight composition', () => {
         // This stages separate attacks; do not carry the previous stomp's
         // completed landing/recovery state into the next sweep.
         component.reset();
-        reaction?.setInvincible(false);
+        if (hit > 0) time = recoverBoss(arena, boss, time);
         // Sweep him down through the boss while stomping, as a landed stomp does.
         for (let i = 0; i < 40 && boss.life > startLife - hit - 1; i++) {
           component.stomping = true;
@@ -276,6 +282,37 @@ describe('boss fight composition', () => {
 
     expect(sprite?.getCurrentAnimationIndex()).toBe(NPCAnimation.WALK);
   });
+
+  for (const subType of ['evil_kabocha', 'rokudou']) {
+    test(`${subType} stays unharmed by collapse blasts while surprised`, async () => {
+      const arena = await loadBossLevel();
+      const boss = findBoss(arena.manager, subType);
+      sSystemRegistry.channelSystem!.registerChannel('SURPRISED')!.value = { value: true };
+      // Keep the real NPC controller, animator and collision path running for
+      // longer than the four-second surprise frame. Aim real factory blasts
+      // at the moving boss so this does not depend on random Source offsets.
+      for (let frame = 0; frame < 31 * 60; frame++) {
+        arena.time.update(1 / 60);
+        boss.update(1 / 60, arena.time.getGameTime());
+        if (frame % 20 === 0) {
+          sSystemRegistry.gameObjectFactory!.spawn(GameObjectType.EXPLOSION_GIANT,
+            boss.getCenteredPositionX() - 32, boss.getCenteredPositionY() - 32);
+        }
+        arena.manager.commitUpdates();
+        for (const blast of arena.manager.getActiveObjects().filter(o => o.subType === 'explosion_giant')) {
+          blast.update(1 / 60, arena.time.getGameTime());
+          if (blast.isMarkedForRemoval()) arena.manager.remove(blast);
+        }
+        arena.collision.update(1 / 60);
+        arena.manager.commitUpdates();
+        expect(boss.life).toBe(3);
+        expect(componentOf<SpriteComponent>(boss, SpriteComponent)!.getCurrentAnimationIndex())
+          .toBe(NPCAnimation.SURPRISED);
+        expect(componentOf<DynamicCollisionComponent>(boss, DynamicCollisionComponent)!.getVulnerabilityVolumes())
+          .toBeNull();
+      }
+    });
+  }
 
   for (const [subType, label] of [['evil_kabocha', 'Evil Kabocha'], ['rokudou', 'Rokudou']] as const) {
     test(`${label} can actually move`, async () => {
@@ -363,24 +400,79 @@ describe('boss death posts its ending cutscene', () => {
     events = [];
   });
 
+  test('an airborne Rokudou gains death gravity, lands and reaches Kabocha ending', async () => {
+    const arena = await loadBossLevel();
+    const boss = findBoss(arena.manager, 'rokudou');
+    const player = arena.manager.getPlayer()!;
+    expect(componentOf<GravityComponent>(boss, GravityComponent)).toBeNull();
+    // Stage the last hit above the arena's central pillar, without ground
+    // contact or downward velocity. The other tests cover all three hits.
+    boss.setPosition(player.getPosition().x - 48, player.getPosition().y - 160);
+    boss.getVelocity().set(0, 0);
+    boss.getTargetVelocity().set(0, 0);
+    boss.setLastTouchedFloorTime(-100);
+    boss.life = 1;
+    const initialY = boss.getPosition().y;
+    const blast = sSystemRegistry.gameObjectFactory!.spawn(GameObjectType.EXPLOSION_GIANT,
+      boss.getCenteredPositionX() - 32, boss.getCenteredPositionY() - 32)!;
+    const listener = (event: GameFlowEventType, index: number): void => { events.push({ event, index }); };
+    gameFlowEvent.addListener(listener);
+    let landed = false;
+    try {
+      for (let frame = 0; frame < 15 * 60; frame++) {
+        arena.time.update(1 / 60);
+        boss.update(1 / 60, arena.time.getGameTime());
+        if (!blast.isMarkedForRemoval()) blast.update(1 / 60, arena.time.getGameTime());
+        arena.collision.update(1 / 60);
+        if (frame === 0) expect(boss.life).toBe(0);
+        if (frame === 5) expect(componentOf<GravityComponent>(boss, GravityComponent)).not.toBeNull();
+        if (boss.touchingGround()) landed = true;
+        sSystemRegistry.screenFade!.update();
+        gameFlowEvent.update();
+      }
+    } finally {
+      gameFlowEvent.removeListener(listener);
+    }
+    expect(landed).toBe(true);
+    expect(boss.getPosition().y).toBeGreaterThan(initialY);
+    expect(boss.getComponents().filter(component => component instanceof GravityComponent)).toHaveLength(1);
+    expect(events.filter(({ event }) => event === GameFlowEventType.SHOW_ANIMATION))
+      .toEqual([{ event: GameFlowEventType.SHOW_ANIMATION, index: 2 }]);
+  });
+
   test('three real enemy shots collapse The Source and trigger Wanda ending exactly once', async () => {
     const endings: string[] = [];
     const arena = await loadBossLevel((ending) => { endings.push(ending); });
     const source = findBoss(arena.manager, 'the_source');
+    const rivals = ['evil_kabocha', 'rokudou'].map(name => findBoss(arena.manager, name));
     const behavior = componentOf<TheSourceComponent>(source, TheSourceComponent)!;
     const camera = sSystemRegistry.cameraSystem!;
     camera.setTarget(arena.manager.getPlayer());
-    const explosions: string[] = [];
-    sSystemRegistry.register({
-      spawnExplosion: (_x: number, _y: number, kind: string): void => { explosions.push(kind); },
-    } as unknown as EffectsSystem, 'effects');
     const factory = sSystemRegistry.gameObjectFactory!;
+    const explosions = new Set<number>();
 
     const frame = (): void => {
       arena.time.update(1 / 60);
       source.update(1 / 60, arena.time.getGameTime());
+      for (const rival of rivals) rival.update(1 / 60, arena.time.getGameTime());
+      arena.manager.commitUpdates();
+      const liveBlasts = arena.manager.getActiveObjects().filter((obj) => obj.subType === 'explosion_giant');
+      expect(liveBlasts.length).toBeLessThanOrEqual(7);
+      for (const effect of liveBlasts) {
+        if (!explosions.has(effect.id)) {
+          explosions.add(effect.id);
+          expect(effect.team).toBe(Team.PLAYER);
+          expect(componentOf<DynamicCollisionComponent>(effect, DynamicCollisionComponent)?.getAttackVolumes()).toHaveLength(1);
+        }
+        // Run real animation, sound, collision registration and expiry during
+        // the whole collapse, including repeated reuse of pooled objects.
+        effect.update(1 / 60, arena.time.getGameTime());
+        if (effect.isMarkedForRemoval()) arena.manager.remove(effect);
+      }
       arena.collision.update(1 / 60);
-      sSystemRegistry.screenFade!.update(1 / 60);
+      expect(rivals.map(rival => rival.life)).toEqual([3, 3]);
+      arena.manager.commitUpdates();
+      sSystemRegistry.screenFade!.update();
     };
     for (let hit = 0; hit < 3; hit++) {
       // Factory shots carry the real team, attack sphere and hit reaction.
@@ -411,8 +503,7 @@ describe('boss death posts its ending cutscene', () => {
     for (let i = 0; i < 29 * 60; i++) frame();
     expect(endings).toEqual([]);
     expect(source.getPosition().y - startY).toBeCloseTo(29 * 20, 5);
-    expect(explosions.length).toBeGreaterThan(200);
-    expect(new Set(explosions)).toEqual(new Set(['giant']));
+    expect(explosions.size).toBeGreaterThan(200);
     for (let i = 0; i < 90; i++) frame();
     expect(endings).toEqual([]);
     expect(sSystemRegistry.screenFade!.getOpacity()).toBeGreaterThan(0);
@@ -443,12 +534,13 @@ describe('boss death posts its ending cutscene', () => {
       // action in the first place.
       let time = 0;
       for (let frame = 0; frame < 400; frame++) {
+        arena.time.update(1 / 60);
         time += 1 / 60;
         boss.setGameTime(time);
         boss.setLastTouchedFloorTime(time);
         boss.getVelocity().set(0, 0);
         npc.update(1 / 60, boss);
-        sSystemRegistry.screenFade!.update(1 / 60);
+        sSystemRegistry.screenFade!.update();
         gameFlowEvent.update();
         if (frame === 300) {
           expect(events).toEqual([]); // 4s death delay, then a 1.5s fade.

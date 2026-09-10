@@ -9,8 +9,10 @@
  * - 2-column keyboard config dialog
  */
 
-import React, { useState, useEffect } from 'react';
-import { useGameStore, type GameSettings, type KeyBindings } from '../stores/useGameStore';
+import React, { useState, useEffect, useRef, useReducer } from 'react';
+import { useMenuGamepad } from './useMenuGamepad';
+import { useGameStore, type GameSettings } from '../stores/useGameStore';
+import { keyboardConfigReducer, closedKeyboardConfig } from './keyboardConfig';
 import { UIStrings } from '../data/strings';
 import { levelTree, resourceToLevelId } from '../data/levelTree';
 
@@ -49,36 +51,36 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
   // Use Zustand store directly for settings
   const settings = useGameStore((state) => state.settings);
   const setSetting = useGameStore((state) => state.setSetting);
-  const setKeyBinding = useGameStore((state) => state.setKeyBinding);
-  const resetKeyBindings = useGameStore((state) => state.resetKeyBindings);
   const resetEverything = useGameStore((state) => state.resetEverything);
   
   const [currentScreen, setCurrentScreen] = useState<Screen>('main');
   const [showEraseConfirm, setShowEraseConfirm] = useState(false);
-  const [showKeyboardConfig, setShowKeyboardConfig] = useState(false);
+  const [keyboardConfig, dispatchKeyboardConfig] = useReducer(keyboardConfigReducer, closedKeyboardConfig);
+  const showKeyboardConfig = keyboardConfig.draft !== null;
+  const keyBindingMode = keyboardConfig.listening;
   const [showEraseToast, setShowEraseToast] = useState(false);
-  const [keyBindingMode, setKeyBindingMode] = useState<keyof KeyBindings | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Handle key binding capture
   useEffect(() => {
-    if (!keyBindingMode) return;
+    if (!showKeyboardConfig) return;
 
     const handleKeyDown = (e: KeyboardEvent): void => {
+      if (menuRef.current?.closest('[inert]') || menuRef.current?.ownerDocument.hidden) return;
+      if (!keyBindingMode && e.code !== 'Escape') return;
       e.preventDefault();
-      e.stopPropagation();
-      
-      if (e.key === 'Escape') {
-        setKeyBindingMode(null);
-        return;
-      }
-
-      setKeyBinding(keyBindingMode, [e.code]);
-      setKeyBindingMode(null);
+      e.stopImmediatePropagation();
+      dispatchKeyboardConfig({ type: 'key', code: e.code, repeat: e.repeat });
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return (): void => window.removeEventListener('keydown', handleKeyDown);
-  }, [keyBindingMode, setKeyBinding]);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return (): void => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [keyBindingMode, showKeyboardConfig]);
+
+  const saveKeyboardConfig = (): void => {
+    if (keyboardConfig.draft) setSetting('keyBindings', keyboardConfig.draft);
+    dispatchKeyboardConfig({ type: 'close' });
+  };
 
   // Hide toast after 2 seconds
   useEffect(() => {
@@ -116,6 +118,17 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
       onStartLevel(levelId);
     }
   };
+
+  useMenuGamepad({ menuRef,
+    viewKey: `${currentScreen}:${showEraseConfirm}:${showKeyboardConfig}:${keyBindingMode ?? ''}`,
+    onBack: (): void => {
+      if (showKeyboardConfig) dispatchKeyboardConfig({ type: 'key', code: 'Escape' });
+      else if (showEraseConfirm) setShowEraseConfirm(false);
+      else handleBack();
+    },
+    // Binding prompts wait for real keyboard keys; B cancels without binding.
+    onCommand: (): boolean => keyBindingMode !== null,
+  });
 
   // Category header (uppercase, orange text - matches Android 2.x style)
   const CategoryHeader = ({ title }: { title: string }): React.JSX.Element => (
@@ -303,6 +316,7 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
         </span>
         <input
           type="range"
+          aria-label={title}
           min={0}
           max={100}
           value={value}
@@ -366,7 +380,7 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
   // 2-column keyboard config dialog (matches original key_config.xml layout)
   const KeyboardConfigDialog = (): React.JSX.Element => {
     const getDisplayKey = (action: keyof GameSettings['keyBindings']): string => {
-      const key = settings.keyBindings[action][0] || 'None';
+      const key = keyboardConfig.draft?.[action][0] || 'None';
       return key.replace('Key', '').replace('Arrow', '');
     };
 
@@ -397,7 +411,7 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
             {label}
           </span>
           <button
-            onClick={(): void => setKeyBindingMode(isActive ? null : action)}
+            onClick={(): void => dispatchKeyboardConfig({ type: 'select', action })}
             style={{
               width: '120px',
               padding: '7px',
@@ -419,6 +433,7 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
 
     return (
       <div
+        data-menu-controller-dialog
         style={{
           position: 'absolute',
           top: 0,
@@ -487,7 +502,7 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
           >
             <button
               onClick={(): void => {
-                resetKeyBindings();
+                dispatchKeyboardConfig({ type: 'reset' });
               }}
               style={{
                 padding: '8px 16px',
@@ -503,10 +518,15 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
               Reset
             </button>
             <button
-              onClick={(): void => {
-                setKeyBindingMode(null);
-                setShowKeyboardConfig(false);
-              }}
+              onClick={(): void => dispatchKeyboardConfig({ type: 'close' })}
+              style={{ padding: '8px 16px', backgroundColor: 'transparent', border: 'none',
+                color: COLORS.categoryText, fontSize: '14px', fontFamily: 'sans-serif',
+                cursor: 'pointer', textTransform: 'uppercase' }}
+            >
+              {UIStrings.preference_key_config_dialog_cancel}
+            </button>
+            <button
+              onClick={saveKeyboardConfig}
               style={{
                 padding: '8px 16px',
                 backgroundColor: 'transparent',
@@ -529,6 +549,7 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
   // Erase confirmation dialog (Android AlertDialog style)
   const EraseConfirmDialog = (): React.JSX.Element => (
     <div
+      data-menu-controller-dialog
       style={{
         position: 'absolute',
         top: 0,
@@ -680,7 +701,7 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
         <ScreenPreference
           title={UIStrings.preference_key_config}
           summary={UIStrings.preference_key_config_summary}
-          onClick={(): void => setShowKeyboardConfig(true)}
+          onClick={(): void => dispatchKeyboardConfig({ type: 'open', bindings: settings.keyBindings })}
         />
         <SliderPreference
           title={UIStrings.preference_movement_sensitivity}
@@ -799,6 +820,7 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
 
   return (
     <div
+      ref={menuRef}
       style={{
         position: 'absolute',
         top: 0,

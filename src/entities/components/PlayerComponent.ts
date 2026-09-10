@@ -4,7 +4,11 @@
  */
 
 import { GameComponent } from '../GameComponent';
-import { ComponentPhase, ActionType } from '../../types';
+import { ComponentPhase, ActionType, HitType } from '../../types';
+import { GameObjectType } from '../GameObjectFactory';
+import { PlayerDeathSequence } from '../PlayerDeathSequence';
+import { PlayerWinSequence } from '../PlayerWinSequence';
+import type { TimeSystem } from '../../engine/TimeSystem';
 import type { GameObject } from '../GameObject';
 import type { InputSystem } from '../../engine/InputSystem';
 import type { CollisionSystem } from '../../engine/CollisionSystemNew';
@@ -23,6 +27,7 @@ import {
   FadeDrawableComponent, FadeLoopType, FadeFunction,
 } from './FadeDrawableComponent';
 import { sSystemRegistry } from '../../engine/SystemRegistry';
+import { HotSpotType } from '../../engine/HotSpotSystem';
 import { SortConstants } from '../../engine/SortConstants';
 import type { AnimationDefinition } from '../../types';
 
@@ -167,11 +172,31 @@ export class PlayerComponent extends GameComponent {
   public sparkTimer: number = 0;
   
   public isDying: boolean = false;
-  public deathTime: number = 0;
-  public fadeToRestart: boolean = false;
-  public fadeTime: number = 0;
+  private explodingDeath: boolean = false;
+  public deathPresentationStarted: boolean = false;
+  private deathSequence = new PlayerDeathSequence();
+  get deathTime(): number { return this.deathSequence.deathTime; }
+  get fadeToRestart(): boolean { return this.deathSequence.fading; }
+  get fadeTime(): number { return this.deathSequence.fadeTime; }
   
   public levelWon: boolean = false;
+  private winSequence = new PlayerWinSequence();
+  get winFadeOpacity(): number { return this.winSequence.opacity; }
+
+  beginWin(time: TimeSystem): boolean {
+    if (this.levelWon || this.isDying) return false;
+    this.levelWon = true;
+    this.currentState = PlayerState.WIN;
+    this.stomping = this.stompLanded = false;
+    this.ghostChargeTime = 0;
+    this.winSequence.begin(time.getRealTime());
+    time.applyScale(0.1, 8, true);
+    return true;
+  }
+
+  advanceWin(realTime: number): boolean {
+    return this.levelWon && this.winSequence.update(realTime);
+  }
   
   public glowMode: boolean = false;
   public glowTime: number = 0;
@@ -241,8 +266,60 @@ export class PlayerComponent extends GameComponent {
     return !!(this.inputSystem && this.collisionSystem && this.soundSystem);
   }
 
+  /** Original AnimationComponent: hazards detonate; ordinary deaths animate. */
+  beginDeath(parent: GameObject, touchingDeathTile: boolean = false): boolean {
+    if (this.isDying || this.levelWon) return false;
+    this.isDying = true;
+    this.currentState = PlayerState.DEAD;
+    this.deathSequence.begin(parent.getGameTime());
+    // Original PlayerComponent swaps glow off when it enters State.DEAD.
+    this.glowMode = false;
+    this.glowTime = 0;
+    this.invincible = false;
+    this.invincibleTime = 0;
+    this.stomping = this.stompLanded = false;
+    this.hitReactTimer = 0;
+    this.ghostChargeTime = 0;
+    this.flickerTimeRemaining = 0;
+    this.previousStateWasHitReact = false;
+    this.flickerOn = true;
+    this.rocketsOn = false;
+    this.stopRocketSound();
+    parent.life = 0;
+    this.startDeathPresentationIfReady(parent, touchingDeathTile);
+    this.updateAnimation(parent, 0);
+    this.updateCurrentAction(parent);
+    return true;
+  }
+
+  private startDeathPresentationIfReady(parent: GameObject, touchingDeathTile: boolean = false): void {
+    if (!this.isDying || this.deathPresentationStarted) return;
+    const belowWorld = parent.getPosition().y > (this.levelSystem?.getLevelSize().height ?? Infinity);
+    if (!parent.touchingGround() && !belowWorld) return;
+    this.deathPresentationStarted = true;
+    this.explodingDeath = touchingDeathTile || parent.lastReceivedHitType === HitType.DEATH ||
+      sSystemRegistry.hotSpotSystem?.getHotSpot(parent.getCenteredPositionX(),
+        parent.getPosition().y + parent.height - 10) === HotSpotType.DIE;
+    parent.getVelocity().zero();
+    parent.getTargetVelocity().zero();
+    this.soundSystem?.playSfx(SoundEffects.EXPLODE);
+    if (this.explodingDeath) {
+      // Original player and blast are both 64px; the port's body is 32x48.
+      sSystemRegistry.gameObjectFactory?.spawn(GameObjectType.EXPLOSION_GIANT,
+        parent.getCenteredPositionX() - 32, parent.getPosition().y + parent.height - 64);
+    }
+  }
+
+  advanceDeath(gameTime: number, realTime: number): boolean {
+    return this.isDying && this.deathSequence.update(gameTime, realTime, this.deathPresentationStarted);
+  }
+
   update(deltaTime: number, parent: GameObject): void {
     if (!this.inputSystem || !this.collisionSystem || !this.soundSystem) return;
+
+    // Component delta is simulation time: recovery and power-ups must pause
+    // with hit-stop and slow down with Andou, like Android's game-time timers.
+    this.updateTimedStates(deltaTime);
 
     const input = this.inputSystem.getInputState();
     const jumpTriggered = input.jump && !this.jumpWasPressed;
@@ -264,6 +341,7 @@ export class PlayerComponent extends GameComponent {
     
     // Check if grounded
     this.touchingGround = parent.touchingGround();
+    this.startDeathPresentationIfReady(parent);
     
     // Refuel. Rates come from the difficulty's DifficultyConstants, and the
     // air rate is what DDA speeds up after repeated attempts at a level.
@@ -279,9 +357,9 @@ export class PlayerComponent extends GameComponent {
     // Horizontal movement
     // The original reads the d-pad as an analogue value and scales the impulse
     // by it, so a half-pushed touch slider accelerates at half strength. Keys
-    // report a whole -1 or 1.
+    // report a whole -1 or 1 before InputGameInterface's 0.25 filter.
     // Original: PlayerComponent's `impulse.set(dpad.getX(), 0.0f)`.
-    const moveX = input.horizontal;
+    const moveX = this.inputSystem.getDirectionalPadX();
 
     // Jump/Fly. This runs before the horizontal speed is chosen because the
     // original decides "in the air" partly from the vertical impulse it just
@@ -626,6 +704,22 @@ export class PlayerComponent extends GameComponent {
     this.updateCurrentAction(parent);
   }
 
+  private updateTimedStates(deltaTime: number): void {
+    const dt = Math.max(0, deltaTime);
+    if (this.currentState === PlayerState.HIT_REACT) {
+      this.hitReactTimer = Math.max(0, this.hitReactTimer - dt);
+      if (this.hitReactTimer === 0) this.currentState = PlayerState.MOVE;
+    }
+    if (this.invincible) {
+      this.invincibleTime = Math.max(0, this.invincibleTime - dt);
+      if (this.invincibleTime === 0) this.invincible = false;
+    }
+    if (this.glowMode) {
+      this.glowTime = Math.max(0, this.glowTime - dt);
+      if (this.glowTime === 0) this.glowMode = false;
+    }
+  }
+
   /**
    * Choose Andou's animation from his state and let SpriteComponent play it.
    *
@@ -652,11 +746,12 @@ export class PlayerComponent extends GameComponent {
     this.updateFlicker(parent, sprite, deltaTime);
     this.updateRocketSound();
 
-    const next = selectPlayerAnimation({
+    const next = this.explodingDeath ? 'frozen' : selectPlayerAnimation({
       frozen: this.currentState === PlayerState.FROZEN ||
         this.currentState === PlayerState.POST_GHOST_DELAY,
-      hitReacting: this.currentState === PlayerState.HIT_REACT,
-      dying: this.currentState === PlayerState.DEAD || this.isDying,
+      hitReacting: this.currentState === PlayerState.HIT_REACT ||
+        (this.isDying && !this.deathPresentationStarted && parent.getCurrentAction() === ActionType.HIT_REACT),
+      dying: this.deathPresentationStarted,
       stomping: this.stomping,
       charging: this.ghostChargeTime > 0,
       touchingGround: this.touchingGround,
@@ -819,6 +914,7 @@ export class PlayerComponent extends GameComponent {
    * never fire for Andou.
    */
   private updateCurrentAction(parent: GameObject): void {
+    if (this.isDying && !this.deathPresentationStarted) return;
     const action = PLAYER_STATE_ACTIONS[this.currentState];
     if (action && parent.getCurrentAction() !== action) {
       parent.setCurrentAction(action);
@@ -859,10 +955,11 @@ export class PlayerComponent extends GameComponent {
     this.sparkFrame = 0;
     this.sparkTimer = 0;
     this.isDying = false;
-    this.deathTime = 0;
-    this.fadeToRestart = false;
-    this.fadeTime = 0;
+    this.explodingDeath = false;
+    this.deathPresentationStarted = false;
+    this.deathSequence.reset();
     this.levelWon = false;
+    this.winSequence.reset();
     this.glowMode = false;
     this.glowTime = 0;
     this.coinsForPowerup = 0;

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Level results persistence verification</title>
+<style>
+  body { margin: 24px; color: #eee; background: #20242a; font: 16px system-ui; }
+  button { margin: 0 8px 12px 0; padding: 8px 12px; }
+  canvas { width: 480px; height: 320px; image-rendering: pixelated; background: #111; }
+</style>
+<h1>Level results and browser reload</h1>
+<p>Development-only sample results using the production store and renderer.
+  Writes use a separate sessionStorage key, never the game's localStorage save.</p>
+<button id="three">Finish with 3 lives</button>
+<button id="two">Finish with 2 lives</button>
+<button id="four">Finish with 4 lives</button>
+<p id="saved" role="status">Loading test storage</p>
+<p id="action">Choose a result, then reload to check persistence.</p>
+<canvas width="480" height="320" aria-label="Level completion result"></canvas>
+<script type="module">
+  import { createJSONStorage } from 'zustand/middleware';
+  const key = 'replica-island-result-verification-v1';
+  const hasTestSave = sessionStorage.getItem(key) !== null;
+  // Isolate even the store module's initial auto-hydration/migration, before
+  // replacing its adapter. Do not read or migrate the player's actual save.
+  const storageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: {
+    getItem: () => null, setItem: () => {}, removeItem: () => {},
+  } });
+  let useGameStore;
+  try {
+    ({ useGameStore } = await import('../src/stores/useGameStore.ts'));
+    useGameStore.persist.setOptions({ name: key, storage: createJSONStorage(() => sessionStorage) });
+  } finally {
+    if (storageDescriptor) Object.defineProperty(window, 'localStorage', storageDescriptor);
+    else delete window.localStorage;
+  }
+  const { getInventory, setInventory } = await import('../src/entities/components/InventoryComponent.ts');
+  const { recordLevelResult } = await import('../src/levels/levelResult.ts');
+  const { CanvasLevelCompleteScreen } = await import('../src/engine/CanvasLevelCompleteScreen.ts');
+  if (hasTestSave) {
+    await useGameStore.persist.rehydrate();
+  } else {
+    const initial = useGameStore.getInitialState();
+    useGameStore.setState({
+      progress: { ...initial.progress, levels: {}, totalStats: { ...initial.progress.totalStats, totalScore: 0 } },
+      highScores: [],
+    });
+  }
+  const canvas = document.querySelector('canvas');
+  const screen = new CanvasLevelCompleteScreen(canvas.getContext('2d'), canvas, 480, 320);
+  const saved = document.querySelector('#saved');
+  function report() {
+    const state = useGameStore.getState();
+    const level = state.progress.levels[2];
+    saved.textContent = `Saved best: ${level?.bestScore ?? 0}; high score: ${state.getLevelHighScore(2)}; total score: ${state.progress.totalStats.totalScore}; completions: ${level?.timesCompleted ?? 0}`;
+  }
+  function finish(lives) {
+    screen.hide();
+    setInventory({ score: 9, lives, coinCount: 17, rubyCount: 3 });
+    const comparison = recordLevelResult(2, getInventory(), 30);
+    const done = () => { document.querySelector('#action').textContent = 'Result dismissed'; };
+    screen.show('Sample level', done, done, comparison);
+    screen.update(3);
+    screen.render();
+    document.querySelector('#action').textContent = `Recorded result with ${lives} lives`;
+    report();
+  }
+  for (const [id, lives] of [['three', 3], ['two', 2], ['four', 4]]) {
+    document.querySelector('#' + id).addEventListener('click', () => finish(lives));
+  }
+  report();
+  let previous = performance.now();
+  function frame(now) {
+    screen.update(Math.min(0.1, (now - previous) / 1000));
+    previous = now;
+    if (screen.isShowing()) screen.render();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</html>

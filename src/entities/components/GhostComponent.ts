@@ -22,6 +22,7 @@ import type { GameObject } from '../GameObject';
 import type { SystemRegistry } from '../../engine/SystemRegistry';
 import { SpriteComponent } from './SpriteComponent';
 import { PlayerComponent } from './PlayerComponent';
+import { resolveEnemyDeath } from '../resolveEnemyDeath';
 
 // Global system registry reference (set by GameObjectFactory)
 let sSystemRegistry: SystemRegistry | null = null;
@@ -240,12 +241,8 @@ export class GhostComponent extends GameComponent {
           acceleration.x = this.config.acceleration;
           acceleration.y = this.config.acceleration;
         } else {
-          // Use directional pad for horizontal movement only
-          let moveX = 0;
-          if (inputState.left) moveX -= 1;
-          if (inputState.right) moveX += 1;
-
-          targetVelocity.x = moveX * this.config.movementSpeed;
+          // Android uses the filtered d-pad magnitude, not just its sign.
+          targetVelocity.x = input.getDirectionalPadX() * this.config.movementSpeed;
           acceleration.x = this.config.acceleration;
         }
 
@@ -320,10 +317,13 @@ export class GhostComponent extends GameComponent {
 
     if (player) {
       if (this.config.killOnRelease) {
-        // Kill the ghost object
+        // Brobot release must run its normal death effect before removal.
+        // Plain orb shells are not enemies and simply disappear.
         parent.life = 0;
-        parent.setVisible(false);
-        parent.markForRemoval();
+        if (!resolveEnemyDeath(parent, sSystemRegistry ?? undefined)) {
+          parent.setVisible(false);
+          parent.markForRemoval();
+        }
       } else {
         const swap = parent.getComponent(ChangeComponentsComponent as unknown as new (...args: unknown[]) => ChangeComponentsComponent);
         if (swap?.getCurrentlySwapped()) swap.activate(parent);

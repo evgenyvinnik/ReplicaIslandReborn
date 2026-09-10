@@ -5,7 +5,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useMemo, ReactNode } from 'react';
 import { GameState, type GameConfig, type SaveData } from '../types';
 import { CutsceneType } from '../data/cutscenes';
-import { useGameStore } from '../stores/useGameStore';
+import { useGameStore, type NewGameMode } from '../stores/useGameStore';
 import { getCompletedLevelIds, inferCurrentLevel } from '../stores/progressUtils';
 
 // Game context state
@@ -22,6 +22,8 @@ interface GameContextState {
   activeCutscene: CutsceneType | null;
   /** Whether playing in linear mode (Extras - all levels unlocked) */
   isLinearMode: boolean;
+  pendingNewGameMode: NewGameMode;
+  unlockAllLevelSelect: boolean;
 }
 
 // Actions
@@ -36,6 +38,8 @@ type GameAction =
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_ACTIVE_CUTSCENE'; payload: CutsceneType | null }
   | { type: 'SET_LINEAR_MODE'; payload: boolean }
+  | { type: 'SET_NEW_GAME_MODE'; payload: NewGameMode }
+  | { type: 'SET_UNLOCK_ALL_LEVEL_SELECT'; payload: boolean }
   | { type: 'MARK_LEVEL_COMPLETE'; payload: number }
   | { type: 'COMPLETE_CURRENT_LEVEL' }
   | { type: 'GAME_OVER' }
@@ -82,7 +86,9 @@ function createInitialState(): GameContextState {
     loadingProgress: 0,
     error: null,
     activeCutscene: null,
-    isLinearMode: false,
+    isLinearMode: progress.isLinearMode ?? false,
+    pendingNewGameMode: 'story',
+    unlockAllLevelSelect: false,
   };
 }
 
@@ -109,6 +115,10 @@ function gameReducer(state: GameContextState, action: GameAction): GameContextSt
       return { ...state, activeCutscene: action.payload };
     case 'SET_LINEAR_MODE':
       return { ...state, isLinearMode: action.payload };
+    case 'SET_NEW_GAME_MODE':
+      return { ...state, pendingNewGameMode: action.payload };
+    case 'SET_UNLOCK_ALL_LEVEL_SELECT':
+      return { ...state, unlockAllLevelSelect: action.payload };
     case 'MARK_LEVEL_COMPLETE': {
       const newCompletedLevels = state.saveData.completedLevels.includes(action.payload)
         ? state.saveData.completedLevels
@@ -148,7 +158,8 @@ interface GameContextValue {
   dispatch: React.Dispatch<GameAction>;
   // Helper functions
   startGame: (level?: number) => void;
-  startNewGame: () => void;
+  startNewGame: (mode?: NewGameMode) => void;
+  confirmNewGame: () => void;
   pauseGame: () => void;
   resumeGame: () => void;
   goToMainMenu: () => void;
@@ -186,17 +197,24 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     dispatch({ type: 'SET_PAUSED', payload: false });
   }, []);
 
-  const startNewGame = useCallback((): void => {
-    // console.log('[GameContext] startNewGame: Setting level to 1 (intro cutscene)');
-    // Reset save data for a new game
-    dispatch({ type: 'SET_SAVE_DATA', payload: { ...defaultSaveData } });
-    useGameStore.getState().setCurrentLevel(1);
-    dispatch({ type: 'SET_CURRENT_LEVEL', payload: 1 });
-    // Ensure linear mode is reset unless explicitly set before this call
-    // (Linear mode is set separately by App.tsx startLinearMode)
-    // Go to difficulty select first (like the original game)
+  const startNewGame = useCallback((mode: NewGameMode = 'story'): void => {
+    // Android commits the new campaign after difficulty selection. Back must
+    // leave the current campaign and its saved mode untouched.
+    dispatch({ type: 'SET_NEW_GAME_MODE', payload: mode });
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.DIFFICULTY_SELECT });
   }, []);
+
+  const confirmNewGame = useCallback((): void => {
+    useGameStore.getState().startNewCampaign(state.pendingNewGameMode);
+    const progress = useGameStore.getState().progress;
+    const selectLevel = state.pendingNewGameMode === 'levelSelect';
+    dispatch({ type: 'SET_SAVE_DATA', payload: { ...defaultSaveData, currentLevel: progress.currentLevel } });
+    dispatch({ type: 'SET_CURRENT_LEVEL', payload: progress.currentLevel });
+    dispatch({ type: 'SET_LINEAR_MODE', payload: progress.isLinearMode });
+    dispatch({ type: 'SET_UNLOCK_ALL_LEVEL_SELECT', payload: selectLevel });
+    dispatch({ type: 'SET_PAUSED', payload: false });
+    dispatch({ type: 'SET_GAME_STATE', payload: selectLevel ? GameState.LEVEL_SELECT : GameState.PLAYING });
+  }, [state.pendingNewGameMode]);
 
   const pauseGame = useCallback((): void => {
     dispatch({ type: 'SET_PAUSED', payload: true });
@@ -211,7 +229,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
   const goToMainMenu = useCallback((): void => {
     dispatch({ type: 'SET_GAME_STATE', payload: GameState.MAIN_MENU });
     dispatch({ type: 'SET_PAUSED', payload: false });
-    dispatch({ type: 'SET_LINEAR_MODE', payload: false }); // Reset linear mode
+    dispatch({ type: 'SET_UNLOCK_ALL_LEVEL_SELECT', payload: false });
   }, []);
 
   const goToLevelSelect = useCallback((): void => {
@@ -263,6 +281,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     dispatch,
     startGame,
     startNewGame,
+    confirmNewGame,
     pauseGame,
     resumeGame,
     goToMainMenu,
@@ -280,6 +299,7 @@ export function GameProvider({ children }: GameProviderProps): React.JSX.Element
     state,
     startGame,
     startNewGame,
+    confirmNewGame,
     pauseGame,
     resumeGame,
     goToMainMenu,

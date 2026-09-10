@@ -7,7 +7,10 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { inferCurrentLevel } from './progressUtils';
+import { hasPersistedGameProgress, inferCurrentLevel } from './progressUtils';
+import { levelTree, linearLevelTree, resourceToLevelId } from '../data/levelTree';
+
+export type NewGameMode = 'story' | 'linear' | 'levelSelect';
 
 // ============================================================================
 // Types
@@ -66,10 +69,30 @@ export interface LevelProgress {
   lastPlayedAt: number | null; // Timestamp
 }
 
+/** Counters scoped to one campaign; lifetime records remain separate. */
+export interface CampaignStats {
+  totalPlayTime: number;
+  totalScore: number;
+  totalDeaths: number;
+  totalCoinsCollected: number;
+  totalRubiesCollected: number;
+  totalEnemiesDefeated: number;
+}
+
+const EMPTY_CAMPAIGN_STATS: CampaignStats = {
+  totalPlayTime: 0, totalScore: 0, totalDeaths: 0,
+  totalCoinsCollected: 0, totalRubiesCollected: 0, totalEnemiesDefeated: 0,
+};
+
 /** Overall game progress */
 export interface GameProgress {
   /** Level that Continue Game should resume. */
   currentLevel: number;
+  /** Chronological campaign progression; distinct from Extras Level Select. */
+  isLinearMode: boolean;
+  campaignStats: CampaignStats;
+  /** Old saves did not distinguish this campaign from lifetime totals. */
+  campaignStatsPartial: boolean;
 
   /** Level ID -> Progress data */
   levels: Record<number, LevelProgress>;
@@ -112,6 +135,8 @@ export interface GameStoreState {
   
   // Progress slice
   progress: GameProgress;
+  /** Runtime-only: a reload/retry must not restore an abandoned attempt. */
+  activeAttempt: { levelId: number; enemiesDefeated: number } | null;
   
   // High scores slice
   highScores: HighScoreEntry[];
@@ -131,9 +156,11 @@ export interface GameStoreActions {
   
   // Progress actions
   setCurrentLevel: (levelId: number) => void;
+  startNewCampaign: (mode: NewGameMode) => void;
   unlockLevel: (levelId: number) => void;
   completeLevel: (levelId: number, score: number, time: number) => void;
   recordLevelAttempt: (levelId: number) => void;
+  recordEnemyDefeat: () => void;
   collectDiary: (levelId: number, diaryId: number) => void;
   addToTotalStats: (stats: Partial<GameProgress['totalStats']>) => void;
   unlockExtra: (extra: keyof GameProgress['extrasUnlocked']) => void;
@@ -196,6 +223,9 @@ const DEFAULT_LEVEL_PROGRESS: LevelProgress = {
 
 const DEFAULT_PROGRESS: GameProgress = {
   currentLevel: 1,
+  isLinearMode: false,
+  campaignStats: { ...EMPTY_CAMPAIGN_STATS },
+  campaignStatsPartial: false,
   levels: {
     // Level 1 is always unlocked by default
     1: {
@@ -221,7 +251,7 @@ const DEFAULT_PROGRESS: GameProgress = {
   },
 };
 
-const CURRENT_VERSION = 3;
+const CURRENT_VERSION = 5;
 const MAX_HIGH_SCORES = 100;
 
 // ============================================================================
@@ -251,6 +281,7 @@ export const useGameStore = create<GameStore>()(
       // Initial state
       settings: DEFAULT_SETTINGS,
       progress: DEFAULT_PROGRESS,
+      activeAttempt: null,
       highScores: [],
       version: CURRENT_VERSION,
 
@@ -299,6 +330,25 @@ export const useGameStore = create<GameStore>()(
       // Progress Actions
       // ========================================
 
+      startNewCampaign: (mode) => {
+        const isLinearMode = mode === 'linear';
+        const tree = isLinearMode ? linearLevelTree : levelTree;
+        const currentLevel = resourceToLevelId[tree[0].levels[0].resource];
+        set(state => ({
+          activeAttempt: null,
+          progress: {
+            ...state.progress,
+            currentLevel,
+            isLinearMode,
+            campaignStats: { ...EMPTY_CAMPAIGN_STATS },
+            campaignStatsPartial: false,
+            // A new campaign resets route progress, not earned extras, global
+            // diaries, preferences or lifetime high scores/statistics.
+            levels: { [currentLevel]: createDefaultLevelProgress(true) },
+          },
+        }));
+      },
+
       setCurrentLevel: (levelId) => {
         set((state) => ({
           progress: {
@@ -329,10 +379,17 @@ export const useGameStore = create<GameStore>()(
         set((state) => {
           const existing = state.progress.levels[levelId] || createDefaultLevelProgress(true);
           const now = Date.now();
+          const completedAttempt = state.activeAttempt?.levelId === levelId ? state.activeAttempt : null;
 
           return {
+            activeAttempt: completedAttempt ? null : state.activeAttempt,
             progress: {
               ...state.progress,
+              campaignStats: {
+                ...state.progress.campaignStats,
+                totalEnemiesDefeated: state.progress.campaignStats.totalEnemiesDefeated +
+                  (completedAttempt?.enemiesDefeated ?? 0),
+              },
               currentLevel: levelId,
               levels: {
                 ...state.progress.levels,
@@ -365,6 +422,7 @@ export const useGameStore = create<GameStore>()(
           const existing = state.progress.levels[levelId] || createDefaultLevelProgress(true);
 
           return {
+            activeAttempt: { levelId, enemiesDefeated: 0 },
             progress: {
               ...state.progress,
               currentLevel: levelId,
@@ -409,10 +467,36 @@ export const useGameStore = create<GameStore>()(
         });
       },
 
+      recordEnemyDefeat: () => {
+        set(state => ({
+          activeAttempt: state.activeAttempt ? {
+            ...state.activeAttempt,
+            enemiesDefeated: state.activeAttempt.enemiesDefeated + 1,
+          } : null,
+          progress: {
+            ...state.progress,
+            totalStats: {
+              ...state.progress.totalStats,
+              totalEnemiesDefeated: state.progress.totalStats.totalEnemiesDefeated + 1,
+            },
+          },
+        }));
+      },
+
       addToTotalStats: (stats) => {
+        // Committed results contribute to both scopes. Ordinary enemy deaths
+        // use recordEnemyDefeat and commit to campaign scope only on success.
         set((state) => ({
           progress: {
             ...state.progress,
+            campaignStats: {
+              totalPlayTime: state.progress.campaignStats.totalPlayTime + (stats.totalPlayTime ?? 0),
+              totalScore: state.progress.campaignStats.totalScore + (stats.totalScore ?? 0),
+              totalDeaths: state.progress.campaignStats.totalDeaths + (stats.totalDeaths ?? 0),
+              totalCoinsCollected: state.progress.campaignStats.totalCoinsCollected + (stats.totalCoinsCollected ?? 0),
+              totalRubiesCollected: state.progress.campaignStats.totalRubiesCollected + (stats.totalRubiesCollected ?? 0),
+              totalEnemiesDefeated: state.progress.campaignStats.totalEnemiesDefeated + (stats.totalEnemiesDefeated ?? 0),
+            },
             totalStats: {
               totalPlayTime: state.progress.totalStats.totalPlayTime + (stats.totalPlayTime ?? 0),
               totalScore: state.progress.totalStats.totalScore + (stats.totalScore ?? 0),
@@ -473,6 +557,7 @@ export const useGameStore = create<GameStore>()(
 
       resetAllProgress: () => {
         set({
+          activeAttempt: null,
           progress: DEFAULT_PROGRESS,
           highScores: [],
         });
@@ -483,6 +568,7 @@ export const useGameStore = create<GameStore>()(
         // adapter. A direct localStorage delete would bypass that adapter,
         // potentially erase a different save, and fail when access is denied.
         set({
+          activeAttempt: null,
           settings: DEFAULT_SETTINGS,
           progress: DEFAULT_PROGRESS,
           highScores: [],
@@ -551,6 +637,10 @@ export const useGameStore = create<GameStore>()(
           progress: {
             ...DEFAULT_PROGRESS,
             ...persistedProgress,
+            campaignStats: { ...EMPTY_CAMPAIGN_STATS, ...persistedProgress?.campaignStats },
+            campaignStatsPartial: persistedProgress?.campaignStatsPartial ??
+              (!persistedProgress?.campaignStats && hasPersistedGameProgress(levels,
+                persistedProgress?.currentLevel ?? inferCurrentLevel(levels))),
             currentLevel: version < 2 || persistedProgress?.currentLevel === undefined
               ? inferCurrentLevel(levels)
               : persistedProgress.currentLevel,

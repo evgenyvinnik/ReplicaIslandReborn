@@ -7,6 +7,8 @@
 
 import React from 'react';
 import { SoundControls } from './SoundControls';
+import { KeyboardHint } from './KeyboardHint';
+import { useGameStore } from '../stores/useGameStore';
 
 interface PhoneFrameProps {
   children: React.ReactNode;
@@ -25,6 +27,7 @@ export function PhoneFrame({
   onHome, 
   onRecents 
 }: PhoneFrameProps): React.JSX.Element {
+  const keyBindings = useGameStore((state) => state.settings.keyBindings);
   return (
     <div className="phone-frame-container">
       <div className="phone-frame-outer-wrapper">
@@ -98,9 +101,7 @@ export function PhoneFrame({
         </div>
         
         {/* Keyboard hint below phone frame */}
-        <div className="keyboard-hint-below">
-          WASD/Arrows to move | Space to fly | X to stomp
-        </div>
+        <KeyboardHint bindings={keyBindings} />
       </div>
     </div>
   );

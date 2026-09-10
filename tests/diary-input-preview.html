@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Diary input verification</title>
+<style>
+  body { background: #202638; color: white; font: 15px system-ui; }
+  button { padding: 8px; margin: 4px; }
+  canvas { display: block; width: min(960px, 92vw, calc((100vh - 150px) * 1.5)); aspect-ratio: 3 / 2; touch-action: none; }
+</style>
+<p>Real diary and input components; no save data. Touch check dispatches a synthetic slow swipe, not a physical touchscreen gesture.</p>
+<button id="open">Open first diary</button>
+<button id="repeat">Send held Space repeat</button>
+<button id="swipe">Swipe upward in 120 one-pixel moves</button>
+<p id="status" role="status"></p>
+<canvas width="480" height="320"></canvas>
+<script type="module">
+  import { CanvasDiaryOverlay } from '../src/engine/CanvasDiaryOverlay.ts';
+  import { InputSystem } from '../src/engine/InputSystem.ts';
+  import { DiaryEntries } from '../src/data/diaries.ts';
+  const canvas = document.querySelector('canvas'), ctx = canvas.getContext('2d');
+  const input = new InputSystem({ touchGestures: false });
+  input.initialize();
+  // Registered before the modal, as gameplay listeners are in the App.
+  let leaked = 0, closes = 0;
+  window.addEventListener('keydown', () => { leaked++; });
+  const diary = new CanvasDiaryOverlay(ctx, canvas, 480, 320);
+  document.querySelector('#open').onclick = () => {
+    leaked = 0;
+    diary.show(DiaryEntries[0], () => { closes++; });
+  };
+  document.querySelector('#repeat').onclick = () => {
+    // A DOM target preserves the capture/bubble path of an actual key press.
+    canvas.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', code: 'Space', repeat: true, bubbles: true, cancelable: true }));
+    canvas.dispatchEvent(new KeyboardEvent('keyup', { key: ' ', code: 'Space', bubbles: true }));
+  };
+  document.querySelector('#swipe').onclick = () => {
+    const rect = canvas.getBoundingClientRect();
+    const send = (type, y) => {
+      const touch = new Touch({ identifier: 1, target: canvas, clientX: rect.left + rect.width / 2, clientY: y });
+      canvas.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true,
+        touches: type === 'touchend' ? [] : [touch], changedTouches: [touch] }));
+    };
+    const start = rect.top + rect.height * 0.75;
+    send('touchstart', start);
+    for (let delta = 1; delta <= 120; delta++) send('touchmove', start - delta);
+    send('touchend', start - 120);
+  };
+  let previous = performance.now();
+  function frame(now) {
+    diary.update(Math.min(0.1, (now - previous) / 1000)); previous = now;
+    ctx.clearRect(0, 0, 480, 320); diary.render();
+    const state = input.getInputState();
+    document.querySelector('#status').textContent = `Diary visible: ${diary.isVisible()}; closes: ${closes}; leaked keydowns: ${leaked}; gameplay jump: ${state.jump}; down: ${state.down}`;
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+</script>
+</html>

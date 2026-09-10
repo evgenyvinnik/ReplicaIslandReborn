@@ -32,6 +32,9 @@ import {
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
 import { drawPriorityFor } from '../data/objectDrawPriority';
 import { BIG_SMOKE_FRAMES, bigSmokeFrameTimes } from '../data/smokeAnimation';
+import { configureGiantExplosion } from './giantExplosion';
+import { configureExplosion } from './explosion';
+import { configureBreakableBlock } from './breakableBlock';
 import {
   SimpleCollisionComponent,
   setSimpleCollisionSystemRegistry,
@@ -80,8 +83,13 @@ export enum GameObjectType {
   SMOKE_BIG = 'smoke_big',
   SMOKE_SMALL = 'smoke_small',
   DUST = 'dust',
+  EXPLOSION_GIANT = 'explosion_giant',
+  EXPLOSION_SMALL = 'explosion_small',
+  EXPLOSION_LARGE = 'explosion_large',
   GEM = 'gem',
   BREAKABLE_BLOCK = 'breakable_block',
+  BLOCK_PIECE = 'block_piece',
+  BLOCK_PIECE_SPAWNER = 'block_piece_spawner',
   TURRET = 'turret',
   GHOST = 'ghost',
   MOVING_PLATFORM = 'moving_platform',
@@ -237,6 +245,22 @@ export class GameObjectFactory {
         break;
       case GameObjectType.DUST:
         this.configureDust(obj);
+        break;
+      case GameObjectType.EXPLOSION_GIANT:
+        configureGiantExplosion(obj, this.renderSystem);
+        break;
+      case GameObjectType.EXPLOSION_SMALL:
+      case GameObjectType.EXPLOSION_LARGE:
+        configureExplosion(obj, type === GameObjectType.EXPLOSION_LARGE, this.renderSystem);
+        break;
+      case GameObjectType.BREAKABLE_BLOCK:
+        configureBreakableBlock(obj);
+        break;
+      case GameObjectType.BLOCK_PIECE:
+        this.configureBlockPiece(obj);
+        break;
+      case GameObjectType.BLOCK_PIECE_SPAWNER:
+        this.configureBlockPieceSpawner(obj);
         break;
       case GameObjectType.GHOST:
         this.configureGhost(obj);
@@ -457,9 +481,39 @@ export class GameObjectFactory {
     }
   }
 
-  /**
-   * Configure smoke poof effect
-   */
+  /** Original bouncing debris emitted when a breakable block dies. */
+  private configureBlockPiece(obj: GameObject): void {
+    obj.type = 'effect';
+    obj.subType = 'block_piece';
+    obj.width = obj.height = 16;
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
+    obj.addComponent(new GravityComponent());
+    const movement = this.componentPools.movement.allocate();
+    if (this.collisionSystem) movement.setCollisionSystem(this.collisionSystem);
+    movement.setCollisionBox(12, 12, 2, 2);
+    movement.setBounciness(0.3);
+    obj.addComponent(movement);
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(3);
+    obj.addComponent(lifetime);
+  }
+
+  private configureBlockPieceSpawner(obj: GameObject): void {
+    obj.type = 'effect';
+    obj.subType = 'block_piece_spawner';
+    obj.width = obj.height = 1;
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(0.5);
+    obj.addComponent(lifetime);
+    obj.addComponent(new LaunchProjectileComponent({
+      objectTypeToSpawn: GameObjectType.BLOCK_PIECE, setsPerActivation: 1,
+      projectilesInSet: 3, delayBetweenShots: 0, delayBeforeFirstSet: 0,
+      offsetX: 16, offsetY: 16, velocityX: 600, velocityY: 1000, thetaError: 1,
+    }));
+  }
+
+  /** Configure smoke poof effect. */
   private configureSmokePoof(obj: GameObject): void {
     obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     obj.team = Team.NONE;

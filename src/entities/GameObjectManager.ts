@@ -205,21 +205,29 @@ export class GameObjectManager {
       if (object.activationRadius === GameObjectManager.ALWAYS_ACTIVE) return true;
       const position = object.getPosition();
       const dx = position.x - focusX;
-      const dy = position.y - focusY;
+      // Android's position is the sprite's bottom-left. In Canvas Y-down
+      // space that same point is top-left Y + height, not the sprite's head
+      // or centre. Preserve its circular activation test after conversion.
+      const dy = position.y + object.height - focusY;
       return dx * dx + dy * dy < object.activationRadius * object.activationRadius;
     };
 
-    this.objects.forEach((object) => {
-      if (object.activationRadius === GameObjectManager.ALWAYS_ACTIVE) return;
-      if (withinRadius(object)) return;
+    // remove() fills its slot with the last object. Traverse backwards like
+    // Android so that swapped-in objects have already been checked this frame.
+    for (let index = this.objects.getCount() - 1; index >= 0; index--) {
+      const object = this.objects.get(index)!;
+      if (withinRadius(object)) continue;
+      object.setActive(false);
       if (object.destroyOnDeactivation) {
         object.markForRemoval();
+        // No final off-screen update (which could still register collisions
+        // or launch shots). Queue reclamation for the normal commit phase.
+        this.pendingRemovals.push(object);
       } else {
         this.objects.remove(object);
-        object.setActive(false);
         this.inactiveObjects.add(object);
       }
-    });
+    }
 
     const toReactivate: GameObject[] = [];
     this.inactiveObjects.forEach((object) => {

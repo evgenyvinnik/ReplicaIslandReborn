@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Menu layout verification</title>
+<link rel="stylesheet" href="/src/index.css">
+<style>
+  aside { position: fixed; top: 8px; left: 8px; z-index: 100; padding: 10px; color: white; background: #232638; font: 14px system-ui; max-width: calc(100vw - 16px); max-height: 200px; overflow: auto; }
+  .coarse-pointer button { min-height: 44px; min-width: 44px; }
+</style>
+<aside>
+  <p>Real App menus; isolated in-memory save. Reload starts fresh.</p>
+  <p>Read-only bounds check includes every clipping ancestor; no auto-scroll or scripted menu activation.</p>
+  <label><input id="coarse" type="checkbox"> Apply the existing coarse-pointer 44px button minimum</label>
+  <p>Simulated standard controller (no keyboard events):</p>
+  <div id="pad-controls"></div>
+  <p id="pad-state"></p>
+  <button id="cancel-choice">Arm Back 100ms after the next difficulty/level click</button>
+  <p id="choice-state">No automatic Back armed; only native menu input is used.</p>
+  <p id="layout" role="status">Waiting for menu</p>
+</aside>
+<div id="root"></div>
+<script type="module">
+  import React from 'react';
+  import { createRoot } from 'react-dom/client';
+  import { createJSONStorage } from 'zustand/middleware';
+  const memory = new Map();
+  const storage = { getItem: key => memory.get(key) ?? null,
+    setItem: (key, value) => memory.set(key, value), removeItem: key => memory.delete(key) };
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
+  let useGameStore;
+  try {
+    ({ useGameStore } = await import('../src/stores/useGameStore.ts'));
+    useGameStore.persist.setOptions({ name: 'menu-layout-verification', storage: createJSONStorage(() => storage) });
+    await useGameStore.persist.rehydrate();
+    if (new URLSearchParams(location.search).get('case') === 'unlocked') {
+      // Prepared isolated save for the Extras warning/difficulty/list route.
+      // This is not an earned ending or a completed campaign playthrough.
+      useGameStore.getState().unlockExtra('linearMode');
+      useGameStore.getState().unlockExtra('levelSelect');
+      useGameStore.getState().setCurrentLevel(2);
+      useGameStore.getState().recordLevelAttempt(2);
+      document.querySelector('aside p').textContent += ' Prepared Extras unlocks and one lab attempt.';
+    }
+  } finally {
+    if (descriptor) Object.defineProperty(window, 'localStorage', descriptor);
+    else delete window.localStorage;
+  }
+  const padButtons = Array.from({ length: 17 }, () => ({ pressed: false, value: 0, touched: false }));
+  const pad = { connected: true, index: 0, mapping: 'standard', axes: [0, 0], buttons: padButtons };
+  Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [pad] });
+  for (const [label, index] of [['A', 0], ['B', 1], ['Up', 12], ['Down', 13], ['Left', 14], ['Right', 15]]) {
+    const button = document.createElement('button');
+    button.textContent = `Pad ${label}`;
+    button.onclick = () => {
+      padButtons[index].pressed = true; padButtons[index].value = 1;
+      setTimeout(() => { padButtons[index].pressed = false; padButtons[index].value = 0; }, 100);
+    };
+    document.querySelector('#pad-controls').append(button);
+  }
+  const hold = document.createElement('button'); hold.textContent = 'Hold A';
+  hold.onclick = () => { padButtons[0].pressed = true; padButtons[0].value = 1; };
+  const release = document.createElement('button'); release.textContent = 'Release pad';
+  release.onclick = () => padButtons.forEach(button => { button.pressed = false; button.value = 0; });
+  document.querySelector('#pad-controls').append(hold, release);
+  const { default: App } = await import('../src/App.tsx');
+  createRoot(document.querySelector('#root')).render(React.createElement(App));
+  let cancelChoice = false;
+  document.querySelector('#cancel-choice').onclick = () => {
+    cancelChoice = true;
+    document.querySelector('#choice-state').textContent = 'Armed: the next difficulty/level click will be followed by bezel Back after 100ms.';
+  };
+  document.querySelector('#root').addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (!cancelChoice || !button || button.disabled) return;
+    if (!button.closest('[data-menu-layout="difficulty"]') && !button.textContent.trim().startsWith('Memory #')) return;
+    cancelChoice = false;
+    const before = useGameStore.getState().progress.totalStats.gamesStarted;
+    setTimeout(() => document.querySelector('.nav-button-back').click(), 100);
+    setTimeout(() => {
+      const screen = document.querySelector('.phone-screen');
+      const atMain = !!screen.querySelector('img[alt="Continue Game"], img[alt="Start Game"]');
+      const starts = useGameStore.getState().progress.totalStats.gamesStarted;
+      document.querySelector('#choice-state').textContent = `${atMain && starts === before ? 'PASS' : 'FAIL'} after 1.2s: main menu=${atMain}; games started=${starts} (before ${before}).`;
+    }, 1200);
+  }, true);
+  document.querySelector('#coarse').onchange = event => {
+    document.querySelector('#root').classList.toggle('coarse-pointer', event.target.checked);
+  };
+  setInterval(() => {
+    const screen = document.querySelector('.phone-screen');
+    if (!screen) return;
+    const selected = screen.querySelector('[data-controller-focused]');
+    const settings = useGameStore.getState().settings;
+    document.querySelector('#pad-state').textContent = `Controller focus: ${selected?.textContent?.trim() || selected?.querySelector('img')?.alt || selected?.getAttribute('aria-label') || 'none'}; sound=${settings.soundEnabled}; music=${settings.musicEnabled}; sensitivity=${settings.movementSensitivity}; difficulty=${settings.difficulty}; keys=${JSON.stringify(settings.keyBindings)}`;
+    const menu = screen.querySelector('[data-menu-layout]') ?? screen;
+    let failures = 0;
+    const results = [...menu.querySelectorAll('button, h1, p, span, [data-menu-hint], img[alt="Replica Island"]')].map(button => {
+      const bounds = button.getBoundingClientRect();
+      let clipped = false;
+      for (let parent = button.parentElement; parent; parent = parent.parentElement) {
+        const style = getComputedStyle(parent);
+        const rect = parent.getBoundingClientRect();
+        if (/(hidden|clip|auto|scroll)/.test(style.overflowY)
+          && (bounds.top < rect.top - 1 || bounds.bottom > rect.bottom + 1)) clipped = true;
+        if (/(hidden|clip|auto|scroll)/.test(style.overflowX)
+          && (bounds.left < rect.left - 1 || bounds.right > rect.right + 1)) clipped = true;
+      }
+      if (clipped) failures++;
+      const label = button.textContent.trim() || button.alt || button.querySelector('img')?.alt || 'unnamed';
+      return `${label}: ${clipped ? 'CLIPPED' : 'fits'} (${bounds.width.toFixed(0)}×${bounds.height.toFixed(0)})`;
+    });
+    const hint = menu.querySelector('[data-menu-hint]')?.getBoundingClientRect();
+    const hintOverlaps = hint ? [...menu.querySelectorAll('span')].filter(span => {
+      const rect = span.getBoundingClientRect();
+      return rect.bottom > hint.top && rect.top < hint.bottom && rect.right > hint.left && rect.left < hint.right;
+    }).length : 0;
+    const bounds = screen.getBoundingClientRect();
+    document.querySelector('#layout').textContent = menu === screen
+      ? 'Scrollable menu: off-screen rows are expected; use the controller to bring them into view. Fixed-menu layout assertions do not apply here.'
+      : `${failures || hintOverlaps ? 'FAIL' : 'PASS'}: ${failures} clipped elements, ${hintOverlaps} hint overlaps. Screen ${bounds.width}×${bounds.height}. ${results.join('; ')}`;
+  }, 250);
+</script>
+</html>

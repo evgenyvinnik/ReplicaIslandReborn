@@ -257,6 +257,7 @@ export class HitReactionComponent extends GameComponent {
         const sameTeam = parent.team === attacker.team && parent.team !== Team.NONE;
         if (!this.forceInvincibility && !this.invincible && parent.life > 0 && !sameTeam) {
           parent.life -= 1;
+          parent.lastDamageSource = attacker;
 
           if (this.bounceOnHit && parent.life > 0) {
             // Calculate bounce direction
@@ -353,10 +354,12 @@ export class HitReactionComponent extends GameComponent {
     // The hit type will persist for approximately one timeDelta (one frame).
     if (gameTime - this.lastHitTime > deltaTime) {
       parent.lastReceivedHitType = HitType.INVALID;
+      parent.lastDamageSource = null;
     }
 
     // Check for death
-    if (parent.life <= 0 && parent.getCurrentAction() !== ActionType.DEATH) {
+    // PlayerComponent owns the grounded/below-world death-action transition.
+    if (parent.type !== 'player' && parent.life <= 0 && parent.getCurrentAction() !== ActionType.DEATH) {
       parent.setCurrentAction(ActionType.DEATH);
     }
   }

@@ -336,8 +336,10 @@ export class CameraSystem {
    * Used by CameraBiasComponent to pull camera toward points of interest
    */
   addCameraBias(biasPosition: Vector2): void {
-    const focalX = this.focusPosition.x;
-    const focalY = this.focusPosition.y;
+    // Android's focal position is the look-at centre; our stored position is
+    // the viewport's top-left. Bias directions must use the same world point.
+    const focalX = this.focusPosition.x + this.viewportWidth / 2;
+    const focalY = this.focusPosition.y + this.viewportHeight / 2;
 
     // Calculate direction from focal point to bias position
     const dx = biasPosition.x - focalX;

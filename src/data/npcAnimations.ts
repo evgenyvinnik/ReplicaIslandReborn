@@ -197,9 +197,8 @@ function makeFrames(
       offsetX,
       offsetY,
     };
-    // Bosses configure their collision outside their animations, so omitted
-    // values must stay undefined. Story NPC frames own their collision exactly
-    // as the Android AnimationFrames do; null explicitly clears a dash attack.
+    // Null explicitly clears a previous animation's collision volumes; an
+    // omitted value leaves externally configured collision untouched.
     if (attackVolumes !== undefined) frame.attackVolumes = attackVolumes;
     if (vulnerabilityVolumes !== undefined) {
       frame.vulnerabilityVolumes = vulnerabilityVolumes;
@@ -222,10 +221,17 @@ export function createNpcAnimations(
   if (!art) return null;
 
   const storyNpc = subType === 'wanda' || subType === 'kyle' || subType === 'kabocha';
+  const boss = subType === 'evil_kabocha' || subType === 'rokudou';
   const vulnerability = storyNpc
     // Original Y-up AABox(20, 5, 26, 80), converted for a 128px Y-down object.
     ? [new AABoxCollisionVolume(20, 43, 26, 80, HitType.COLLECT)]
-    : undefined;
+    : subType === 'evil_kabocha'
+      // Original AABox(52, 5, 26, 80) in a 128px Y-up sprite.
+      ? [new AABoxCollisionVolume(52, 43, 26, 80, HitType.HIT)]
+      : subType === 'rokudou'
+        // Original AABox(45, 23, 42, 75).
+        ? [new AABoxCollisionVolume(45, 30, 42, 75, HitType.HIT)]
+        : undefined;
   const kyleDashAttack = subType === 'kyle'
     // Original Y-up AABox(32, 32, 50, 32), converted to Y-down.
     ? [
@@ -237,10 +243,11 @@ export function createNpcAnimations(
   const build = (
     names: string[],
     loop: boolean,
-    attack: SpriteFrame['attackVolumes'] | undefined = storyNpc ? null : undefined,
-    durations?: number[]
+    attack: SpriteFrame['attackVolumes'] | undefined = storyNpc || boss ? null : undefined,
+    durations?: number[],
+    vulnerable: SpriteFrame['vulnerabilityVolumes'] = vulnerability
   ): AnimationDefinition => ({
-    frames: makeFrames(names, objectWidth, objectHeight, art, durations, attack, vulnerability),
+    frames: makeFrames(names, objectWidth, objectHeight, art, durations, attack, vulnerable),
     loop,
   });
 
@@ -264,13 +271,16 @@ export function createNpcAnimations(
     jump, true, undefined, art.durations?.jump ?? art.durations?.idle
   ));
   animations.set(NPCAnimation.TAKE_HIT, build(
-    art.hit ?? art.idle, false, undefined, art.durations?.hit ?? art.durations?.idle
+    art.hit ?? art.idle, false, undefined, art.durations?.hit ?? art.durations?.idle,
+    boss ? null : vulnerability
   ));
   animations.set(NPCAnimation.SURPRISED, build(
-    art.surprised ?? art.idle, false, undefined, art.durations?.surprised ?? art.durations?.idle
+    art.surprised ?? art.idle, false, undefined, art.durations?.surprised ?? art.durations?.idle,
+    boss ? null : vulnerability
   ));
   animations.set(NPCAnimation.DEATH, build(
-    art.death ?? art.idle, false, undefined, art.durations?.death ?? art.durations?.idle
+    art.death ?? art.idle, false, undefined, art.durations?.death ?? art.durations?.idle,
+    boss ? null : vulnerability
   ));
   if (art.shoot) {
     animations.set(NPCAnimation.SHOOT, build(
