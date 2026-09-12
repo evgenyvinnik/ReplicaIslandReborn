@@ -125,7 +125,6 @@ test('a cannon launches the player upward in the levels that ship one', async ()
           oc.update(FRAME);
           // A launch throws him upward: negative Y in canvas space.
           if (player.getVelocity().y < -300) launched = true;
-          if (player.lastReceivedHitType === HitType.LAUNCH) launched = true;
         }
         checked++;
         if (!launched) failures.push(`${entry.resource}: a cannon never launched the player`);

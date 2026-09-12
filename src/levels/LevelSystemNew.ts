@@ -33,7 +33,8 @@ import { CameraBiasComponent } from '../entities/components/CameraBiasComponent'
 import { SelectDialogComponent } from '../entities/components/SelectDialogComponent';
 import { GravityComponent } from '../entities/components/GravityComponent';
 import { MovementComponent } from '../entities/components/MovementComponent';
-import { GenericAnimationComponent } from '../entities/components/GenericAnimationComponent';
+import { attachEnemyCollisionResponse, attachPossessedCollisionResponse } from '../entities/enemyPhysics';
+import { GenericAnimationComponent, GenericAnimation } from '../entities/components/GenericAnimationComponent';
 import { SimpleCollisionComponent } from '../entities/components/SimpleCollisionComponent';
 import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
@@ -1331,6 +1332,9 @@ export class LevelSystem {
           launchDelay: 0,
           postLaunchDelay: 0,
           driveActions: false,
+          launchEffect: GameObjectType.FLASH,
+          launchEffectOffsetX: 70,
+          launchEffectOffsetY: 50,
         });
         kyleHitReact.setLauncherComponent(kyleLauncher, HitType.HIT);
         obj.addComponent(kyleLauncher);
@@ -1534,7 +1538,7 @@ export class LevelSystem {
         
         // Dynamic collision to detect player contact
         const cannonCollision = new DynamicCollisionComponent();
-        const cannonAttackVolume = new AABoxCollisionVolume(16, 16, 32, 80, HitType.LAUNCH);
+        const cannonAttackVolume = new AABoxCollisionVolume(16, objHeight - 16 - 80, 32, 80, HitType.LAUNCH);
         cannonCollision.setCollisionVolumes([cannonAttackVolume], null);
         obj.addComponent(cannonCollision);
         
@@ -1548,17 +1552,35 @@ export class LevelSystem {
         cannonHitReact.setLauncherComponent(launcherComp, HitType.LAUNCH);
         obj.addComponent(cannonHitReact);
         
-        // Generic animation component
+        // The original disables loading during the one-second firing cooldown
+        // by removing the LAUNCH volume from its ATTACK animation frame.
+        const cannonSprite = new SpriteComponent();
+        cannonSprite.setCollisionComponent(cannonCollision);
+        const cannonFrame = { x: 0, y: 0, width: 64, height: 128, duration: 1, sprite: 'object_cannon' };
+        cannonSprite.addAnimationAtIndex(GenericAnimation.IDLE, {
+          name: 'cannon_idle', loop: false,
+          frames: [{ ...cannonFrame, attackVolumes: [cannonAttackVolume], vulnerabilityVolumes: null }],
+        });
+        cannonSprite.addAnimationAtIndex(GenericAnimation.ATTACK, {
+          name: 'cannon_fire', loop: false,
+          frames: [{ ...cannonFrame, attackVolumes: null, vulnerabilityVolumes: null }],
+        });
+        cannonSprite.playAnimation(GenericAnimation.IDLE);
+        obj.addComponent(cannonSprite);
         const cannonAnim = new GenericAnimationComponent();
+        cannonAnim.setSprite(cannonSprite);
         obj.addComponent(cannonAnim);
         break;
       }
 
       case GameObjectTypeIndex.BROBOT_SPAWNER:
-      case GameObjectTypeIndex.BROBOT_SPAWNER_LEFT: {
-        // Brobot spawner machine - periodically spawns brobot enemies
+      case GameObjectTypeIndex.BROBOT_SPAWNER_LEFT:
+      case GameObjectTypeIndex.INFINITE_SPAWNER: {
+        // Android's benchmark variant inherits the same machine and changes
+        // only vertical facing, projectile tracking, and the burst schedule.
+        const burstSpawner = spawn.type === GameObjectTypeIndex.INFINITE_SPAWNER;
         obj.type = 'spawner';
-        obj.subType = 'brobot_spawner';
+        obj.subType = burstSpawner ? 'infinite' : 'brobot_spawner';
         objWidth = 64;
         objHeight = 64;
         obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
@@ -1566,10 +1588,12 @@ export class LevelSystem {
         // BROBOT_SPAWNER_LEFT is the horizontally flipped variant; the launcher
         // mirrors its spawn offset and velocity from facingDirection.
         obj.facingDirection.x = spawn.type === GameObjectTypeIndex.BROBOT_SPAWNER_LEFT ? -1 : 1;
+        obj.facingDirection.y = burstSpawner ? -1 : 1;
         
         // Add SpriteComponent for rendering the machine
         const spawnerSprite = new SpriteComponent();
         spawnerSprite.setSprite('object_brobot_machine');
+        spawnerSprite.setFlip(false, burstSpawner);
         obj.addComponent(spawnerSprite);
         
         const spawnerLauncher = new LaunchProjectileComponent({
@@ -1578,8 +1602,11 @@ export class LevelSystem {
           velocityX: 100,
           // Android +300 launches upward; Canvas uses negative Y for up.
           velocityY: -300,
-          trackProjectiles: true,
-          maxTrackedProjectiles: 1,
+          trackProjectiles: !burstSpawner,
+          maxTrackedProjectiles: burstSpawner ? 0 : 1,
+          delayBetweenShots: burstSpawner ? 0.15 : 0,
+          setsPerActivation: burstSpawner ? 1 : -1,
+          projectilesInSet: burstSpawner ? 60 : 0,
           offsetX: 36,
           offsetY: 50,
         });
@@ -1587,10 +1614,12 @@ export class LevelSystem {
         
         // Solid surface so player can stand on it
         const spawnerSolid = new SolidSurfaceComponent();
-        // Trapezoid shape matching original
-        spawnerSolid.addSurfaceFromCoords(0, 0, 8, 59, -0.9953, 0.0965);
-        spawnerSolid.addSurfaceFromCoords(8, 59, 61, 33, 0.4455, 0.8953);
-        spawnerSolid.addSurfaceFromCoords(61, 33, 61, 0, 1, 0);
+        // Convert Android's bottom-relative trapezoid and outward normals to
+        // Canvas Y-down. SolidSurfaceComponent then applies facing mirroring.
+        spawnerSolid.addSurfaceFromCoords(0, 64, 8, 5, -0.9953, -0.0965);
+        spawnerSolid.addSurfaceFromCoords(8, 5, 61, 31, 0.445515, -0.89527);
+        spawnerSolid.addSurfaceFromCoords(61, 31, 61, 64, 1, 0);
+        for (const surface of spawnerSolid.getSurfaces()) surface.normal.normalize();
         obj.addComponent(spawnerSolid);
         
         // Dynamic collision - can be possessed
@@ -1598,30 +1627,6 @@ export class LevelSystem {
         const spawnerVulnerability = new SphereCollisionVolume(32, 32, 32, HitType.POSSESS);
         spawnerCollision.setCollisionVolumes(null, [spawnerVulnerability]);
         obj.addComponent(spawnerCollision);
-        break;
-      }
-
-      case GameObjectTypeIndex.INFINITE_SPAWNER: {
-        // Invisible infinite spawner - spawns enemies indefinitely
-        obj.type = 'spawner';
-        obj.subType = 'infinite';
-        objWidth = 32;
-        objHeight = 32;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.team = Team.NONE;
-        
-        // Launch projectile component configured for infinite spawning
-        const infiniteSpawner = new LaunchProjectileComponent({
-          objectTypeToSpawn: GameObjectType.ENEMY_BROBOT,
-          delayBeforeFirstSet: 3.0,
-          delayBetweenSets: 4.0,
-          setsPerActivation: -1, // Infinite
-          projectilesInSet: 1,
-          velocityX: 0,
-          velocityY: 0,
-          trackProjectiles: false
-        });
-        obj.addComponent(infiniteSpawner);
         break;
       }
 
@@ -2256,6 +2261,15 @@ export class LevelSystem {
     }
     sprite.playAnimation(EnemyAnimation.IDLE);
 
+    if (obj.subType === 'pink_namazu' || obj.subType === 'turret') {
+      // Android uses GenericAnimationComponent for these action-driven actors:
+      // Namazu's stationary wake warning and the turret's firing toggle.
+      const animator = new GenericAnimationComponent();
+      animator.setSprite(sprite);
+      obj.addComponent(animator);
+      return;
+    }
+
     const animator = new EnemyAnimationComponent();
     animator.setSprite(sprite);
     if (obj.subType === 'shadowslime' && this.gameObjectManager) {
@@ -2280,6 +2294,8 @@ export class LevelSystem {
     if (obj.getComponent(MovementComponent)) return;
     // Set pieces that must not be moved by generic physics.
     if (NO_PHYSICS_SUBTYPES.has(obj.subType)) return;
+
+    attachEnemyCollisionResponse(obj);
 
     if (!FLYING_SUBTYPES.has(obj.subType)) {
       obj.addComponent(new GravityComponent());
@@ -2400,12 +2416,13 @@ export class LevelSystem {
     );
     if (automaticAttack) swap.addSwapOutComponent(automaticAttack);
 
+    attachPossessedCollisionResponse(obj, swap);
     hitReact.setPossessionComponent(swap);
     obj.addComponent(swap);
   }
 
   /**
-   * Give the single-loop objects (collectibles, blocks, signs, cannons,
+   * Give the single-loop objects (collectibles, blocks, signs,
    * spawners, the ghost) their animation so SpriteComponent draws them.
    *
    * These have no state to select on, so they need no animation component -
@@ -2483,7 +2500,7 @@ export class LevelSystem {
       }
     }
 
-    // Objects that built their own animations (doors, buttons) still need the
+    // Objects that built their own animations (doors, buttons, cannons) still need the
     // render system, or SpriteComponent tracks their state without drawing.
     if (existing?.getCurrentAnimation()) {
       if (renderSystem) existing.setRenderSystem(renderSystem);

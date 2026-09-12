@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Pink Namazu encounter verification</title>
+<style>
+  body { margin: 24px; background: #20242a; color: #eee; font: 16px system-ui; }
+  canvas { width: min(720px, 100%); image-rendering: pixelated; }
+  button { margin: 8px 8px 8px 0; padding: 8px 12px; }
+</style>
+<h1>Pink Namazu wake warning</h1>
+<p>Isolated enemy from shipped level_2_7_grass. Original spawn, real tile collision and component animation; no save changes. Grey blocks show collision tiles, not level artwork. The button supplies a stomp-like camera shake, not player input.</p>
+<button id="wake" disabled>Wake with camera shake</button>
+<button id="half" disabled>Advance 0.5 seconds</button>
+<button id="frame" disabled>Advance one frame</button>
+<button id="finish" disabled>Run 3 seconds</button>
+<p id="status" role="status">Loading</p>
+<canvas width="480" height="320" aria-label="Pink Namazu animation and jump"></canvas>
+<script type="module">
+  const status = document.querySelector('#status');
+  window.addEventListener('unhandledrejection', event => { status.textContent = `Preview error: ${event.reason}`; });
+  const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: {
+    getItem: () => null, setItem: () => {}, removeItem: () => {},
+  } });
+  let modules;
+  try {
+    modules = await Promise.all([
+      import('../src/levels/LevelSystemNew.ts'), import('../src/entities/GameObjectManager.ts'),
+      import('../src/engine/CollisionSystemNew.ts'), import('../src/engine/CameraSystem.ts'),
+      import('../src/engine/HotSpotSystem.ts'), import('../src/engine/RenderSystem.ts'),
+      import('../src/engine/SystemRegistry.ts'), import('../src/entities/components/SpriteComponent.ts'),
+      import('../src/data/levelTree.ts'),
+    ]);
+  } finally {
+    if (descriptor) Object.defineProperty(window, 'localStorage', descriptor);
+    else delete window.localStorage;
+  }
+  const [{ LevelSystem }, { GameObjectManager }, { CollisionSystem }, { CameraSystem },
+    { HotSpotSystem }, { RenderSystem }, { sSystemRegistry }, { SpriteComponent }, { resourceToLevelId }] = modules;
+  const canvas = document.querySelector('canvas');
+  const renderer = new RenderSystem(canvas), manager = new GameObjectManager();
+  const camera = new CameraSystem(480, 320), collision = new CollisionSystem(), level = new LevelSystem();
+  sSystemRegistry.reset(); sSystemRegistry.cameraSystem = camera; sSystemRegistry.renderSystem = renderer;
+  await Promise.all(['stand', 'sleep01', 'sleep02', 'eyeopen', 'jump'].map(name =>
+    renderer.loadSingleImage(`pinknamazu_${name}`, `/assets/sprites/enemy_pinkdude_${name}.png`)));
+  if (!await collision.loadCollisionData('/assets/collision.json')) throw new Error('Collision data unavailable');
+  level.setSystems(collision, manager, new HotSpotSystem());
+  if (!await level.loadLevel(resourceToLevelId.level_2_7_grass)) throw new Error('Level unavailable');
+  manager.commitUpdates();
+  const enemy = manager.getActiveObjects().find(object => object.subType === 'pink_namazu');
+  if (!enemy) throw new Error('Enemy missing');
+  const sprite = enemy.getComponent(SpriteComponent);
+  camera.setPosition(enemy.getCenteredPositionX(), enemy.getCenteredPositionY());
+  let time = 1, running = false, slamCount = 0, minY = Infinity;
+  const shake = camera.shake.bind(camera);
+  camera.shake = (magnitude, duration) => { slamCount++; shake(magnitude, duration); };
+  function step() {
+    time += 1 / 60; enemy.update(1 / 60, time); camera.update(1 / 60);
+    minY = Math.min(minY, enemy.getPosition().y);
+  }
+  function show() {
+    const p = camera.getPosition(), ctx = renderer.getContext();
+    renderer.setCamera(p.x, p.y); renderer.clear('#172031');
+    ctx.fillStyle = '#435461';
+    for (let y = Math.floor(p.y / 32); y < Math.ceil((p.y + 320) / 32); y++) {
+      for (let x = Math.floor(p.x / 32); x < Math.ceil((p.x + 480) / 32); x++) {
+        if (collision.isTileSolid(x, y)) ctx.fillRect(x * 32 - p.x, y * 32 - p.y, 32, 32);
+      }
+    }
+    enemy.render(); renderer.render();
+    status.textContent = `Action: ${enemy.getCurrentAction()}; image: ${sprite.getCurrentDraw()?.sprite}; time: ${time.toFixed(2)}; y: ${enemy.getPosition().y.toFixed(1)}; minimum y: ${minY.toFixed(1)}; slam shakes: ${slamCount}`;
+    document.querySelectorAll('button').forEach(button => { button.disabled = running; });
+  }
+  for (let i = 0; i < 120; i++) step();
+  minY = enemy.getPosition().y;
+  show();
+  document.querySelector('#wake').onclick = () => { minY = enemy.getPosition().y; shake(15, 0.15); step(); show(); };
+  document.querySelector('#half').onclick = () => { for (let i = 0; i < 30; i++) step(); show(); };
+  document.querySelector('#frame').onclick = () => { step(); show(); };
+  document.querySelector('#finish').onclick = () => {
+    running = true; let frames = 180; show();
+    function animate() { step(); frames--; if (!frames) running = false; show(); if (frames) requestAnimationFrame(animate); }
+    requestAnimationFrame(animate);
+  };
+</script>
+</html>

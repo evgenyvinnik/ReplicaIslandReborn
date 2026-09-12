@@ -227,6 +227,8 @@ export class PlayerComponent extends GameComponent {
   private animations: Map<PlayerAnimationName, AnimationDefinition> | null = null;
   private animationsGlowing: boolean = false;
   private playingAnimation: PlayerAnimationName | null = null;
+  /** LAUNCH freezes the body without creating a possession orb. */
+  private launchFrozen: boolean = false;
 
   constructor() {
     super(ComponentPhase.THINK);
@@ -326,6 +328,31 @@ export class PlayerComponent extends GameComponent {
     const attackTriggered = input.attack && !this.attackWasPressed;
     this.jumpWasPressed = input.jump;
     this.attackWasPressed = input.attack;
+
+    // Original gotoHitReact(LAUNCH) -> gotoFrozen, then stateFrozen waits
+    // for LauncherComponent.fire() to set MOVE. Keep this separate from orb
+    // ownership, and consume held input edges throughout the loading delay.
+    if (!this.isDying && !this.levelWon && !this.ghostActive) {
+      if (parent.getCurrentAction() === ActionType.HIT_REACT &&
+          parent.lastReceivedHitType === HitType.LAUNCH) {
+        this.launchFrozen = true;
+        this.currentState = PlayerState.FROZEN;
+        this.stomping = this.stompLanded = false;
+        this.stompHangTime = 0;
+        this.ghostChargeTime = 0;
+        this.rocketsOn = false;
+      }
+      if (this.launchFrozen) {
+        if (parent.getCurrentAction() === ActionType.MOVE) {
+          this.launchFrozen = false;
+          this.currentState = PlayerState.MOVE;
+        } else {
+          this.updateAnimation(parent, deltaTime);
+          this.updateCurrentAction(parent);
+          return;
+        }
+      }
+    }
     const velocity = parent.getVelocity();
     const position = parent.getPosition();
     // Collision contact timestamps are compared against GameObject.gameTime,
@@ -549,9 +576,9 @@ export class PlayerComponent extends GameComponent {
       velocity.y += PlayerComponent.GRAVITY * deltaTime;
     }
 
-    // Clamp velocity
-    velocity.x = Math.max(-PlayerComponent.MAX_GROUND_HORIZONTAL_SPEED, Math.min(PlayerComponent.MAX_GROUND_HORIZONTAL_SPEED, velocity.x));
-    velocity.y = Math.max(-PlayerComponent.MAX_UPWARD_SPEED * 2, Math.min(1000, velocity.y));
+    // Movement/jet caps above limit player-generated acceleration, not outside
+    // impulses. Android's PhysicsComponent preserves cannon/Kyle launch speed
+    // and applies gravity/drag; a global clamp here truncates those launches.
 
     // Ground friction. The original gives the player a PhysicsComponent with
     // mass 9.1, dynamic coefficient 0.2 and static 0.01, and stops him with
@@ -922,6 +949,7 @@ export class PlayerComponent extends GameComponent {
   }
 
   reset(): void {
+    this.launchFrozen = false;
     this.currentState = PlayerState.MOVE;
     // Force the animation to be re-selected on the next update.
     this.playingAnimation = null;

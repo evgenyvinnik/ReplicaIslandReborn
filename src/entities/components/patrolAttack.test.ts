@@ -63,9 +63,11 @@ beforeEach(() => {
 function attacksAt(
   enemy: { width: number; height: number },
   patrol: PatrolComponent,
-  gap: number
+  gap: number,
+  facing = 1
 ): boolean {
   const e = standing(enemy.width, enemy.height, 1000);
+  e.facingDirection.x = facing;
   const player = standing(32, 48, 1000 + gap);
   manager.setPlayer(player);
   e.addComponent(patrol);
@@ -107,6 +109,11 @@ test('a mudman swings at a player standing next to it', () => {
 
 test('a mudman does not swing at a player beyond its reach', () => {
   expect(attacksAt({ width: 128, height: 128 }, mudmanPatrol(), 400)).toBe(false);
+});
+
+test('an aligned player is on the right-facing patrol side, as in Android', () => {
+  expect(attacksAt({ width: 128, height: 128 }, mudmanPatrol(), 0, 1)).toBe(true);
+  expect(attacksAt({ width: 128, height: 128 }, mudmanPatrol(), 0, -1)).toBe(false);
 });
 
 test('a skeleton swings at a player just inside its 75px reach', () => {

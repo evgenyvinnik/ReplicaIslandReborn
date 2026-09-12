@@ -20,6 +20,7 @@ import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { GameFlowEvent, GameFlowEventType } from '../engine/GameFlowEvent';
 import { TimeSystem } from '../engine/TimeSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
+import { GameObjectFactory } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { DifficultySettings } from '../stores/useGameStore';
@@ -719,8 +720,9 @@ describe('campaign gameplay simulation', () => {
     expect(unwired).toEqual([]);
   }, 60_000);
 
-  test('Kyle dash frames hit and launch Andou', async () => {
+  test('Kyle dash frames hit and launch Andou with the original flash', async () => {
     const harness = createHarness();
+    sSystemRegistry.register(new GameObjectFactory(harness.manager), 'factory');
     expect(await harness.levelSystem.loadLevel(resourceToLevelId.level_2_1_grass)).toBe(true);
     harness.manager.commitUpdates();
 
@@ -776,6 +778,13 @@ describe('campaign gameplay simulation', () => {
     // moving left and upward, not with the flattened Y velocity the port had.
     expect(player.getVelocity().x).toBeLessThan(-900);
     expect(player.getVelocity().y).toBeLessThan(-100);
+    harness.manager.commitUpdates();
+    const flashes = harness.manager.getActiveObjects().filter(object => object.subType === 'flash');
+    expect(flashes).toHaveLength(1);
+    expect(flashes[0].getPosition().x).toBe(kyle.getPosition().x - 70);
+    expect(flashes[0].getPosition().y).toBe(kyle.getPosition().y + 128 - 50 - 64);
+    expect(flashes[0].getComponent(SpriteComponent)?.getCurrentDraw()?.sprite)
+      .toBe('effect_crush_back01.png');
   });
 
   test('an enemy falls and rests on the ground under component physics', async () => {

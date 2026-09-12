@@ -16,12 +16,49 @@ import { GameObject } from './GameObject';
 import { GravityComponent } from './components/GravityComponent';
 import { EnemyAnimationComponent } from './components/EnemyAnimationComponent';
 import { ChangeComponentsComponent } from './components/ChangeComponentsComponent';
+import { SpriteComponent } from './components/SpriteComponent';
+import { CameraSystem } from '../engine/CameraSystem';
 
 afterEach(() => {
   sSystemRegistry.reset();
 });
 
 describe('GameObjectFactory managed spawns', () => {
+  test('headless Snailbomb spawning does not strand a pooled sprite', () => {
+    const manager = new GameObjectManager();
+    const factory = new GameObjectFactory(manager);
+    const first = factory.spawn(GameObjectType.ENEMY_SNAILBOMB, 100, 200)!;
+    manager.commitUpdates();
+    const sprite = first.getComponent(SpriteComponent);
+    expect(sprite).not.toBeNull();
+    manager.remove(first);
+    manager.commitUpdates();
+    const second = factory.spawn(GameObjectType.ENEMY_SNAILBOMB, 100, 200)!;
+    expect(second.getComponent(SpriteComponent) === sprite).toBe(true);
+  });
+
+  test('a live runtime Snailbomb sleeps off-camera and returns as the same enemy', () => {
+    const manager = new GameObjectManager();
+    const factory = new GameObjectFactory(manager);
+    const camera = new CameraSystem(480, 320);
+    camera.setPosition(100, 200);
+    manager.setCamera(camera);
+    const enemy = factory.spawn(GameObjectType.ENEMY_SNAILBOMB, 100, 200)!;
+    const id = enemy.id;
+    const sprite = enemy.getComponent(SpriteComponent);
+    manager.commitUpdates();
+    enemy.setPosition(4000, 4000);
+    manager.update(0, 0);
+    manager.commitUpdates();
+    expect(manager.getInactiveObjectCount()).toBe(1);
+    expect(enemy.life).toBe(1);
+    enemy.setPosition(100, 200);
+    manager.update(0, 0);
+    expect(manager.getActiveObjects()).toContain(enemy);
+    expect(enemy.id).toBe(id);
+    expect(enemy.getComponent(SpriteComponent) === sprite).toBe(true);
+  });
+
   test('ghosts use the manager pool and are recyclable after release', () => {
     const manager = new GameObjectManager();
     const factory = new GameObjectFactory(manager);

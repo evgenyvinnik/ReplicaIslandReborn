@@ -79,6 +79,10 @@ export class PopOutComponent extends GameComponent {
     // Calculate distance to player
     this.distance.set(player.getPosition());
     this.distance.subtract(parentObject.getPosition());
+    // Android positions are bottom-left; the port stores top-left. Compare
+    // bases just like PatrolComponent, otherwise differing sprite heights
+    // shift the attack/appearance radii vertically.
+    this.distance.y += player.height - parentObject.height;
 
     const time = sSystemRegistry.timeSystem;
     if (!time) return;

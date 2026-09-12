@@ -44,6 +44,8 @@ interface EnemyArt {
   appearFrameTimes?: number[];
   /** The skeleton's and snailbomb's idles do not loop in the original. */
   idleLoop?: boolean;
+  /** Pink Namazu's MOVE is a one-shot wake blink, not a looping walk. */
+  walkLoop?: boolean;
   /**
    * Indices into `attack` whose frames carry the attack volume. The original
    * puts it on only the frames where the blow lands; omit for enemies that are
@@ -156,6 +158,7 @@ const ENEMY_ART: Record<string, EnemyArt> = {
       'pinknamazu_eyeopen', 'pinknamazu_stand',
     ],
     walkFrameTimes: [3, 3, 3, 3],
+    walkLoop: false,
     attack: ['pinknamazu_jump'],
     attackFrameTimes: [2],
   },
@@ -265,7 +268,7 @@ export function createEnemyAnimations(
         vulnerabilityVolumes: vulnerability,
         frameTimes: art.walkFrameTimes,
       }),
-      loop: true,
+      loop: art.walkLoop ?? true,
     });
   }
 

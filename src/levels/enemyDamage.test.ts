@@ -112,6 +112,27 @@ function takesDamageFrom(rig: Rig, player: GameObject, enemy: GameObject, forceA
   return false;
 }
 
+test('a shipped brobot contact knocks Andou upward and his physics leaves the floor', async () => {
+  const rig = (await load('level_0_2_lab'))!;
+  expect(rig).not.toBeNull();
+  const player = rig.manager.getPlayer()!;
+  const enemy = rig.manager.getActiveObjects().find(object => object.subType === 'brobot')!;
+  expect(enemy).toBeDefined();
+  const component = player.getComponent(PlayerComponent)!;
+  component.setSystems(rig.input, rig.collision, rig.sound, rig.levelSystem);
+  expect(takesDamageFrom(rig, player, enemy, false)).toBe(true);
+  expect(player.getVelocity().y).toBe(-100);
+  const hitY = player.getPosition().y;
+  const life = player.life;
+  for (let frame = 0; frame < 4; frame++) {
+    rig.time.update(FRAME);
+    rig.manager.update(FRAME, rig.time.getGameTime());
+    rig.oc.update(FRAME);
+  }
+  expect(player.getPosition().y).toBeLessThan(hitY - 1);
+  expect(player.life).toBe(life);
+});
+
 test('enemies that hurt on contact actually do, and the rest only while attacking', async () => {
   const contactFailures: string[] = [];
   const gatedFailures: string[] = [];

@@ -134,7 +134,8 @@ export class GameObjectManager {
     // Update all active objects
     this.objects.forEach((object) => {
       if (object.isActive()) {
-        object.update(deltaTime, gameTime);
+        // Another object can mark this one during the same update pass.
+        if (!object.isMarkedForRemoval()) object.update(deltaTime, gameTime);
 
         // Check for removal
         if (object.isMarkedForRemoval()) {
@@ -163,15 +164,21 @@ export class GameObjectManager {
     }
     this.pendingAdditions = [];
 
-    // Remove pending objects
-    for (const object of this.pendingRemovals) {
-      this.objects.remove(object);
-      if (object.destroyOnDeactivation) {
-        this.releaseObject(object);
-      } else {
-        object.setActive(false);
-        this.inactiveObjects.add(object);
-      }
+    // Death/removal is terminal, unlike moving outside the camera radius.
+    // Android destroys these objects regardless of destroyOnDeactivation;
+    // that flag only governs the separate camera-deactivation path below.
+    const removals = new Set(this.pendingRemovals);
+    const collectMarked = (object: GameObject): void => {
+      if (object.isMarkedForRemoval()) removals.add(object);
+    };
+    this.objects.forEach(collectMarked);
+    this.inactiveObjects.forEach(collectMarked);
+    for (const object of removals) {
+      const wasActive = this.objects.remove(object);
+      const wasInactive = this.inactiveObjects.remove(object);
+      if (!wasActive && !wasInactive) continue;
+      if (object === this.player) this.player = null;
+      this.releaseObject(object);
     }
     this.pendingRemovals = [];
   }
@@ -246,6 +253,14 @@ export class GameObjectManager {
    */
   getActiveObjects(): GameObject[] {
     return this.objects.toArray();
+  }
+
+  /** Find a still-owned instance, including queued and camera-inactive objects. */
+  getObjectById(id: number): GameObject | null {
+    return this.objects.find(object => object.id === id)
+      ?? this.inactiveObjects.find(object => object.id === id)
+      ?? this.pendingAdditions.find(object => object.id === id)
+      ?? null;
   }
 
   /** Submit current sprites and trails once per display frame, even if paused. */

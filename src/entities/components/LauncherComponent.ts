@@ -93,8 +93,13 @@ export class LauncherComponent extends GameComponent {
             parentObject.setCurrentAction(ActionType.ATTACK);
           }
         } else {
-          // Keep shot at launcher position until fire time
-          this.shot.setPosition(parentObject.getPosition());
+          // Android copies bottom-left positions; Canvas stores sprite tops.
+          // Keep the bases aligned even when launcher and shot heights differ.
+          const position = parentObject.getPosition();
+          // Andou's original object is 64px wide with its 32px collision body
+          // inset by 16px. The port stores that body's X, not the sprite's X.
+          const bodyOffsetX = this.shot.type === 'player' ? (64 - this.shot.width) / 2 : 0;
+          this.shot.setPosition(position.x + bodyOffsetX, position.y + parentObject.height - this.shot.height);
         }
       }
     } else if (gameTime > this.launchTime + this.postLaunchDelay) {

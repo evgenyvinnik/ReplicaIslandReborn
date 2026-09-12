@@ -268,10 +268,11 @@ export class LaunchProjectileComponent extends GameComponent {
 
     const manager = sSystemRegistry.gameObjectManager;
     if (!manager) return;
-    const activeIds = new Set(manager.getActiveObjects().map((object) => object.id));
     let removedAny = false;
     for (const id of this.trackedProjectileIds) {
-      if (!activeIds.has(id)) {
+      // Camera sleep is not death, and a just-launched object may still be queued.
+      // Keep the slot occupied until the manager actually releases that instance.
+      if (!manager.getObjectById(id)) {
         this.trackedProjectileIds.delete(id);
         removedAny = true;
       }

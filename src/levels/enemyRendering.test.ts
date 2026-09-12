@@ -24,6 +24,12 @@ import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { EnemyAnimationComponent } from '../entities/components/EnemyAnimationComponent';
+import { GenericAnimationComponent } from '../entities/components/GenericAnimationComponent';
+import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
+import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
+import { GhostComponent } from '../entities/components/GhostComponent';
+import { TimeSystem } from '../engine/TimeSystem';
+import { InputSystem } from '../engine/InputSystem';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import type { RenderSystem } from '../engine/RenderSystem';
 import type { GameObject } from '../entities/GameObject';
@@ -114,6 +120,117 @@ describe('enemies render from their components', () => {
     expect(componentOf<EnemyAnimationComponent>(brobot!, EnemyAnimationComponent)).not.toBeNull();
   });
 
+  test('every ordinary campaign enemy uses the controller chosen by the Android factory', async () => {
+    // spawnEnemyPinkNamazu and spawnObjectTurret are action-driven. The other
+    // nine use EnemyAnimationComponent's movement/hiding/attack state machine.
+    const remaining = new Set(['bat', 'sting', 'onion', 'karaguin', 'brobot',
+      'skeleton', 'snailbomb', 'mudman', 'shadowslime', 'pink_namazu', 'turret']);
+    const level = new LevelSystem();
+    level.setSystems(new CollisionSystem(), manager, new HotSpotSystem());
+    for (const group of linearLevelTree) {
+      for (const entry of group.levels) {
+        expect(await level.loadLevel(resourceToLevelId[entry.resource]), entry.resource).toBe(true);
+        manager.commitUpdates();
+        for (const enemy of manager.getActiveObjects()) {
+          const subType = enemy.subType;
+          if (!remaining.has(subType)) continue;
+          const actionDriven = subType === 'pink_namazu' || subType === 'turret';
+          expect(Boolean(enemy.getComponent(GenericAnimationComponent)), subType).toBe(actionDriven);
+          expect(Boolean(enemy.getComponent(EnemyAnimationComponent)), subType).toBe(!actionDriven);
+          remaining.delete(subType);
+        }
+        if (remaining.size === 0) return;
+      }
+    }
+    expect([...remaining], 'enemy types missing from the shipped campaign').toEqual([]);
+  });
+
+  test('turret AI firing art starts and stops on the action frame', async () => {
+    const turret = (await loadLevelWithEnemy('turret'))!;
+    const player = manager.getPlayer()!;
+    const sprite = turret.getComponent(SpriteComponent)!;
+    const time = new TimeSystem();
+    sSystemRegistry.timeSystem = time;
+    const position = turret.getPosition();
+    player.setPosition(position.x + turret.facingDirection.x * 100, position.y + 100);
+    time.update(2); // Initial attack delay has elapsed.
+    turret.update(1 / 60, time.getGameTime());
+    expect(turret.getCurrentAction()).toBe(ActionType.ATTACK);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('object_gunturret02');
+
+    // Leaving range does not truncate its one-second automatic burst.
+    player.setPosition(position.x + 2000, position.y);
+    time.update(0.5);
+    turret.update(0.5, time.getGameTime());
+    expect(turret.getCurrentAction()).toBe(ActionType.ATTACK);
+    expect(sprite.getCurrentAnimation()?.name).toBe('attack');
+    time.update(0.51);
+    turret.update(1 / 60, time.getGameTime());
+    expect(turret.getCurrentAction()).toBe(ActionType.IDLE);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('object_gunturret01');
+    expect(sprite.getCurrentAnimation()?.name).toBe('idle');
+  });
+
+  test('shipped sewer turrets retain the original vertical reach and facing boundary', async () => {
+    const level = new LevelSystem();
+    level.setSystems(new CollisionSystem(), manager, new HotSpotSystem());
+    expect(await level.loadLevel(resourceToLevelId.level_3_3_sewer)).toBe(true);
+    manager.commitUpdates();
+    const player = manager.getPlayer()!;
+    const turrets = manager.getActiveObjects().filter(object => object.subType === 'turret');
+    expect(turrets.length).toBeGreaterThan(0);
+    const time = new TimeSystem();
+    sSystemRegistry.timeSystem = time;
+    for (const turret of turrets) {
+      const control = componentOf<AttackAtDistanceComponent>(turret, AttackAtDistanceComponent)!;
+      expect(control).not.toBeNull();
+      for (const vertical of [-301, -299, 299, 301]) {
+        player.setPosition(turret.getPosition().x + turret.facingDirection.x,
+          turret.getPosition().y + turret.height + vertical - player.height);
+        turret.setCurrentAction(ActionType.IDLE);
+        time.update(2); // Previous burst/cooldown fully elapsed; no component reset.
+        control.update(1 / 60, turret);
+        expect(turret.getCurrentAction()).toBe(Math.abs(vertical) < 300
+          ? ActionType.ATTACK : ActionType.IDLE);
+      }
+      player.setPosition(turret.getPosition().x,
+        turret.getPosition().y + turret.height + 100 - player.height);
+      turret.setCurrentAction(ActionType.IDLE);
+      time.update(2);
+      control.update(1 / 60, turret);
+      expect(turret.getCurrentAction()).toBe(turret.facingDirection.x >= 0
+        ? ActionType.ATTACK : ActionType.IDLE);
+    }
+  });
+
+  test('possessed turret firing art follows Fly press/release without an extra frame', async () => {
+    const turret = (await loadLevelWithEnemy('turret'))!;
+    const sprite = turret.getComponent(SpriteComponent)!;
+    const input = new InputSystem();
+    sSystemRegistry.inputSystem = input;
+    new GameObjectFactory(manager).setSystemRegistry(sSystemRegistry);
+    // Stage only the already-possessed mode. possession.test.ts separately
+    // reaches this swap through a real orb and checks repeated release.
+    componentOf<ChangeComponentsComponent>(turret, ChangeComponentsComponent)!.activate(turret);
+    expect(componentOf<GhostComponent>(turret, GhostComponent)).not.toBeNull();
+    let time = 1;
+    for (let burst = 0; burst < 3; burst++) {
+      input.setVirtualButton('fly', true);
+      turret.update(1 / 60, time += 1 / 60);
+      expect(turret.getCurrentAction()).toBe(ActionType.ATTACK);
+      expect(sprite.getCurrentDraw()?.sprite).toBe('object_gunturret02');
+      for (let frame = 0; frame < 20; frame++) turret.update(1 / 60, time += 1 / 60);
+      input.setVirtualButton('fly', false);
+      turret.update(1 / 60, time += 1 / 60);
+      expect(turret.getCurrentAction()).toBe(ActionType.IDLE);
+      expect(sprite.getCurrentAnimation()?.name).toBe('idle');
+      expect(sprite.getCurrentDraw()?.sprite).toBe('object_gunturret01');
+    }
+    const vulnerability = turret.getComponent(DynamicCollisionComponent)!.getVulnerabilityVolumes();
+    expect(vulnerability).toHaveLength(1);
+    expect(vulnerability![0].getHitType()).toBe(HitType.POSSESS);
+  });
+
   test('rendering an enemy draws one of its own frames', async () => {
     const brobot = await loadLevelWithEnemy('brobot');
     const sprite = componentOf<SpriteComponent>(brobot!, SpriteComponent)!;
@@ -159,7 +276,7 @@ describe('enemies render from their components', () => {
   });
 
   test('single-loop objects draw themselves too', async () => {
-    // Collectibles, blocks, signs, cannons and spawners have no state to select
+    // Collectibles, blocks, signs and spawners have no state to select
     // on, so they get a looping animation and no animation component.
     const cases: Array<[string, RegExp]> = [
       ['coin', /^coin0\d$/],

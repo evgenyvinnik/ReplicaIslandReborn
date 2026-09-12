@@ -265,11 +265,14 @@ export class HitReactionComponent extends GameComponent {
             const attackerPos = attacker.getPosition();
             
             this.workingVector.x = parentPos.x - attackerPos.x;
-            this.workingVector.y = parentPos.y - attackerPos.y;
+            this.workingVector.y = (parentPos.y + parent.height) - (attackerPos.y + attacker.height);
             
-            // Normalize to direction signs
-            this.workingVector.x = 0.5 * Math.sign(this.workingVector.x);
-            this.workingVector.y = 0.5 * Math.sign(this.workingVector.y);
+            // Android compares bottom-left positions and Utils.sign(0) is
+            // positive. Its equal-base upward bounce becomes negative Y in
+            // Canvas; comparing tops would kick a short player downward when
+            // struck by a taller enemy standing on the same floor.
+            this.workingVector.x = this.workingVector.x >= 0 ? 0.5 : -0.5;
+            this.workingVector.y = this.workingVector.y <= 0 ? -0.5 : 0.5;
             
             // Apply bounce
             this.workingVector.x *= this.bounceMagnitude;

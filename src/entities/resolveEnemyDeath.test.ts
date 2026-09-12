@@ -9,6 +9,9 @@ import { HitReactionComponent } from './components/HitReactionComponent';
 import { PlayerComponent } from './components/PlayerComponent';
 import { getInventory, setInventory } from './components/InventoryComponent';
 import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
+import { CameraSystem } from '../engine/CameraSystem';
+import { HotSpotSystem, HotSpotType } from '../engine/HotSpotSystem';
+import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import type { SoundSystem } from '../engine/SoundSystem';
 import { TimeSystem } from '../engine/TimeSystem';
@@ -53,6 +56,38 @@ function setup(): {
 
 const GhostClass = GhostComponent as unknown as new (...args: unknown[]) => GhostComponent;
 
+for (const kind of [GameObjectType.ENEMY_BROBOT, GameObjectType.ENEMY_SNAILBOMB]) {
+  test(`runtime ${kind} dies on a real hazard with one effect and award, not a player stomp`, () => {
+    const { manager, factory, player, flashes } = setup();
+    const hotSpots = new HotSpotSystem();
+    const tiles = Array.from({ length: 20 }, () => Array<number>(20).fill(HotSpotType.NONE));
+    tiles[4][7] = HotSpotType.DIE;
+    hotSpots.setWorld({ width: 20, height: 20, tiles });
+    hotSpots.setLevelDimensions(640, 640);
+    sSystemRegistry.register(hotSpots, 'hotSpot');
+    const enemy = factory.spawn(kind, 100, 136)!;
+    manager.commitUpdates();
+    enemy.update(0, 0);
+    expect(enemy.life).toBe(1);
+    expect(resolveEnemyDeath(enemy)).toBe(false);
+    const score = getInventory().score;
+    const kills = useGameStore.getState().progress.totalStats.totalEnemiesDefeated;
+    enemy.setPosition(100, 200); // Its feet now sample the test grid's single DIE cell.
+    enemy.update(0, 0);
+    expect(enemy.life).toBe(0);
+    expect(enemy.isMarkedForRemoval()).toBe(false);
+    expect(resolveEnemyDeath(enemy)).toBe(true);
+    expect(resolveEnemyDeath(enemy)).toBe(false);
+    manager.commitUpdates();
+    const effect = kind === GameObjectType.ENEMY_BROBOT ? 'explosion_giant' : 'smoke_poof';
+    expect(manager.getActiveObjects().filter(o => o.subType === effect)).toHaveLength(1);
+    expect(getInventory().score).toBe(score + 25);
+    expect(useGameStore.getState().progress.totalStats.totalEnemiesDefeated).toBe(kills + 1);
+    expect(flashes).toHaveLength(0);
+    expect(player.getVelocity().y).toBe(37);
+  });
+}
+
 test('real orb possession and release detonates a brobot once and can chain into another brobot', () => {
   const { manager, factory, collision, player, flashes } = setup();
   const initialScore = getInventory().score;
@@ -72,10 +107,11 @@ test('real orb possession and release detonates a brobot once and can chain into
   expect(player.getComponent(PlayerComponent)!.ghostActive).toBe(false);
   expect(first.isMarkedForRemoval()).toBe(true);
   expect(resolveEnemyDeath(first)).toBe(false);
+  const deathPosition = first.getPosition().clone();
   manager.commitUpdates();
   const blasts = manager.getActiveObjects().filter(o => o.subType === 'explosion_giant');
   expect(blasts).toHaveLength(1);
-  expect(blasts[0].getPosition()).toEqual(first.getPosition());
+  expect(blasts[0].getPosition()).toEqual(deathPosition);
   expect(getInventory().score).toBe(initialScore + 25);
   expect(useGameStore.getState().progress.totalStats.totalEnemiesDefeated).toBe(initialKills + 1);
 
@@ -95,6 +131,37 @@ test('real orb possession and release detonates a brobot once and can chain into
   expect(player.life).toBe(3);
   expect(player.getVelocity().y).toBe(37);
   expect(flashes).toEqual([]);
+});
+
+test('a defeated persistent brobot cannot return as an invisible contact hazard', () => {
+  const { manager, factory, collision, player } = setup();
+  const camera = new CameraSystem(480, 320);
+  camera.setPosition(100, 200);
+  manager.setCamera(camera);
+  const enemy = factory.spawn(GameObjectType.ENEMY_BROBOT, 100, 200)!;
+  // Level-placed enemies persist when merely off camera, unlike runtime shots.
+  enemy.destroyOnDeactivation = false;
+  manager.commitUpdates();
+  const body = new DynamicCollisionComponent();
+  body.setCollisionVolumes(null, [new AABoxCollisionVolume(0, 0, 64, 64)]);
+  body.setHitReactionComponent(new HitReactionComponent());
+  player.addComponent(body);
+  enemy.life = 0;
+  expect(resolveEnemyDeath(enemy)).toBe(true);
+  expect(enemy.isVisible()).toBe(false);
+  const score = getInventory().score;
+  for (let frame = 0; frame < 5; frame++) {
+    // Manager membership determines which objects register: do not manually
+    // omit the dead enemy as the older isolated collision test did.
+    manager.update(0, 2 + frame);
+    player.setGameTime(2 + frame);
+    body.update(0, player);
+    collision.update(0);
+  }
+  expect(player.life).toBe(3);
+  expect(player.lastDamageSource).toBeNull();
+  expect(getInventory().score).toBe(score);
+  expect(manager.getActiveObjects().some(object => object.subType === 'brobot')).toBe(false);
 });
 
 test('a direct player hit retains stomp feedback, while ordinary death emits the original smoke', () => {

@@ -10,6 +10,7 @@ import { GameComponent } from '../GameComponent';
 import { ComponentPhase, ActionType } from '../../types';
 import type { GameObject } from '../GameObject';
 import { sSystemRegistry } from '../../engine/SystemRegistry';
+import { Vector2 } from '../../utils/Vector2';
 
 /**
  * Sleeper states
@@ -32,6 +33,7 @@ export interface SleeperConfig {
 }
 
 export class SleeperComponent extends GameComponent {
+  private readonly visibilityAnchor = new Vector2();
   private wakeUpDuration: number = DEFAULT_WAKE_UP_DURATION;
   private stateTime: number = 0;
   private state: SleeperState = SleeperState.SLEEPING;
@@ -76,7 +78,10 @@ export class SleeperComponent extends GameComponent {
     switch (this.state) {
       case SleeperState.SLEEPING: {
         // Wake up if camera is shaking and we're visible
-        if (camera.isShaking() && camera.isPointVisible(parentObject.getPosition(), parentObject.width / 2)) {
+        // Android tests its bottom-left position, not the top of our sprite.
+        const position = parentObject.getPosition();
+        this.visibilityAnchor.set(position.x, position.y + parentObject.height);
+        if (camera.isShaking() && camera.isPointVisible(this.visibilityAnchor, parentObject.width / 2)) {
           this.state = SleeperState.WAKING;
           this.stateTime = this.wakeUpDuration;
           parentObject.setCurrentAction(ActionType.MOVE);

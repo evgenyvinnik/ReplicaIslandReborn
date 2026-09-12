@@ -23,6 +23,7 @@ import { DynamicCollisionComponent } from './components/DynamicCollisionComponen
 import { HitReactionComponent } from './components/HitReactionComponent';
 import { GravityComponent } from './components/GravityComponent';
 import { ChangeComponentsComponent } from './components/ChangeComponentsComponent';
+import { attachEnemyCollisionResponse, attachPossessedCollisionResponse } from './enemyPhysics';
 import { EnemyAnimation, EnemyAnimationComponent } from './components/EnemyAnimationComponent';
 import { createEnemyAnimations } from '../data/enemyAnimations';
 import {
@@ -83,6 +84,7 @@ export enum GameObjectType {
   SMOKE_BIG = 'smoke_big',
   SMOKE_SMALL = 'smoke_small',
   DUST = 'dust',
+  FLASH = 'flash',
   EXPLOSION_GIANT = 'explosion_giant',
   EXPLOSION_SMALL = 'explosion_small',
   EXPLOSION_LARGE = 'explosion_large',
@@ -245,6 +247,9 @@ export class GameObjectFactory {
         break;
       case GameObjectType.DUST:
         this.configureDust(obj);
+        break;
+      case GameObjectType.FLASH:
+        this.configureFlash(obj);
         break;
       case GameObjectType.EXPLOSION_GIANT:
         configureGiantExplosion(obj, this.renderSystem);
@@ -561,6 +566,30 @@ export class GameObjectFactory {
     obj.addComponent(lifetime);
   }
 
+  /** Original spawnEffectFlash: Kyle's stationary, non-damaging dash impact. */
+  private configureFlash(obj: GameObject): void {
+    obj.type = 'effect';
+    obj.subType = 'flash';
+    obj.team = Team.NONE;
+    obj.width = obj.height = 64;
+    obj.life = 1;
+    obj.activationRadius = ALWAYS_ACTIVE;
+    const sprite = new SpriteComponent();
+    if (this.renderSystem) sprite.setRenderSystem(this.renderSystem);
+    sprite.addAnimation('flash', {
+      frames: [1, 2, 3].map(n => ({
+        sprite: `effect_crush_back0${n}.png`,
+        x: 0, y: 0, width: 64, height: 64, duration: 1 / 24,
+      })),
+      loop: false,
+    });
+    sprite.playAnimation('flash');
+    obj.addComponent(sprite);
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(3 / 24);
+    obj.addComponent(lifetime);
+  }
+
   /** Original spawnDust: stationary, five 24 FPS frames, removed after 0.3s. */
   private configureDust(obj: GameObject): void {
     obj.type = 'effect';
@@ -606,45 +635,6 @@ export class GameObjectFactory {
     obj.maxLife = 1;
     obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
 
-    // Add sprite
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('snailbomb');
-      sprite.setRenderSystem(this.renderSystem);
-      
-      // Idle animation (single frame)
-      sprite.addAnimation('idle', {
-        frames: [
-          { x: 0, y: 0, width: 64, height: 64, duration: 1.0 },
-        ],
-        loop: true,
-      });
-      
-      // Walk animation (5 frames)
-      sprite.addAnimation('walk', {
-        frames: [
-          { x: 0, y: 0, width: 64, height: 64, duration: 0.15 },
-          { x: 64, y: 0, width: 64, height: 64, duration: 0.15 },
-          { x: 128, y: 0, width: 64, height: 64, duration: 0.15 },
-          { x: 192, y: 0, width: 64, height: 64, duration: 0.15 },
-          { x: 256, y: 0, width: 64, height: 64, duration: 0.15 },
-        ],
-        loop: true,
-      });
-      
-      // Attack animation (2 frames)
-      sprite.addAnimation('attack', {
-        frames: [
-          { x: 0, y: 64, width: 64, height: 64, duration: 0.2 },
-          { x: 64, y: 64, width: 64, height: 64, duration: 0.2 },
-        ],
-        loop: true,
-      });
-      
-      sprite.playAnimation('walk');
-      obj.addComponent(sprite);
-    }
-
     const patrol = new PatrolComponent({
       maxSpeed: 20,
       acceleration: 1000,
@@ -682,6 +672,13 @@ export class GameObjectFactory {
     patrol: PatrolComponent,
     collisionBox: { width: number; height: number; offsetX: number; offsetY: number }
   ): void {
+    // Android's Brobots and Snailbombs sleep off-camera instead of being discarded.
+    obj.destroyOnDeactivation = false;
+    attachEnemyCollisionResponse(obj);
+    const lifetime = new LifetimeComponent();
+    lifetime.setVulnerableToDeathTiles(true);
+    // resolveEnemyDeath owns removal, effects and awards; this only detects hazards.
+    obj.addComponent(lifetime);
     obj.addComponent(new GravityComponent());
     const movement = this.componentPools.movement.allocate();
     if (this.collisionSystem) {
@@ -745,6 +742,7 @@ export class GameObjectFactory {
         ambientSound: 'sound_possession',
       }));
       swap.addSwapOutComponent(patrol);
+      attachPossessedCollisionResponse(obj, swap);
       reaction.setPossessionComponent(swap);
       obj.addComponent(swap);
     }

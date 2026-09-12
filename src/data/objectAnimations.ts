@@ -82,7 +82,6 @@ const OBJECT_ART: Record<string, ObjectArt> = {
   },
   breakable_block: { frames: ['debris_block'], width: 32, height: 32, frameTimes: [1] },
   hint_sign: { frames: ['object_sign'], width: 32, height: 32, frameTimes: [1] },
-  cannon: { frames: ['object_cannon'], width: 64, height: 64, frameTimes: [1] },
   spawner: { frames: ['object_brobot_machine'], width: 64, height: 64, frameTimes: [1] },
 };
 

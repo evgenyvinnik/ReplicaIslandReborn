@@ -49,6 +49,19 @@ describe('PlayerComponent play controls', () => {
     expect(component.stomping).toBe(true);
   });
 
+  test('external launch speeds survive player movement caps, with only original gravity and air drag', () => {
+    for (const [vx, vy] of [[0, -2000], [1000, -160], [-1000, 1200]]) {
+      const { player, component } = makePlayer();
+      player.setPosition(2048, 2048);
+      player.setGameTime(1);
+      player.getVelocity().set(vx, vy);
+      component.update(1 / 60, player);
+      expect(player.getVelocity().y).toBeCloseTo(vy + PlayerComponent.GRAVITY / 60);
+      const drag = vx === 0 ? 0 : Math.sign(vx) * PlayerComponent.AIR_DRAG_SPEED / 60;
+      expect(player.getVelocity().x).toBeCloseTo(vx - drag);
+    }
+  });
+
   test('holding fly does not retrigger the ground-jump impulse after landing', () => {
     const { input, player, component } = makePlayer();
     input.setVirtualButton('fly', true);

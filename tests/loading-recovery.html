@@ -13,19 +13,32 @@
   <button id="restore">Restore requests</button>
   <span id="status" role="status">Requests work normally</span>
   <button id="sewer-start">Prepare sewer save (ID 26)</button>
+  <button id="sewer-27-start">Prepare sewer save (ID 27)</button>
   <span id="save-status" role="status">Loading isolated save</span>
   <p id="result-status" role="status"></p>
   <p id="player-status" role="status">Player not loaded</p>
   <p>Timed keyboard-input checks (use after dismissing dialogue):</p>
   <button id="right">Right 0.6s</button>
+  <button id="long-right">Right 3s</button>
   <button id="left">Left 0.6s</button>
   <button id="fly">Fly 0.6s</button>
   <button id="right-fly">Right + fly 0.6s</button>
   <button id="left-fly">Left + fly 0.6s</button>
   <button id="long-fly">Fly 1.5s</button>
+  <button id="long-right-fly">Right + fly 1.5s</button>
+  <button id="long-left-fly">Left + fly 1.5s</button>
   <button id="stomp">Stomp</button>
   <button id="orb">Charge orb 1s</button>
   <span id="input-status" role="status">Input ready</span>
+  <p><label for="key-sequence">Input sequence (one step per line)</label><br>
+    <textarea id="key-sequence" rows="4" cols="45">RIGHT+FLY 600
+WAIT 1000
+PAUSE 50</textarea><br>
+    LEFT, RIGHT, UP, DOWN, FLY, ATTACK, WAIT, PAUSE; duration in milliseconds.
+    Use + for simultaneous keys. Resume gameplay before Run; PAUSE toggles the real menu.<br>
+    <button id="run-sequence">Run input sequence</button>
+    <button id="cancel-sequence">Cancel keyboard input</button>
+  </p>
   <p><button id="orb-up">Charge orb + drag pad up</button><span id="orb-status" role="status">Orb pad not checked</span></p>
   <p>Staged scenario: load lab (ID 2), dismiss its intro, then place Andou near the original green gate. No terrain or gate state is changed.</p>
   <button id="gate-left">Place left of green gate</button>
@@ -38,6 +51,7 @@
   import React from 'react';
   import { createRoot } from 'react-dom/client';
   import { createJSONStorage } from 'zustand/middleware';
+  import { KeyboardSequence, parseKeySequence } from './keyboard-sequence.ts';
   // Protect real saves even during the store's initial auto-hydration/migration.
   const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
   Object.defineProperty(window, 'localStorage', { configurable: true, value: {
@@ -86,6 +100,11 @@
     useGameStore.getState().setCurrentLevel(26);
     location.reload();
   };
+  document.querySelector('#sewer-27-start').onclick = () => {
+    // Only the isolated save's selected level changes; no actor state is staged.
+    useGameStore.getState().setCurrentLevel(27);
+    location.reload();
+  };
   let fail = false;
   const originalFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
@@ -106,24 +125,43 @@
   };
   // Exercise the actual InputSystem event listeners, without changing actor state.
   let inputRunning = false;
-  function hold(codes, duration = 600) {
+  const sequence = new KeyboardSequence((type, code) => {
+    const key = code === 'Space' ? ' ' : code === 'KeyX' ? 'x' : code;
+    window.dispatchEvent(new KeyboardEvent(type, { code, key }));
+  }, {
+    set: (callback, milliseconds) => setTimeout(callback, milliseconds),
+    clear: handle => clearTimeout(handle),
+  }, cancelled => {
+    inputRunning = false;
+    document.querySelector('#input-status').textContent = cancelled ? 'Input cancelled — keys released' : 'Input complete';
+  });
+  function runSequence(steps) {
     if (inputRunning) return;
     inputRunning = true;
     document.querySelector('#input-status').textContent = 'Input running';
-    const keyFor = code => code === 'Space' ? ' ' : code === 'KeyX' ? 'x' : code;
-    for (const code of codes) window.dispatchEvent(new KeyboardEvent('keydown', { code, key: keyFor(code) }));
-    setTimeout(() => {
-      for (const code of codes) window.dispatchEvent(new KeyboardEvent('keyup', { code, key: keyFor(code) }));
-      inputRunning = false;
-      document.querySelector('#input-status').textContent = 'Input complete';
-    }, duration);
+    sequence.start(steps);
   }
+  function hold(codes, duration = 600) {
+    runSequence([{ codes, milliseconds: duration }]);
+  }
+  document.querySelector('#run-sequence').onclick = () => {
+    if (inputRunning) return;
+    try { runSequence(parseKeySequence(document.querySelector('#key-sequence').value)); }
+    catch (error) { document.querySelector('#input-status').textContent = error.message; }
+  };
+  document.querySelector('#cancel-sequence').onclick = () => sequence.cancel();
+  window.addEventListener('blur', () => sequence.cancel());
+  window.addEventListener('pagehide', () => sequence.cancel());
+  document.addEventListener('visibilitychange', () => { if (document.hidden) sequence.cancel(); });
   document.querySelector('#right').onclick = () => hold(['ArrowRight']);
+  document.querySelector('#long-right').onclick = () => hold(['ArrowRight'], 3000);
   document.querySelector('#left').onclick = () => hold(['ArrowLeft']);
   document.querySelector('#fly').onclick = () => hold(['Space']);
   document.querySelector('#right-fly').onclick = () => hold(['ArrowRight', 'Space']);
   document.querySelector('#left-fly').onclick = () => hold(['ArrowLeft', 'Space']);
   document.querySelector('#long-fly').onclick = () => hold(['Space'], 1500);
+  document.querySelector('#long-right-fly').onclick = () => hold(['ArrowRight', 'Space'], 1500);
+  document.querySelector('#long-left-fly').onclick = () => hold(['ArrowLeft', 'Space'], 1500);
   document.querySelector('#stomp').onclick = () => hold(['KeyX'], 100);
   document.querySelector('#orb').onclick = () => hold(['KeyX'], 1000);
   document.querySelector('#orb-up').onclick = () => {

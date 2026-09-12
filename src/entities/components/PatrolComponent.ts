@@ -102,10 +102,10 @@ export class PatrolComponent extends GameComponent {
   }
 
   /**
-   * Helper to get sign of a number
+   * Android Utils.sign treats zero as positive (facing, turns and recovery).
    */
   private sign(x: number): number {
-    return x < 0 ? -1 : (x > 0 ? 1 : 0);
+    return x >= 0 ? 1 : -1;
   }
 
   /**

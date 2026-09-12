@@ -59,6 +59,9 @@ export class AttackAtDistanceComponent extends GameComponent {
     // Calculate distance to player
     this.distance.set(player.getPosition());
     this.distance.subtract(parentObject.getPosition());
+    // Original positions are bottom-left. Both actors' bases must be used
+    // after converting to Y-down, even when their sprite heights differ.
+    this.distance.y += player.height - parentObject.height;
 
     const time = sSystemRegistry.timeSystem;
     if (!time) return;
@@ -66,8 +69,8 @@ export class AttackAtDistanceComponent extends GameComponent {
     const currentTime = time.getGameTime();
 
     // Check if enemy is facing the player
-    const playerDir = Math.sign(player.getPosition().x - parentObject.getPosition().x);
-    const facingPlayer = playerDir === Math.sign(parentObject.facingDirection.x);
+    // Android Utils.sign(0) is +1, not Math.sign(0)'s zero.
+    const facingPlayer = (this.distance.x >= 0) === (parentObject.facingDirection.x >= 0);
     const facingDirectionCorrect = (this.requireFacing && facingPlayer) || !this.requireFacing;
 
     if (parentObject.getCurrentAction() === ActionType.ATTACK) {
