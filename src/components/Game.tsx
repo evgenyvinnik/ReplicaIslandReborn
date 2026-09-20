@@ -5,7 +5,7 @@
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useGameContext } from '../context/GameContext';
-import { GameState, HitType, Team } from '../types';
+import { GameState, HitType } from '../types';
 import { GameLoop } from '../engine/GameLoop';
 import { SystemRegistry, sSystemRegistry } from '../engine/SystemRegistry';
 import { RenderSystem } from '../engine/RenderSystem';
@@ -28,6 +28,7 @@ import { CanvasHUD } from '../engine/CanvasHUD';
 import { CanvasControls } from '../engine/CanvasControls';
 import { CanvasDialog } from '../engine/CanvasDialog';
 import { CanvasCutscene } from '../engine/CanvasCutscene';
+import { VibrationSystem } from '../engine/VibrationSystem';
 import { CanvasPauseMenu } from '../engine/CanvasPauseMenu';
 import { CanvasGameOverScreen } from '../engine/CanvasGameOverScreen';
 import { CanvasLevelCompleteScreen } from '../engine/CanvasLevelCompleteScreen';
@@ -35,15 +36,15 @@ import { CanvasDiaryOverlay } from '../engine/CanvasDiaryOverlay';
 import { CanvasEndingStatsScreen } from '../engine/CanvasEndingStatsScreen';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory } from '../entities/GameObjectFactory';
+import { finishProjectileCollisions } from '../entities/finishProjectileCollisions';
 import { GameObject } from '../entities/GameObject';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { startLevelAttempt } from '../levels/startLevelAttempt';
 import { LevelAttemptTimer } from '../levels/LevelAttemptTimer';
 import { recordLevelResult } from '../levels/levelResult';
-import { focusLevelCamera, LevelBackgroundLoader } from '../levels/LevelView';
+import { focusLevelCamera, restorePlayerCamera, LevelBackgroundLoader } from '../levels/LevelView';
 import { resolveBreakableBlockDeath } from '../entities/breakableBlock';
 import { preloadExplosionSprites } from '../entities/explosion';
-import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { MultiSpriteAnimComponent } from '../entities/components/MultiSpriteAnimComponent';
 import { NPCComponent } from '../entities/components/NPCComponent';
@@ -56,7 +57,7 @@ import { generatePlaceholderTileset } from '../utils/PlaceholderSprites';
 import { gameSettings, getDifficultySettings } from '../utils/GameSettings';
 import { setInventory, resetInventory, getInventory } from '../entities/components/InventoryComponent';
 import { getDialogsForLevel, type Dialog } from '../data/dialogs';
-import { collectNextDiary } from '../stores/diaryProgress';
+import { collectLevelDiary } from '../stores/diaryProgress';
 import { assetPath } from '../utils/helpers';
 import { CutsceneType, getCutscene } from '../data/cutscenes';
 import { UIStrings } from '../data/strings';
@@ -97,7 +98,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   // console.log('[Game] Component rendering, width:', width, 'height:', height);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { state, pauseGame, resumeGame, gameOver, completeLevel, markLevelComplete, setLevel, playCutscene, endCutscene, goToMainMenu } = useGameContext();
+  const { state, pauseGame, resumeGame, gameOver, completeLevel, markLevelComplete, setLevel, playCutscene, endCutscene, goToMainMenu, goToLevelSelect } = useGameContext();
   
   // Zustand store for persistent progress/scores - use individual selectors to avoid infinite loops
   const storeCompleteLevel = useGameStore((s) => s.completeLevel);
@@ -291,8 +292,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             // Character 1 uses dialogs[0], Character 2 uses dialogs[1]
             const dialogIndex = event === GameFlowEventType.SHOW_DIALOG_CHARACTER1 ? 0 : 1;
             
-            if (dialogs.length > dialogIndex) {
-              const dialog = dialogs[dialogIndex];
+            const dialog = dialogs[dialogIndex];
+            if (dialog) {
               // dataIndex is the conversation index within the dialog
               const conversationIdx = Math.min(dataIndex, dialog.conversations.length - 1);
               
@@ -335,6 +336,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             levelSystem.unlockLevel(nextLevelId);
             prevLevelRef.current = nextLevelId;
             setLevel(nextLevelId);
+            if (levelSystem.shouldShowLevelSelect(nextLevelId)) {
+              goToLevelSelect();
+              return;
+            }
             setLevelLoading(true);
             hasShownIntroDialogRef.current = false;
             levelSystem.loadLevel(nextLevelId).then((success) => {
@@ -402,7 +407,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     return (): void => {
       gameFlowEvent.removeListener(handleGameFlowEvent);
     };
-  }, [isInitialized, setLevel, playCutscene, goToMainMenu, recordAutomaticLevelCompletion, beginLevelAttempt]);
+  }, [isInitialized, setLevel, playCutscene, goToMainMenu, goToLevelSelect, recordAutomaticLevelCompletion, beginLevelAttempt]);
 
   // Track previous level to detect level changes
   const prevLevelRef = useRef(state.currentLevel);
@@ -484,9 +489,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     if (activeDialog) {
       // Define dialog completion handler
       // IMPORTANT: Dialog completion should NOT auto-advance levels!
-      // Level advancement is handled separately by:
-      // 1. Player hitting END_LEVEL hotspot (playable levels)
-      // 2. NPC hitting END_LEVEL hotspot -> GO_TO_NEXT_LEVEL event (cutscene levels)
+      // NPCs advance their queued script after contact/dialogue, then send
+      // GO_TO_NEXT_LEVEL after their END_LEVEL fade completes. These script
+      // tiles must never be interpreted as player exits.
       // This matches the original game where dialogs just close and gameplay resumes
       const handleDialogComplete = (): void => {
         // console.log('[Game] Dialog complete - closing dialog, gameplay resumes');
@@ -573,6 +578,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const currentSoundSystem = systemRegistryRef.current?.soundSystem;
     
     if (state.gameState === GameState.PAUSED) {
+      systemRegistryRef.current?.vibrationSystem?.stopVibration();
       canvasPauseMenu.show((): void => {
         resumeGame();
       });
@@ -684,6 +690,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               levelSys.unlockLevel(nextLevelId);
               prevLevelRef.current = nextLevelId;
               setLevel(nextLevelId);
+              if (levelSys.shouldShowLevelSelect(nextLevelId)) {
+                goToLevelSelect();
+                return;
+              }
               setLevelLoading(true); // Mark level as loading
               hasShownIntroDialogRef.current = false;
               levelSys.loadLevel(nextLevelId).then((success) => {
@@ -759,7 +769,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         levelCompleteProcessedRef.current = null;
       }
     }
-  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, beginLevelAttempt, storeUnlockExtra]);
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, goToLevelSelect, beginLevelAttempt, storeUnlockExtra]);
 
   // Attach/detach Canvas Controls when settings change
   useEffect(() => {
@@ -824,6 +834,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const soundSystem = new SoundSystem();
     soundSystemRef.current = soundSystem;
     systemRegistry.register(soundSystem, 'sound');
+    const vibrationSystem = new VibrationSystem();
+    systemRegistry.register(vibrationSystem, 'vibration');
 
     // Camera system
     const cameraSystem = new CameraSystem(width, height);
@@ -883,6 +895,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     factory.setCollisionSystem(collisionSystem);
     factory.setInputSystem(inputSystem);
     factory.setSystemRegistry(systemRegistry);
+    factory.setPlayerMaxLife(getDifficultySettings().playerMaxLife);
     systemRegistry.register(factory, 'factory');
 
     // Level system
@@ -1558,7 +1571,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     // Update callback - Full game physics
     const surfaceActivity = new GameSurfaceActivity(canvas, inputSystem, soundSystem,
-      () => canvasControlsRef.current?.releaseAll());
+      () => {
+        canvasControlsRef.current?.releaseAll();
+        vibrationSystem.stopVibration();
+      });
     surfaceActivityRef.current = surfaceActivity;
     const gamepadMenus = new CanvasMenuInput(inputSystem);
     let frameCount = 0;
@@ -1822,7 +1838,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         npcComponent?.checkHotSpotsPostPhysics(obj, gameDelta);
       });
 
-      // Check hot spots
+      // The original player samples DIE only. END_LEVEL belongs to NPC command
+      // queues, including the dialogue-gated exits in levels 31 and 35.
       if (player && hotSpotSystem) {
         const px = player.getPosition().x + player.width / 2;
         // Hot spots are sampled 10 pixels above the feet, matching the
@@ -1860,91 +1877,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           
           // Track death for stats
           useGameStore.getState().addToTotalStats({ totalDeaths: 1 });
-        } else if (
-          hotSpot === HotSpotType.END_LEVEL &&
-          !playerComponent.isDying &&
-          !playerComponent.levelWon &&
-          !levelTransitionInProgressRef.current
-        ) {
-          // Level complete
-          levelTransitionInProgressRef.current = true;
-          soundSystem.playSfx(SoundEffects.DING);
-          
-          // Get next level info
-          const levelSys = levelSystemRef.current;
-          if (levelSys) {
-            // Get current level's inThePast status before advancing
-            const currentLevelInfo = levelSys.getLevelInfo(levelSys.getCurrentLevelId());
-            const wasInThePast = currentLevelInfo?.inThePast ?? false;
-            
-            const completedLevelId = levelSys.getCurrentLevelId();
-            const nextLevelId = levelSys.completeCurrentLevel();
-            if (nextLevelId !== null) {
-              recordAutomaticLevelCompletion(completedLevelId);
-              // Unlock and go to next level
-              levelSys.unlockLevel(nextLevelId);
-              prevLevelRef.current = nextLevelId;
-              setLevel(nextLevelId);
-              setLevelLoading(true); // Mark level as loading
-              // Reload the level system
-              levelSys.loadLevel(nextLevelId).then((success) => {
-                if (signal.aborted || levelSystemRef.current !== levelSys) return;
-                if (!success) {
-                  setLevelLoading(false);
-                  levelTransitionInProgressRef.current = false;
-                  goToMainMenu();
-                  return;
-                }
-
-                // Check if we need to show memory playback toast
-                const newLevelInfo = levelSys.getLevelInfo(nextLevelId);
-                const isInThePast = newLevelInfo?.inThePast ?? false;
-                if (canvasHUDRef.current) {
-                  if (isInThePast && !wasInThePast) {
-                    canvasHUDRef.current.showToast(UIStrings.memory_playback_start, true);
-                  } else if (!isInThePast && wasInThePast) {
-                    canvasHUDRef.current.showToast(UIStrings.memory_playback_complete, true);
-                  }
-                }
-                prevLevelInThePastRef.current = isInThePast;
-                
-                // Initialize tile map renderer for new level
-                const parsedLevel = levelSys.getParsedLevel();
-                if (parsedLevel && tileMapRendererRef.current) {
-                  tileMapRendererRef.current.initializeFromLevel(parsedLevel);
-                }
-                
-                // Store new spawn position
-                playerSpawnRef.current = { ...levelSys.playerSpawnPosition };
-                beginLevelAttempt(nextLevelId);
-                // Reset player position
-                const spawn = levelSys.playerSpawnPosition;
-                
-                const gameObjectMgr = systemRegistryRef.current?.gameObjectManager;
-                gameObjectMgr?.commitUpdates();
-                const newPlayer = gameObjectMgr?.getPlayer();
-                if (newPlayer) {
-                  newPlayer.setPosition(spawn.x, spawn.y);
-                  newPlayer.getVelocity().x = 0;
-                  newPlayer.getVelocity().y = 0;
-                }
-                
-                
-                setLevelLoading(false); // Mark level as loaded
-                levelTransitionInProgressRef.current = false;
-              }).catch(() => {
-                setLevelLoading(false);
-                levelTransitionInProgressRef.current = false;
-                goToMainMenu();
-              });
-            } else {
-              // No more levels - game complete!
-              levelTransitionInProgressRef.current = false;
-              completeLevel();
-            }
-          } else {
-            levelTransitionInProgressRef.current = false;
-          }
         }
       }
       
@@ -1975,10 +1907,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         }
 
         if (pComp.advanceDeath(gameTime, timeSystem.getRealTime())) {
+          const levelSys = levelSystemRef.current;
+          if (levelSys && !levelSys.shouldRestartOnDeath()) {
+            // Kyle's scripted scene advances on death in Android's
+            // AndouKun.onGameFlowEvent. Use the normal completion path so
+            // saving, attempt setup and camera handoff stay consistent.
+            gameFlowEvent.postImmediate(GameFlowEventType.GO_TO_NEXT_LEVEL, 0);
+            return;
+          }
           // Keep the frame fully black and prevent another reload while
           // asynchronous level loading is in progress.
           deathReloadInProgress = true;
-          const levelSys = levelSystemRef.current;
           if (levelSys) {
             levelSys.loadLevel(currentLevelRef.current).then((success) => {
               if (signal.aborted || levelSystemRef.current !== levelSys) return;
@@ -2065,6 +2004,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                   soundSystem.playSfx(SoundEffects.DING, 1.0);  // Power-up sound
                 }
               } else if (obj.type === 'ruby') {
+                factory.spawnRubyBurst(obj);
                 const newRubyCount = inv.rubyCount + 1;
                 setInventory({ rubyCount: newRubyCount, score: inv.score + 3 });
                 // The three gems of a level play a rising three-note motif -
@@ -2083,7 +2023,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 setInventory({ pearls: inv.pearls + 1, score: inv.score + 5 });
                 soundSystem.playSfx(SoundEffects.GEM2, 0.5);
               } else if (obj.type === 'diary') {
-                const diaryEntry = collectNextDiary(currentLevelRef.current);
+                const diaryEntry = collectLevelDiary(currentLevelRef.current);
                 if (!diaryEntry) return;
                 const newDiaryCount = inv.diaryCount + 1;
                 setInventory({ diaryCount: newDiaryCount, score: inv.score + 50 });
@@ -2112,67 +2052,17 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           }
         });
 
-        // Enemy shots are resolved by GameObjectCollisionSystem: their HIT
-        // volume against Andou, and against The Source, whose PLAYER team is
-        // what lets the other bosses' fire destroy it in the finale. This loop
-        // only despatches a shot once it has connected with something.
-        const sourceBoss = gameObjectManager.getActiveObjects().find(
-          (obj) => obj.subType === 'the_source' && obj.life > 0 && obj.isVisible()
-        );
-        gameObjectManager.forEach((obj) => {
-          if (obj.type !== 'projectile' || obj.team !== Team.ENEMY || !obj.isVisible() || obj.life <= 0) {
-            return;
-          }
-
-          const projectilePosition = obj.getPosition();
-          const hits = (target: GameObject): boolean =>
-            projectilePosition.x < target.getPosition().x + target.width &&
-            projectilePosition.x + obj.width > target.getPosition().x &&
-            projectilePosition.y < target.getPosition().y + target.height &&
-            projectilePosition.y + obj.height > target.getPosition().y;
-
-          if (!hits(player) && !(sourceBoss && hits(sourceBoss))) return;
-
-          obj.life = 0;
-          obj.setVisible(false);
-          obj.markForRemoval();
-        });
+        // Hit reactions consume non-piercing shots after an accepted volume
+        // collision. Sprite rectangles must not independently decide hits.
+        finishProjectileCollisions(gameObjectManager);
         
-        // Check enemy collisions in separate loop
-        gameObjectManager.forEach((obj) => {
-          if (obj === player || !obj.isVisible()) return;
-
-          // Blocks are damaged and cleaned up by the component collision path.
-          
-          // Enemy contact and stomps are resolved by GameObjectCollisionSystem
-          // against the volumes in enemyCollisionProfiles.ts, and turned into
-          // deaths, score and lost lives by resolveCollisionOutcomes().
-          // A possessed enemy is under the player's control and simply stops
-          // presenting its volumes.
-          if (obj.type === 'enemy' && obj.life > 0) {
-            const possessed = obj.getComponent(
-              GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
-            );
-            if (possessed && !possessed.isReleased()) {
-              const possessedCollision = obj.getComponent(
-                DynamicCollisionComponent as unknown as new (...args: unknown[]) => DynamicCollisionComponent
-              );
-              possessedCollision?.setCollisionVolumes(null, null);
-            }
-          }
-        });
-        
-        // NOTE: Button collision detection moved earlier (before gameObjectManager.update)
-        // so ButtonAnimationComponent sees HIT_REACT + DEPRESS in the same frame
-        
+        // Possession swaps control, not the Brobot's attack/vulnerability
+        // volumes. Keep the animation-owned volumes for buttons and The Source.
       }
       
       // Update camera - must happen even for cutscene levels without player
       // For player levels, set target to player; for NPC levels, target is already set via setNPCTarget
-      const cameraPlayerComponent = player?.getComponent(PlayerComponent);
-      if (player && !cameraSystem.isNPCFocusMode() && !cameraPlayerComponent?.ghostActive) {
-        cameraSystem.setTarget(player);
-      }
+      restorePlayerCamera(cameraSystem, player);
       cameraSystem.update(gameDelta);
 
     });
@@ -2449,8 +2339,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       canvasCutsceneRef.current?.stop();
       inputSystem.destroy();
       soundSystem.destroy();
+      vibrationSystem.destroy();
     };
-  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, goToMainMenu, recordAutomaticLevelCompletion, beginLevelAttempt, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.isLinearMode, startupAttempt]);
+  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, goToMainMenu, goToLevelSelect, recordAutomaticLevelCompletion, beginLevelAttempt, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.isLinearMode, startupAttempt]);
 
   // Handle resize
   useEffect(() => {

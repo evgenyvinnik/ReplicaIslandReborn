@@ -4,17 +4,17 @@
  * This is where the rendering rewrite pays off for the player. The original
  * keeps Andou's volumes on his `AnimationFrame`s: the STOMP frames carry a HIT
  * attack volume and *no* vulnerability volume (which is what makes a stomp beat
- * an enemy's contact damage), the glow frames carry a larger HIT sphere, and
- * every other frame carries only DEPRESS/COLLECT plus a vulnerability sphere.
+ * an enemy's contact damage). The glow halo has its own sprite and collider;
+ * it never substitutes the body's volumes.
  *
  * The port previously approximated that by swapping volume sets from
  * PlayerComponent's state each frame. Now the frames carry them, so
  * SpriteComponent hands them over as the animation plays — the same path every
  * other object uses.
  *
- * Frame lists are transcribed from Game.tsx's render branch; the volumes come
- * from playerCollisionVolumes.ts, which holds the geometry from the original's
- * spawnPlayer().
+ * Frame lists and hold times match the original factory; body-relative volumes
+ * come from playerCollisionVolumes.ts. originalAnimationParity.test.ts checks
+ * each authored frame against that source, including the empty frozen state.
  *
  * Ported from: Original/src/com/replica/replicaisland/GameObjectFactory.java
  * (spawnPlayer) and AnimationComponent.java
@@ -33,11 +33,11 @@ const OFFSET = -16;
 
 /**
  * The original's frame hold times. Most of Andou's frames run at 24 FPS
- * (`Utils.framesToTime(24, 1)`), but three animations are given explicit
- * seconds instead: the idle holds a full second, the hit reaction a tenth, and
- * the tail of the death explosion runs at half speed.
+ * (`Utils.framesToTime(24, 1)`). The two moving poses use literal 0.0416s,
+ * idle holds a second, hit reaction a tenth, and the explosion tail half speed.
  */
 const FRAME = 1 / 24;
+const MOVE_HOLD = 0.0416;
 const IDLE_HOLD = 1.0;
 const HIT_HOLD = 0.1;
 
@@ -45,8 +45,7 @@ const HIT_HOLD = 0.1;
 export type PlayerAnimationName =
   | 'idle' | 'move' | 'move_fast'
   | 'boost_up' | 'boost_move' | 'boost_move_fast'
-  | 'fall' | 'fall_move' | 'fall_fast'
-  | 'stomp' | 'hit' | 'dead' | 'charge' | 'frozen';
+  | 'stomp' | 'hit' | 'dead' | 'frozen';
 
 interface PlayerArt {
   frames: string[];
@@ -63,8 +62,8 @@ const PLAYER_ART: Record<PlayerAnimationName, PlayerArt> = {
   frozen: { frames: [], loop: false, volumes: 'normal', durations: [] },
   // A full second per frame: Andou stands very still.
   idle: { frames: ['andou_stand'], loop: false, volumes: 'normal', durations: [IDLE_HOLD] },
-  move: { frames: ['andou_diag01'], loop: false, volumes: 'normal', durations: [FRAME] },
-  move_fast: { frames: ['andou_diagmore01'], loop: false, volumes: 'normal', durations: [FRAME] },
+  move: { frames: ['andou_diag01'], loop: false, volumes: 'normal', durations: [MOVE_HOLD] },
+  move_fast: { frames: ['andou_diagmore01'], loop: false, volumes: 'normal', durations: [MOVE_HOLD] },
   boost_up: {
     frames: ['andou_flyup02', 'andou_flyup03'],
     loop: true, volumes: 'normal', durations: [FRAME, FRAME],
@@ -77,12 +76,6 @@ const PLAYER_ART: Record<PlayerAnimationName, PlayerArt> = {
     frames: ['andou_diagmore02', 'andou_diagmore03'],
     loop: true, volumes: 'normal', durations: [FRAME, FRAME],
   },
-  // The original has no separate falling animations; these reuse the moving
-  // art, and PlayerComponent selects them from vertical velocity.
-  fall: { frames: ['andou_flyup01'], loop: false, volumes: 'normal', durations: [FRAME] },
-  fall_move: { frames: ['andou_diag01'], loop: false, volumes: 'normal', durations: [FRAME] },
-  fall_fast: { frames: ['andou_diagmore01'], loop: false, volumes: 'normal', durations: [FRAME] },
-  charge: { frames: ['andou_flyup01'], loop: false, volumes: 'normal', durations: [FRAME] },
   // The stomp is the attack: HIT volume on, vulnerability off.
   stomp: {
     frames: ['andou_stomp01', 'andou_stomp02', 'andou_stomp03', 'andou_stomp04'],
@@ -113,22 +106,14 @@ const PLAYER_ART: Record<PlayerAnimationName, PlayerArt> = {
 };
 
 /**
- * Build Andou's animations. The glow powerup swaps the whole set for one whose
- * frames carry the larger HIT sphere, which is how the original expresses it:
- * a separate set of glowing frames rather than a flag.
+ * Build Andou's body animations, independently of the glow powerup.
  */
-export function createPlayerAnimations(
-  glowing: boolean = false
-): Map<PlayerAnimationName, AnimationDefinition> {
+export function createPlayerAnimations(): Map<PlayerAnimationName, AnimationDefinition> {
   const volumeSets = createPlayerVolumeSets();
   const animations = new Map<PlayerAnimationName, AnimationDefinition>();
 
   for (const [name, art] of Object.entries(PLAYER_ART) as Array<[PlayerAnimationName, PlayerArt]>) {
-    // Stomping keeps its own volumes even while glowing - it is the attack.
-    const state: PlayerVolumeState = art.volumes === 'stomping'
-      ? 'stomping'
-      : glowing ? 'glowing' : 'normal';
-    const set = volumeSets[state];
+    const set = volumeSets[art.volumes];
 
     const frames: SpriteFrame[] = art.frames.map((sprite, index) => ({
       x: 0,
@@ -140,9 +125,11 @@ export function createPlayerAnimations(
       offsetX: OFFSET,
       offsetY: OFFSET,
       // Original DEATH frames have neither attacks nor vulnerability, even
-      // when the glow animation set was active on the previous frame.
+      // when the glow halo was active on the previous frame.
       attackVolumes: name === 'dead' ? null : set.attack as SpriteFrame['attackVolumes'],
-      vulnerabilityVolumes: name === 'dead' ? null : set.vulnerability as SpriteFrame['vulnerabilityVolumes'],
+      // HIT_REACT keeps collection/button attacks but cannot receive another
+      // signal until recovery. This is separate from post-hit HIT immunity.
+      vulnerabilityVolumes: name === 'dead' || name === 'hit' ? null : set.vulnerability as SpriteFrame['vulnerabilityVolumes'],
     }));
 
     animations.set(name, { name, frames, loop: art.loop });
@@ -152,7 +139,7 @@ export function createPlayerAnimations(
 }
 
 /**
- * Pick Andou's animation from his state, exactly as the render branch did.
+ * Pick Andou's animation using the original AnimationComponent thresholds.
  *
  * Ported from the original's AnimationComponent, which reads the same
  * combination of state, ground contact, jets and speed.
@@ -162,7 +149,6 @@ export function selectPlayerAnimation(state: {
   hitReacting: boolean;
   dying: boolean;
   stomping: boolean;
-  charging: boolean;
   touchingGround: boolean;
   rocketsOn: boolean;
   velocityX: number;
@@ -172,20 +158,19 @@ export function selectPlayerAnimation(state: {
   if (state.dying) return 'dead';
   if (state.frozen) return 'frozen';
   if (state.stomping) return 'stomp';
-  if (state.charging) return 'charge';
 
   const speed = Math.abs(state.velocityX);
 
   if (state.touchingGround) {
     if (speed < 30) return 'idle';
-    return speed > 200 ? 'move_fast' : 'move';
+    return speed > 300 ? 'move_fast' : 'move';
   }
 
   if (state.rocketsOn) {
-    if (speed < 50 && state.velocityY < -50) return 'boost_up';
-    return speed > 100 ? 'boost_move_fast' : 'boost_move';
+    if (speed < 100 && state.velocityY < -10) return 'boost_up';
+    return speed > 300 ? 'boost_move_fast' : 'boost_move';
   }
 
-  if (speed < 10) return 'fall';
-  return speed > 100 ? 'fall_fast' : 'fall_move';
+  if (speed < 1) return 'idle';
+  return speed > 300 ? 'move_fast' : 'move';
 }

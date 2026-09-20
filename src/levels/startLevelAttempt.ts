@@ -1,5 +1,6 @@
 import type { GameObjectManager } from '../entities/GameObjectManager';
 import { PlayerComponent } from '../entities/components/PlayerComponent';
+import { setInventory } from '../entities/components/InventoryComponent';
 import { resetPlayerRuntimeState } from '../entities/resetPlayerRuntimeState';
 import { useGameStore, type DifficultyConstants } from '../stores/useGameStore';
 
@@ -15,5 +16,9 @@ export function startLevelAttempt(levelId: number, manager: GameObjectManager, d
     player.maxLife = difficulty.playerMaxLife;
     resetPlayerRuntimeState(player);
     player.getComponent(PlayerComponent)?.applyDifficulty(difficulty, attempts, player);
+    // Level loading resets inventory before difficulty and retry assistance
+    // finalize health. Results must see the same lives as the player/HUD even
+    // when no hit or power-up subsequently updates the inventory mirror.
+    setInventory({ lives: player.life });
   }
 }

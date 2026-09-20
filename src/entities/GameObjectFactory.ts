@@ -11,13 +11,15 @@ import { SpriteComponent } from './components/SpriteComponent';
 import { PhysicsComponent } from './components/PhysicsComponent';
 import { MovementComponent } from './components/MovementComponent';
 import { PlayerComponent } from './components/PlayerComponent';
+import { configurePlayerObject } from './player';
 import { PatrolComponent } from './components/PatrolComponent';
 import { LaunchProjectileComponent } from './components/LaunchProjectileComponent';
 import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
 import { setCameraBiasSystemRegistry } from './components/CameraBiasComponent';
 import { setSelectDialogSystemRegistry } from './components/SelectDialogComponent';
-import { TheSourceComponent } from './components/TheSourceComponent';
+import { configureTheSource } from './theSource';
 import { LifetimeComponent } from './components/LifetimeComponent';
+import { FadeDrawableComponent, FadeFunction, FadeLoopType } from './components/FadeDrawableComponent';
 import { createObjectAnimation } from '../data/objectAnimations';
 import { DynamicCollisionComponent } from './components/DynamicCollisionComponent';
 import { HitReactionComponent } from './components/HitReactionComponent';
@@ -35,9 +37,9 @@ import { drawPriorityFor } from '../data/objectDrawPriority';
 import { BIG_SMOKE_FRAMES, bigSmokeFrameTimes } from '../data/smokeAnimation';
 import { configureGiantExplosion } from './giantExplosion';
 import { configureExplosion } from './explosion';
+import { configureProjectile } from './projectile';
 import { configureBreakableBlock } from './breakableBlock';
 import {
-  SimpleCollisionComponent,
   setSimpleCollisionSystemRegistry,
 } from './components/SimpleCollisionComponent';
 import type { RenderSystem } from '../engine/RenderSystem';
@@ -89,6 +91,7 @@ export enum GameObjectType {
   EXPLOSION_SMALL = 'explosion_small',
   EXPLOSION_LARGE = 'explosion_large',
   GEM = 'gem',
+  GEM_EFFECT = 'gem_effect',
   BREAKABLE_BLOCK = 'breakable_block',
   BLOCK_PIECE = 'block_piece',
   BLOCK_PIECE_SPAWNER = 'block_piece_spawner',
@@ -100,6 +103,7 @@ export enum GameObjectType {
   ENERGY_BALL = 'energy_ball',
   WANDA_SHOT = 'wanda_shot',
   TURRET_BULLET = 'turret_bullet',
+  BROBOT_BULLET = 'brobot_bullet',
   THE_SOURCE = 'the_source',
 }
 
@@ -118,6 +122,7 @@ export class GameObjectFactory {
   private objectManager: GameObjectManager;
   private renderSystem: RenderSystem | null = null;
   private collisionSystem: CollisionSystem | null = null;
+  private playerMaxLife: number = 3;
   // Component object pools for recycling
   private componentPools: ComponentPools;
 
@@ -163,6 +168,11 @@ export class GameObjectFactory {
    */
   setCollisionSystem(collisionSystem: CollisionSystem): void {
     this.collisionSystem = collisionSystem;
+  }
+
+  /** Match the level loader's configured difficulty for runtime players. */
+  setPlayerMaxLife(life: number): void {
+    this.playerMaxLife = Math.max(1, Math.floor(life));
   }
 
   /**
@@ -216,16 +226,11 @@ export class GameObjectFactory {
         this.configureEnemyRokudou(obj);
         break;
       case GameObjectType.CANNON_BALL:
-        this.configureCannonBall(obj);
-        break;
       case GameObjectType.ENERGY_BALL:
-        this.configureEnergyBall(obj);
-        break;
       case GameObjectType.WANDA_SHOT:
-        this.configureWandaShot(obj);
-        break;
       case GameObjectType.TURRET_BULLET:
-        this.configureTurretBullet(obj);
+      case GameObjectType.BROBOT_BULLET:
+        configureProjectile(obj, type, this.componentPools.movement.allocate());
         break;
       case GameObjectType.COIN:
         this.configureCoin(obj);
@@ -251,6 +256,9 @@ export class GameObjectFactory {
       case GameObjectType.FLASH:
         this.configureFlash(obj);
         break;
+      case GameObjectType.GEM_EFFECT:
+        this.configureGemEffect(obj);
+        break;
       case GameObjectType.EXPLOSION_GIANT:
         configureGiantExplosion(obj, this.renderSystem);
         break;
@@ -271,7 +279,7 @@ export class GameObjectFactory {
         this.configureGhost(obj);
         break;
       case GameObjectType.THE_SOURCE:
-        this.configureTheSource(obj);
+        configureTheSource(obj, this.renderSystem);
         break;
       default:
         // Default configuration
@@ -294,6 +302,8 @@ export class GameObjectFactory {
    * need the same treatment LevelSystem gives level-placed objects.
    */
   private attachObjectSprite(obj: GameObject): void {
+    // The Source owns five independent layer priorities, not one generic sprite.
+    if (obj.subType === 'the_source') return;
     obj.getComponent(SpriteComponent)?.setPriority(drawPriorityFor(obj));
     if (obj.getComponent(SpriteComponent)?.getCurrentAnimation()) return;
 
@@ -312,63 +322,10 @@ export class GameObjectFactory {
    * Configure the player character
    */
   private configurePlayer(obj: GameObject): void {
-    obj.type = 'player';
-    // spawnPlayer: object.activationRadius = mAlwaysActive.
-    obj.activationRadius = ALWAYS_ACTIVE;
-    obj.team = Team.PLAYER;
-    obj.width = 32;
-    obj.height = 48;
-    obj.life = 3;
-    obj.maxLife = 3;
-
-    // Add sprite component
     const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('player');
-      sprite.setRenderSystem(this.renderSystem);
-      sprite.addAnimation('idle', {
-        frames: [{ x: 0, y: 0, width: 32, height: 48, duration: 0.2 }],
-        loop: true,
-      });
-      sprite.addAnimation('walk', {
-        frames: [
-          { x: 0, y: 0, width: 32, height: 48, duration: 0.1 },
-          { x: 32, y: 0, width: 32, height: 48, duration: 0.1 },
-          { x: 64, y: 0, width: 32, height: 48, duration: 0.1 },
-          { x: 96, y: 0, width: 32, height: 48, duration: 0.1 },
-        ],
-        loop: true,
-      });
-      sprite.addAnimation('jump', {
-        frames: [{ x: 128, y: 0, width: 32, height: 48, duration: 0.2 }],
-        loop: false,
-      });
-      sprite.playAnimation('idle');
-      obj.addComponent(sprite);
-    }
-
-    // Add physics component
-    const physics = this.componentPools.physics.allocate();
-    if (physics) {
-      physics.setGravity(1200);
-      physics.setMaxVelocity(250, 600);
-      physics.setFriction(0.85);
-      obj.addComponent(physics);
-    }
-
-    // Add movement component
-    const movement = this.componentPools.movement.allocate();
-    if (movement && this.collisionSystem) {
-      movement.setCollisionSystem(this.collisionSystem);
-      obj.addComponent(movement);
-    }
-
-    // Add player component
-    const player = this.componentPools.player.allocate();
-    if (player) {
-      // Systems are injected in Game.tsx via setSystems()
-      obj.addComponent(player);
-    }
+    if (this.renderSystem) sprite.setRenderSystem(this.renderSystem);
+    configurePlayerObject(obj, this.playerMaxLife, this.componentPools.player.allocate(), sprite);
+    this.objectManager.setPlayer(obj);
   }
 
   /**
@@ -516,6 +473,53 @@ export class GameObjectFactory {
       projectilesInSet: 3, delayBetweenShots: 0, delayBeforeFirstSet: 0,
       offsetX: 16, offsetY: 16, velocityX: 600, velocityY: 1000, thetaError: 1,
     }));
+  }
+
+  /**
+   * Original spawnGemEffectSpawner: six one-shot guns at 60-degree intervals.
+   * Emit directly from the pickup; the original's invisible emitter has no
+   * later shots. Its (16,16) Y-up offset is the center of the 32px ruby.
+   */
+  spawnRubyBurst(ruby: GameObject): void {
+    for (let index = 0; index < 6; index++) {
+      const angle = index * Math.PI * 2 / 6;
+      const gem = this.spawn(
+        GameObjectType.GEM_EFFECT,
+        ruby.getCenteredPositionX() - 16,
+        ruby.getCenteredPositionY() - 16
+      );
+      if (!gem) continue;
+      gem.getVelocity().set(Math.sin(angle) * 150, -Math.cos(angle) * 150);
+      gem.getTargetVelocity().set(gem.getVelocity());
+    }
+  }
+
+  /** Original spawnGemEffect: moving ruby artwork, not another collectible. */
+  private configureGemEffect(obj: GameObject): void {
+    obj.type = 'effect';
+    obj.subType = 'gem_effect';
+    obj.team = Team.NONE;
+    obj.width = obj.height = 32;
+    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
+    const sprite = this.componentPools.sprite.allocate();
+    if (this.renderSystem) sprite.setRenderSystem(this.renderSystem);
+    sprite.addAnimation('gem', {
+      frames: [{ sprite: 'ruby01', x: 0, y: 0, width: 32, height: 32, duration: 0.5 }],
+      loop: false,
+    });
+    sprite.playAnimation('gem');
+    obj.addComponent(sprite);
+    obj.addComponent(this.componentPools.movement.allocate());
+    const lifetime = new LifetimeComponent();
+    lifetime.setTimeUntilDeath(0.5);
+    obj.addComponent(lifetime);
+    const fade = new FadeDrawableComponent();
+    fade.setupFade({
+      startOpacity: 1, endOpacity: 0, duration: 0.5,
+      loopType: FadeLoopType.NONE, fadeFunction: FadeFunction.LINEAR,
+    });
+    fade.setSpriteComponent(sprite);
+    obj.addComponent(fade);
   }
 
   /** Configure smoke poof effect. */
@@ -857,164 +861,6 @@ export class GameObjectFactory {
   }
 
   /**
-   * Configure a cannon ball projectile (used by Snailbomb)
-   */
-  private configureCannonBall(obj: GameObject): void {
-    obj.team = Team.ENEMY;
-    obj.type = 'projectile';
-    obj.subType = 'cannon_ball';
-    obj.width = 32;
-    obj.height = 32;
-    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-    obj.life = 1;
-
-    // Add sprite
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('snail_bomb');
-      sprite.setRenderSystem(this.renderSystem);
-      sprite.addAnimation('fly', {
-        frames: [{ x: 0, y: 0, width: 32, height: 32, duration: 0.1 }],
-        loop: true,
-      });
-      sprite.playAnimation('fly');
-      obj.addComponent(sprite);
-    }
-
-    // Projectiles carry an initial velocity from their launcher. The original
-    // uses MovementComponent directly so shots do not lose speed to friction.
-    const movement = this.componentPools.movement.allocate();
-    obj.addComponent(movement);
-
-    this.attachProjectileCollision(
-      obj,
-      new SphereCollisionVolume(8, 16, 16, HitType.HIT),
-      true
-    );
-
-    // Cannon balls disappear when they hit level geometry, matching the
-    // original game's SimpleCollision + Lifetime configuration.
-    obj.addComponent(new SimpleCollisionComponent());
-    const lifetime = new LifetimeComponent();
-    lifetime.setTimeUntilDeath(3.0);
-    lifetime.setDieOnHitBackground(true);
-    obj.addComponent(lifetime);
-  }
-
-  /**
-   * Configure an energy ball projectile (used by Rokudou and Wanda)
-   */
-  private configureEnergyBall(obj: GameObject): void {
-    obj.team = Team.ENEMY;
-    obj.type = 'projectile';
-    obj.subType = 'energy_ball';
-    obj.width = 32;
-    obj.height = 32;
-    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-    obj.life = 1;
-
-    // attachObjectSprite supplies the original 24fps animation. Do not also
-    // attach a MultiSpriteAnimComponent: it draws a second, out-of-sync ball.
-
-    const movement = this.componentPools.movement.allocate();
-    obj.addComponent(movement);
-
-    this.attachProjectileCollision(
-      obj,
-      new SphereCollisionVolume(16, 16, 16, HitType.HIT),
-      true
-    );
-
-    // The original energy ball passes through background geometry and expires
-    // by time; this is necessary for Rokudou's shots to cross the finale arena.
-    const lifetime = new LifetimeComponent();
-    lifetime.setTimeUntilDeath(5.0);
-    obj.addComponent(lifetime);
-  }
-
-  /** Configure Wanda's neutral, straight-traveling story projectile. */
-  private configureWandaShot(obj: GameObject): void {
-    obj.team = Team.NONE;
-    obj.type = 'projectile';
-    obj.subType = 'wanda_shot';
-    obj.width = 32;
-    obj.height = 32;
-    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-    obj.life = 1;
-
-    // The shared object animation supplies this shot's single sprite too.
-
-    obj.addComponent(this.componentPools.movement.allocate());
-
-    this.attachProjectileCollision(
-      obj,
-      new SphereCollisionVolume(16, 16, 16, HitType.HIT),
-      false
-    );
-
-    // Unlike enemy energy balls, the original Wanda shot does not collide
-    // with the background and remains alive for the full story beat.
-    const lifetime = new LifetimeComponent();
-    lifetime.setTimeUntilDeath(5.0);
-    obj.addComponent(lifetime);
-  }
-
-  /**
-   * Configure a turret bullet projectile (used by Rokudou)
-   */
-  private configureTurretBullet(obj: GameObject): void {
-    obj.team = Team.ENEMY;
-    obj.type = 'projectile';
-    obj.subType = 'turret_bullet';
-    obj.width = 16;
-    obj.height = 16;
-    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-    obj.life = 1;
-
-    // Add sprite
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('shot01');
-      sprite.setRenderSystem(this.renderSystem);
-      sprite.addAnimation('fly', {
-        frames: [
-          { x: 0, y: 0, width: 16, height: 16, duration: 0.1 },
-        ],
-        loop: true,
-      });
-      sprite.playAnimation('fly');
-      obj.addComponent(sprite);
-    }
-
-    const movement = this.componentPools.movement.allocate();
-    obj.addComponent(movement);
-
-    this.attachProjectileCollision(
-      obj,
-      new SphereCollisionVolume(8, 8, 8, HitType.HIT),
-      true
-    );
-
-    const lifetime = new LifetimeComponent();
-    lifetime.setTimeUntilDeath(3.0);
-    obj.addComponent(lifetime);
-  }
-
-  /** Give a runtime-spawned shot the attack pipeline carried by its frames. */
-  private attachProjectileCollision(
-    obj: GameObject,
-    attackVolume: SphereCollisionVolume,
-    dieOnAttack: boolean
-  ): void {
-    const collision = new DynamicCollisionComponent();
-    collision.setCollisionVolumes([attackVolume], null);
-    const reaction = new HitReactionComponent({ dieOnAttack });
-    collision.setHitReactionComponent(reaction);
-    obj.addComponent(collision);
-    obj.addComponent(reaction);
-  }
-
-  /**
    * Configure ghost entity for possession mechanic
    * The ghost is controlled by the player and floats freely
    */
@@ -1180,53 +1026,5 @@ export class GameObjectFactory {
     this.componentPools.physics.clear();
     this.componentPools.movement.clear();
     this.componentPools.player.clear();
-  }
-  /**
-   * Configure The Source (final boss)
-   */
-  private configureTheSource(obj: GameObject): void {
-    // spawnObjectTheSource: object.activationRadius = mAlwaysActive.
-    obj.activationRadius = ALWAYS_ACTIVE;
-    obj.team = Team.ENEMY;
-    obj.type = 'the_source';
-    obj.width = 256;  // Large boss
-    obj.height = 256;
-    obj.life = 10;    // It takes many hits
-    obj.maxLife = 10;
-    
-    // Add sprite
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('the_source'); // Ensure this sprite exists or is loaded
-      sprite.setRenderSystem(this.renderSystem);
-      
-      // Animations
-      sprite.addAnimation('idle', {
-        frames: [{ x: 0, y: 0, width: 256, height: 256, duration: 1.0 }],
-        loop: true,
-      });
-      
-      sprite.playAnimation('idle');
-      obj.addComponent(sprite);
-    }
-    
-    // Add physics (static, no gravity)
-    const physics = this.componentPools.physics.allocate();
-    if (physics) {
-      physics.setUseGravity(false);
-      physics.setImmovable(true);
-      obj.addComponent(physics);
-    }
-    
-    // Add The Source component
-    const source = new TheSourceComponent();
-    // Configure event triggers if needed (e.g. game ending)
-    // source.setGameEvent(GameFlowEvent.EVENT_END_GAME, 0); 
-    obj.addComponent(source);
-    
-    // Add dynamic collision for hit detection
-    // Note: TheSourceComponent handles hit reactions
-    const collision = new SimpleCollisionComponent();
-    obj.addComponent(collision);
   }
 }

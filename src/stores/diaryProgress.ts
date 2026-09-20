@@ -1,11 +1,13 @@
-import { DiaryEntries, type DiaryEntry } from '../data/diaries';
+import { DiaryEntries, LevelDiaryIds, type DiaryEntry } from '../data/diaries';
+import { levelIdToResource } from '../data/levelTree';
 import { useGameStore } from './useGameStore';
 
-/** Diary order belongs to the save, not the inventory that resets each level. */
-export function collectNextDiary(levelId: number): DiaryEntry | null {
+/** Each level owns a specific log, independent of campaign or collection order. */
+export function collectLevelDiary(levelId: number): DiaryEntry | null {
   const state = useGameStore.getState();
   if (state.progress.levels[levelId]?.diariesCollected.length) return null;
-  const entry = DiaryEntries.find((diary) => !state.progress.diariesCollected.includes(diary.id));
+  const diaryId = LevelDiaryIds[levelIdToResource[levelId]];
+  const entry = DiaryEntries.find((diary) => diary.id === diaryId);
   if (!entry) return null;
   state.collectDiary(levelId, entry.id);
   return entry;

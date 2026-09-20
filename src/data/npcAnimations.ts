@@ -258,7 +258,8 @@ export function createNpcAnimations(
   const jump = art.jump ?? art.idle;
 
   const animations = new Map<NPCAnimation, AnimationDefinition>();
-  animations.set(NPCAnimation.IDLE, build(art.idle, true, undefined, art.durations?.idle));
+  // Original idle is a one-shot held pose; movement and airborne loops are separate.
+  animations.set(NPCAnimation.IDLE, build(art.idle, false, undefined, art.durations?.idle));
   animations.set(NPCAnimation.WALK, build(walk, true, undefined, art.durations?.walk));
   animations.set(NPCAnimation.RUN_START, build(
     runStart, false, undefined, art.durations?.runStart ?? art.durations?.run ?? art.durations?.walk

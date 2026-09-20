@@ -123,9 +123,9 @@ const ENEMY_ART: Record<string, EnemyArt> = {
   mudman: {
     width: 128,
     height: 128,
-    // The original idles on a single held frame; the port had invented two more.
-    idle: ['mudman_stand'],
-    idleFrameTimes: [12],
+    // The original reuses idle01 three times after its standing hold.
+    idle: ['mudman_stand', 'mudman_idle01', 'mudman_idle01', 'mudman_idle01'],
+    idleFrameTimes: [12, 2, 7, 2],
     walk: [
       'mudman_walk01', 'mudman_walk02', 'mudman_walk03',
       'mudman_walk04', 'mudman_walk05', 'mudman_walk06',

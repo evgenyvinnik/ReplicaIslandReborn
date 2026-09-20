@@ -14,7 +14,7 @@
  *    damage.
  */
 
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { GameObject } from './GameObject';
@@ -27,6 +27,10 @@ import {
 } from './enemyCollisionProfiles';
 import { createPlayerVolumeSets } from './playerCollisionVolumes';
 import { ActionType, HitType, Team } from '../types';
+import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
+import { SpriteComponent } from './components/SpriteComponent';
+import { EnemyAnimation } from './components/EnemyAnimationComponent';
+import { createEnemyAnimations, getEnemyArtSize } from '../data/enemyAnimations';
 
 const ALWAYS_HOSTILE = ['brobot', 'snailbomb', 'shadowslime', 'karaguin', 'bat', 'sting', 'onion'];
 const ATTACK_ONLY = ['skeleton', 'mudman', 'pink_namazu'];
@@ -48,7 +52,7 @@ describe('enemy collision profiles', () => {
   test('crushers are invulnerable', () => {
     for (const subType of INVULNERABLE) {
       const profile = createEnemyCollisionProfile(subType);
-      // A stomp must not kill these; the player has to avoid or possess them.
+      // Neither stomp nor possession can hit an absent vulnerability volume.
       expect(profile?.vulnerability, subType).toBeNull();
     }
   });
@@ -91,19 +95,17 @@ describe('enemy collision profiles', () => {
   test('enemies the original leaves untyped accept any hit', () => {
     // An untyped vulnerability volume matches every hit type, which is how a
     // brobot can be both stomped and possessed.
-    for (const subType of ['brobot', 'skeleton', 'karaguin', 'bat', 'sting', 'onion']) {
+    for (const subType of ['brobot', 'onion']) {
       const profile = createEnemyCollisionProfile(subType)!;
       expect(profile.vulnerability!.map((v) => v.getHitType()), subType)
         .toEqual([HitType.INVALID]);
     }
   });
 
-  test('the shadow slime and snailbomb are stompable but not possessable', () => {
-    // Two enemies the original types HIT rather than leaving untyped:
-    // spawnEnemyShadowSlime calls setHitType(HitType.HIT) on its vulnerability
-    // volume, and the snailbomb's is constructed with it. A typed volume
-    // accepts only its own hit type, so the ghost bounces off both.
-    for (const subType of ['shadowslime', 'snailbomb']) {
+  test('HIT-only enemies reject possession and other collision signals', () => {
+    // The snailbomb constructor types its box HIT; the other factories call
+    // setHitType(HIT) on their sphere after adding it to the vulnerability list.
+    for (const subType of ['shadowslime', 'snailbomb', 'skeleton', 'karaguin', 'bat', 'sting']) {
       const profile = createEnemyCollisionProfile(subType)!;
       expect(profile.vulnerability!.map((v) => v.getHitType()), subType)
         .toEqual([HitType.HIT]);
@@ -179,6 +181,40 @@ describe('enemy combat through GameObjectCollisionSystem', () => {
     }
     system.update(1 / 60);
   }
+
+  test.each(['bat', 'sting', 'skeleton', 'karaguin'])('%s accepts damage but filters other signals before hit reaction', (subType) => {
+    for (const hitType of [HitType.HIT, HitType.DEATH, HitType.LAUNCH, HitType.DEPRESS, HitType.COLLECT, HitType.POSSESS]) {
+      const enemy = makeEnemy(subType);
+      const size = getEnemyArtSize(subType)!;
+      enemy.width = size.width;
+      enemy.height = size.height;
+      // Use the same animation-owned volumes as placed enemies, not just the
+      // legacy action selector used by the older tests in this file.
+      const sprite = new SpriteComponent();
+      sprite.addAnimation('idle', createEnemyAnimations(subType)!.get(EnemyAnimation.IDLE)!);
+      sprite.playAnimation('idle');
+      enemy.addComponent(sprite);
+      const reaction = enemy.getComponents().find((component): component is HitReactionComponent => component instanceof HitReactionComponent)!;
+      const received = spyOn(reaction, 'receivedHit');
+      try {
+        const attacker = new GameObject();
+        attacker.team = Team.PLAYER;
+        attacker.width = attacker.height = 128;
+        attacker.setPosition(100, 100);
+        const attack = new DynamicCollisionComponent();
+        attack.setCollisionVolumes([new AABoxCollisionVolume(0, 0, 128, 128, hitType)], null);
+        attack.setHitReactionComponent(new HitReactionComponent());
+        attacker.addComponent(attack);
+        runFrame([attacker, enemy]);
+        const damage = hitType === HitType.HIT;
+        expect(received, `hit type ${HitType[hitType]}`).toHaveBeenCalledTimes(damage ? 1 : 0);
+        expect(enemy.life).toBe(damage ? 0 : 1);
+        expect(enemy.lastReceivedHitType).toBe(damage ? HitType.HIT : HitType.INVALID);
+      } finally {
+        received.mockRestore();
+      }
+    }
+  });
 
   test('stomping kills an ordinary enemy', () => {
     const player = makePlayer('stomping');

@@ -12,6 +12,25 @@ export interface DiaryEntry {
   text: string;
 }
 
+/** Authored bindings shared by both original campaign trees, not pickup order. */
+export const LevelDiaryIds: Readonly<Partial<Record<string, number>>> = {
+  level_1_1_island: 1,
+  level_1_3_island: 2,
+  level_3_7_sewer: 3,
+  level_1_5_island: 4,
+  level_2_3_grass: 5,
+  level_3_9_sewer: 6,
+  level_4_1_underground: 7,
+  level_2_5_grass: 8,
+  level_4_2_underground: 9,
+  level_2_6_grass: 10,
+  level_2_8_grass: 11,
+  level_3_3_sewer: 12,
+  level_4_7_underground: 13,
+  level_1_9_island: 14,
+  level_2_9_grass: 15,
+};
+
 export const DiaryEntries: DiaryEntry[] = [
   {
     id: 1,

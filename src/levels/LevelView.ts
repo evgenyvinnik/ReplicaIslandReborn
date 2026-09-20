@@ -2,6 +2,16 @@ import type { CameraSystem } from '../engine/CameraSystem';
 import type { GameObjectManager } from '../entities/GameObjectManager';
 import type { LevelSystem } from './LevelSystemNew';
 import { assetPath } from '../utils/helpers';
+import type { GameObject } from '../entities/GameObject';
+import { PlayerComponent } from '../entities/components/PlayerComponent';
+
+/** Restore default focus after possession, without stealing scripted focus. */
+export function restorePlayerCamera(camera: CameraSystem, player: GameObject | null): void {
+  if (player && !camera.getTarget() && !camera.isNPCFocusMode() &&
+      !player.getComponent(PlayerComponent)?.ghostActive) {
+    camera.setTarget(player);
+  }
+}
 
 /** Apply the same camera rules on first load, transitions, and retries. */
 export function focusLevelCamera(level: LevelSystem, manager: GameObjectManager, camera: CameraSystem, viewportHeight: number): void {

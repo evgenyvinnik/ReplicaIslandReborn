@@ -57,13 +57,13 @@ const OBJECT_ART: Record<string, ObjectArt> = {
     height: 16,
     frameTimes: [30, 2, 2, 1, 2],
   },
-  // The original's ruby cycle starts at ruby02; ruby01 is not in it.
+  // spawnRuby holds ruby01 for two seconds before its brief glint.
   ruby: {
-    frames: ['ruby02', 'ruby03', 'ruby04', 'ruby05'],
+    frames: ['ruby01', 'ruby02', 'ruby03', 'ruby04', 'ruby05'],
     width: 32,
     height: 32,
     centreOnObject: true,
-    frameTimes: [2, 1, 1, 2],
+    frameTimes: [48, 2, 1, 1, 2],
   },
   // The port spawns no pearls from level data, but the fallback test level does.
   pearl: {
@@ -74,11 +74,11 @@ const OBJECT_ART: Record<string, ObjectArt> = {
     frameTimes: [2, 1, 1, 2],
   },
   diary: {
-    frames: ['diary02', 'diary01', 'diary02', 'diary03', 'diary04', 'diary05', 'diary06'],
+    frames: ['diary01', 'diary02', 'diary01', 'diary02', 'diary03', 'diary04', 'diary05', 'diary06'],
     width: 32,
     height: 32,
     centreOnObject: true,
-    frameTimes: [2, 2, 2, 2, 2, 2, 2],
+    frameTimes: [24, 2, 2, 2, 2, 2, 2, 2],
   },
   breakable_block: { frames: ['debris_block'], width: 32, height: 32, frameTimes: [1] },
   hint_sign: { frames: ['object_sign'], width: 32, height: 32, frameTimes: [1] },
@@ -95,31 +95,33 @@ const SUBTYPE_ART: Record<string, ObjectArt> = {
   'decoration:kyle_dead': {
     frames: ['kyle_dead'], width: 64, height: 64, frameTimes: [1],
   },
-  // The terminals flicker rather than cycling: a nine-frame sequence that
-  // revisits earlier frames.
+  // Both terminals reuse six frame definitions in a twelve-frame sequence,
+  // including three one-second holds on the first image.
   'terminal:kabocha': {
     frames: [
       'object_terminal_kabocha01', 'object_terminal_kabocha02',
       'object_terminal_kabocha01', 'object_terminal_kabocha03',
-      'object_terminal_kabocha02', 'object_terminal_kabocha03',
       'object_terminal_kabocha02', 'object_terminal_kabocha01',
-      'object_terminal_kabocha02',
+      'object_terminal_kabocha01', 'object_terminal_kabocha03',
+      'object_terminal_kabocha02', 'object_terminal_kabocha01',
+      'object_terminal_kabocha02', 'object_terminal_kabocha01',
     ],
     width: 64,
     height: 64,
     centreOnObject: true,
-    frameTimes: [1, 2, 2, 1, 1, 1, 1, 1, 1],
+    frameTimes: [1, 2, 2, 1, 1, 24, 24, 1, 1, 1, 1, 24],
   },
   'terminal:rokudou': {
     frames: [
       'object_terminal01', 'object_terminal02', 'object_terminal01',
-      'object_terminal03', 'object_terminal02', 'object_terminal03',
-      'object_terminal02', 'object_terminal01', 'object_terminal02',
+      'object_terminal03', 'object_terminal02', 'object_terminal01',
+      'object_terminal01', 'object_terminal03', 'object_terminal02',
+      'object_terminal01', 'object_terminal02', 'object_terminal01',
     ],
     width: 64,
     height: 64,
     centreOnObject: true,
-    frameTimes: [1, 2, 2, 1, 1, 1, 1, 1, 1],
+    frameTimes: [1, 2, 2, 1, 1, 24, 24, 1, 1, 1, 1, 24],
   },
   'projectile:energy_ball': {
     frames: ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'],
@@ -140,8 +142,8 @@ const SUBTYPE_ART: Record<string, ObjectArt> = {
   },
   // spawnBrobotBullet reuses the brobot's own walk frames.
   'projectile:brobot_bullet': {
-    frames: ['brobot_walk01', 'brobot_walk02', 'brobot_walk03'],
-    width: 32, height: 32, centreOnObject: true, frameTimes: [1, 1, 1],
+    frames: ['enemy_brobot_walk01', 'enemy_brobot_walk02', 'enemy_brobot_walk03'],
+    width: 64, height: 64, centreOnObject: true, frameTimes: [1, 1, 1],
   },
 };
 

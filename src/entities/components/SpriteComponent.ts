@@ -20,6 +20,8 @@ export class SpriteComponent extends GameComponent {
   private spriteName: string = '';
   private currentFrame: number = 0;
   private frameTimer: number = 0;
+  /** Whole-animation elapsed time, distinct from the current frame remainder. */
+  private animationTime: number = 0;
   private animations: Map<string, AnimationDefinition> = new Map();
   private animationsByIndex: AnimationDefinition[] = [];
   private currentAnimation: AnimationDefinition | null = null;
@@ -80,6 +82,9 @@ export class SpriteComponent extends GameComponent {
         // Stop animation
         this.currentAnimation = null;
         this.currentAnimationIndex = -1;
+        this.currentFrame = 0;
+        this.frameTimer = 0;
+        this.animationTime = 0;
         this.animationComplete = false;
         return;
       }
@@ -89,6 +94,7 @@ export class SpriteComponent extends GameComponent {
         this.currentAnimationIndex = nameOrIndex;
         this.currentFrame = 0;
         this.frameTimer = 0;
+        this.animationTime = 0;
         this.animationComplete = false;
       }
     } else {
@@ -99,6 +105,7 @@ export class SpriteComponent extends GameComponent {
         this.currentAnimationIndex = -1;
         this.currentFrame = 0;
         this.frameTimer = 0;
+        this.animationTime = 0;
         this.animationComplete = false;
       }
     }
@@ -150,32 +157,36 @@ export class SpriteComponent extends GameComponent {
    * Get current animation time
    */
   getCurrentAnimationTime(): number {
-    return this.frameTimer;
+    return this.animationTime;
   }
 
   /**
    * Set current animation time offset
    */
   setCurrentAnimationTime(time: number): void {
-    this.frameTimer = time;
-    if (this.currentAnimation) {
-      // Calculate the correct frame based on time
-      const totalFrameTime = this.currentAnimation.frames.reduce(
-        (sum, frame) => sum + (frame.duration || 0.1),
-        0
-      );
-      if (totalFrameTime > 0) {
-        const normalizedTime = time % totalFrameTime;
-        let accumulatedTime = 0;
-        for (let i = 0; i < this.currentAnimation.frames.length; i++) {
-          accumulatedTime += this.currentAnimation.frames[i].duration || 0.1;
-          if (normalizedTime <= accumulatedTime) {
-            this.currentFrame = i;
-            break;
-          }
-        }
-      }
+    this.animationTime = Number.isFinite(time) ? Math.max(0, time) : 0;
+    this.currentFrame = 0;
+    this.frameTimer = this.animationTime;
+    this.animationComplete = false;
+    const animation = this.currentAnimation;
+    if (!animation) return;
+    if (animation.frames.length === 0) {
+      this.animationComplete = true;
+      return;
     }
+
+    const length = animation.frames.reduce((sum, frame) => sum + frame.duration, 0);
+    if (animation.loop && length > 0) this.frameTimer %= length;
+    // Use the same boundary and remainder rules as update(). Non-looping
+    // animations hold their last frame, and seeking backwards rearms them.
+    for (let i = 0; i < animation.frames.length; i++) {
+      this.currentFrame = i;
+      const duration = animation.frames[i].duration;
+      if (duration <= 0 || this.frameTimer + 1e-10 < duration) return;
+      this.frameTimer = Math.max(0, this.frameTimer - duration);
+    }
+    this.animationComplete = !animation.loop;
+    if (animation.loop) this.currentFrame = 0;
   }
 
   /**
@@ -243,6 +254,7 @@ export class SpriteComponent extends GameComponent {
     }
 
     // Update animation frame
+    this.animationTime += Math.max(0, deltaTime);
     this.frameTimer += Math.max(0, deltaTime);
     while (!this.animationComplete) {
       const currentFrameData = this.currentAnimation.frames[this.currentFrame];
@@ -393,6 +405,7 @@ export class SpriteComponent extends GameComponent {
   reset(): void {
     this.currentFrame = 0;
     this.frameTimer = 0;
+    this.animationTime = 0;
     this.currentAnimation = null;
     this.currentAnimationIndex = -1;
     this.animationComplete = false;

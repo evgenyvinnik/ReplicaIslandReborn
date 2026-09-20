@@ -1,9 +1,8 @@
 /**
  * The player's HIT volume must only be live while stomping (or glowing).
  *
- * The original gets this for free because collision volumes live on animation
- * frames and only the STOMP/glow frames carry a HIT volume. This port assigns
- * volumes from PlayerComponent state instead, so the rule needs pinning: a
+ * Collision volumes live on animation frames: the body attacks during STOMP,
+ * and the independent halo attacks during glow. The rule needs pinning: a
  * permanently-live HIT volume would let the player kill enemies by walking into
  * them.
  */
@@ -15,7 +14,7 @@ import { GameObject } from './GameObject';
 import { DynamicCollisionComponent } from './components/DynamicCollisionComponent';
 import { HitReactionComponent } from './components/HitReactionComponent';
 import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
-import { createPlayerVolumeSets, selectPlayerVolumeState } from './playerCollisionVolumes';
+import { createPlayerVolumeSets, createPlayerGlowVolumes } from './playerCollisionVolumes';
 import { HitType, Team } from '../types';
 
 describe('player collision volume selection', () => {
@@ -37,12 +36,9 @@ describe('player collision volume selection', () => {
     expect(sets.normal.vulnerability!.map((v) => v.getHitType())).toEqual([HitType.INVALID]);
   });
 
-  test('stomping and glowing drop vulnerability', () => {
-    // The original's STOMP and glow frames pass null vulnerability volumes;
-    // that is what lets a stomp beat an enemy's contact damage.
+  test('stomping drops body vulnerability', () => {
     const sets = createPlayerVolumeSets();
     expect(sets.stomping.vulnerability).toBeNull();
-    expect(sets.glowing.vulnerability).toBeNull();
   });
 
   test('stomping carries a HIT volume', () => {
@@ -51,24 +47,20 @@ describe('player collision volume selection', () => {
   });
 
   test('glowing carries a HIT volume', () => {
-    const sets = createPlayerVolumeSets();
-    expect(sets.glowing.attack.some((v) => v.getHitType() === HitType.HIT)).toBe(true);
+    expect(createPlayerGlowVolumes().attack.some((v) => v.getHitType() === HitType.HIT)).toBe(true);
   });
 
   test('DEPRESS and COLLECT stay available in every state', () => {
     const sets = createPlayerVolumeSets();
-    for (const state of ['normal', 'stomping', 'glowing'] as const) {
+    for (const state of ['normal', 'stomping'] as const) {
       const types = sets[state].attack.map((v) => v.getHitType());
       expect(types).toContain(HitType.DEPRESS);
       expect(types).toContain(HitType.COLLECT);
     }
   });
 
-  test('stomping takes precedence over glowing', () => {
-    expect(selectPlayerVolumeState(true, true)).toBe('stomping');
-    expect(selectPlayerVolumeState(true, false)).toBe('stomping');
-    expect(selectPlayerVolumeState(false, true)).toBe('glowing');
-    expect(selectPlayerVolumeState(false, false)).toBe('normal');
+  test('the halo does not duplicate collection or button pressing volumes', () => {
+    expect(createPlayerGlowVolumes().attack.map(v => v.getHitType())).toEqual([HitType.HIT]);
   });
 });
 
@@ -82,7 +74,7 @@ describe('player volumes through the collision system', () => {
   });
 
   /** A player-team object wearing one of the real volume sets. */
-  function makePlayer(state: 'normal' | 'stomping' | 'glowing'): GameObject {
+  function makePlayer(state: 'normal' | 'stomping'): GameObject {
     const object = new GameObject();
     object.type = 'player';
     object.team = Team.PLAYER;

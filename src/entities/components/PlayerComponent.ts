@@ -18,6 +18,10 @@ import { SoundEffects, SoundPriority } from '../../engine/SoundSystem';
 import { getDifficultyAdjustment } from '../dynamicDifficulty';
 import type { DifficultyConstants } from '../../stores/useGameStore';
 import { SpriteComponent } from './SpriteComponent';
+import { DynamicCollisionComponent } from './DynamicCollisionComponent';
+import { HitReactionComponent } from './HitReactionComponent';
+import { createPlayerGlowVolumes } from '../playerCollisionVolumes';
+import { BackgroundCollisionComponent } from './BackgroundCollisionComponent';
 import {
   createPlayerAnimations,
   selectPlayerAnimation,
@@ -131,6 +135,7 @@ export class PlayerComponent extends GameComponent {
   private collisionSystem: CollisionSystem | null = null;
   private soundSystem: SoundSystem | null = null;
   private levelSystem: LevelSystem | null = null;
+  private readonly backgroundCollision = new BackgroundCollisionComponent();
   // private config: PlayerConfig; // Unused for now as we use static constants
 
   // State
@@ -145,6 +150,8 @@ export class PlayerComponent extends GameComponent {
   /** Held-state latches used to reproduce InputButton.getTriggered(). */
   private jumpWasPressed: boolean = false;
   private attackWasPressed: boolean = false;
+  /** Game-time press edge for Android's charge-opacity wave. */
+  private attackPressedTime: number = 0;
   
   public stomping: boolean = false;
   public stompTime: number = 0;
@@ -202,6 +209,7 @@ export class PlayerComponent extends GameComponent {
   public glowTime: number = 0;
   /** The halo layered over Andou while the glow powerup is active. */
   private glowSprite: SpriteComponent | null = null;
+  private glowCollision: DynamicCollisionComponent | null = null;
   private glowFader: FadeDrawableComponent | null = null;
   /** Glow duration this difficulty grants, used to time the ending flash. */
   private glowDuration: number = DEFAULT_GLOW_DURATION;
@@ -223,9 +231,8 @@ export class PlayerComponent extends GameComponent {
   private fuelAirRefillSpeed: number = 0.15;
   private fuelGroundRefillSpeed: number = 2.0;
 
-  /** Animation set, rebuilt when the glow powerup turns on or off. */
+  /** Body animation set; the glow has its own sprite and collision volumes. */
   private animations: Map<PlayerAnimationName, AnimationDefinition> | null = null;
-  private animationsGlowing: boolean = false;
   private playingAnimation: PlayerAnimationName | null = null;
   /** LAUNCH freezes the body without creating a possession orb. */
   private launchFrozen: boolean = false;
@@ -256,6 +263,7 @@ export class PlayerComponent extends GameComponent {
     const adjustment = getDifficultyAdjustment(constants, attempts);
     this.fuelGroundRefillSpeed = constants.fuelGroundRefillSpeed;
     this.glowDuration = constants.glowDuration;
+    if (this.glowFader) parent.removeComponent(this.glowFader);
     this.glowFader = null;  // rebuilt with the new duration on next draw
     this.fuelAirRefillSpeed = adjustment.fuelAirRefillSpeed;
     if (adjustment.lifeBoost > 0) {
@@ -326,6 +334,7 @@ export class PlayerComponent extends GameComponent {
     const input = this.inputSystem.getInputState();
     const jumpTriggered = input.jump && !this.jumpWasPressed;
     const attackTriggered = input.attack && !this.attackWasPressed;
+    if (attackTriggered) this.attackPressedTime = parent.getGameTime();
     this.jumpWasPressed = input.jump;
     this.attackWasPressed = input.attack;
 
@@ -471,37 +480,40 @@ export class PlayerComponent extends GameComponent {
     }
 
     // Stomp attack
+    let enteredStomp = false;
     if (
       acceptsPlayerInput && attackTriggered && inTheAir &&
       !this.stomping && this.currentState === PlayerState.MOVE
     ) {
       this.currentState = PlayerState.STOMP;
       this.stomping = true;
-      this.stompTime = gameTime;
+      enteredStomp = true;
+      this.stompTime = -1;
       this.stompHangTime = PlayerComponent.STOMP_AIR_HANG_TIME;
       this.stompLanded = false;
       this.stompLandingTime = -1;
-      velocity.x = 0;
+      velocity.zero();
+      parent.getImpulse().zero();
       this.rocketsOn = false;
-      
-      if (PlayerComponent.STOMP_AIR_HANG_TIME > 0) {
-        velocity.x = 0;
-        velocity.y = 0;
-      } else {
-        velocity.y = PlayerComponent.STOMP_VELOCITY;
-      }
       this.soundSystem.playSfx(SoundEffects.STOMP);
     }
 
-    // Handle stomp hang time
-    if (this.stomping && this.stompHangTime > 0) {
-      this.stompHangTime -= deltaTime;
-      velocity.x = 0;
-      velocity.y = 0;
-      
-      if (this.stompHangTime <= 0) {
-        velocity.y = PlayerComponent.STOMP_VELOCITY;
+    // Android gotoStomp locks position; the NEXT stateStomp call starts its
+    // timer. Even with zero configured hang time, descent begins only on the
+    // following call. Once falling, stateStomp reapplies its speed every frame
+    // instead of letting gravity accelerate a long stomp without limit.
+    let stompPositionLocked = enteredStomp;
+    if (this.stomping && !enteredStomp) {
+      if (this.stompTime < 0) {
+        this.stompTime = gameTime;
+        stompPositionLocked = true;
+      } else {
+        const elapsed = gameTime - this.stompTime;
+        this.stompHangTime = Math.max(0, PlayerComponent.STOMP_AIR_HANG_TIME - elapsed);
+        stompPositionLocked = elapsed <= PlayerComponent.STOMP_AIR_HANG_TIME;
+        if (!stompPositionLocked) velocity.y = PlayerComponent.STOMP_VELOCITY;
       }
+      velocity.x = 0;
     }
 
     // A stomp falls straight down and ignores movement/jet input until the
@@ -513,6 +525,7 @@ export class PlayerComponent extends GameComponent {
     if (this.stomping && this.touchingGround && !this.stompLanded) {
       this.stompLanded = true;
       this.stompLandingTime = gameTime;
+      sSystemRegistry.vibrationSystem?.vibrate(PlayerComponent.STOMP_VIBRATE_TIME);
       sSystemRegistry.cameraSystem?.shake(
         PlayerComponent.STOMP_SHAKE_MAGNITUDE, PlayerComponent.STOMP_DELAY_TIME
       );
@@ -571,10 +584,9 @@ export class PlayerComponent extends GameComponent {
       }
     }
 
-    // Apply gravity
-    if (!this.stomping || this.stompHangTime <= 0) {
-      velocity.y += PlayerComponent.GRAVITY * deltaTime;
-    }
+    // Physics still updates velocity while the stomp locks position, as in
+    // Android's separate PhysicsComponent / MovementComponent phases.
+    velocity.y += PlayerComponent.GRAVITY * deltaTime;
 
     // Movement/jet caps above limit player-generated acceleration, not outside
     // impulses. Android's PhysicsComponent preserves cannon/Kyle launch speed
@@ -602,7 +614,23 @@ export class PlayerComponent extends GameComponent {
       if (Math.abs(velocity.x) < 0.01) velocity.x = 0;
     }
 
-    // Move player (Collision logic)
+    if (stompPositionLocked) {
+      parent.getBackgroundCollisionNormal().zero();
+      this.updateAnimation(parent, deltaTime);
+      this.updateCurrentAction(parent);
+      return;
+    }
+
+    // Authored levels use the original center-to-leading-edge sweeps. Looking
+    // only at the destination box misses tiles crossed by a cannon launch.
+    if (this.collisionSystem.isCollisionDataLoaded()) {
+      this.moveWithSurfaceSweeps(deltaTime, parent);
+      this.updateAnimation(parent, deltaTime);
+      this.updateCurrentAction(parent);
+      return;
+    }
+
+    // Grid-only fallback for worlds without segment definitions.
     const tileSize = 32;
     
     // Horizontal movement
@@ -731,6 +759,52 @@ export class PlayerComponent extends GameComponent {
     this.updateCurrentAction(parent);
   }
 
+  private moveWithSurfaceSweeps(deltaTime: number, parent: GameObject): void {
+    const collision = this.collisionSystem!;
+    const position = parent.getPosition();
+    const velocity = parent.getVelocity();
+    const startX = position.x;
+    const startY = position.y;
+    const dx = velocity.x * deltaTime;
+    const dy = velocity.y * deltaTime;
+    const response = this.backgroundCollision;
+    response.setCollisionSystem(collision);
+    if (this.levelSystem) response.setLevelSystem(this.levelSystem);
+    response.setSize(parent.width, parent.height);
+    response.setPreviousPosition(position);
+    position.x += dx;
+    position.y += dy;
+    response.update(deltaTime, parent);
+
+    const horizontal = response.getHorizontalHitNormal();
+    const vertical = response.getVerticalHitNormal();
+    // A slope can have an X normal without being a wall. Preserve horizontal
+    // travel while the vertical sweep aligns the feet to its actual surface.
+    if (horizontal.y === 0 && horizontal.x * velocity.x < 0) velocity.x = 0;
+    if (vertical.y * velocity.y < 0) velocity.y = 0;
+
+    // Keep the full-box object sweeps: doors and platforms must also catch
+    // shallow edge overlaps that a center-line approximation cannot see.
+    const wall = collision.sweepTemporaryBox(
+      startX, startY, parent.width, parent.height, dx, 0, parent
+    );
+    if (wall) {
+      position.x = wall.normalX < 0 ? Math.min(position.x, wall.x) : Math.max(position.x, wall.x);
+      velocity.x = 0;
+      if (wall.normalX < 0) parent.setLastTouchedRightWallTime(parent.getGameTime());
+      else parent.setLastTouchedLeftWallTime(parent.getGameTime());
+    }
+    const floor = collision.sweepTemporaryBox(
+      position.x, startY, parent.width, parent.height, 0, dy, parent
+    );
+    if (floor) {
+      position.y = floor.normalY < 0 ? Math.min(position.y, floor.y) : Math.max(position.y, floor.y);
+      velocity.y = 0;
+      if (floor.normalY < 0) parent.setLastTouchedFloorTime(parent.getGameTime());
+      else parent.setLastTouchedCeilingTime(parent.getGameTime());
+    }
+  }
+
   private updateTimedStates(deltaTime: number): void {
     const dt = Math.max(0, deltaTime);
     if (this.currentState === PlayerState.HIT_REACT) {
@@ -752,16 +826,14 @@ export class PlayerComponent extends GameComponent {
    *
    * The frames carry his collision volumes (see data/playerAnimations.ts), so
    * selecting the animation is also what selects his hitboxes - which is how
-   * the original does it. The glow powerup swaps the whole animation set for
-   * one whose frames carry the larger HIT sphere.
+   * the original does it. The glow powerup adds a separate attack collider.
    */
   private updateAnimation(parent: GameObject, deltaTime: number): void {
     const sprite = parent.getComponent(SpriteComponent);
     if (!sprite) return;
 
-    if (this.animations === null || this.animationsGlowing !== this.glowMode) {
-      this.animations = createPlayerAnimations(this.glowMode);
-      this.animationsGlowing = this.glowMode;
+    if (this.animations === null) {
+      this.animations = createPlayerAnimations();
       for (const [name, animation] of this.animations) {
         sprite.addAnimation(name, animation);
       }
@@ -780,12 +852,17 @@ export class PlayerComponent extends GameComponent {
         (this.isDying && !this.deathPresentationStarted && parent.getCurrentAction() === ActionType.HIT_REACT),
       dying: this.deathPresentationStarted,
       stomping: this.stomping,
-      charging: this.ghostChargeTime > 0,
       touchingGround: this.touchingGround,
       rocketsOn: this.rocketsOn,
       velocityX: parent.getVelocity().x,
       velocityY: parent.getVelocity().y,
     });
+
+    // Android faces back toward the impact while recoiling, not along the
+    // knockback velocity or a previously held movement direction.
+    if (next === 'hit' && parent.getVelocity().x !== 0) {
+      parent.facingDirection.x = -Math.sign(parent.getVelocity().x);
+    }
 
     if (next !== this.playingAnimation) {
       this.playingAnimation = next;
@@ -823,6 +900,12 @@ export class PlayerComponent extends GameComponent {
       }
     } else {
       this.flickerOn = true;
+      // Charging keeps the normal movement pose. Android pulses only while
+      // grounded in MOVE, using elapsed game time since the attack press.
+      const charging = this.currentState === PlayerState.MOVE && this.touchingGround &&
+        this.inputSystem?.getInputState().attack;
+      const pressedTime = Math.max(0, gameTime - this.attackPressedTime);
+      sprite.setOpacity(charging ? Math.cos(pressedTime * Math.PI * 2) * 0.25 + 0.75 : 1);
     }
     sprite.setVisible(this.flickerOn);
   }
@@ -868,14 +951,16 @@ export class PlayerComponent extends GameComponent {
    *
    * The original spawns this as a set of components swapped onto the player by
    * ChangeComponentsComponent (`spawnPlayer`, PLAYER_GLOW). The port keeps them
-   * attached and toggles visibility, which is the same thing from the outside.
-   * Andou's own frames already carry the larger HIT volume while glowing, so
-   * this is purely the visual.
+   * visually attached and toggles visibility. Only the halo's collider is
+   * swapped in/out: hiding a sprite does not stop its collision updates.
    */
   private updateGlowSprite(parent: GameObject): void {
     if (!this.glowFader) {
       if (!this.glowSprite) {
         const sprite = new SpriteComponent();
+        const volumes = createPlayerGlowVolumes();
+        this.glowCollision = new DynamicCollisionComponent();
+        sprite.setCollisionComponent(this.glowCollision);
         // PLAYER + 1: the halo sits just in front of Andou.
         sprite.setPriority(PLAYER_GLOW_PRIORITY);
         const renderSystem = sSystemRegistry.renderSystem;
@@ -886,6 +971,8 @@ export class PlayerComponent extends GameComponent {
             x: 0, y: 0, width: 64, height: 64,
             duration: 1 / 24,
             sprite: name,
+            attackVolumes: volumes.attack,
+            vulnerabilityVolumes: null,
             // Centre the 64x64 halo on the 32x48 box, then the original's
             // 5px draw offset (Y-up -5 is down, which is +5 here).
             offsetX: GLOW_OFFSET_X,
@@ -916,6 +1003,17 @@ export class PlayerComponent extends GameComponent {
     }
 
     if (this.glowSprite) this.glowSprite.setVisible(this.glowMode);
+    if (this.glowCollision) {
+      if (this.glowMode && !parent.hasComponent(this.glowCollision)) {
+        parent.addComponent(this.glowCollision);
+      } else if (!this.glowMode && parent.hasComponent(this.glowCollision)) {
+        parent.removeComponent(this.glowCollision);
+      }
+    }
+    const reaction = parent.getComponents().find(
+      (component): component is HitReactionComponent => component instanceof HitReactionComponent
+    );
+    reaction?.setForceInvincible(this.glowMode);
   }
 
   /**
@@ -949,6 +1047,24 @@ export class PlayerComponent extends GameComponent {
   }
 
   reset(): void {
+    // These effects are owned by this controller, not by the sprite pool.
+    // Discard them before reusing the controller/body, including an in-place
+    // reset. Otherwise stale halo sprites/faders or force immunity survive.
+    for (const component of [this.glowSprite, this.glowFader, this.glowCollision]) {
+      if (component) component.getParent()?.removeComponent(component);
+    }
+    this.glowSprite = null;
+    this.glowFader = null;
+    this.glowCollision = null;
+    this.parent?.getComponents().find(
+      (component): component is HitReactionComponent => component instanceof HitReactionComponent
+    )?.setForceInvincible(false);
+    this.animations = null;
+    this.backgroundCollision.reset();
+    this.flickerTimeRemaining = 0;
+    this.lastFlickerTime = 0;
+    this.flickerOn = true;
+    this.previousStateWasHitReact = false;
     this.launchFrozen = false;
     this.currentState = PlayerState.MOVE;
     // Force the animation to be re-selected on the next update.
@@ -961,6 +1077,7 @@ export class PlayerComponent extends GameComponent {
     this.rocketsOn = false;
     this.jumpWasPressed = false;
     this.attackWasPressed = false;
+    this.attackPressedTime = 0;
     this.landThumpDelay = 0;
     this.stopRocketSound();
     this.stomping = false;
@@ -991,6 +1108,18 @@ export class PlayerComponent extends GameComponent {
     this.glowMode = false;
     this.glowTime = 0;
     this.coinsForPowerup = 0;
+    // Pool allocation happens after detachment. Keep dependencies for an
+    // explicit reset of a still-attached player, but never reuse old systems
+    // or difficulty configuration when the component is allocated anew.
+    if (!this.parent) {
+      this.inputSystem = null;
+      this.collisionSystem = null;
+      this.soundSystem = null;
+      this.levelSystem = null;
+      this.glowDuration = DEFAULT_GLOW_DURATION;
+      this.fuelAirRefillSpeed = 0.15;
+      this.fuelGroundRefillSpeed = 2.0;
+    }
   }
 
   /** Return control to Andou after a ghost expires or is released. */

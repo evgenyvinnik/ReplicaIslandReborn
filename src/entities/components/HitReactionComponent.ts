@@ -190,6 +190,11 @@ export class HitReactionComponent extends GameComponent {
     this.invincible = invincible;
   }
 
+  /** Powerup immunity is independent of the timed immunity after a hit. */
+  setForceInvincible(invincible: boolean): void {
+    this.forceInvincibility = invincible;
+  }
+
   /**
    * Check if currently invincible
    */

@@ -18,6 +18,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CameraSystem } from './CameraSystem';
 import { GameObject } from '../entities/GameObject';
+import { PlayerComponent } from '../entities/components/PlayerComponent';
+import { restorePlayerCamera } from '../levels/LevelView';
 
 function objectAt(x: number, y: number, type: string): GameObject {
   const object = new GameObject();
@@ -29,6 +31,33 @@ function objectAt(x: number, y: number, type: string): GameObject {
 }
 
 describe('camera focus', () => {
+  test('the frame fallback restores an unowned camera after possession releases it', () => {
+    const camera = new CameraSystem(480, 320);
+    const player = objectAt(100, 100, 'player');
+    const control = new PlayerComponent();
+    player.addComponent(control);
+    control.ghostActive = true;
+    restorePlayerCamera(camera, player);
+    expect(camera.getTarget()).toBeNull();
+    control.ghostActive = false;
+    restorePlayerCamera(camera, player);
+    expect(camera.getTarget()).toBe(player);
+  });
+
+  test('the frame fallback respects a scripted takeover and NPC-only scenes', () => {
+    const camera = new CameraSystem(480, 320);
+    const player = objectAt(100, 100, 'player');
+    const source = objectAt(1200, 500, 'enemy');
+    camera.setTarget(source);
+    restorePlayerCamera(camera, player);
+    expect(camera.getTarget()).toBe(source);
+    camera.setNPCTarget(source);
+    restorePlayerCamera(camera, null);
+    restorePlayerCamera(camera, player);
+    expect(camera.getTarget()).toBe(source);
+    expect(camera.isNPCFocusMode()).toBe(true);
+  });
+
   test('an NPC in focus keeps the camera away from the player', () => {
     const camera = new CameraSystem(480, 320);
     const npc = objectAt(1000, 100, 'npc');
@@ -100,10 +129,12 @@ describe('camera focus', () => {
     );
     const loads = source.match(/\.loadLevel\(/g) ?? [];
     const setups = source.match(/\bbeginLevelAttempt\(/g) ?? [];
-    expect(loads).toHaveLength(7);
+    expect(loads).toHaveLength(6); // NPC exits share the event path; no player-hotspot shortcut.
     expect(setups).toHaveLength(loads.length);
     const sharedSetup = source.slice(source.indexOf('const beginLevelAttempt ='), source.indexOf('const [isInitialized'));
     expect(sharedSetup).toContain('focusLevelCamera(level, gameObjectManager, camera, height)');
     expect(sharedSetup).toContain('backgroundLoaderRef.current?.load(');
+    expect(source.includes('restorePlayerCamera(cameraSystem, player)')).toBe(true);
+    expect(source.includes('cameraSystem.setTarget(player)')).toBe(false);
   });
 });

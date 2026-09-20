@@ -1,14 +1,9 @@
 /**
  * Background Collision Component - Handles collision against the background
  *
- * NOTE: nothing constructs this component. Andou resolves his own tile
- * collision inside `PlayerComponent`, and everything else uses
- * `MovementComponent`, which reads `checkTileCollision()`'s explicit
- * `grounded`/`ceiling` flags rather than a normal's sign. Treat the code below
- * as unexercised: it is a partial transcription that keeps the original's
- * Y-up variable names (`top`/`bottom` are the box's lower/upper edges here)
- * and has never run. Before wiring it to anything, check it against
- * `MovementComponent`, which is the path the game actually takes.
+ * PlayerComponent and MovementComponent use this response when segment data is
+ * loaded. Coordinates and surface normals are Canvas Y-down. Projectiles
+ * with SimpleCollisionComponent retain their original point-ray path.
  * Ported from: Original/src/com/replica/replicaisland/BackgroundCollisionComponent.java
  *
  * Snaps colliding objects out of collision and reports the hit to the parent game object.
@@ -21,7 +16,7 @@ import { ComponentPhase } from '../../types';
 import type { GameObject } from '../GameObject';
 import { Vector2 } from '../../utils/Vector2';
 import type { CollisionSystem } from '../../engine/CollisionSystemNew';
-import type { LevelSystem } from '../../levels/LevelSystem';
+import type { LevelSystem } from '../../levels/LevelSystemNew';
 import type { TimeSystem } from '../../engine/TimeSystem';
 
 /**
@@ -46,6 +41,7 @@ export class BackgroundCollisionComponent extends GameComponent {
 
   // Previous frame position tracking
   private previousPosition: Vector2 = new Vector2();
+  private hasPreviousPosition = false;
 
   // System references
   private collisionSystem: CollisionSystem | null = null;
@@ -123,6 +119,21 @@ export class BackgroundCollisionComponent extends GameComponent {
    */
   reset(): void {
     this.previousPosition.zero();
+    this.hasPreviousPosition = false;
+  }
+
+  /** Seed from immediately before movement, also safe after a teleport. */
+  setPreviousPosition(position: Vector2): void {
+    this.previousPosition.set(position);
+    this.hasPreviousPosition = true;
+  }
+
+  getHorizontalHitNormal(): Vector2 {
+    return this.horizontalHitNormal;
+  }
+
+  getVerticalHitNormal(): Vector2 {
+    return this.verticalHitNormal;
   }
 
   /**
@@ -147,8 +158,8 @@ export class BackgroundCollisionComponent extends GameComponent {
     parent.setBackgroundCollisionNormal(Vector2.zero());
 
     // Skip if we don't have a previous position yet
-    if (this.previousPosition.lengthSquared() === 0) {
-      this.previousPosition.set(parent.getPosition());
+    if (!this.hasPreviousPosition) {
+      this.setPreviousPosition(parent.getPosition());
       return;
     }
 
@@ -159,11 +170,11 @@ export class BackgroundCollisionComponent extends GameComponent {
 
     // Calculate collision box bounds
     const left = this.horizontalOffset;
-    const bottom = this.verticalOffset;
+    const top = this.verticalOffset;
     const right = left + this.collisionWidth;
-    const top = bottom + this.collisionHeight;
+    const bottom = top + this.collisionHeight;
     const centerOffsetX = this.collisionWidth / 2 + left;
-    const centerOffsetY = this.collisionHeight / 2 + bottom;
+    const centerOffsetY = this.collisionHeight / 2 + top;
 
     // Get current position and calculate delta
     this.currentPosition.set(parent.getPosition());
@@ -201,8 +212,8 @@ export class BackgroundCollisionComponent extends GameComponent {
         this.previousCenter,
         this.currentPosition,
         this.delta,
-        bottom,
         top,
+        bottom,
         centerOffsetX,
         this.verticalHitPoint,
         this.verticalHitNormal,
@@ -213,8 +224,8 @@ export class BackgroundCollisionComponent extends GameComponent {
         this.previousCenter,
         this.currentPosition,
         this.delta,
-        bottom,
         top,
+        bottom,
         centerOffsetX,
         this.verticalHitPoint,
         this.verticalHitNormal,
@@ -234,8 +245,8 @@ export class BackgroundCollisionComponent extends GameComponent {
     }
 
     // Force the collision volume to stay within the bounds of the world
-    if (this.levelSystem) {
-      const levelSize = this.levelSystem.getLevelSize();
+    const levelSize = this.levelSystem?.getLevelSize() ?? this.collisionSystem.getWorldSize();
+    if (levelSize) {
 
       // Left boundary
       if (this.currentPosition.x + left < 0) {
@@ -252,14 +263,10 @@ export class BackgroundCollisionComponent extends GameComponent {
         horizontalHit = true;
       }
 
-      // The world's *floor*, not its top. `bottom`/`top` above keep the
-      // original's Y-up names while holding Y-down offsets, so `top` is the
-      // box's lower edge and this test is "the feet went past the bottom of
-      // the level". The -1 it adds to the normal is an upward-pointing floor
-      // normal in canvas space, which is consistent with the stamping below.
-      if (this.currentPosition.y + top > levelSize.height) {
-        this.currentPosition.y = levelSize.height - top - 1;
-        this.verticalHitNormal.y -= 1;
+      // Android clamps the upper world edge. Leave the bottom open for pits.
+      if (this.currentPosition.y + top < 0) {
+        this.currentPosition.y = -top + 1;
+        this.verticalHitNormal.y += 1;
         this.verticalHitNormal.normalize();
         verticalHit = true;
       }
@@ -289,9 +296,9 @@ export class BackgroundCollisionComponent extends GameComponent {
         verticalHit = true;
         // Snap position
         if (this.verticalHitNormal.y > 0) {
-          this.currentPosition.y = this.verticalHitPoint.y - bottom;
-        } else if (this.verticalHitNormal.y < 0) {
           this.currentPosition.y = this.verticalHitPoint.y - top;
+        } else if (this.verticalHitNormal.y < 0) {
+          this.currentPosition.y = this.verticalHitPoint.y - bottom;
         }
       }
 
@@ -332,13 +339,13 @@ export class BackgroundCollisionComponent extends GameComponent {
     }
 
     // Record the intersection for other systems to use
-    if (this.timeSystem) {
-      const time = this.timeSystem.getGameTime();
+    {
+      const time = this.timeSystem?.getGameTime() ?? parent.getGameTime();
 
       if (horizontalHit) {
         if (this.horizontalHitNormal.x > 0) {
           parent.setLastTouchedLeftWallTime(time);
-        } else {
+        } else if (this.horizontalHitNormal.x < 0) {
           parent.setLastTouchedRightWallTime(time);
         }
       }
@@ -348,7 +355,7 @@ export class BackgroundCollisionComponent extends GameComponent {
         // `normal.y > 0` is a floor only in its Y-up world.
         if (this.verticalHitNormal.y < 0) {
           parent.setLastTouchedFloorTime(time);
-        } else {
+        } else if (this.verticalHitNormal.y > 0) {
           parent.setLastTouchedCeilingTime(time);
         }
       }
@@ -428,8 +435,8 @@ export class BackgroundCollisionComponent extends GameComponent {
     previousPosition: Vector2,
     currentPosition: Vector2,
     delta: Vector2,
-    bottom: number,
     top: number,
+    bottom: number,
     centerX: number,
     hitPoint: Vector2,
     hitNormal: Vector2,
@@ -442,12 +449,12 @@ export class BackgroundCollisionComponent extends GameComponent {
     // Shoot a ray from the center of the previous frame's box to the edge
     // (top or bottom, depending on the direction of movement) of the current box
     this.testPointStart.x = centerX;
-    this.testPointStart.y = bottom;
-    let offset = -bottom;
+    this.testPointStart.y = top;
+    let offset = -top;
 
     if (delta.y > 0) {
-      this.testPointStart.y = top;
-      offset = -top;
+      this.testPointStart.y = bottom;
+      offset = -bottom;
     }
 
     // Filter out surfaces that do not oppose motion in the vertical direction
@@ -481,73 +488,17 @@ export class BackgroundCollisionComponent extends GameComponent {
   private castRay(
     startPoint: Vector2,
     endPoint: Vector2,
-    _movementDirection: Vector2,
+    movementDirection: Vector2,
     hitPoint: Vector2,
     hitNormal: Vector2,
-    _parent: GameObject
+    parent: GameObject
   ): boolean {
     if (!this.collisionSystem) {
       return false;
     }
 
-    // Calculate ray direction and distance
-    const dirX = endPoint.x - startPoint.x;
-    const dirY = endPoint.y - startPoint.y;
-    const distance = Math.sqrt(dirX * dirX + dirY * dirY);
-
-    if (distance < 0.0001) {
-      return false;
-    }
-
-    // Normalize direction
-    const normalizedDirX = dirX / distance;
-    const normalizedDirY = dirY / distance;
-
-    // Use collision system's raycast
-    const result = this.collisionSystem.raycast(
-      startPoint.x,
-      startPoint.y,
-      normalizedDirX,
-      normalizedDirY,
-      distance
+    return this.collisionSystem.castRay(
+      startPoint, endPoint, movementDirection, hitPoint, hitNormal, parent
     );
-
-    if (result.hit) {
-      hitPoint.set(result.point);
-      hitNormal.set(result.normal);
-      return true;
-    }
-
-    // Also check tile collision along the ray
-    // For simpler tile-based collision, we'll check multiple points along the ray
-    const steps = Math.ceil(distance / 16); // Check every 16 pixels
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const checkX = startPoint.x + dirX * t;
-      const checkY = startPoint.y + dirY * t;
-
-      // Simple tile collision check
-      const tileCollision = this.collisionSystem.checkTileCollision(
-        checkX,
-        checkY,
-        1,
-        1,
-        dirX,
-        dirY
-      );
-
-      if (
-        tileCollision.grounded ||
-        tileCollision.ceiling ||
-        tileCollision.leftWall ||
-        tileCollision.rightWall
-      ) {
-        hitPoint.set(checkX, checkY);
-        hitNormal.set(tileCollision.normal);
-        return true;
-      }
-    }
-
-    return false;
   }
 }

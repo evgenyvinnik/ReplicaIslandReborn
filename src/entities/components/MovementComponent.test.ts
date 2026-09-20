@@ -102,8 +102,8 @@ async function room(): Promise<MovementComponent> {
 test('the integrated stopping frame still collides with tiles on all four sides', async () => {
   const movement = await room();
   for (const [x, y, dx, dy, expectedX, expectedY] of [
-    [570, 250, 1, 0, 575.9, 250],
-    [38, 250, -1, 0, 32.1, 250],
+    [570, 250, 1, 0, 576, 250],
+    [38, 250, -1, 0, 32, 250],
     [250, 570, 0, 1, 250, 576],
     [250, 38, 0, -1, 250, 32],
   ]) {
@@ -125,13 +125,106 @@ test('a reversal-frame wall collision does not bounce velocity already pointing 
   movement.setBounciness(0.4);
   const object = new GameObject();
   object.width = object.height = 32;
-  object.setPosition(574.9, 250);
+  // Integrated travel hits the exact surface at x608; the final velocity
+  // already points left and must not be reflected back into the wall.
+  object.setPosition(575.4, 250);
   object.setVelocity(10, 0);
   object.setTargetVelocity(-20, 0);
   object.setAcceleration(30, 0);
   object.setGameTime(1);
   movement.update(0.5, object);
-  expect(object.getPosition().x).toBeCloseTo(575.9);
+  expect(object.getPosition().x).toBeCloseTo(576);
   expect(object.getVelocity().x).toBe(-5);
   expect(object.touchingRightWall()).toBe(true);
+});
+
+test('stopping-frame displacement is blocked by solid-object walls, floors and ceilings', () => {
+  const collision = new CollisionSystem();
+  collision.addTemporarySurface(32, 0, 32, 640, 1, 0);
+  collision.addTemporarySurface(608, 0, 608, 640, -1, 0);
+  collision.addTemporarySurface(0, 32, 640, 32, 0, 1);
+  collision.addTemporarySurface(0, 608, 640, 608, 0, -1);
+  collision.updateTemporarySurfaces();
+  const movement = new MovementComponent();
+  movement.setCollisionSystem(collision);
+  for (const [x, y, dx, dy, expectedX, expectedY] of [
+    [570, 250, 1, 0, 576, 250],
+    [38, 250, -1, 0, 32, 250],
+    [250, 570, 0, 1, 250, 576],
+    [250, 38, 0, -1, 250, 32],
+  ]) {
+    const object = new GameObject();
+    object.width = object.height = 32;
+    object.setPosition(x, y);
+    object.setVelocity(dx * 100, dy * 100);
+    object.setAcceleration(Math.abs(dx) * 100, Math.abs(dy) * 100);
+    object.setGameTime(1);
+    movement.update(1, object);
+    expect(object.getPosition().x).toBeCloseTo(expectedX);
+    expect(object.getPosition().y).toBeCloseTo(expectedY);
+    expect(object.getVelocity().lengthSquared()).toBe(0);
+  }
+});
+
+test('unclamped acceleration covers the same distance at 30, 60 and 120 Hz', () => {
+  for (const hz of [30, 60, 120]) {
+    const object = new GameObject();
+    const movement = new MovementComponent();
+    object.setTargetVelocity(1000, -1000);
+    object.setAcceleration(100, 100);
+    for (let frame = 0; frame < hz; frame++) movement.update(1 / hz, object);
+    expect(object.getPosition().x).toBeCloseTo(50, 7);
+    expect(object.getPosition().y).toBeCloseTo(-50, 7);
+    expect(object.getVelocity().x).toBeCloseTo(100, 7);
+    expect(object.getVelocity().y).toBeCloseTo(-100, 7);
+  }
+});
+
+test('a fast small body snaps to the first surface and reflects only once per frame', async () => {
+  const movement = await room();
+  movement.setCollisionBox(12, 12, 2, 2);
+  movement.setBounciness(0.3);
+  const object = new GameObject();
+  object.width = object.height = 16;
+  object.setPosition(570, 250);
+  object.setVelocity(4000, 0);
+  object.setGameTime(1);
+  movement.update(1 / 60, object);
+  expect(object.getPosition().x).toBeCloseTo(594, 5);
+  expect(object.getVelocity().x).toBe(-1200);
+  expect(object.touchingRightWall()).toBe(true);
+  object.setPosition(250, 38);
+  object.setVelocity(0, -4000);
+  movement.update(1 / 60, object);
+  expect(object.getPosition().y).toBeCloseTo(30, 5);
+  expect(object.getVelocity().y).toBe(1200);
+  expect(object.touchingCeiling()).toBe(true);
+});
+
+test('offset bodies obey the original side/top world bounds but can fall into pits', async () => {
+  const movement = await room();
+  // Keep loaded segment definitions but remove the enclosing tiles.
+  const collision = new CollisionSystem();
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async (_input: Parameters<typeof fetch>[0]): Promise<Response> => new Response(await file(
+      new URL('../../../public/assets/collision.json', import.meta.url)
+    ).arrayBuffer())) as typeof fetch;
+    expect(await collision.loadCollisionData('/assets/collision.json')).toBe(true);
+  } finally { globalThis.fetch = originalFetch; }
+  collision.setTileCollision(Array(400).fill(-1), 20, 20, 32, 32);
+  movement.setCollisionSystem(collision);
+  movement.setCollisionBox(32, 48, 16, 16);
+  const object = new GameObject();
+  object.width = object.height = 64;
+  object.setGameTime(1);
+  for (const [x, y, expectedX, expectedY] of [
+    [-20, 100, -15, 100], [620, 100, 591, 100], [100, -20, 100, -15], [100, 650, 100, 650],
+  ]) {
+    object.setPosition(x, y);
+    movement.update(0, object);
+    expect(object.getPosition().x).toBe(expectedX);
+    expect(object.getPosition().y).toBe(expectedY);
+  }
+  expect(object.touchingGround()).toBe(false);
 });

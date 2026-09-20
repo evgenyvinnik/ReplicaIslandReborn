@@ -304,7 +304,7 @@ export class CollisionSystem {
 
   /**
    * Execute a ray through the tile world, testing against collision segments.
-   * Uses Bresenham-style line algorithm to traverse tiles.
+   * Visits every crossed tile in ray order, including diagonal side tiles.
    */
   private executeRay(
     startPoint: Vector2,
@@ -340,42 +340,37 @@ export class CollisionSystem {
     const xIncrement = deltaX !== 0 ? Math.sign(deltaX) : 0;
     const yIncrement = deltaY !== 0 ? Math.sign(deltaY) : 0;
     
-    const lateralDelta = Math.abs(deltaX) + 1;
-    const verticalDelta = Math.abs(deltaY) + 1;
-    
-    const deltaX2 = lateralDelta * 2;
-    const deltaY2 = verticalDelta * 2;
-    
-    // Bresenham line algorithm in tile space
-    if (lateralDelta >= verticalDelta) {
-      let error = deltaY2 - lateralDelta;
-      for (let i = 0; i < lateralDelta; i++) {
-        if (this.visitTile(currentX, currentY, startPoint, endPoint, hitPoint, hitNormal, movementDir, excludeObject)) {
-          return true;
-        }
-        
-        if (error > 0) {
-          currentY += yIncrement;
-          error -= deltaX2;
-        }
-        
-        error += deltaY2;
-        currentX += xIncrement;
+    // Rasterizing a line between TILE INDICES skips cells entered between
+    // diagonal steps. Sweep using the ray's actual pixel-space grid crossings
+    // instead, so a fast diagonal launch cannot miss a one-tile wall.
+    const rayX = endPoint.x - startPoint.x;
+    const rayY = endPoint.y - startPoint.y;
+    const stepTimeX = this.tileWidth / Math.abs(rayX);
+    const stepTimeY = this.tileHeight / Math.abs(rayY);
+    let nextX = ((currentX + (xIncrement > 0 ? 1 : 0)) * this.tileWidth - startPoint.x) / rayX;
+    let nextY = ((currentY + (yIncrement > 0 ? 1 : 0)) * this.tileHeight - startPoint.y) / rayY;
+    const maxVisits = Math.abs(deltaX) + Math.abs(deltaY) + 1;
+    for (let i = 0; i < maxVisits; i++) {
+      if (this.visitTile(currentX, currentY, startPoint, endPoint, hitPoint, hitNormal, movementDir, excludeObject)) {
+        return true;
       }
-    } else {
-      let error = deltaX2 - verticalDelta;
-      for (let i = 0; i < verticalDelta; i++) {
-        if (this.visitTile(currentX, currentY, startPoint, endPoint, hitPoint, hitNormal, movementDir, excludeObject)) {
+      if (currentX === endTileX && currentY === endTileY) break;
+      // Include both neighbors when crossing a grid corner exactly.
+      if (Math.abs(nextX - nextY) < 1e-12) {
+        if (this.visitTile(currentX + xIncrement, currentY, startPoint, endPoint, hitPoint, hitNormal, movementDir, excludeObject) ||
+            this.visitTile(currentX, currentY + yIncrement, startPoint, endPoint, hitPoint, hitNormal, movementDir, excludeObject)) {
           return true;
         }
-        
-        if (error > 0) {
-          currentX += xIncrement;
-          error -= deltaY2;
-        }
-        
-        error += deltaX2;
+        currentX += xIncrement;
         currentY += yIncrement;
+        nextX += stepTimeX;
+        nextY += stepTimeY;
+      } else if (nextX < nextY) {
+        currentX += xIncrement;
+        nextX += stepTimeX;
+      } else {
+        currentY += yIncrement;
+        nextY += stepTimeY;
       }
     }
     
@@ -474,6 +469,12 @@ export class CollisionSystem {
     }
     
     return foundHit;
+  }
+
+  /** Pixel bounds of the loaded tile world, or null before a world is set. */
+  getWorldSize(): { width: number; height: number } | null {
+    if (this.worldWidth <= 0 || this.worldHeight <= 0) return null;
+    return { width: this.worldWidth * this.tileWidth, height: this.worldHeight * this.tileHeight };
   }
 
   /**
@@ -692,10 +693,9 @@ export class CollisionSystem {
     // swept collision (the original ray-marches the box with testBox()), which
     // is a rewrite of this loop rather than a fix.
     //
-    // Where the segment data actually changes what the player feels - resting
-    // on a slope rather than on the tile grid - it is used: see
-    // getGroundSurfaceY(), which raycasts the real segments and is what
-    // BackgroundCollisionComponent and PlayerComponent snap to.
+    // PlayerComponent and terrain-colliding MovementComponent actors now use
+    // BackgroundCollisionComponent's castRay sweeps when authored segment
+    // data is loaded. This API remains for grid-only fallback and diagnostics.
     return this.checkTileCollisionSimple(x, y, width, height, velocityX, velocityY);
   }
 

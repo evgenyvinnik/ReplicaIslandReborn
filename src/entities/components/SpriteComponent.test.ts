@@ -141,6 +141,54 @@ describe('SpriteComponent per-frame data', () => {
     expect(sprite.animationFinished()).toBe(true);
   });
 
+  test('animation time includes previous frames for gate direction reversal', () => {
+    sprite.addAnimation('gate', { frames: [frame('02', 0.1), frame('03', 0.1)], loop: false });
+    sprite.playAnimation('gate');
+    sprite.update(0.15, object);
+    expect(sprite.getCurrentAnimationTime()).toBeCloseTo(0.15);
+  });
+
+  test('seeking into a gate frame only consumes its remaining duration', () => {
+    sprite.addAnimation('gate', { frames: [frame('02', 0.1), frame('03', 0.1)], loop: false });
+    sprite.playAnimation('gate');
+    sprite.setCurrentAnimationTime(0.15);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('03');
+    sprite.update(0.04, object);
+    expect(sprite.animationFinished()).toBe(false);
+    sprite.update(0.01, object);
+    expect(sprite.animationFinished()).toBe(true);
+  });
+
+  test('non-looping seeks clamp at the end and seeking back rearms completion', () => {
+    sprite.addAnimation('gate', { frames: [frame('02', 0.1), frame('03', 0.1)], loop: false });
+    sprite.playAnimation('gate');
+    sprite.setCurrentAnimationTime(0.4);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('03');
+    expect(sprite.animationFinished()).toBe(true);
+    sprite.setCurrentAnimationTime(0.1);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('03');
+    expect(sprite.animationFinished()).toBe(false);
+    sprite.update(0.1, object);
+    expect(sprite.animationFinished()).toBe(true);
+    sprite.setCurrentAnimationTime(-1);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('02');
+    expect(sprite.getCurrentAnimationTime()).toBe(0);
+  });
+
+  test('looping seeks wrap the frame but retain whole animation time', () => {
+    sprite.addAnimation('loop', { frames: [frame('01', 0.1), frame('02', 0.1)], loop: true });
+    sprite.playAnimation('loop');
+    sprite.setCurrentAnimationTime(0.35);
+    sprite.update(0.04, object);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('02');
+    expect(sprite.getCurrentAnimationTime()).toBeCloseTo(0.39);
+    expect(sprite.animationFinished()).toBe(false);
+    sprite.update(0.01, object);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('01');
+    sprite.reset();
+    expect(sprite.getCurrentAnimationTime()).toBe(0);
+  });
+
   test('volumes reach the collision component without explicit linking', () => {
     // Spawn sites should not each have to call setCollisionComponent().
     const bare = new GameObject();

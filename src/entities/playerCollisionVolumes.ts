@@ -1,21 +1,7 @@
 /**
- * The player's collision volumes, selected by state.
- *
- * In the original these come from the current animation frame: Andou's STOMP
- * frames carry a HIT attack volume and *no* vulnerability volume (so stomping
- * is briefly invincible), the glow/invincible frames carry a larger HIT sphere,
- * and every other frame carries only the DEPRESS/COLLECT volumes plus a
- * vulnerability sphere.
- *
- * This port's SpriteComponent does not carry per-frame collision volumes, so a
- * fixed set assigned at spawn would leave the player permanently able to damage
- * anything it touched. Selecting the set from PlayerComponent's state
- * reproduces the original's behaviour without the per-frame animation data.
- *
- * The vulnerability volume is present only in the normal state. The original's
- * STOMP and glow frames pass null for vulnerability volumes, which is exactly
- * what makes a stomp beat an enemy's contact damage and what makes the glow
- * powerup invincible.
+ * Andou's body volumes live on animation frames. The glow is a separate
+ * attack-only collider: it must not replace body vulnerability, which receives
+ * cannon LAUNCH and hazard DEATH hits. HitReaction supplies glow HIT immunity.
  *
  * Ported from: Original/src/com/replica/replicaisland/GameObjectFactory.java
  * (spawnPlayer)
@@ -26,18 +12,7 @@ import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume
 import type { CollisionVolume } from '../engine/collision/CollisionVolume';
 import { HitType } from '../types';
 
-export type PlayerVolumeState = 'normal' | 'stomping' | 'glowing';
-
-/**
- * Pick the volume set for the player's current state. Stomping wins over
- * glowing: the original's STOMP animation replaces the glow animation while it
- * is playing.
- */
-export function selectPlayerVolumeState(stomping: boolean, glowing: boolean): PlayerVolumeState {
-  if (stomping) return 'stomping';
-  if (glowing) return 'glowing';
-  return 'normal';
-}
+export type PlayerVolumeState = 'normal' | 'stomping';
 
 export interface PlayerVolumeSet {
   attack: CollisionVolume[];
@@ -68,12 +43,13 @@ export function createPlayerVolumeSets(): Record<PlayerVolumeState, PlayerVolume
 
   return {
     normal: {
-      attack: [press, collect],
+      attack: [collect, press],
       // Original: SphereCollisionVolume(16, 32, 32) on a 64x64 sprite, left
       // untyped so it accepts every hit type - that is what lets a cannon's
       // LAUNCH volume fire Andou and a HIT volume hurt him. This port's player
-      // object is 32x48, so the sphere is centred on that body.
-      vulnerability: [new SphereCollisionVolume(16, 16, 24)],
+      // object's origin is shifted right 16px; Y converts from its feet:
+      // (32 - 16, 48 - 32). This is not the centre of the 32x48 body.
+      vulnerability: [new SphereCollisionVolume(16, 16, 16)],
     },
     stomping: {
       // Original: AABoxCollisionVolume(16, -5, 32, 37, HIT). In its Y-up space
@@ -85,9 +61,14 @@ export function createPlayerVolumeSets(): Record<PlayerVolumeState, PlayerVolume
       attack: [new AABoxCollisionVolume(0, 16, 32, 37, HitType.HIT), press, collect],
       vulnerability: null,
     },
-    glowing: {
-      attack: [new SphereCollisionVolume(40, 16, 24, HitType.HIT), press, collect],
-      vulnerability: null,
-    },
+  };
+}
+
+/** Original PLAYER_GLOW: radius 40, centre (40, 40) in the 64px Y-up sprite. */
+export function createPlayerGlowVolumes(): PlayerVolumeSet {
+  return {
+    // Body origin is 16px right of the original origin; Y converts from the feet.
+    attack: [new SphereCollisionVolume(40, 40 - 16, 48 - 40, HitType.HIT)],
+    vulnerability: null,
   };
 }

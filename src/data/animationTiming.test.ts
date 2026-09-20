@@ -49,9 +49,9 @@ describe('enemy frame timing', () => {
     const animations = createEnemyAnimations('mudman')!;
     expect(holdFrames(animations.get(EnemyAnimation.ATTACK)!.frames))
       .toEqual([2, 2, 2, 2, 1, 1, 8, 5]);
-    // A single held frame, not the three the port had invented.
-    expect(animations.get(EnemyAnimation.IDLE)!.frames).toHaveLength(1);
-    expect(holdFrames(animations.get(EnemyAnimation.IDLE)!.frames)).toEqual([12]);
+    expect(animations.get(EnemyAnimation.IDLE)!.frames.map(frame => frame.sprite))
+      .toEqual(['mudman_stand', 'mudman_idle01', 'mudman_idle01', 'mudman_idle01']);
+    expect(holdFrames(animations.get(EnemyAnimation.IDLE)!.frames)).toEqual([12, 2, 7, 2]);
     expect(holdFrames(animations.get(EnemyAnimation.MOVE)!.frames))
       .toEqual([4, 4, 5, 4, 4, 5]);
   });
@@ -95,22 +95,22 @@ describe('enemy frame timing', () => {
 
 describe('player frame timing', () => {
   test('Andou stands still for a full second', () => {
-    const idle = createPlayerAnimations(false).get('idle')!;
+    const idle = createPlayerAnimations().get('idle')!;
     expect(idle.frames[0].duration).toBeCloseTo(1.0, 5);
   });
 
   test('the hit reaction holds for a tenth of a second', () => {
-    const hit = createPlayerAnimations(false).get('hit')!;
+    const hit = createPlayerAnimations().get('hit')!;
     expect(hit.frames[0].duration).toBeCloseTo(0.1, 5);
   });
 
   test('the stomp runs at 24 FPS', () => {
-    const stomp = createPlayerAnimations(false).get('stomp')!;
+    const stomp = createPlayerAnimations().get('stomp')!;
     expect(holdFrames(stomp.frames)).toEqual([1, 1, 1, 1]);
   });
 
   test('death flickers twice and then explodes', () => {
-    const dead = createPlayerAnimations(false).get('dead')!;
+    const dead = createPlayerAnimations().get('dead')!;
     expect(dead.frames.map((f) => f.sprite)).toEqual([
       'andou_die01', 'andou_die02', 'andou_die01', 'andou_die02',
       'andou_explode01', 'andou_explode02', 'andou_explode03', 'andou_explode04',
@@ -133,20 +133,29 @@ describe('object frame timing', () => {
     expect(coin.loop).toBe(true);
   });
 
-  test('a ruby cycles from its second frame', () => {
+  test('a ruby rests for two seconds before its four-frame glint', () => {
     const ruby = createObjectAnimation('ruby', 32, 32)!;
-    // ruby01 is not part of the original's cycle.
     expect(ruby.frames.map((f) => f.sprite)).toEqual([
-      'ruby02', 'ruby03', 'ruby04', 'ruby05',
+      'ruby01', 'ruby02', 'ruby03', 'ruby04', 'ruby05',
     ]);
-    expect(holdFrames(ruby.frames)).toEqual([2, 1, 1, 2]);
+    expect(holdFrames(ruby.frames)).toEqual([48, 2, 1, 1, 2]);
+    const sprite = new SpriteComponent();
+    const object = new GameObject();
+    sprite.addAnimation('idle', ruby);
+    sprite.playAnimation('idle');
+    sprite.update(1.999, object);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('ruby01');
+    sprite.update(0.001, object);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('ruby02');
+    sprite.update(6 / 24, object);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('ruby01');
   });
 
   test('the diary flickers through all six of its frames', () => {
     const diary = createObjectAnimation('diary', 32, 32)!;
-    expect(diary.frames).toHaveLength(7);
+    expect(diary.frames).toHaveLength(8);
     expect(new Set(diary.frames.map((f) => f.sprite)).size).toBe(6);
-    expect(holdFrames(diary.frames)).toEqual([2, 2, 2, 2, 2, 2, 2]);
+    expect(holdFrames(diary.frames)).toEqual([24, 2, 2, 2, 2, 2, 2, 2]);
   });
 
   test('the ghost animates the energy ball', () => {
@@ -159,14 +168,14 @@ describe('object frame timing', () => {
 
   test('a terminal flickers rather than cycling', () => {
     const terminal = createObjectAnimation('terminal', 64, 64, 'rokudou')!;
-    expect(terminal.frames).toHaveLength(9);
-    expect(holdFrames(terminal.frames)).toEqual([1, 2, 2, 1, 1, 1, 1, 1, 1]);
+    expect(terminal.frames).toHaveLength(12);
+    expect(holdFrames(terminal.frames)).toEqual([1, 2, 2, 1, 1, 24, 24, 1, 1, 1, 1, 24]);
   });
 
   test('a brobot bullet is drawn with the brobot\'s own walk frames', () => {
-    const bullet = createObjectAnimation('projectile', 32, 32, 'brobot_bullet')!;
+    const bullet = createObjectAnimation('projectile', 64, 64, 'brobot_bullet')!;
     expect(bullet.frames.map((f) => f.sprite)).toEqual([
-      'brobot_walk01', 'brobot_walk02', 'brobot_walk03',
+      'enemy_brobot_walk01', 'enemy_brobot_walk02', 'enemy_brobot_walk03',
     ]);
   });
 });

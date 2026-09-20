@@ -100,6 +100,34 @@ for (const [kind, bounce] of [[GameObjectType.ENEMY_BROBOT, 0.4], [GameObjectTyp
   });
 }
 
+for (const possessed of [false, true]) {
+  test(`a ${possessed ? 'possessed' : 'normal'} Brobot follows the actual ramp surface with its offset body`, async () => {
+    const { factory, collision } = await rig();
+    collision.setTileCollision(Array.from({ length: 400 }, (_, i) => {
+      const row = Math.floor(i / 20), col = i % 20;
+      return row >= 10 ? 1 : row === 9 && col === 3 ? 36 : -1;
+    }), 20, 20, 32, 32);
+    const robot = factory.spawn(GameObjectType.ENEMY_BROBOT, 64, 256)!;
+    if (possessed) {
+      const orb = new GameObject();
+      orb.team = Team.PLAYER;
+      expect(robot.getComponent(ReactionClass)!.receivedHit(robot, orb, HitType.POSSESS)).toBe(true);
+    }
+    const movement = robot.getComponent(MovementComponent)!;
+    for (let frame = 0; frame < 20; frame++) {
+      // Isolate collision from AI/steering, using the real 32x48 box at (16,16).
+      robot.setVelocity(60, 20);
+      robot.setAcceleration(0, 0);
+      robot.setGameTime(1 + frame / 60);
+      movement.update(1 / 60, robot);
+      const position = robot.getPosition();
+      expect(position.x).toBeCloseTo(65 + frame, 5);
+      expect(position.y + 64).toBeCloseTo(416 - (position.x + 32), 5);
+      expect(robot.touchingGround()).toBe(true);
+    }
+  });
+}
+
 for (const runtime of [false, true]) {
   test(`${runtime ? 'runtime' : 'placed'} Brobot possession swaps out bounce without replacing movement`, async () => {
     const { manager, factory } = await rig(runtime ? undefined : 'level_3_4_sewer');

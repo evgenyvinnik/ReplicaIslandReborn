@@ -3,14 +3,13 @@
  *
  * In the original every `AnimationFrame` carries its own attack and
  * vulnerability volume lists, so an enemy's hitboxes change with its animation.
- * This port's SpriteComponent has no per-frame volume data, so the volumes are
- * selected from the object's current `ActionType` instead - the same approach
- * `playerCollisionVolumes.ts` takes for Andou.
+ * createEnemyAnimations attaches these profiles to the port's sprite frames;
+ * the action selector below also supports initial and sprite-less objects.
  *
  * Two details from the original that matter for play:
  *
  * - Mudman and Pink Namazu have **no vulnerability volume at all**. They cannot
- *   be stomped; the player has to avoid or possess them. The port used to let a
+ *   be stomped or possessed; the player has to avoid them. The port used to let a
  *   single stomp kill either one.
  * - Skeleton, Mudman and Pink Namazu only carry an attack volume on their
  *   attack frames, so they are harmless mid-patrol. Brobots and the flying
@@ -83,7 +82,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'skeleton':
       return {
         attack: [new SphereCollisionVolume(16, 48, 32, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(16, 32, 32)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 32, HitType.HIT)],
         attackOnlyWhileAttacking: true,
       };
 
@@ -91,7 +90,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'karaguin':
       return {
         attack: [new SphereCollisionVolume(8, 16, 16, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(8, 16, 16)],
+        vulnerability: [new SphereCollisionVolume(8, 16, 16, HitType.HIT)],
         attackOnlyWhileAttacking: false,
       };
 
@@ -99,7 +98,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'bat':
       return {
         attack: [new SphereCollisionVolume(16, 32, 16, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(16, 32, 16)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 16, HitType.HIT)],
         attackOnlyWhileAttacking: false,
       };
 
@@ -107,7 +106,7 @@ export function createEnemyCollisionProfile(subType: string): EnemyCollisionProf
     case 'sting':
       return {
         attack: [new SphereCollisionVolume(16, 32, 48, HitType.HIT)],
-        vulnerability: [new SphereCollisionVolume(16, 32, 48)],
+        vulnerability: [new SphereCollisionVolume(16, 32, 48, HitType.HIT)],
         attackOnlyWhileAttacking: false,
       };
 

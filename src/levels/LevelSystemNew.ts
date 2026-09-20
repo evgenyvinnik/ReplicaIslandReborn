@@ -3,7 +3,7 @@
  * Ported from: Original/src/com/replica/replicaisland/LevelSystem.java
  */
 
-import type { LevelData, LevelLayer, LevelObject, AnimationDefinition, SpriteFrame } from '../types';
+import type { LevelData, LevelLayer, LevelObject, AnimationDefinition } from '../types';
 import { HitType, Team, ActionType } from '../types';
 import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { GameObjectManager } from '../entities/GameObjectManager';
@@ -16,7 +16,7 @@ import { PatrolComponent } from '../entities/components/PatrolComponent';
 import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
 import { SleeperComponent } from '../entities/components/SleeperComponent';
 import { PopOutComponent } from '../entities/components/PopOutComponent';
-import { TheSourceComponent } from '../entities/components/TheSourceComponent';
+import { configureTheSource } from '../entities/theSource';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { configureGiantExplosion } from '../entities/giantExplosion';
 import { configureExplosion } from '../entities/explosion';
@@ -35,17 +35,12 @@ import { GravityComponent } from '../entities/components/GravityComponent';
 import { MovementComponent } from '../entities/components/MovementComponent';
 import { attachEnemyCollisionResponse, attachPossessedCollisionResponse } from '../entities/enemyPhysics';
 import { GenericAnimationComponent, GenericAnimation } from '../entities/components/GenericAnimationComponent';
-import { SimpleCollisionComponent } from '../entities/components/SimpleCollisionComponent';
+import { configureProjectile, type ProjectileKind } from '../entities/projectile';
 import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
-import { OrbitalMagnetComponent } from '../entities/components/OrbitalMagnetComponent';
 import { MotionBlurComponent } from '../entities/components/MotionBlurComponent';
-import { SortConstants } from '../engine/SortConstants';
 import { drawPriorityFor } from '../data/objectDrawPriority';
-import {
-  FadeDrawableComponent, FadeLoopType, FadeFunction,
-} from '../entities/components/FadeDrawableComponent';
-import { PlayerComponent } from '../entities/components/PlayerComponent';
+import { configurePlayerObject } from '../entities/player';
 import { GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { assetPath } from '../utils/helpers';
@@ -58,6 +53,7 @@ import { EnemyCollisionComponent } from '../entities/components/EnemyCollisionCo
 import { EnemyAnimationComponent, EnemyAnimation } from '../entities/components/EnemyAnimationComponent';
 import { createEnemyAnimations } from '../data/enemyAnimations';
 import { createObjectAnimation } from '../data/objectAnimations';
+import { createDoorAnimations } from '../data/doorAnimations';
 import { createNpcAnimations } from '../data/npcAnimations';
 import { NPCAnimationComponent, NPCAnimation } from '../entities/components/NPCAnimationComponent';
 import { HitPlayerComponent } from '../entities/components/HitPlayerComponent';
@@ -112,30 +108,6 @@ const SCREEN_SIZE_RADIUS = Math.sqrt(
 const TIGHT_ACTIVATION_RADIUS = SCREEN_SIZE_RADIUS + 128;
 const NORMAL_ACTIVATION_RADIUS = SCREEN_SIZE_RADIUS * 1.25;
 const ALWAYS_ACTIVE = -1;
-
-/** Draw order for The Source's layers; the original's SortConstants value. */
-const THE_SOURCE_START = SortConstants.THE_SOURCE_START;
-
-/**
- * The Source's five layers, in the original's order, with the fade each one
- * runs. Every layer ping-pongs forever, so the whole thing breathes at five
- * different rates at once.
- * Ported from: GameObjectFactory.spawnObjectTheSource().
- */
-const THE_SOURCE_LAYERS: ReadonlyArray<{
-  layer: number;
-  sprite: string;
-  from: number;
-  to: number;
-  duration: number;
-  linear?: boolean;
-}> = [
-  { layer: 0, sprite: 'source_spikes', from: 1.0, to: 0.2, duration: 1.9 },
-  { layer: 1, sprite: 'source_body', from: 1.0, to: 0.8, duration: 5.0 },
-  { layer: 2, sprite: 'source_black', from: 0.0, to: 1.0, duration: 6.0, linear: true },
-  { layer: 3, sprite: 'source_spots', from: 0.0, to: 1.0, duration: 2.3 },
-  { layer: 4, sprite: 'source_core', from: 0.2, to: 1.0, duration: 1.2 },
-];
 
 /**
  * Background collision boxes, from the original's
@@ -246,8 +218,10 @@ export class LevelSystem {
    * Set linear mode (Extras menu - all levels unlocked in chronological order)
    */
   setLinearMode(linear: boolean): void {
+    if (this.isLinearMode === linear) return;
     this.isLinearMode = linear;
-    // console.log(`[LevelSystem] Linear mode set to: ${linear}`);
+    this.initializeLevelTree();
+    this.loadLevelProgress();
   }
 
   /**
@@ -276,11 +250,14 @@ export class LevelSystem {
    * - Completing ALL levels in a group unlocks ALL levels in the next group
    */
   private initializeLevelTree(): void {
-    // Build level info from the shared levelTree structure
-    for (let groupIndex = 0; groupIndex < levelTree.length; groupIndex++) {
-      const group = levelTree[groupIndex];
+    // Runtime metadata must follow the selected campaign, not just its next
+    // level function. Linear Mode has no flashbacks and different group IDs.
+    const tree = this.isLinearMode ? linearLevelTree : levelTree;
+    this.levels.clear();
+    for (let groupIndex = 0; groupIndex < tree.length; groupIndex++) {
+      const group = tree[groupIndex];
       const nextGroupIndex = groupIndex + 1;
-      const nextGroup = nextGroupIndex < levelTree.length ? levelTree[nextGroupIndex] : null;
+      const nextGroup = nextGroupIndex < tree.length ? tree[nextGroupIndex] : null;
       
       // Get the first level ID of the next group (for unlocking)
       const nextGroupFirstLevelId = nextGroup 
@@ -301,17 +278,9 @@ export class LevelSystem {
         const world = match ? parseInt(match[1], 10) : 0;
         const stage = match ? parseInt(match[2], 10) : 0;
         
-        // Determine next level (within same group, or first of next group)
-        let nextLevelId: number | null = null;
-        if (levelIndex + 1 < group.levels.length) {
-          // There are more levels in this group - but in the original,
-          // completing any level in a group unlocks the next group
-          // So "next" should point to the next group
-          nextLevelId = nextGroupFirstLevelId;
-        } else {
-          // Last level in group - next is first level of next group
-          nextLevelId = nextGroupFirstLevelId;
-        }
+        // Candidate after this group; completeCurrentLevel checks remaining
+        // siblings before advancing to it in Story Mode.
+        const nextLevelId = nextGroupFirstLevelId;
         
         const levelInfo: LevelInfo = {
           id: levelId,
@@ -321,7 +290,7 @@ export class LevelSystem {
           next: nextLevelId,
           nextGroup: nextGroupFirstLevelId,
           groupIndex: groupIndex,
-          unlocked: groupIndex === 0, // Only first group is unlocked by default
+          unlocked: this.isLinearMode || groupIndex === 0,
           world: world,
           stage: stage,
           inThePast: level.inThePast,
@@ -596,51 +565,11 @@ export class LevelSystem {
     // Configure based on type
     switch (spawn.type) {
       case GameObjectTypeIndex.PLAYER: {
-        obj.type = 'player';
         // Original Java: sprite is 64x64, collision box is 32x48 with offset (16, 0)
         // The collision box dimensions determine collision detection
         objWidth = 32;    // Collision box width (not sprite width)
         objHeight = 48;   // Collision box height (not sprite height)
-        // Hit points for the run. HitReactionComponent decrements this on every
-        // HIT, and stops reacting entirely once it reaches zero, so it has to
-        // match the difficulty's life count rather than being pinned at 1.
-        obj.life = this.playerMaxLife;
-        obj.maxLife = this.playerMaxLife;
-        obj.team = Team.PLAYER;
-        // Original: spawnPlayer sets activationRadius = mAlwaysActive. Left at
-        // the default of 0 the player is only ever "active" when the camera is
-        // exactly on him, which GameObjectManager cannot guarantee.
-        obj.activationRadius = ALWAYS_ACTIVE;
-        
-        // Add PlayerComponent - CRITICAL: Game.tsx expects this to exist
-        const playerComp = new PlayerComponent();
-        obj.addComponent(playerComp);
-        
-        // Add SpriteComponent for player rendering
-        const playerSprite = new SpriteComponent();
-        playerSprite.setSprite('andou_stand'); // Default sprite
-        obj.addComponent(playerSprite);
-        
-        // Dynamic collision for player attacks and vulnerability. The volume
-        // sets themselves are owned by PlayerComponent, which swaps them per
-        // state the way the original swaps them per animation frame - the HIT
-        // attack volume must only be live while stomping or glowing.
-        const playerDynCollision = new DynamicCollisionComponent();
-        obj.addComponent(playerDynCollision);
-        
-        // Add HitReactionComponent for damage response
-        // Original: spawnPlayer sets bounceOnHit(true), pauseOnAttack(true)
-        // and invincibleTime(3.0). The port had 2.0, leaving Andou vulnerable
-        // a full second earlier than the original after every hit.
-        const playerHitReact = new HitReactionComponent({
-          bounceOnHit: true,
-          bounceMagnitude: 200,
-          invincibleAfterHitTime: 3.0,
-          pauseOnAttack: true,
-          forceInvincibility: false
-        });
-        playerDynCollision.setHitReactionComponent(playerHitReact);
-        obj.addComponent(playerHitReact);
+        configurePlayerObject(obj, this.playerMaxLife);
         
         this.gameObjectManager.setPlayer(obj);
         break;
@@ -995,97 +924,11 @@ export class LevelSystem {
       }
       
       case GameObjectTypeIndex.THE_SOURCE: {
-        // The Source - Final boss (type 42)
-        // Multi-layered 512x512 sprite boss with orbital magnet mechanics
-        obj.type = 'enemy';
-        obj.subType = 'the_source';
-        objWidth = 512;   // Large boss sprites are 512x512
-        objHeight = 512;
-        obj.activationRadius = ALWAYS_ACTIVE; // Original: spawnObjectTheSource
-        obj.life = 3; // Original: life = 3
-        obj.team = Team.PLAYER; // Team.PLAYER means ENEMY attacks can damage it
-        
-        // The Source is five stacked 512x512 layers, each pulsing on its own
-        // FadeDrawableComponent at its own rate. That cross-fading is what makes
-        // it look alive; there is no frame animation at all.
-        // Original: spawnObjectTheSource(), layers 1-5 at THE_SOURCE_START + n.
-        const renderSystemForSource = sSystemRegistry.renderSystem;
-        for (const layer of THE_SOURCE_LAYERS) {
-          const layerSprite = new SpriteComponent();
-          layerSprite.setPriority(THE_SOURCE_START + layer.layer);
-          if (renderSystemForSource) layerSprite.setRenderSystem(renderSystemForSource);
-          layerSprite.addAnimation(layer.sprite, {
-            name: layer.sprite,
-            frames: [{
-              x: 0, y: 0, width: 512, height: 512, duration: 1.0, sprite: layer.sprite,
-            }],
-            loop: true,
-          });
-          layerSprite.playAnimation(layer.sprite);
-          obj.addComponent(layerSprite);
-
-          const layerFade = new FadeDrawableComponent();
-          layerFade.setSpriteComponent(layerSprite);
-          layerFade.setupFade({
-            startOpacity: layer.from,
-            endOpacity: layer.to,
-            duration: layer.duration,
-            loopType: FadeLoopType.PING_PONG,
-            fadeFunction: layer.linear ? FadeFunction.LINEAR : FadeFunction.EASE,
-          });
-          obj.addComponent(layerFade);
-        }
-        
-        // Orbital Magnet - creates orbital attraction effect that pulls player around
-        // Original: orbit.setup(320.0f, 220.0f) - areaRadius, orbitRadius
-        const orbitalMagnet = new OrbitalMagnetComponent();
-        orbitalMagnet.setConfig({
-          areaRadius: 320,
-          magnetRadius: 220,  // Orbital ring radius
-          strength: 15.0     // Default strength from original
-        });
-        // Target will be auto-set to player when available
-        obj.addComponent(orbitalMagnet);
-        
-        // Sphere collision volume for hit detection (256 radius from center)
-        // Original uses SphereCollisionVolume(256, 256, 256, HitType.HIT)
-        const sourceCollision = new DynamicCollisionComponent();
-        const sourceAttackVolume = new SphereCollisionVolume(256, 256, 256, HitType.HIT);
-        const sourceVulnVolume = new SphereCollisionVolume(256, 256, 256, HitType.HIT);
-        sourceCollision.setCollisionVolumes([sourceAttackVolume], [sourceVulnVolume]);
-        obj.addComponent(sourceCollision);
-        
-        // Hit reaction - manages invincibility after taking damage
-        // Original: hitReact.setInvincibleTime(TheSourceComponent.SHAKE_TIME = 0.6f)
-        const sourceHitReact = new HitReactionComponent({
-          invincibleAfterHitTime: 0.6,
-          forceInvincibility: false
-        });
-        sourceCollision.setHitReactionComponent(sourceHitReact);
-        obj.addComponent(sourceHitReact);
-        
-        // The Source boss component - handles shake, death sequence, explosions
-        const sourceComp = new TheSourceComponent();
-        sourceComp.setOnDeathChannel(() => {
-          // The original broadcasts the shared "SURPRISED" channel when The
-          // Source begins collapsing; the rival bosses' NPCAnimationComponents
-          // watch that channel and switch to their surprised pose.
-          const channel = sSystemRegistry.channelSystem?.registerChannel(SURPRISED_NPC_CHANNEL);
-          if (channel) {
-            channel.value = { value: true };
-          }
-        });
-        // Configure to trigger Wanda ending on death (event 6 = SHOW_ANIMATION, index 1 = WANDA_ENDING)
-        sourceComp.setGameEvent(6, 1);
-        // Wire up game event callback to trigger ending cutscene
-        if (this.onBossDeathCallback) {
-          const callback = this.onBossDeathCallback;
-          sourceComp.setOnGameEvent((_event: number, index: number) => {
-            // Map event index to ending type: 1 = WANDA_ENDING
-            callback(index === 1 ? 'WANDA_ENDING' : 'WANDA_ENDING');
-          });
-        }
-        obj.addComponent(sourceComp);
+        const onBossDeath = this.onBossDeathCallback;
+        configureTheSource(obj, sSystemRegistry.renderSystem,
+          onBossDeath ? (): void => onBossDeath('WANDA_ENDING') : undefined);
+        objWidth = obj.width;
+        objHeight = obj.height;
         break;
       }
 
@@ -1114,38 +957,9 @@ export class LevelSystem {
         const doorSprite = new SpriteComponent();
         doorSprite.setSprite(`object_door_${doorColor}01`);  // Default to closed state
         
-        // Door animations - using frame index for sprite selection
-        // Sprites are: 01=closed, 02=middle1, 03=middle2, 04=open
-        // Sprites: 01 closed, 02/03 mid-swing, 04 open. Naming the image on
-        // each frame is what lets SpriteComponent draw the door itself.
-        const doorArt = (n: string): string => `object_door_${doorColor}${n}`;
-        const doorFrame = (n: string, duration: number): SpriteFrame =>
-          ({ x: 0, y: 0, width: 32, height: 64, duration, sprite: doorArt(n) });
-        const closedAnim: AnimationDefinition = {
-          name: 'closed',
-          frames: [doorFrame('01', 1.0)],
-          loop: false
-        };
-        const openAnim: AnimationDefinition = {
-          name: 'open',
-          frames: [doorFrame('04', 1.0)],
-          loop: false
-        };
-        const openingAnim: AnimationDefinition = {
-          name: 'opening',
-          frames: [doorFrame('02', 0.083), doorFrame('03', 0.083)],
-          loop: false
-        };
-        const closingAnim: AnimationDefinition = {
-          name: 'closing',
-          frames: [doorFrame('03', 0.083), doorFrame('02', 0.083)],
-          loop: false
-        };
-        
-        doorSprite.addAnimationAtIndex(DoorAnimation.CLOSED, closedAnim);
-        doorSprite.addAnimationAtIndex(DoorAnimation.OPEN, openAnim);
-        doorSprite.addAnimationAtIndex(DoorAnimation.OPENING, openingAnim);
-        doorSprite.addAnimationAtIndex(DoorAnimation.CLOSING, closingAnim);
+        for (const [index, animation] of createDoorAnimations(doorColor)) {
+          doorSprite.addAnimationAtIndex(index, animation);
+        }
         doorSprite.playAnimation(DoorAnimation.CLOSED);
         obj.addComponent(doorSprite);
         
@@ -1834,37 +1648,9 @@ export class LevelSystem {
         const nbDoorSprite = new SpriteComponent();
         nbDoorSprite.setSprite(`object_door_${nbDoorColor}01`);
         
-        const nbClosedAnim: AnimationDefinition = {
-          name: 'closed',
-          frames: [{ x: 0, y: 0, width: 32, height: 64, duration: 1.0 }],
-          loop: false
-        };
-        const nbOpenAnim: AnimationDefinition = {
-          name: 'open',
-          frames: [{ x: 0, y: 0, width: 32, height: 64, duration: 1.0 }],
-          loop: false
-        };
-        const nbOpeningAnim: AnimationDefinition = {
-          name: 'opening',
-          frames: [
-            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 },
-            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 }
-          ],
-          loop: false
-        };
-        const nbClosingAnim: AnimationDefinition = {
-          name: 'closing',
-          frames: [
-            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 },
-            { x: 0, y: 0, width: 32, height: 64, duration: 0.083 }
-          ],
-          loop: false
-        };
-        
-        nbDoorSprite.addAnimationAtIndex(DoorAnimation.CLOSED, nbClosedAnim);
-        nbDoorSprite.addAnimationAtIndex(DoorAnimation.OPEN, nbOpenAnim);
-        nbDoorSprite.addAnimationAtIndex(DoorAnimation.OPENING, nbOpeningAnim);
-        nbDoorSprite.addAnimationAtIndex(DoorAnimation.CLOSING, nbClosingAnim);
+        for (const [index, animation] of createDoorAnimations(nbDoorColor)) {
+          nbDoorSprite.addAnimationAtIndex(index, animation);
+        }
         nbDoorSprite.playAnimation(DoorAnimation.CLOSED);
         obj.addComponent(nbDoorSprite);
         
@@ -1884,6 +1670,13 @@ export class LevelSystem {
           }
         }
         obj.addComponent(nbDoorAnim);
+        // Android's non-blocking variant removes only the solid surfaces;
+        // it still delivers the same animation-frame crush hit.
+        const nbDoorCollision = new DynamicCollisionComponent();
+        const nbDoorHitReact = new HitReactionComponent({ forceInvincibility: true });
+        nbDoorCollision.setHitReactionComponent(nbDoorHitReact);
+        obj.addComponent(nbDoorCollision);
+        obj.addComponent(nbDoorHitReact);
         // Note: No solid surface component - door doesn't block
         break;
       }
@@ -1892,184 +1685,21 @@ export class LevelSystem {
       // PROJECTILE TYPES
       // ============================================
 
-      case GameObjectTypeIndex.CANNON_BALL: {
-        // Cannon ball projectile
-        obj.type = 'projectile';
-        obj.subType = 'cannon_ball';
-        objWidth = 32;
-        objHeight = 32;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.team = Team.ENEMY;
-        
-        // Lifetime - dies after 3 seconds or on hitting background
-        const cannonBallLife = new LifetimeComponent();
-        cannonBallLife.setTimeUntilDeath(3.0);
-        cannonBallLife.setDieOnHitBackground(true);
-        obj.addComponent(cannonBallLife);
-        
-        // Movement component
-        const cannonBallMove = new MovementComponent();
-        obj.addComponent(cannonBallMove);
-        
-        // Dynamic collision with attack volume
-        const cannonBallCollision = new DynamicCollisionComponent();
-        const cannonBallAttack = new SphereCollisionVolume(8, 16, 16, HitType.HIT);
-        cannonBallCollision.setCollisionVolumes([cannonBallAttack], null);
-        obj.addComponent(cannonBallCollision);
-        
-        // Simple collision for background hits
-        const cannonBallSimple = new SimpleCollisionComponent();
-        obj.addComponent(cannonBallSimple);
-        
-        // Hit reaction - dies on attacking
-        const cannonBallHitReact = new HitReactionComponent({
-          dieOnAttack: true
-        });
-        cannonBallCollision.setHitReactionComponent(cannonBallHitReact);
-        obj.addComponent(cannonBallHitReact);
-        break;
-      }
-
-      case GameObjectTypeIndex.TURRET_BULLET: {
-        // Turret bullet projectile
-        obj.type = 'projectile';
-        obj.subType = 'turret_bullet';
-        objWidth = 16;
-        objHeight = 16;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.team = Team.ENEMY;
-        
-        // Lifetime
-        const turretBulletLife = new LifetimeComponent();
-        turretBulletLife.setTimeUntilDeath(3.0);
-        turretBulletLife.setDieOnHitBackground(true);
-        obj.addComponent(turretBulletLife);
-        
-        // Movement
-        const turretBulletMove = new MovementComponent();
-        obj.addComponent(turretBulletMove);
-        
-        // Dynamic collision
-        const turretBulletCollision = new DynamicCollisionComponent();
-        const turretBulletAttack = new SphereCollisionVolume(8, 8, 8, HitType.HIT);
-        turretBulletCollision.setCollisionVolumes([turretBulletAttack], null);
-        obj.addComponent(turretBulletCollision);
-        
-        // Hit reaction
-        const turretBulletHitReact = new HitReactionComponent({
-          dieOnAttack: true
-        });
-        turretBulletCollision.setHitReactionComponent(turretBulletHitReact);
-        obj.addComponent(turretBulletHitReact);
-        break;
-      }
-
-      case GameObjectTypeIndex.BROBOT_BULLET: {
-        // Brobot bullet projectile
-        obj.type = 'projectile';
-        obj.subType = 'brobot_bullet';
-        objWidth = 16;
-        objHeight = 16;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.team = Team.ENEMY;
-        
-        // Lifetime
-        const brobotBulletLife = new LifetimeComponent();
-        brobotBulletLife.setTimeUntilDeath(3.0);
-        brobotBulletLife.setDieOnHitBackground(true);
-        obj.addComponent(brobotBulletLife);
-        
-        // Movement
-        const brobotBulletMove = new MovementComponent();
-        obj.addComponent(brobotBulletMove);
-        
-        // Dynamic collision
-        const brobotBulletCollision = new DynamicCollisionComponent();
-        const brobotBulletAttack = new SphereCollisionVolume(8, 8, 8, HitType.HIT);
-        brobotBulletCollision.setCollisionVolumes([brobotBulletAttack], null);
-        obj.addComponent(brobotBulletCollision);
-        
-        // Hit reaction
-        const brobotBulletHitReact = new HitReactionComponent({
-          dieOnAttack: true
-        });
-        brobotBulletCollision.setHitReactionComponent(brobotBulletHitReact);
-        obj.addComponent(brobotBulletHitReact);
-        break;
-      }
-
-      case GameObjectTypeIndex.ENERGY_BALL: {
-        // Energy ball projectile (boss attacks)
-        obj.type = 'projectile';
-        obj.subType = 'energy_ball';
-        objWidth = 32;
-        objHeight = 32;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.team = Team.ENEMY;
-        
-        // Lifetime
-        const energyBallLife = new LifetimeComponent();
-        energyBallLife.setTimeUntilDeath(5.0);
-        energyBallLife.setDieOnHitBackground(true);
-        obj.addComponent(energyBallLife);
-        
-        // Gravity (energy balls arc downward)
-        const energyBallGravity = new GravityComponent();
-        obj.addComponent(energyBallGravity);
-        
-        // Movement
-        const energyBallMove = new MovementComponent();
-        obj.addComponent(energyBallMove);
-        
-        // Dynamic collision
-        const energyBallCollision = new DynamicCollisionComponent();
-        const energyBallAttack = new SphereCollisionVolume(16, 16, 16, HitType.HIT);
-        energyBallCollision.setCollisionVolumes([energyBallAttack], null);
-        obj.addComponent(energyBallCollision);
-        
-        // Simple collision for background
-        const energyBallSimple = new SimpleCollisionComponent();
-        obj.addComponent(energyBallSimple);
-        
-        // Hit reaction
-        const energyBallHitReact = new HitReactionComponent({
-          dieOnAttack: true
-        });
-        energyBallCollision.setHitReactionComponent(energyBallHitReact);
-        obj.addComponent(energyBallHitReact);
-        break;
-      }
-
+      case GameObjectTypeIndex.CANNON_BALL:
+      case GameObjectTypeIndex.TURRET_BULLET:
+      case GameObjectTypeIndex.BROBOT_BULLET:
+      case GameObjectTypeIndex.ENERGY_BALL:
       case GameObjectTypeIndex.WANDA_SHOT: {
-        // Wanda's neutral story projectile (not an enemy attack).
-        obj.type = 'projectile';
-        obj.subType = 'wanda_shot';
-        objWidth = 32;
-        objHeight = 32;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.team = Team.NONE;
-        
-        // Lifetime
-        const wandaShotLife = new LifetimeComponent();
-        wandaShotLife.setTimeUntilDeath(5.0);
-        obj.addComponent(wandaShotLife);
-        
-        // Movement
-        const wandaShotMove = new MovementComponent();
-        obj.addComponent(wandaShotMove);
-        
-        // Dynamic collision
-        const wandaShotCollision = new DynamicCollisionComponent();
-        const wandaShotAttack = new SphereCollisionVolume(16, 16, 16, HitType.HIT);
-        wandaShotCollision.setCollisionVolumes([wandaShotAttack], null);
-        obj.addComponent(wandaShotCollision);
-        
-        // Hit reaction
-        const wandaShotHitReact = new HitReactionComponent({
-          dieOnAttack: true
-        });
-        wandaShotCollision.setHitReactionComponent(wandaShotHitReact);
-        obj.addComponent(wandaShotHitReact);
+        const kinds: Record<number, ProjectileKind> = {
+          [GameObjectTypeIndex.CANNON_BALL]: 'cannon_ball',
+          [GameObjectTypeIndex.TURRET_BULLET]: 'turret_bullet',
+          [GameObjectTypeIndex.BROBOT_BULLET]: 'brobot_bullet',
+          [GameObjectTypeIndex.ENERGY_BALL]: 'energy_ball',
+          [GameObjectTypeIndex.WANDA_SHOT]: 'wanda_shot',
+        };
+        configureProjectile(obj, kinds[spawn.type]);
+        objWidth = obj.width;
+        objHeight = obj.height;
         break;
       }
 
@@ -2808,7 +2438,8 @@ export class LevelSystem {
     const current = this.levels.get(this.currentLevelId);
     if (!current) return [];
     
-    const group = levelTree[current.groupIndex];
+    const tree = this.isLinearMode ? linearLevelTree : levelTree;
+    const group = tree[current.groupIndex];
     const unlockedLevels: number[] = [];
     
     for (const level of group.levels) {
@@ -2822,6 +2453,23 @@ export class LevelSystem {
     }
     
     return unlockedLevels;
+  }
+
+  /** Android advances past non-restartable story scenes after player death. */
+  shouldRestartOnDeath(): boolean {
+    return this.levels.get(this.currentLevelId)?.restartable !== false;
+  }
+
+  /** Original AndouKun offers a choice before flashbacks and multi-level groups. */
+  shouldShowLevelSelect(levelId: number): boolean {
+    // Linear mode has its own metadata: story flashbacks become present-day
+    // singleton groups, so consulting LevelInfo's story flags would be wrong.
+    const tree = this.isLinearMode ? linearLevelTree : levelTree;
+    for (const group of tree) {
+      const level = group.levels.find(entry => resourceToLevelId[entry.resource] === levelId);
+      if (level) return level.inThePast || group.levels.length > 1;
+    }
+    return false;
   }
 
   /**
@@ -2890,7 +2538,7 @@ export class LevelSystem {
   loadLevelProgress(): void {
     // Sync internal levels map with Zustand store
     for (const [id, levelInfo] of this.levels) {
-      levelInfo.unlocked = isLevelUnlocked(id);
+      levelInfo.unlocked = this.isLinearMode || isLevelUnlocked(id);
     }
   }
 

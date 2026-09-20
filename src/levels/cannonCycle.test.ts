@@ -77,11 +77,12 @@ test('loaded objects follow the launcher base, including different-height and mo
   }
 });
 
-test('real cannon contact hides and freezes Andou until firing, then restores movement and hitboxes', async () => {
+test.each([false, true])('real cannon contact hides and freezes Andou until firing, then restores movement and hitboxes (glow=%s)', async (glowing) => {
   const { cannon, player, time, collision, level } = await encounter('level_3_3_sewer');
   const input = new InputSystem();
   const component = player.getComponent(PlayerComponent)!;
   component.setSystems(input, collision, new SoundSystem(), level);
+  if (glowing) component.activateGlow(15);
   const objects = new GameObjectCollisionSystem();
   sSystemRegistry.gameObjectCollisionSystem = objects;
   const playerSprite = player.getComponent(SpriteComponent)!;

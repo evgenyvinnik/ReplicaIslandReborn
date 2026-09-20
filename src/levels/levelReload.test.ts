@@ -28,6 +28,8 @@ import { DifficultySettings, useGameStore } from '../stores/useGameStore';
 import { PlayerComponent } from '../entities/components/PlayerComponent';
 import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem } from '../engine/SoundSystem';
+import { getInventory, setInventory } from '../entities/components/InventoryComponent';
+import { recordLevelResult } from './levelResult';
 
 const pub = join(import.meta.dir, '../../public');
 const originalFetch = globalThis.fetch;
@@ -43,15 +45,16 @@ beforeAll(() => {
 });
 afterAll(() => { globalThis.fetch = originalFetch; });
 
-test('successful retries record attempts and refill the new player with difficulty assistance', async () => {
-  const savedProgress = useGameStore.getState().progress;
+test.each(['baby', 'kids', 'adults'] as const)('successful retries synchronize player health and results with %s assistance', async difficultyName => {
+  const saved = useGameStore.getState();
+  const savedInventory = getInventory();
   const levelId = resourceToLevelId.level_0_2_lab;
-  useGameStore.setState({ progress: { ...savedProgress, levels: {} } });
+  useGameStore.setState({ progress: { ...saved.progress, levels: {} } });
   sSystemRegistry.reset();
   const manager = new GameObjectManager();
   const levels = new LevelSystem();
   levels.setSystems(new CollisionSystem(), manager, new HotSpotSystem());
-  const difficulty = DifficultySettings.kids;
+  const difficulty = DifficultySettings[difficultyName];
   levels.setPlayerMaxLife(difficulty.playerMaxLife);
   try {
     for (let attempt = 1; attempt <= difficulty.ddaStage2Attempts + 1; attempt++) {
@@ -63,6 +66,12 @@ test('successful retries record attempts and refill the new player with difficul
       expect(useGameStore.getState().progress.levels[levelId].timesPlayed).toBe(attempt);
       expect(manager.getPlayer()!.life).toBe(difficulty.playerMaxLife + boost);
       expect(manager.getPlayer()!.maxLife).toBe(difficulty.playerMaxLife + boost);
+      expect(getInventory().lives).toBe(manager.getPlayer()!.life);
+      // The result's life bonus must use the untouched spawned health, not
+      // the loader's default three lives or a previous attempt's death.
+      recordLevelResult(levelId, getInventory(), attempt);
+      expect(useGameStore.getState().progress.levels[levelId].bestScore)
+        .toBe(manager.getPlayer()!.life * 1000);
       const player = manager.getPlayer()!;
       const component = player.getComponent(PlayerComponent)!;
       component.setSystems(new InputSystem(), new CollisionSystem(), new SoundSystem(), levels);
@@ -80,10 +89,12 @@ test('successful retries record attempts and refill the new player with difficul
     startLevelAttempt(nextId, manager, difficulty);
     expect(useGameStore.getState().progress.levels[nextId].timesPlayed).toBe(1);
     expect(manager.getPlayer()!.life).toBe(difficulty.playerMaxLife);
+    expect(getInventory().lives).toBe(difficulty.playerMaxLife);
   } finally {
     levels.dispose();
     sSystemRegistry.reset();
-    useGameStore.setState({ progress: savedProgress });
+    useGameStore.setState(saved);
+    setInventory(savedInventory);
   }
 });
 

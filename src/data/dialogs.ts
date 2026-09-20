@@ -360,13 +360,13 @@ export const LevelDialogs: Record<string, Dialog> = {
     ],
   },
 
-  // World 2 Level 9: Kyle and Wanda
+  // World 2 Level 9: Kyle (character 2; Wanda has her own script above)
   'level_2_9_dialog_kyle': {
     conversations: [
       {
         pages: [
-          page('Wanda', 'Wanda_2_9_1_1', 'wanda_smile'),
-          page('Wanda', 'Wanda_2_9_1_2', 'wanda_happy'),
+          page('Kyle', 'Kyle_2_9_1_1', 'kyle_closeup_noglasses'),
+          page('Kyle', 'Kyle_2_9_1_2', 'kyle_closeup_neutral'),
         ],
       },
     ],
@@ -644,7 +644,7 @@ export function getCharacterName(character: Character): string {
  * Each level resource explicitly maps to character1 and optionally character2 dialogs
  * The order matters: character1 is index 0, character2 is index 1
  */
-const LevelDialogMapping: Record<string, string[]> = {
+const LevelDialogMapping: Record<string, Array<string | undefined>> = {
   // Tutorial levels
   'level_0_1_sewer': ['level_0_1_dialog_wanda'],
   'level_0_2_lab': ['level_0_2_dialog_kabocha', 'level_0_2_dialog_kabocha_2'],  // character1 + character2
@@ -683,7 +683,7 @@ const LevelDialogMapping: Record<string, string[]> = {
   'level_4_1_underground': ['level_4_1_dialog_wanda', 'level_4_1_dialog_rokudou'],
   'level_4_2_underground': ['level_4_2_dialog_wanda'],
   'level_4_3_underground': ['level_4_3_dialog_kabocha'],
-  'level_4_4_underground': ['level_4_4_dialog_rokudou'],  // Only character2 in original
+  'level_4_4_underground': [undefined, 'level_4_4_dialog_rokudou'],
   'level_4_5_underground': ['level_4_5_dialog_wanda'],
   'level_4_7_underground': ['level_4_7_dialog_wanda', 'level_4_7_dialog_rokudou'],
   'level_4_9_underground': ['level_4_9_dialog_wanda'],
@@ -694,23 +694,13 @@ const LevelDialogMapping: Record<string, string[]> = {
 
 // Get all dialogs for a level (may have multiple characters)
 // Returns dialogs in order: character1 at index 0, character2 at index 1
-export function getDialogsForLevel(levelId: string): Dialog[] {
-  const dialogs: Dialog[] = [];
-  
+export function getDialogsForLevel(levelId: string): Array<Dialog | undefined> {
   // Clean the level ID - remove .bin/.json extension and normalize
   const cleanId = levelId.replace(/\.(bin|json)$/, '');
   
   // Look up the explicit dialog mapping for this level
   const dialogKeys = LevelDialogMapping[cleanId];
   
-  if (dialogKeys) {
-    for (const key of dialogKeys) {
-      const dialog = LevelDialogs[key];
-      if (dialog) {
-        dialogs.push(dialog);
-      }
-    }
-  }
-  
-  return dialogs;
+  // Preserve empty slots: character-2-only terminals must not shift into slot 1.
+  return dialogKeys?.map(key => key === undefined ? undefined : LevelDialogs[key]) ?? [];
 }

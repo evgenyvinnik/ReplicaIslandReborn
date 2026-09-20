@@ -1,15 +1,16 @@
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8">
-<title>Web tutorial control verification</title>
+<title>Dialog and web tutorial verification</title>
 <style>
   body { background: #202638; color: white; font: 15px system-ui; }
   button { padding: 8px; margin: 4px; }
   canvas { display: block; width: min(960px, 92vw, calc((100vh - 130px) * 1.5)); aspect-ratio: 3 / 2; }
 </style>
-<p>Actual tutorial pages and CanvasDialog renderer. No save or game state. Click a page below; Enter advances.</p>
+<p>Actual dialog pages and CanvasDialog renderer. No save or game state. Click a script below; Enter advances.</p>
 <button id="movement">Movement</button><button id="flight">Flight</button>
 <button id="stomp">Stomp</button><button id="possession">Possession</button>
+<button id="grass-kyle">Grass 2-9: Kyle</button><button id="grass-wanda">Grass 2-9: Wanda</button>
 <p id="status" role="status">Choose a tutorial</p>
 <canvas width="480" height="320"></canvas>
 <script type="module">
@@ -23,12 +24,14 @@
     flight: [lab.conversations[1].pages[1]],
     stomp: [lab.conversations[4].pages[2]],
     possession: LevelDialogs.level_0_3_dialog_kabocha.conversations[1].pages,
+    'grass-kyle': LevelDialogs.level_2_9_dialog_kyle.conversations[0].pages,
+    'grass-wanda': LevelDialogs.level_2_9_dialog_wanda.conversations[0].pages,
   };
   for (const [id, pages] of Object.entries(choices)) document.getElementById(id).onclick = () => {
     dialog.hide();
     const close = () => { document.querySelector('#status').textContent = `${id}: complete`; };
     dialog.show({ conversations: [{ pages }] }, close, close);
-    document.querySelector('#status').textContent = `${id}: showing actual tutorial pages`;
+    document.querySelector('#status').textContent = `${id}: showing actual dialog pages`;
   };
   let previous = performance.now();
   function frame(now) {

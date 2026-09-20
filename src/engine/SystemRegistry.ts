@@ -7,6 +7,7 @@
 
 import type { InputSystem } from './InputSystem';
 import type { SoundSystem } from './SoundSystem';
+import type { VibrationSystem } from './VibrationSystem';
 import type { CameraSystem } from './CameraSystem';
 import type { CollisionSystem } from './CollisionSystemNew';
 import type { GameObjectCollisionSystem } from './GameObjectCollisionSystem';
@@ -30,6 +31,7 @@ export class SystemRegistry {
   // Core systems
   public inputSystem: InputSystem | null = null;
   public soundSystem: SoundSystem | null = null;
+  public vibrationSystem: VibrationSystem | null = null;
   public cameraSystem: CameraSystem | null = null;
   public collisionSystem: CollisionSystem | null = null;
   public gameObjectCollisionSystem: GameObjectCollisionSystem | null = null;
@@ -56,6 +58,7 @@ export class SystemRegistry {
   reset(): void {
     this.inputSystem = null;
     this.soundSystem = null;
+    this.vibrationSystem = null;
     this.cameraSystem = null;
     this.collisionSystem = null;
     this.gameObjectCollisionSystem = null;
@@ -82,6 +85,9 @@ export class SystemRegistry {
         break;
       case 'sound':
         this.soundSystem = system as unknown as SoundSystem;
+        break;
+      case 'vibration':
+        this.vibrationSystem = system as unknown as VibrationSystem;
         break;
       case 'camera':
         this.cameraSystem = system as unknown as CameraSystem;

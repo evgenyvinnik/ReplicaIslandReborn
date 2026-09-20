@@ -9,6 +9,7 @@ import type { GameObject } from '../GameObject';
 import type { CollisionSystem } from '../../engine/CollisionSystemNew';
 import { CollisionResponseComponent } from './CollisionResponseComponent';
 import { Interpolator } from '../../utils/Interpolator';
+import { BackgroundCollisionComponent } from './BackgroundCollisionComponent';
 
 /**
  * Original SimplePhysics reflects only velocity directed into the surface.
@@ -22,6 +23,7 @@ function reflectVelocity(velocity: number, normal: number, bounciness: number): 
 
 export class MovementComponent extends GameComponent {
   private readonly interpolator = new Interpolator();
+  private readonly backgroundCollision = new BackgroundCollisionComponent();
   /** Background collision box; null means use the object's full size. */
   private boxWidth: number | null = null;
   private boxHeight: number | null = null;
@@ -109,6 +111,11 @@ export class MovementComponent extends GameComponent {
     // An animation owns position only; interpolation and impulses still advance.
     if (parent.positionLocked) return;
 
+    if (this.collisionSystem?.isCollisionDataLoaded()) {
+      this.moveSwept(parent, displacementX, displacementY);
+      return;
+    }
+
     // Fast orbs can cross more than a tile in one frame. Keep tile probes close
     // enough to see narrow walls, without applying steering/impulses twice.
     const steps = this.collisionSystem
@@ -125,6 +132,56 @@ export class MovementComponent extends GameComponent {
       if (collidedAxes & 1) stepX = velocity.x * stepTime;
       if (collidedAxes & 2) stepY = velocity.y * stepTime;
     }
+  }
+
+  private moveSwept(parent: GameObject, dx: number, dy: number): void {
+    const collision = this.collisionSystem!;
+    const position = parent.getPosition();
+    const velocity = parent.getVelocity();
+    const width = this.boxWidth ?? parent.width;
+    const height = this.boxHeight ?? parent.height;
+    const offsetX = this.boxWidth === null ? 0 : this.boxOffsetX;
+    const offsetY = this.boxHeight === null ? 0 : this.boxOffsetY;
+    const startX = position.x, startY = position.y;
+    const response = this.backgroundCollision;
+    response.setCollisionSystem(collision);
+    response.setSize(width, height);
+    response.setOffset(offsetX, offsetY);
+    response.setPreviousPosition(position);
+    position.x += dx;
+    position.y += dy;
+    response.update(0, parent);
+    const horizontal = response.getHorizontalHitNormal();
+    const vertical = response.getVerticalHitNormal();
+
+    // Preserve full-box contacts with moving/temporary objects, including a
+    // shallow overlap that the original center-line approximation cannot see.
+    const wall = collision.sweepTemporaryBox(startX + offsetX, startY + offsetY,
+      width, height, dx, 0, parent);
+    if (wall && (dx > 0 ? position.x + offsetX >= wall.x : position.x + offsetX <= wall.x)) {
+      position.x = wall.x - offsetX;
+      horizontal.set(wall.normalX, wall.normalY);
+      if (wall.normalX > 0) parent.setLastTouchedLeftWallTime(parent.getGameTime());
+      else parent.setLastTouchedRightWallTime(parent.getGameTime());
+    }
+    const floor = collision.sweepTemporaryBox(position.x + offsetX, startY + offsetY,
+      width, height, 0, dy, parent);
+    if (floor && (dy > 0 ? position.y + offsetY >= floor.y : position.y + offsetY <= floor.y)) {
+      position.y = floor.y - offsetY;
+      vertical.set(floor.normalX, floor.normalY);
+      if (floor.normalY < 0) parent.setLastTouchedFloorTime(parent.getGameTime());
+      else parent.setLastTouchedCeilingTime(parent.getGameTime());
+    }
+
+    // SimplePhysics responds once to this frame's contacts; it does not spend
+    // leftover substeps moving away after impact. Possession can swap the
+    // restitution while retaining this same MovementComponent instance.
+    const bounciness = parent.getComponent(
+      CollisionResponseComponent as unknown as new (...args: unknown[]) => CollisionResponseComponent
+    )?.bounciness ?? this.bounciness;
+    velocity.x = reflectVelocity(velocity.x, horizontal.x, bounciness);
+    velocity.y = reflectVelocity(velocity.y, vertical.y, bounciness);
+    parent.getBackgroundCollisionNormal().set(horizontal).add(vertical).normalize();
   }
 
   private move(deltaTime: number, parent: GameObject, displacementX: number, displacementY: number): number {
@@ -262,6 +319,7 @@ export class MovementComponent extends GameComponent {
    * Reset component
    */
   reset(): void {
+    this.backgroundCollision.reset();
     this.collisionSystem = null;
     this.boxWidth = null;
     this.boxHeight = null;

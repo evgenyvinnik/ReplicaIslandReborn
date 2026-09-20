@@ -35,12 +35,144 @@ import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent } from '../entities/components/PlayerComponent';
 import { SolidSurfaceComponent, setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
+import { DoorAnimation, DoorAnimationComponent } from '../entities/components/DoorAnimationComponent';
 import { HitType } from '../types';
 import type { GameObject } from '../entities/GameObject';
 
 const pub = join(import.meta.dir, '../../public');
 const originalFetch = globalThis.fetch;
 const FRAME = 1 / 60;
+
+test('all campaign gate variants display each opening and closing frame', async () => {
+  const variants = new Set<string>();
+  for (const resource of new Set(linearLevelTree.flatMap(group => group.levels.map(entry => entry.resource)))) {
+    const rig = await load(resource);
+    if (!rig) continue;
+    for (const door of allOfType(rig, object => object.type === 'door')) {
+      variants.add(door.subType);
+      const color = door.subType.replace('_nonblocking', '');
+      const sprite = door.getComponent(SpriteComponent)!;
+      for (const [animation, frames] of [
+        [DoorAnimation.CLOSED, ['01']], [DoorAnimation.OPEN, ['04']],
+        [DoorAnimation.OPENING, ['02', '03']], [DoorAnimation.CLOSING, ['03', '02']],
+      ] as const) {
+        sprite.playAnimation(animation);
+        let elapsed = 0;
+        for (const [index, image] of frames.entries()) {
+          sprite.setCurrentAnimationTime(elapsed);
+          expect(sprite.getCurrentDraw()?.sprite, `${resource}: ${door.subType}`)
+            .toBe(`object_door_${color}${image}`);
+          sprite.update(0, door);
+          const collision = door.getComponent(DynamicCollisionComponent);
+          expect(collision, door.subType).not.toBeNull();
+          const attacks = collision!.getAttackVolumes();
+          if (animation === DoorAnimation.CLOSING && index === 1) {
+            expect(attacks).toHaveLength(1);
+            expect(attacks![0].getHitType()).toBe(HitType.DEATH);
+            expect([attacks![0].getMinXPosition(null), attacks![0].getMinYPosition(null),
+              attacks![0].getMaxXPosition(null), attacks![0].getMaxYPosition(null)])
+              .toEqual([12, 0, 20, 56]);
+          } else {
+            expect(attacks).toBeNull();
+          }
+          elapsed += sprite.findAnimation(animation)!.frames[index].duration;
+        }
+      }
+      expect(door.getComponents().some(component => component instanceof SolidSurfaceComponent))
+        .toBe(!door.subType.endsWith('_nonblocking'));
+      // A button can reverse the deadly closing frame: no stale crush box.
+      sprite.playAnimation(DoorAnimation.OPENING);
+      sprite.update(0, door);
+      expect(door.getComponent(DynamicCollisionComponent)!.getAttackVolumes()).toBeNull();
+    }
+  }
+  expect([...variants].sort()).toEqual(['blue', 'blue_nonblocking', 'green', 'green_nonblocking', 'red', 'red_nonblocking']);
+}, 180_000);
+
+test.each([[true, false], [false, false], [true, true]])('lab gate closing around Andou (crush frame: %s, glow: %s)', async (crushEnabled, glowing) => {
+  const rig = (await load('level_0_2_lab'))!;
+  const door = rig.manager.getActiveObjects().find(object => object.type === 'door')!;
+  const player = rig.manager.getPlayer()!;
+  const sprite = door.getComponent(SpriteComponent)!;
+  if (!crushEnabled) {
+    // Negative control recreates the missing port behavior without changing
+    // the live implementation: the same body remains alive inside the gate.
+    sprite.findAnimation(DoorAnimation.CLOSING)!.frames[1].attackVolumes = null;
+  }
+  const channel = rig.channels.registerChannel(`${door.subType.toUpperCase()} BUTTON`)!;
+  channel.value = { value: rig.time.getGameTime() };
+  const playerComponent = player.getComponent(PlayerComponent)!;
+  playerComponent.setSystems(sSystemRegistry.inputSystem!, rig.collision,
+    sSystemRegistry.soundSystem!, rig.levelSystem);
+  if (glowing) playerComponent.activateGlow(15);
+  playerComponent.update(0, player); // Select the real normal-player animation.
+  player.setPosition(door.getPosition().x, door.getPosition().y + door.height - player.height);
+  player.life = 3;
+  // Keep the actor inside the gate to isolate the authored closing collision,
+  // using the real player volumes/reaction, not direct receivedHit() calls.
+  player.getComponent(SpriteComponent)!.update(0, player);
+  expect(player.getComponent(DynamicCollisionComponent)!.getVulnerabilityVolumes()?.length)
+    .toBeGreaterThan(0);
+  let sawHarmlessClosing = false;
+  let deathFrame: string | undefined;
+  for (let i = 0; i < 330; i++) {
+    rig.time.update(FRAME);
+    door.update(FRAME, rig.time.getGameTime());
+    player.getComponent(DynamicCollisionComponent)!.update(FRAME, player);
+    rig.oc.update(FRAME);
+    if (sprite.getCurrentAnimationIndex() === DoorAnimation.CLOSING &&
+        sprite.getCurrentDraw()?.sprite.endsWith('03')) {
+      sawHarmlessClosing = true;
+      expect(player.life).toBe(3);
+    }
+    if (player.life === 0) {
+      deathFrame = sprite.getCurrentDraw()?.sprite;
+      break;
+    }
+  }
+  expect(sawHarmlessClosing).toBe(true);
+  expect(player.life).toBe(crushEnabled ? 0 : 3);
+  if (crushEnabled) {
+    expect(player.lastReceivedHitType).toBe(HitType.DEATH);
+    expect(deathFrame).toBe(`object_door_${door.subType}02`);
+  } else {
+    expect(sprite.getCurrentAnimationIndex()).toBe(DoorAnimation.CLOSED);
+    expect(door.getComponents().some(component => component instanceof SolidSurfaceComponent)).toBe(true);
+  }
+});
+
+test('a real gate reverses smoothly when its button is pressed during closing', async () => {
+  const rig = (await load('level_0_2_lab'))!;
+  expect(rig).not.toBeNull();
+  const door = allOfType(rig, object => object.type === 'door')[0];
+  expect(door).toBeDefined();
+  const sprite = door.getComponent(SpriteComponent)!;
+  const animation = door.getComponents().find(
+    (component): component is DoorAnimationComponent => component instanceof DoorAnimationComponent
+  )!;
+  const channel = rig.channels.registerChannel(`${door.subType.toUpperCase()} BUTTON`)!;
+  channel.value = { value: rig.time.getGameTime() };
+  animation.update(0, door);
+  sprite.update(0.2, door);
+  animation.update(0, door);
+  expect(sprite.getCurrentAnimationIndex()).toBe(DoorAnimation.OPEN);
+  rig.time.update(5.001);
+  animation.update(0, door);
+  sprite.update(0.119, door);
+  expect(sprite.getCurrentDraw()?.sprite).toBe(`object_door_${door.subType}02`);
+  channel.value = { value: rig.time.getGameTime() };
+  animation.update(0, door);
+  const length = sprite.findAnimation(DoorAnimation.OPENING)!.frames.reduce((sum, frame) => sum + frame.duration, 0);
+  expect(sprite.getCurrentAnimationTime()).toBeCloseTo(length - 0.12);
+  expect(sprite.getCurrentDraw()?.sprite).toBe(`object_door_${door.subType}02`);
+  expect(animation.isSolidSurfaceEnabled()).toBe(false);
+  sprite.update(0.11, door);
+  expect(sprite.animationFinished()).toBe(false);
+  sprite.update(0.01, door);
+  animation.update(0, door);
+  expect(sprite.getCurrentAnimationIndex()).toBe(DoorAnimation.OPEN);
+});
 
 beforeAll(() => {
   globalThis.fetch = (async (i: Parameters<typeof fetch>[0]): Promise<Response> => {
@@ -245,7 +377,10 @@ test('walking over the real lab button animates its gate and allows passage, the
   // floor so the test measures walking/contact, not route-finding/teleport hits.
   const collision = new CollisionSystem();
   expect(await collision.loadCollisionData('/assets/collision.json')).toBe(true);
-  collision.setTileCollision(Array.from({ length: 20 * 12 }, (_, i) => i >= 20 * 10 ? 1 : -1), 20, 12, 32, 32);
+  // Cover the actual world's width: otherwise walking through the gate can
+  // leave this synthetic floor before the return trip and fall into a pit.
+  const columns = Math.ceil(rig.levelSystem.getLevelSize().width / 32);
+  collision.setTileCollision(Array.from({ length: columns * 12 }, (_, i) => i >= columns * 10 ? 1 : -1), columns, 12, 32, 32);
   sSystemRegistry.register(collision, 'collision');
   setSolidSurfaceSystemRegistry(sSystemRegistry);
   const input = sSystemRegistry.inputSystem!;
@@ -281,4 +416,10 @@ test('walking over the real lab button animates its gate and allows passage, the
   expect(door.getComponent(SpriteComponent)!.getCurrentDraw()!.sprite)
     .toBe(`object_door_${door.subType}01`);
   expect(door.getComponents().some((component) => component instanceof SolidSurfaceComponent)).toBe(true);
+  input.setVirtualAxis('horizontal', -1);
+  // The complete floor permits the full coast after passage; allow enough
+  // time to return from that stopping point, then keep pushing on the gate.
+  for (let i = 0; i < 120; i++) frame();
+  expect(player.getPosition().x).toBe(352); // Reclosed gate blocks from the other side too.
+  expect(player.life).toBeGreaterThan(0); // Standing beside the gate is not a crush.
 });

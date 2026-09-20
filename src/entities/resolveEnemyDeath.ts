@@ -2,6 +2,7 @@ import type { GameObject } from './GameObject';
 import { GameObjectType } from './GameObjectFactory';
 import { NPCComponent } from './components/NPCComponent';
 import { PlayerComponent } from './components/PlayerComponent';
+import { GhostComponent } from './components/GhostComponent';
 import { getInventory, setInventory } from './components/InventoryComponent';
 import { useGameStore } from '../stores/useGameStore';
 import { sSystemRegistry, type SystemRegistry } from '../engine/SystemRegistry';
@@ -43,5 +44,14 @@ export function resolveEnemyDeath(enemy: GameObject, registry: SystemRegistry = 
   // Preserve the web port's score award; count released brobots as destroyed too.
   setInventory({ score: getInventory().score + 25 });
   useGameStore.getState().recordEnemyDefeat();
+
+  // Collision outcomes run before the next GhostComponent update. A killed
+  // controlled body must return control now, before reclamation removes that
+  // component and Game mistakes the still-frozen player for a new orb charge.
+  // Marking/awarding above also makes releaseControl's death callback idempotent.
+  const possession = enemy.getComponent(
+    GhostComponent as unknown as new (...args: unknown[]) => GhostComponent
+  );
+  if (possession && !possession.isReleased()) possession.releaseControl(enemy);
   return true;
 }

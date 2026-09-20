@@ -7,12 +7,11 @@
  *    PlayerComponent checks before gotoWin();
  *  - an NPC walking onto an END_LEVEL or GAME_EVENT hot spot, which is how the
  *    scripted/cutscene levels end;
- *  - killing a boss, which posts a SHOW_ANIMATION ending instead.
+ *  - killing a boss, which posts a SHOW_ANIMATION ending instead;
+ *  - player death in an authored non-restartable scene (Kyle's sewer).
  *
- * A level with none of those is a dead end - the player reaches it and can
- * never leave. This is the check that would have caught "the game is
- * unplayable" directly, so it reads the shipped level data rather than trusting
- * any code path.
+ * This checks for a candidate exit, not route reachability or successful
+ * runtime dispatch. Integration tests cover those separate behaviors.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -73,9 +72,14 @@ describe('every reachable level can be finished', () => {
       const rubies = objects.filter((type) => type === GameObjectTypeIndex.RUBY).length;
       const hasBoss = objects.some((type) => BOSS_TYPES.includes(type as never));
       const hasEndingHotSpot = hotSpots.some((type) => ENDING_HOT_SPOTS.includes(type as never));
+      const entries = [...levelTree, ...linearLevelTree].flatMap(group => group.levels)
+        .filter(entry => entry.resource === resource);
+      // deathProgression.test verifies the real level policy and Game wiring.
+      const advancesOnDeath = objects.includes(GameObjectTypeIndex.PLAYER) &&
+        entries.length > 0 && entries.every(entry => entry.restartable === false);
 
       // MAX_GEMS_PER_LEVEL is 3; fewer rubies than that can never trigger a win.
-      if (rubies < 3 && !hasBoss && !hasEndingHotSpot) {
+      if (rubies < 3 && !hasBoss && !hasEndingHotSpot && !advancesOnDeath) {
         deadEnds.push(`${resource} (rubies=${rubies})`);
       }
     }

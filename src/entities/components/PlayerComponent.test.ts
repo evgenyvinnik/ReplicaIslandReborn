@@ -99,4 +99,45 @@ describe('PlayerComponent play controls', () => {
     expect(component.stomping).toBe(false);
     expect(component.currentState).toBe(PlayerState.MOVE);
   });
+
+  test('stomp entry and its first state update hold position before the downward stroke', () => {
+    const { input, player, component } = makePlayer();
+    player.setPosition(400, 400);
+    player.getVelocity().set(120, -200);
+    player.getImpulse().set(80, -60);
+    input.setVirtualButton('stomp', true);
+    for (let frame = 0; frame < 2; frame++) {
+      player.setGameTime(1 + frame / 60);
+      component.update(1 / 60, player);
+      expect(component.currentState).toBe(PlayerState.STOMP);
+      expect([player.getPosition().x, player.getPosition().y]).toEqual([400, 400]);
+      expect(player.getVelocity().x).toBe(0);
+      // Android keeps applying physics while MovementComponent locks position.
+      expect(player.getVelocity().y).toBeCloseTo((frame + 1) * PlayerComponent.GRAVITY / 60);
+      expect([player.getImpulse().x, player.getImpulse().y]).toEqual([0, 0]);
+    }
+    player.setGameTime(1 + 2 / 60);
+    component.update(1 / 60, player);
+    expect(player.getVelocity().y).toBeCloseTo(PlayerComponent.STOMP_VELOCITY + PlayerComponent.GRAVITY / 60);
+    expect(player.getPosition().y).toBeGreaterThan(400);
+  });
+
+  for (const fps of [30, 60, 120]) {
+    test(`stomp reapplies its downward speed every update at ${fps} Hz`, () => {
+      const { input, player, component } = makePlayer();
+      player.setPosition(400, 400);
+      input.setVirtualButton('stomp', true);
+      const dt = 1 / fps;
+      for (let frame = 0; frame < fps + 2; frame++) {
+        player.setGameTime(1 + frame * dt);
+        component.update(dt, player);
+        if (frame >= 2) {
+          expect(player.getVelocity().y).toBeCloseTo(PlayerComponent.STOMP_VELOCITY + PlayerComponent.GRAVITY * dt);
+          expect(player.getVelocity().x).toBe(0);
+        }
+      }
+      expect(component.currentState).toBe(PlayerState.STOMP);
+      expect(player.getPosition().y).toBeCloseTo(400 + PlayerComponent.STOMP_VELOCITY + PlayerComponent.GRAVITY * dt);
+    });
+  }
 });

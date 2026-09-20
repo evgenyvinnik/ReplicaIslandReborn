@@ -51,13 +51,11 @@ function scene(): { player: GameObject; control: PlayerComponent; sprite: Sprite
   return { player, control, sprite, collision, reaction, manager, sounds, draws, input, world };
 }
 
-test('all ordinary death frames clear attacks and vulnerability, including the glow set', () => {
-  for (const glowing of [false, true]) {
-    const frames = createPlayerAnimations(glowing).get('dead')!.frames;
-    expect(frames).toHaveLength(16);
-    for (const frame of frames) {
-      expect(frame.attackVolumes).toBeNull(); expect(frame.vulnerabilityVolumes).toBeNull();
-    }
+test('all ordinary death frames clear attacks and vulnerability', () => {
+  const frames = createPlayerAnimations().get('dead')!.frames;
+  expect(frames).toHaveLength(16);
+  for (const frame of frames) {
+    expect(frame.attackVolumes).toBeNull(); expect(frame.vulnerabilityVolumes).toBeNull();
   }
 });
 

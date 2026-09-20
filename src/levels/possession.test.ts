@@ -184,12 +184,14 @@ test('the ghost survives long enough to be steered anywhere', async () => {
 }, 30_000);
 
 test('a grounded player can charge and steer an orb into a shipped ceiling turret', async () => {
-  const rig = await loadLevel('level_3_3_sewer');
+  const rig = await loadLevel('level_4_4_underground');
   const player = rig.manager.getPlayer()!;
   const component = player.getComponent(PlayerComponent)!;
   component.setSystems(rig.input, rig.collision, rig.sound, rig.levelSystem);
-  // Existing floor at y256, below the unchanged ceiling-mounted turrets.
-  player.setPosition(1280, 256 - player.height);
+  // This authored turret hangs into open air below the ceiling at y96.
+  // The previous sewer setup used turrets completely inside solid tiles and
+  // only passed because endpoint tile checks allowed the orb into the wall.
+  player.setPosition(5440, 320 - player.height);
   rig.camera.setTarget(player);
   rig.camera.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
   const tick = (): void => {
@@ -238,6 +240,38 @@ test('a grounded player can charge and steer an orb into a shipped ceiling turre
   tick();
   expect(sprite.getCurrentDraw()).not.toBeNull();
   expect(body.getVulnerabilityVolumes()).not.toBeNull();
+});
+
+test('the orb cannot possess a sewer turret through its authored solid ceiling', async () => {
+  const rig = await loadLevel('level_3_3_sewer');
+  const player = rig.manager.getPlayer()!;
+  const control = player.getComponent(PlayerComponent)!;
+  control.setSystems(rig.input, rig.collision, rig.sound, rig.levelSystem);
+  player.setPosition(1280, 256 - player.height);
+  rig.camera.setTarget(player);
+  rig.camera.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
+  const tick = (): void => {
+    rig.time.update(FRAME);
+    rig.manager.update(FRAME, rig.time.getGameTime());
+    rig.collision.updateTemporarySurfaces();
+    rig.oc.update(FRAME);
+  };
+  for (let frame = 0; frame < 30; frame++) tick();
+  rig.input.setVirtualButton('attack', true);
+  for (let frame = 0; frame < 90 && !control.ghostActive; frame++) tick();
+  expect(control.ghostActive).toBe(true);
+  const turrets = rig.manager.getActiveObjects().filter(object => object.subType === 'turret');
+  expect(turrets.length).toBeGreaterThan(0);
+  for (const turret of turrets) expect(turret.getPosition().y + turret.height).toBe(192);
+  const orb = rig.factory.spawnPlayerGhost(player, 0)!;
+  rig.manager.commitUpdates();
+  rig.input.setVirtualButton('attack', false);
+  rig.input.setVirtualAxis('vertical', -1);
+  for (let frame = 0; frame < 120; frame++) {
+    tick();
+    expect(orb.getPosition().y).toBeGreaterThanOrEqual(192);
+    expect(turrets.some(turret => turret.getComponent(GhostClass))).toBe(false);
+  }
 });
 
 test('brobots release on death and turrets support repeated possession and release', async () => {

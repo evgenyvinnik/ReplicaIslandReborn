@@ -3,6 +3,7 @@ import { CollisionSystem } from '../engine/CollisionSystemNew';
 import { CameraSystem } from '../engine/CameraSystem';
 import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem } from '../engine/SoundSystem';
+import { VibrationSystem } from '../engine/VibrationSystem';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { SortConstants } from '../engine/SortConstants';
 import type { LevelSystem } from '../levels/LevelSystemNew';
@@ -74,6 +75,9 @@ function scene(): {
 test('stomp lands once, shakes for 0.15s, emits mirrored dust and recovers before accepting input', () => {
   const { player, component, input, manager, camera, factory, frame } = scene();
   const shake = spyOn(camera, 'shake');
+  const vibration = new VibrationSystem();
+  const pulse = spyOn(vibration, 'vibrate').mockImplementation(() => {});
+  sSystemRegistry.register(vibration, 'vibration');
   const draws: Array<{ name: string; scaleX: number; priority: number }> = [];
   factory.setRenderSystem({
     hasSprite: () => true,
@@ -93,6 +97,7 @@ test('stomp lands once, shakes for 0.15s, emits mirrored dust and recovers befor
   expect(component.stompLanded).toBe(true);
   expect(component.currentState).toBe(PlayerState.STOMP);
   expect(shake.mock.calls).toEqual([[15, 0.15]]);
+  expect(pulse.mock.calls).toEqual([[0.05]]);
   const dust = manager.getActiveObjects().filter(object => object.subType === 'dust');
   expect(dust).toHaveLength(2);
   expect(dust.map(object => [object.getPosition().x, object.getPosition().y]))
@@ -111,6 +116,7 @@ test('stomp lands once, shakes for 0.15s, emits mirrored dust and recovers befor
   expect(player.getPosition().x).toBe(160);
   expect(player.getComponent(DynamicCollisionComponent)?.getVulnerabilityVolumes()).toBeNull();
   expect(shake).toHaveBeenCalledTimes(1);
+  expect(pulse).toHaveBeenCalledTimes(1);
   expect(dust.map(object => [object.getPosition().x, object.getPosition().y]))
     .toEqual([[144, 304], [176, 304]]);
   for (let i = 0; i < 6; i++) frame();
@@ -135,14 +141,19 @@ test('stomp lands once, shakes for 0.15s, emits mirrored dust and recovers befor
   for (let i = 0; i < 120 && !component.stompLanded; i++) frame();
   expect(component.stompLanded).toBe(true);
   expect(shake).toHaveBeenCalledTimes(2);
+  expect(pulse).toHaveBeenCalledTimes(2);
   expect(manager.getActiveObjects().filter(object => object.subType === 'dust')).toHaveLength(2);
 });
 
 test('ordinary landings do not emit the stomp effects', () => {
   const { player, manager, camera, frame } = scene();
   const shake = spyOn(camera, 'shake');
+  const vibration = new VibrationSystem();
+  const pulse = spyOn(vibration, 'vibrate').mockImplementation(() => {});
+  sSystemRegistry.register(vibration, 'vibration');
   for (let i = 0; i < 90; i++) frame();
   expect(player.touchingGround()).toBe(true);
   expect(shake).not.toHaveBeenCalled();
+  expect(pulse).not.toHaveBeenCalled();
   expect(manager.getActiveObjects().filter(object => object.subType === 'dust')).toHaveLength(0);
 });

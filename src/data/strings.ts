@@ -267,6 +267,11 @@ export const KyleDialogs: Record<string, string> = {
   'Kyle_2_8_1_1': "You're lucky you caught up to me when I'm in a good mood. Five minutes ago I would have cracked open your top and spit on your insides, but right now I've got more important things to think about. Wanda just told me we've found the entrance.",
   'Kyle_2_8_1_2': "There's a whole structure below us, underground. Looks man-made, though of course it's not. We can see it on the GPR but we've been looking all over for a way in. Some old notebooks we found talked about an entrance to a sewer system, and that's what the radar seems to suggest too. Now we can actually go down there and see it.",
   'Kyle_2_8_1_3': "We're closing in on The Source! I think it's an artifact from an ancient civilization; something based on knowledge that humanity lost a long time ago. We'll find out soon enough. Good luck catching up to us now, robot!",
+  // Level 2-9. The original script selects only these two pages, not the
+  // unused Kyle_2_9_1_3 string also present in Android's resource file.
+  'Kyle_2_9_1_1': "You're pushing your luck, robot. Keep following me and I'll start thinking you're a spy.",
+  'Kyle_2_9_1_2': "The sewer entrance is just ahead. We're getting ready to make the initial descent. My advice to you: stay up here where your chances of getting smashed are slim. We don't know what we're going to find down there, but it's probably not going to be pretty.",
+
   // Narration, shown with no speaker or portrait when Andou finds Kyle's body.
   'KyleDeadNote': "It's Kyle. He's not moving.",
 };

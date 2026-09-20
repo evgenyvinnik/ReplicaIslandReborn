@@ -5,10 +5,8 @@
  * Uses the Web Vibration API for mobile browsers and Gamepad haptic API
  * for controllers that support it.
  * 
- * Note: Vibration is not supported on all browsers/devices:
- * - Mobile Chrome/Firefox: Supported
- * - iOS Safari: NOT supported (Apple restriction)
- * - Desktop browsers: Usually not supported
+ * Device support and permission vary. All haptics are best-effort and must
+ * never interrupt gameplay, including asynchronous controller failures.
  */
 
 export interface VibrationPattern {
@@ -22,19 +20,29 @@ export class VibrationSystem {
   /** Whether vibration is enabled by user */
   private enabled: boolean = true;
   
-  /** Whether the browser supports vibration */
-  private supported: boolean = false;
+  private activeActuators = new Set<globalThis.GamepadHapticActuator>();
+  private deviceActive = false;
 
-  constructor() {
-    this.checkSupport();
+  private getActuators(): globalThis.GamepadHapticActuator[] {
+    try {
+      if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return [];
+      return [...navigator.getGamepads()].flatMap(gamepad => {
+        const actuator = gamepad?.connected ? gamepad.vibrationActuator : undefined;
+        return actuator && typeof actuator.playEffect === 'function' ? [actuator] : [];
+      });
+    } catch {
+      // Gamepad access can be denied by the embedding browser's policy.
+      return [];
+    }
   }
 
-  /**
-   * Check if vibration is supported
-   */
-  private checkSupport(): void {
-    // Check for standard Vibration API
-    this.supported = 'vibrate' in navigator;
+  private vibrateDevice(pattern: number | number[]): void {
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        this.deviceActive = pattern !== 0;
+        navigator.vibrate(pattern);
+      }
+    } catch { /* Optional hardware/permission must not break the game. */ }
   }
 
   /**
@@ -65,7 +73,8 @@ export class VibrationSystem {
    * Check if vibration is supported
    */
   isSupported(): boolean {
-    return this.supported;
+    return (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') ||
+      this.getActuators().length > 0;
   }
 
   /**
@@ -73,18 +82,13 @@ export class VibrationSystem {
    * @param seconds Duration in seconds
    */
   vibrate(seconds: number): void {
-    if (!this.enabled) return;
+    if (!this.enabled || !Number.isFinite(seconds) || seconds < 0) return;
+    if (seconds === 0) { this.stopVibration(); return; }
 
     const ms = Math.round(seconds * 1000);
     
     // Try standard Vibration API
-    if (this.supported) {
-      try {
-        navigator.vibrate(ms);
-      } catch {
-        // Vibration failed, ignore
-      }
-    }
+    this.vibrateDevice(ms);
     
     // Try Gamepad haptic feedback
     this.tryGamepadHaptic(ms / 1000, 1.0);
@@ -106,26 +110,21 @@ export class VibrationSystem {
       }
     }
 
-    if (this.supported) {
-      try {
-        navigator.vibrate(webPattern);
-      } catch {
-        // Vibration pattern failed, ignore
-      }
-    }
+    this.vibrateDevice(webPattern);
   }
 
   /**
    * Stop any ongoing vibration
    */
   stopVibration(): void {
-    if (this.supported) {
+    if (this.deviceActive) this.vibrateDevice(0);
+    this.deviceActive = false;
+    for (const actuator of this.activeActuators) {
       try {
-        navigator.vibrate(0);
-      } catch {
-        // Ignore
-      }
+        void Promise.resolve(actuator.reset?.()).catch(() => {});
+      } catch { /* A disconnected controller may reject cancellation. */ }
     }
+    this.activeActuators.clear();
   }
 
   /**
@@ -175,27 +174,17 @@ export class VibrationSystem {
    * @param intensity 0.0 to 1.0
    */
   private tryGamepadHaptic(duration: number, intensity: number): void {
-    // Get connected gamepads
-    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-    
-    for (const gamepad of gamepads) {
-      if (gamepad) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const hapticGamepad = gamepad as any;
-        if (hapticGamepad.vibrationActuator) {
-          try {
-            // Standard Gamepad Haptic API
-            hapticGamepad.vibrationActuator.playEffect('dual-rumble', {
-              duration: duration * 1000,
-              strongMagnitude: intensity,
-              weakMagnitude: intensity * 0.5,
-            });
-            return;
-          } catch {
-            // Haptic not supported on this gamepad
-          }
-        }
-      }
+    for (const actuator of this.getActuators()) {
+      try {
+        const effect = actuator.playEffect('dual-rumble', {
+          duration: duration * 1000,
+          strongMagnitude: intensity,
+          weakMagnitude: intensity * 0.5,
+        });
+        this.activeActuators.add(actuator);
+        void Promise.resolve(effect).catch(() => {});
+        return;
+      } catch { /* Try another available actuator after a synchronous failure. */ }
     }
   }
 
@@ -203,6 +192,7 @@ export class VibrationSystem {
    * Clean up resources
    */
   destroy(): void {
+    this.enabled = false;
     this.stopVibration();
   }
 }

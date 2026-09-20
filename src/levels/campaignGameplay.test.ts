@@ -37,6 +37,9 @@ import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { NPCAnimation } from '../entities/components/NPCAnimationComponent';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
 import type { GameObject } from '../entities/GameObject';
+import { ScreenFade } from '../engine/ScreenFade';
+import { readFileSync } from 'node:fs';
+import { getDialogsForLevel, LevelDialogs, type Dialog } from '../data/dialogs';
 
 const originalFetch = globalThis.fetch;
 const publicDirectory = join(import.meta.dir, '../../public');
@@ -346,8 +349,14 @@ describe('campaign gameplay simulation', () => {
     harness.run(30);
     expect(player.touchingGround()).toBe(true);
 
-    // Inject top ground speed rather than driving him into whatever geometry
-    // happens to be to the right of his spawn.
+    // Measure ground friction on a genuinely flat surface. The shipped lab
+    // floor slopes down at x=224, inside the 172px stopping distance; treating
+    // those slope tiles as full blocks used to hide this fixture assumption.
+    const columns = Math.ceil(harness.levelSystem.getLevelSize().width / 32);
+    harness.collision.setTileCollision(Array.from({ length: columns * 20 }, (_, i) =>
+      Math.floor(i / columns) >= 16 ? 1 : -1), columns, 20, 32, 32);
+    player.setPosition(96, 16 * 32 - player.height);
+    // Inject top ground speed, keeping the original stopping-time assertions.
     player.getVelocity().x = PlayerComponent.MAX_GROUND_HORIZONTAL_SPEED;
     const startSpeed = player.getVelocity().x;
 
@@ -679,6 +688,35 @@ describe('campaign gameplay simulation', () => {
     expect(events).toHaveLength(1);
   });
 
+  test('underground 36 terminal contact resolves its character-2 conversation once', async () => {
+    const harness = createHarness();
+    expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+    expect(await harness.levelSystem.loadLevel(36)).toBe(true);
+    harness.manager.commitUpdates();
+    const terminal = harness.manager.getActiveObjects().find(object => object.type === 'terminal')!;
+    const player = harness.manager.getPlayer()!;
+    expect(terminal).toBeDefined();
+    const events: Array<{ event: GameFlowEventType; index: number }> = [];
+    const resolved: Array<Dialog | undefined> = [];
+    harness.flow.addListener((event, index) => {
+      events.push({ event, index });
+      const slot = event === GameFlowEventType.SHOW_DIALOG_CHARACTER1 ? 0 : 1;
+      const dialog = getDialogsForLevel(harness.levelSystem.getLevelInfo(36)!.file)[slot];
+      resolved.push(dialog);
+    });
+    // Stage only Andou at the shipped terminal; real volumes dispatch COLLECT.
+    player.setPosition(terminal.getPosition().x, terminal.getPosition().y);
+    player.getVelocity().zero();
+    player.getTargetVelocity().zero();
+    harness.run(2);
+    expect(events).toEqual([{ event: GameFlowEventType.SHOW_DIALOG_CHARACTER2, index: 0 }]);
+    // Assert outside the event callback: dispatch isolates listener exceptions.
+    expect(resolved).toEqual([LevelDialogs.level_4_4_dialog_rokudou]);
+    expect(resolved[0]?.conversations[events[0].index].pages[0].character).toBe('Rokudou');
+    harness.run(120);
+    expect(events).toHaveLength(1);
+  });
+
   test('every shipped story touch target is connected to COLLECT collision', async () => {
     const seen = new Set<string>();
     const unwired: string[] = [];
@@ -719,6 +757,79 @@ describe('campaign gameplay simulation', () => {
     expect([...seen].sort()).toEqual(['kabocha', 'kyle', 'kyle_dead', 'rokudou', 'wanda']);
     expect(unwired).toEqual([]);
   }, 60_000);
+
+  test.each([[31, 'kyle'], [35, 'kabocha']] as const)(
+    'level %i exit belongs to %s dialogue and its delayed fade', async (levelId, character) => {
+      const harness = createHarness();
+      expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+      expect(await harness.levelSystem.loadLevel(levelId)).toBe(true);
+      harness.manager.commitUpdates();
+      const fade = new ScreenFade(() => harness.time.getRealTime());
+      sSystemRegistry.screenFade = fade;
+      const player = harness.manager.getPlayer()!;
+      const npc = harness.manager.getActiveObjects().find(object => object.subType === character)!;
+      const events: Array<{ event: GameFlowEventType; index: number }> = [];
+      harness.flow.addListener((event, index) => events.push({ event, index }));
+      harness.run(180);
+      expect(events).toEqual([]);
+      expect(fade.getOpacity()).toBe(0);
+
+      // Stage contact only; the NPC reads its actual map commands and the
+      // player delivers the ordinary COLLECT collision. No end event is sent.
+      player.setPosition(npc.getPosition().x, npc.getPosition().y + 80);
+      player.getVelocity().zero();
+      player.getTargetVelocity().zero();
+      harness.run(2);
+      expect(events).toEqual([{ event: GameFlowEventType.SHOW_DIALOG_CHARACTER1, index: 0 }]);
+      harness.run(30); // Headless dialogue dismissed; queued END_LEVEL starts fade.
+      fade.update();
+      harness.flow.update();
+      expect(fade.getOpacity()).toBeGreaterThan(0);
+      expect(fade.getOpacity()).toBeLessThan(1);
+      expect(events).toHaveLength(1);
+      harness.run(90);
+      fade.update();
+      harness.flow.update();
+      expect(events).toEqual([
+        { event: GameFlowEventType.SHOW_DIALOG_CHARACTER1, index: 0 },
+        { event: GameFlowEventType.GO_TO_NEXT_LEVEL, index: 0 },
+      ]);
+      fade.update();
+      harness.flow.update();
+      expect(events).toHaveLength(2);
+    }
+  );
+
+  test('Game cannot bypass queued NPC exits by sampling END_LEVEL under the player', () => {
+    const game = readFileSync(new URL('../components/Game.tsx', import.meta.url), 'utf8');
+    expect(/hotSpot\s*===\s*HotSpotType\.END_LEVEL/.test(game)).toBe(false);
+  });
+
+  test('Kyle sewer script waits for contact, opens dialogue and resumes his dash', async () => {
+    const harness = createHarness();
+    expect(await harness.levelSystem.loadLevel(42)).toBe(true);
+    harness.manager.commitUpdates();
+    const player = harness.manager.getPlayer()!;
+    const kyle = harness.manager.getActiveObjects().find(object => object.subType === 'kyle')!;
+    const events: Array<{ event: GameFlowEventType; index: number }> = [];
+    harness.flow.addListener((event, index) => events.push({ event, index }));
+
+    // Kyle falls through TALK and RUN_QUEUED_COMMANDS in the shipped map.
+    // The queue must wait for contact; simply loading the scene cannot end it.
+    harness.run(180);
+    expect(events).toEqual([]);
+    const waitingX = kyle.getPosition().x;
+    expect(kyle.getVelocity().x).toBe(0);
+    player.setPosition(waitingX, kyle.getPosition().y + 80);
+    player.getVelocity().zero();
+    player.getTargetVelocity().zero();
+    harness.run(2);
+    expect(events).toEqual([{ event: GameFlowEventType.SHOW_DIALOG_CHARACTER1, index: 0 }]);
+    // Headless dialogue has no modal renderer, so normal frame updates resume.
+    harness.run(60);
+    expect(kyle.getPosition().x).toBeGreaterThan(waitingX + 50);
+    expect(events).toHaveLength(1);
+  });
 
   test('Kyle dash frames hit and launch Andou with the original flash', async () => {
     const harness = createHarness();
@@ -986,6 +1097,8 @@ describe('campaign gameplay simulation', () => {
     harness.run(2);
 
     expect(component.currentState).toBe(PlayerState.STOMP);
+    expect(player.getVelocity().y).toBeCloseTo(PlayerComponent.GRAVITY * 2 / 60);
+    harness.run(1); // gotoStomp, timer initialization, then the downward stroke.
     expect(player.getVelocity().y).toBeGreaterThan(0);
   });
 });

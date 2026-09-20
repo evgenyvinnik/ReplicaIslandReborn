@@ -7,7 +7,7 @@ import { GameObjectManager } from '../entities/GameObjectManager';
 import { resourceToLevelId } from '../data/levelTree';
 import { LevelSystem } from './LevelSystemNew';
 import { useGameStore } from '../stores/useGameStore';
-import { collectNextDiary } from '../stores/diaryProgress';
+import { collectLevelDiary } from '../stores/diaryProgress';
 
 const originalFetch = globalThis.fetch;
 const originalProgress = useGameStore.getState().progress;
@@ -85,24 +85,28 @@ test('an already cancelled load does not fetch or populate a level', async () =>
   expect(manager.getActiveObjects()).toHaveLength(0);
 });
 
-test('saved campaign diaries disappear on replay while later levels award the next log', async () => {
+test('all placed campaign diaries award their own log and disappear on replay', async () => {
   useGameStore.setState({ progress: { ...originalProgress, levels: {}, diariesCollected: [] } });
   let checked = 0;
-  for (const { id: levelId } of new LevelSystem().getAllLevels()) {
+  // Both original and converted island 1_3 maps lack a diary object, although
+  // the campaign trees assign entry 2 there. Do not invent a pickup placement.
+  const bindings = [[4, 1], [8, 4], [11, 14], [14, 5], [16, 8], [17, 10],
+    [19, 11], [20, 15], [24, 12], [28, 3], [30, 6], [33, 7], [34, 9], [38, 13]];
+  for (const [levelId, diaryId] of bindings) {
     const { level, manager } = rig();
     level.setDiaryCollectedQuery((id) =>
       (useGameStore.getState().progress.levels[id]?.diariesCollected.length ?? 0) > 0);
     expect(await level.loadLevel(levelId), `level ${levelId}`).toBe(true);
     manager.commitUpdates();
-    if (!manager.getActiveObjects().some((object) => object.type === 'diary')) continue;
+    expect(manager.getActiveObjects().filter((object) => object.type === 'diary'), `level ${levelId}`).toHaveLength(1);
     checked++;
-    expect(collectNextDiary(levelId)?.id).toBe(checked);
+    expect(collectLevelDiary(levelId)?.id).toBe(diaryId);
     manager.reset();
     expect(await level.loadLevel(levelId)).toBe(true);
     manager.commitUpdates();
     expect(manager.getActiveObjects().some((object) => object.type === 'diary')).toBe(false);
-    if (checked === 3) break;
+    level.dispose();
   }
-  expect(checked).toBe(3);
-  expect(useGameStore.getState().progress.diariesCollected).toEqual([1, 2, 3]);
+  expect(checked).toBe(14);
+  expect(useGameStore.getState().progress.diariesCollected).toEqual(bindings.map(([, diaryId]) => diaryId));
 });

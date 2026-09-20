@@ -373,8 +373,8 @@ describe('enemies render from their components', () => {
     // the animation frames, as the original's spawnPlayer() sets them. The
     // STOMP frames pass null vulnerability volumes, which is what makes a stomp
     // beat an enemy's contact damage.
-    const idle = createPlayerAnimations(false).get('idle')!;
-    const stomp = createPlayerAnimations(false).get('stomp')!;
+    const idle = createPlayerAnimations().get('idle')!;
+    const stomp = createPlayerAnimations().get('stomp')!;
 
     for (const frame of idle.frames) {
       expect(frame.vulnerabilityVolumes).not.toBeNull();
@@ -386,12 +386,9 @@ describe('enemies render from their components', () => {
     }
   });
 
-  test('the glow powerup swaps in a bigger attack volume', async () => {
-    const normal = createPlayerAnimations(false).get('idle')!;
-    const glowing = createPlayerAnimations(true).get('idle')!;
-
-    expect(normal.frames[0].attackVolumes!.some((v) => v.getHitType() === HitType.HIT)).toBe(false);
-    expect(glowing.frames[0].attackVolumes!.some((v) => v.getHitType() === HitType.HIT)).toBe(true);
+  test('ordinary body frames retain their cannon-compatible vulnerability', () => {
+    const normal = createPlayerAnimations().get('idle')!;
+    expect(normal.frames[0].vulnerabilityVolumes!.map(v => v.getHitType())).toEqual([HitType.INVALID]);
   });
 
   test('the frame volumes reach the collision component as it plays', async () => {

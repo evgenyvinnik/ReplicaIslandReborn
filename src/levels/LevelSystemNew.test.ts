@@ -41,7 +41,7 @@ describe('LevelSystem story progression', () => {
    * back on itself. A stall here means the game cannot be finished, which no
    * per-level test would notice.
    */
-  function walkCampaign(startResource: string): {
+  function walkCampaign(startResource: string, linear = false): {
     visited: number[];
     ended: boolean;
     revisited: number | null;
@@ -52,6 +52,7 @@ describe('LevelSystem story progression', () => {
     }));
 
     const levelSystem = new LevelSystem();
+    levelSystem.setLinearMode(linear);
     const internals = levelSystem as unknown as { currentLevelId: number };
     internals.currentLevelId = startId;
 
@@ -104,8 +105,9 @@ describe('LevelSystem story progression', () => {
 
   test('linear mode also reaches the end', () => {
     const first = linearLevelTree[0].levels[0].resource;
-    const { visited, ended, revisited } = walkCampaign(first);
+    const { visited, ended, revisited } = walkCampaign(first, true);
     expect(revisited).toBeNull();
     expect(ended, `linear progression stalled after ${visited.length} levels`).toBe(true);
+    expect(visited).toEqual(linearLevelTree.flatMap(group => group.levels.map(level => resourceToLevelId[level.resource])));
   });
 });
