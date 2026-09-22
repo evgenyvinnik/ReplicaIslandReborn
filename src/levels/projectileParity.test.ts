@@ -75,7 +75,7 @@ const art: Record<string, string[]> = {
   turret_bullet: ['effect_bullet01', 'effect_bullet02'],
   energy_ball: ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'],
   wanda_shot: ['energy_ball01', 'energy_ball02', 'energy_ball03', 'energy_ball04'],
-  brobot_bullet: ['enemy_brobot_walk01', 'enemy_brobot_walk02', 'enemy_brobot_walk03'],
+  brobot_bullet: ['brobot_walk01', 'brobot_walk02', 'brobot_walk03'],
 };
 
 for (const rendered of [false, true]) for (const placed of [false, true]) for (const kind of kinds) {
@@ -98,10 +98,10 @@ for (const rendered of [false, true]) for (const placed of [false, true]) for (c
     if (kind.radius === null) {
       expect(attack ?? null).toBeNull();
       const draw = object.getComponent(SpriteComponent)!.getCurrentDraw()!;
-      expect(draw.sprite).toBe('enemy_brobot_walk01');
+      expect(draw.sprite).toBe('brobot_walk01');
       const frames = object.getComponent(SpriteComponent)!.getCurrentAnimation()!.frames;
       expect(frames.map(frame => frame.sprite)).toEqual([
-        'enemy_brobot_walk01', 'enemy_brobot_walk02', 'enemy_brobot_walk03',
+        'brobot_walk01', 'brobot_walk02', 'brobot_walk03',
       ]);
       for (const frame of frames) {
         expect(frame.width).toBe(64);
@@ -142,11 +142,14 @@ for (const rendered of [false, true]) for (const placed of [false, true]) for (c
   });
 }
 
-test('projectile frame sizes and names match the shipped PNG assets', async () => {
+test('projectile frame keys resolve to shipped PNGs at authored sizes', async () => {
   for (const kind of kinds) {
     const animation = spawn(kind, false).getComponent(SpriteComponent)!.getCurrentAnimation()!;
     for (const frame of animation.frames) {
-      const png = file(new URL(`../../public/assets/sprites/${frame.sprite}.png`, import.meta.url));
+      // Game registers the original enemy_brobot_walk PNGs under the shorter
+      // brobot_walk render keys; the sprite-key coverage test verifies that map.
+      const imageName = kind.kind === 'brobot_bullet' ? `enemy_${frame.sprite}` : frame.sprite;
+      const png = file(new URL(`../../public/assets/sprites/${imageName}.png`, import.meta.url));
       expect(await png.exists(), frame.sprite).toBe(true);
       const bytes = new DataView(await png.arrayBuffer());
       expect(bytes.getUint32(16)).toBe(frame.width);

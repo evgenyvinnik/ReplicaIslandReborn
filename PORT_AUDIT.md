@@ -1,10 +1,12 @@
 # Port verification notes
 
-Updated September 19, 2026 (Pacific time). This is an evidence log, not a declaration that the port is complete. The older completion percentages in TODO.md are not reliable verification.
+Updated September 22, 2026 (Pacific time). This is an evidence log, not a declaration that the port is complete. The older completion percentages in TODO.md are not reliable verification.
 
 ## Current local batch
 
-Earlier fixes, including turret-idle, frozen-player possession, stomp and save-isolation changes, are committed through `fdd6f8c`; the current local batch adds the audio-startup correction and further browser verification below. This audit has not verified deployment to GitHub Pages.
+The earlier fixes and player-spawn lifecycle work are in commit `42725d1`, which GitHub Pages successfully deployed on September 20 (Actions run 35489050172). The next batch adds the Rokudou and runtime-collectible factory corrections below. Published-site menu load was observed; no new published-level playthrough is claimed.
+
+The September 22 gate follow-up checked CanvasControls' multitouch ownership, the channel timing against Android's DoorAnimationComponent, and every campaign button/gate pairing. No new live gate defect was established without the failing level/location. One unit test had kept the pre-fix upper-half button vulnerability and an artificially overlapping actor; its mock now uses the production lower-half hitbox and a player/brobot resting at the button's real height. All 11 focused button/gate tests pass (1,992 assertions), including the placed-campaign checks. This test correction does not change production gate behavior or resolve the user's unidentified gate/stuck report.
 
 | Area | Confirmed defect and correction | Verification |
 | --- | --- | --- |
@@ -292,6 +294,40 @@ Ten of the first eleven regressions failed before correction; Wanda's unchanged 
 The full suite passes 625 tests across 128 files (28,214 assertions). Constructor type annotations were corrected before successful type checking and lint. Production and verification builds pass; production output is index-DlvNXThr.js (701.43kB, gzip 198.17kB), retaining the existing bundle-size warning. The isolated fixture uses App-g_EkV6Zz.js and GameObjectFactory-PcpquYe_.js. Diff whitespace checks pass. The attempted browser continuation reported that the Mac is locked, so no new gameplay or fixture reload is claimed. No real player save, commit, push or deployment changed.
 
 The movement-integration discrepancy identified during this pass is addressed in the following section. Full campaign and normal boss-fight verification remain incomplete.
+
+### Player spawning and reset lifecycle
+
+The opening NPC routes have autonomous-route tests and prior browser transition evidence. A spawn/reuse audit exposed a separate inconsistent path: GameObjectFactory's PLAYER branch used placeholder sheet animations, omitted SpriteComponent without a renderer, attached generic physics/movement in addition to PlayerComponent's integration, and never added the body's dynamic collision or hit reaction. This factory discrepancy does not identify the user's stuck-level incident.
+
+Both factory and level loading now use configurePlayerObject for the 32x48 body, player team, always-active radius, body-sprite collision link, configured health, bounce, attack pause and three-second post-hit immunity. PlayerComponent is the single movement owner. The factory registers the player with the manager, always attaches the body sprite, and receives the selected difficulty's maximum health from Game. Other runtime actors still use the physics pool.
+
+Once factory wiring was repaired, a second regression exposed stale pooled controller dependencies and glow immunity. Reset discards controller-owned glow sprite/fader/collider components, clears force immunity and presentation state, and rebuilds body animations for a recycled sprite. Pool allocation clears detached controllers' old system references and difficulty rates; an in-place reset retains its injected live systems. Reapplying difficulty removes the old fader before rebuilding it.
+
+Eight new tests cover renderer-present/absent spawning, one-step motion without duplicate integration, actual placed/runtime player configuration at Baby/Kids/Adults health values, collision-driven damage/bounce and immunity expiry, three pooled spawn/removal cycles with visible body/halo and hitboxes, in-place cleanup, and repeated difficulty setup. All four initial lifecycle tests failed before correction; after wiring alone, the two reset/reuse tests still failed. The full suite passed: 863 tests across 141 files (46,529 assertions), using `bun test --timeout=60000` for the host's slow integration checks. Type checking, lint and production build passed; bundle index-BbUCNUEf.js is 710.56kB (gzip 201.29kB), with the existing size warning. No fresh browser verification of pooled runtime spawning is claimed.
+
+The runtime Rokudou discrepancy identified here is addressed in the following section. Full campaign-route verification and the user's unidentified stuck-level incident remain open.
+
+### Runtime Rokudou shares the placed finale boss
+
+GameObjectFactory's public `ENEMY_ROKUDOU` / `spawnFromLevelData('rokudou')` path previously built a placeholder sprite and generic physics, with no hit reaction, scripted flight, death sequence or guns. The campaign's placed boss used a separate complete setup. Both paths now call `configureRokudou`, including the authored 45×75 background collision box offset inside his 128×128 art, NPC flight/animation, hit volume and reaction, death-gravity swap, and two action-gated launchers.
+
+The first shared-setup run exposed why the narrow movement box matters: using the full sprite stopped the entrance Rokudou at x1152 against arena geometry, failing the existing 60-second patrol regression. Restoring the original box made the complete patrol test pass. A new headless runtime-factory regression checks boss identity, components, vulnerability, guns and flying animation. The full suite now passes 864 tests across 141 files (46,544 assertions); type checking, lint and production build pass. The build emits index-CvteJBJr.js (709.43kB, gzip 201.20kB) with the existing large-bundle warning. This local fix is not yet published, and it does not identify the user's unspecified stuck level or gate complaint.
+
+### Runtime collectibles match placed pickups
+
+The factory still configured runtime coins with a nonexistent four-frame `coin` sheet and no pickup reaction, while its diary type fell through to a basic object; it also had no Ruby enum branch. These are separate from the already-repaired placed campaign pickups. Coin, ruby and diary now share one configuration for size, activation, and source-specific collection: coins use the 32px HitPlayer radius and `ding`; rubies and diaries use a COLLECT vulnerability sphere. Both construction paths use the same five-/six-frame object animations and loaded sprite aliases. A new factory regression spawns all three headlessly, checks their first authored draw frame and collision profile, then collects them through the real hit components without harming Andou. This does not claim a new published-build coin test or that runtime collectibles caused the user's level-one report.
+
+The factory's default is delete-on-deactivation for short-lived projectiles/effects. That accidentally applied to its runtime boss and collectibles too, unlike Android's ordinary pooled objects. Shared configuration now makes Rokudou and all three uncollected pickups sleep off-screen and return intact when the camera revisits them. Factory regressions cull and reactivate these exact objects. The already verified placed-object lifecycle is unchanged.
+
+After the lifecycle correction, all 868 tests across 141 files pass (46,580 assertions). Lint, TypeScript checking, production build and diff whitespace checks pass. The build emits index-Dg378Kt-.js (708.96kB, gzip 201.05kB) and retains the pre-existing large-bundle warning. No new browser playthrough, commit, push or deployment was performed in this batch.
+
+### Animation sprite-key coverage
+
+A production-loader comparison found that Brobot bullets requested `enemy_brobot_walk01`–`03` while Game preloaded those same original PNGs only under `brobot_walk01`–`03`. The harmless projectile could move but its sprite was invisible. Its one-loop animation now refers to the loaded keys. The new regression first failed on exactly those three names, then passed after correction. It checks all literal player, NPC, enemy and one-loop object animation frames, plus generated button/gate frames, against Game's preload names and shipped PNG files. This is code/asset coverage, not a claim that the projectile was watched in a browser or that it caused the user's gate report.
+
+The first broad run exposed six older projectile/timing assertions that compared runtime render keys directly with Android PNG filenames. Those expectations now use the keys the renderer actually registers while still checking the original image dimensions through the alias-to-file mapping. The 58 focused sprite/projectile tests pass after this adjustment. No gameplay behavior was weakened to satisfy the tests.
+
+The final full suite passes 869 tests across 142 files (46,583 assertions). Fresh TypeScript checking, lint and diff whitespace checks pass. The production build emits index-Dtv21kq-.js (708.94kB, gzip 201.04kB), with the existing size warning. No commit, push, deployment or real player save changed. The user's specific stuck-level and remaining gate report are still unlocated.
 
 ### Andou body frames, damage geometry and charge feedback
 

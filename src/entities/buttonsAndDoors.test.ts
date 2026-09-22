@@ -67,7 +67,7 @@ describe('buttons and doors', () => {
     const collision = new DynamicCollisionComponent();
     collision.setCollisionVolumes(
       null,
-      [new AABoxCollisionVolume(0, 0, 32, 16, HitType.DEPRESS)]
+      [new AABoxCollisionVolume(0, 16, 32, 16, HitType.DEPRESS)]
     );
     const reaction = new HitReactionComponent({ forceInvincibility: true });
     collision.setHitReactionComponent(reaction);
@@ -92,13 +92,13 @@ describe('buttons and doors', () => {
     // does - Andou's pressCollisionVolume is AABox(16, 0, 32, 16), the bottom
     // 16px of his sprite in Y-up, and a brobot's is AABox(16, 48, 32, 16) on a
     // 64px sprite in Y-down. So both have to stand on the button, whose own
-    // DEPRESS volume is the top 16px of its 32px body at y=100.
+    // DEPRESS volume is the lower 16px of its 32px body at y=116.
     //
     // This used to place the player level with the button, because his box had
     // been converted in x but not in y and so sat at his head; standing on the
     // button did not press it, and only overlapping it did.
     // A few pixels of overlap, as a character resting on a button has.
-    object.getPosition().set(100, 100 - object.height + 6);
+    object.getPosition().set(100, 100 + 32 - object.height);
 
     const volumes = kind === 'player'
       ? createPlayerVolumeSets().normal.attack

@@ -41,6 +41,8 @@ import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume
 import { MotionBlurComponent } from '../entities/components/MotionBlurComponent';
 import { drawPriorityFor } from '../data/objectDrawPriority';
 import { configurePlayerObject } from '../entities/player';
+import { configureCollectible } from '../entities/collectible';
+import { configureRokudou } from '../entities/rokudou';
 import { GameObjectType } from '../entities/GameObjectFactory';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { assetPath } from '../utils/helpers';
@@ -56,7 +58,6 @@ import { createObjectAnimation } from '../data/objectAnimations';
 import { createDoorAnimations } from '../data/doorAnimations';
 import { createNpcAnimations } from '../data/npcAnimations';
 import { NPCAnimationComponent, NPCAnimation } from '../entities/components/NPCAnimationComponent';
-import { HitPlayerComponent } from '../entities/components/HitPlayerComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { GhostComponent } from '../entities/components/GhostComponent';
 import { createEnemyCollisionProfile, selectEnemyAttackVolumes } from '../entities/enemyCollisionProfiles';
@@ -576,34 +577,21 @@ export class LevelSystem {
       }
 
       case GameObjectTypeIndex.COIN:
-        obj.type = 'coin';
-        objWidth = 16;
-        objHeight = 16;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.life = 1;
-        // The original picks coins up with HitPlayerComponent - a plain radius
-        // test rather than the volume pipeline, because coins are numerous.
-        this.attachCollectible(obj, { proximityRadius: 32, sound: 'ding' });
+        configureCollectible(obj, 'coin');
+        objWidth = obj.width;
+        objHeight = obj.height;
         break;
 
       case GameObjectTypeIndex.RUBY:
-        obj.type = 'ruby';
-        objWidth = 32;
-        objHeight = 32;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.life = 1;
-        // Rubies and diaries go through the volume pipeline in the original,
-        // against Andou's always-present COLLECT volume.
-        this.attachCollectible(obj, { volumeRadius: 16 });
+        configureCollectible(obj, 'ruby');
+        objWidth = obj.width;
+        objHeight = obj.height;
         break;
 
       case GameObjectTypeIndex.DIARY:
-        obj.type = 'diary';
-        objWidth = 32;
-        objHeight = 32;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.life = 1;
-        this.attachCollectible(obj, { volumeRadius: 16 });
+        configureCollectible(obj, 'diary');
+        objWidth = obj.width;
+        objHeight = obj.height;
         break;
 
       case GameObjectTypeIndex.BAT: {
@@ -1226,95 +1214,11 @@ export class LevelSystem {
       }
         
       case GameObjectTypeIndex.ROKUDOU: {
-        // Rokudou boss enemy (type 30 - distinct from ROKUDOU_TERMINAL which is NPC)
-        obj.type = 'enemy';
-        obj.subType = 'rokudou';
-        objWidth = 128;  // Large boss sprite is 128x128
-        objHeight = 128;
-        obj.activationRadius = NORMAL_ACTIVATION_RADIUS; // Boss has larger activation radius
-        obj.life = 3; // Boss has 3 hit points
-        obj.team = Team.ENEMY;
-        obj.facingDirection.x = -1;
-        
-        // Add SpriteComponent for rendering
-        const rokudouSprite = new SpriteComponent();
-        rokudouSprite.setSprite('enemy_rokudou_fight_stand');
-        obj.addComponent(rokudouSprite);
-        
-        // Rokudou flies the arena's hot-spot track and fires while an ATTACK
-        // hot spot holds him in ActionType.ATTACK. Original:
-        // spawnEnemyRokudou() - patrol.setSpeeds(500, 100, 100, -100, 400),
-        // setFlying(true), setReactToHits(true), setPauseOnAttack(false),
-        // setGameEvent(SHOW_ANIMATION, KABOCHA_ENDING).
-        const rokudouPatrol = new NPCComponent({
-          horizontalImpulse: 500,
-          slowHorizontalImpulse: 100,
-          upImpulse: -100,
-          downImpulse: 100,
-          acceleration: 400,
-          flying: true,
-          reactToHits: true,
-          pauseOnAttack: false,
-          gameEvent: GameFlowEventType.SHOW_ANIMATION,
-          // Defeating Rokudou leaves Kabocha in control in the original.
-          gameEventIndex: CutsceneType.KABOCHA_ENDING,
-          spawnGameEventOnDeath: true,
-        });
-        obj.addComponent(rokudouPatrol);
-
-        // Original: AABoxCollisionVolume(45, 23, 42, 75) in Y-up sprite space.
-        const rokudouCollision = new DynamicCollisionComponent();
-        rokudouCollision.setCollisionVolumes(
-          null,
-          [new AABoxCollisionVolume(45, 30, 42, 75, HitType.HIT)]
-        );
-        const rokudouHitReact = new HitReactionComponent({
-          invincibleAfterHitTime: 1.0,
-          onHitSound: 'sound_rokudou_hit',
-        });
-        rokudouHitReact.setSoundPlayer((sound) => {
-          sSystemRegistry.soundSystem?.playSfx(sound);
-        });
-        rokudouCollision.setHitReactionComponent(rokudouHitReact);
-        rokudouPatrol.setHitReactionComponent(rokudouHitReact);
-        obj.addComponent(rokudouCollision);
-        obj.addComponent(rokudouHitReact);
-
-        // Original spawnEnemyRokudou adds gravity only on death. His ending
-        // waits for ground contact, so an airborne death must fall first.
-        const rokudouDeathSwap = new ChangeComponentsComponent({ swapOnAction: ActionType.DEATH });
-        rokudouDeathSwap.addSwapInComponent(new GravityComponent());
-        obj.addComponent(rokudouDeathSwap);
-
-        // Two guns, both gated on ActionType.ATTACK so they only fire while the
-        // hot-spot script has him attacking: a slow energy ball and a faster
-        // five-round burst.
-        obj.addComponent(new LaunchProjectileComponent({
-          objectTypeToSpawn: GameObjectType.ENERGY_BALL,
-          projectilesInSet: 1,
-          setsPerActivation: -1,
-          delayBetweenSets: 1.5,
-          offsetX: 75,
-          offsetY: 42,
-          requiredAction: ActionType.ATTACK,
-          velocityX: 300,
-          // Android Y-up -300 points down; Canvas Y-down uses +300.
-          velocityY: 300,
-          shootSound: 'sound_poing',
-        }));
-        obj.addComponent(new LaunchProjectileComponent({
-          objectTypeToSpawn: GameObjectType.TURRET_BULLET,
-          projectilesInSet: 5,
-          delayBetweenShots: 0.1,
-          setsPerActivation: -1,
-          delayBetweenSets: 2.5,
-          offsetX: 75,
-          offsetY: 42,
-          requiredAction: ActionType.ATTACK,
-          velocityX: 300,
-          velocityY: 300,
-          shootSound: 'sound_gun',
-        }));
+        // Distinct from ROKUDOU_TERMINAL: this is the fighting boss.
+        configureRokudou(obj, this.collisionSystem, sSystemRegistry.renderSystem,
+          GameObjectType.ENERGY_BALL, GameObjectType.TURRET_BULLET);
+        objWidth = obj.width;
+        objHeight = obj.height;
         break;
       }
       
@@ -1940,54 +1844,6 @@ export class LevelSystem {
       }
     }
     obj.addComponent(movement);
-  }
-
-  /**
-   * Make a collectible pick-up-able through the component pipeline.
-   *
-   * Game.tsx used to detect every pick-up with its own AABB overlap test. The
-   * original instead gives each collectible a HitReactionComponent with
-   * dieOnCollect, reached either by HitPlayerComponent (coins - a radius test)
-   * or by a COLLECT vulnerability volume (rubies, diaries). Game.tsx now only
-   * reacts to the resulting death.
-   */
-  private attachCollectible(
-    obj: GameObject,
-    options: { proximityRadius?: number; volumeRadius?: number; sound?: string }
-  ): void {
-    const hitReact = new HitReactionComponent({
-      dieOnCollect: true,
-      // Collectibles cannot be damaged, only collected.
-      forceInvincibility: true,
-      onHitSound: options.sound,
-    });
-    if (options.sound) {
-      hitReact.setSoundPlayer((sound) => {
-        sSystemRegistry.soundSystem?.playSfx(sound);
-      });
-    }
-    obj.addComponent(hitReact);
-
-    if (options.proximityRadius !== undefined) {
-      const hitPlayer = new HitPlayerComponent();
-      hitPlayer.setup({
-        distance: options.proximityRadius,
-        hitReaction: hitReact,
-        hitType: HitType.COLLECT,
-        // false: this object receives the hit from the player, it does not hit.
-        hitPlayer: false,
-      });
-      obj.addComponent(hitPlayer);
-      return;
-    }
-
-    const collision = new DynamicCollisionComponent();
-    collision.setCollisionVolumes(
-      null,
-      [new SphereCollisionVolume(options.volumeRadius ?? 16, 16, 16, HitType.COLLECT)]
-    );
-    collision.setHitReactionComponent(hitReact);
-    obj.addComponent(collision);
   }
 
   /**

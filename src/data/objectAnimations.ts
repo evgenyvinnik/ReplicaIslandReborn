@@ -142,7 +142,8 @@ const SUBTYPE_ART: Record<string, ObjectArt> = {
   },
   // spawnBrobotBullet reuses the brobot's own walk frames.
   'projectile:brobot_bullet': {
-    frames: ['enemy_brobot_walk01', 'enemy_brobot_walk02', 'enemy_brobot_walk03'],
+    // Game loads these PNGs under the shortened brobot_walk* keys.
+    frames: ['brobot_walk01', 'brobot_walk02', 'brobot_walk03'],
     width: 64, height: 64, centreOnObject: true, frameTimes: [1, 1, 1],
   },
 };

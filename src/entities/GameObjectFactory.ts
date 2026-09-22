@@ -12,6 +12,8 @@ import { PhysicsComponent } from './components/PhysicsComponent';
 import { MovementComponent } from './components/MovementComponent';
 import { PlayerComponent } from './components/PlayerComponent';
 import { configurePlayerObject } from './player';
+import { configureCollectible } from './collectible';
+import { configureRokudou } from './rokudou';
 import { PatrolComponent } from './components/PatrolComponent';
 import { LaunchProjectileComponent } from './components/LaunchProjectileComponent';
 import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
@@ -76,6 +78,7 @@ export enum GameObjectType {
   ENEMY_SNAILBOMB = 'enemy_snailbomb',
   ENEMY_ROKUDOU = 'enemy_rokudou',
   COIN = 'coin',
+  RUBY = 'ruby',
   PEARL = 'pearl',
   DIARY = 'diary',
   SPRING = 'spring',
@@ -233,7 +236,13 @@ export class GameObjectFactory {
         configureProjectile(obj, type, this.componentPools.movement.allocate());
         break;
       case GameObjectType.COIN:
-        this.configureCoin(obj);
+        configureCollectible(obj, 'coin');
+        break;
+      case GameObjectType.RUBY:
+        configureCollectible(obj, 'ruby');
+        break;
+      case GameObjectType.DIARY:
+        configureCollectible(obj, 'diary');
         break;
       case GameObjectType.PEARL:
         this.configurePearl(obj);
@@ -348,37 +357,6 @@ export class GameObjectFactory {
     });
     obj.addComponent(patrol);
     this.finishRuntimeEnemy(obj, patrol, { width: 32, height: 48, offsetX: 16, offsetY: 16 });
-  }
-
-  /**
-   * Configure a coin collectible
-   */
-  private configureCoin(obj: GameObject): void {
-    // spawnCoin: object.activationRadius = mTightActivationRadius.
-    obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-    obj.type = 'coin';
-    obj.team = Team.NONE;
-    obj.width = 16;
-    obj.height = 16;
-    obj.life = 1;
-
-    // Add sprite
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('coin');
-      sprite.setRenderSystem(this.renderSystem);
-      sprite.addAnimation('spin', {
-        frames: [
-          { x: 0, y: 0, width: 16, height: 16, duration: 0.1 },
-          { x: 16, y: 0, width: 16, height: 16, duration: 0.1 },
-          { x: 32, y: 0, width: 16, height: 16, duration: 0.1 },
-          { x: 48, y: 0, width: 16, height: 16, duration: 0.1 },
-        ],
-        loop: true,
-      });
-      sprite.playAnimation('spin');
-      obj.addComponent(sprite);
-    }
   }
 
   /**
@@ -757,107 +735,8 @@ export class GameObjectFactory {
    * A flying boss that shoots energy balls and bullets
    */
   private configureEnemyRokudou(obj: GameObject): void {
-    // spawnEnemyRokudou: object.activationRadius = mNormalActivationRadius.
-    obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
-    obj.team = Team.ENEMY;
-    obj.type = 'rokudou';
-    obj.width = 128;
-    obj.height = 128;
-    obj.life = 3;
-    obj.maxLife = 3;
-
-    // Add sprite
-    const sprite = this.componentPools.sprite.allocate();
-    if (sprite && this.renderSystem) {
-      sprite.setSprite('rokudou');
-      sprite.setRenderSystem(this.renderSystem);
-      
-      // Idle animation
-      sprite.addAnimation('idle', {
-        frames: [
-          { x: 0, y: 0, width: 128, height: 128, duration: 0.2 },
-        ],
-        loop: true,
-      });
-      
-      // Fly animation (6 frames)
-      sprite.addAnimation('fly', {
-        frames: [
-          { x: 0, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 128, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 256, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 384, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 512, y: 0, width: 128, height: 128, duration: 0.1 },
-          { x: 640, y: 0, width: 128, height: 128, duration: 0.1 },
-        ],
-        loop: true,
-      });
-      
-      // Shoot animation
-      sprite.addAnimation('shoot', {
-        frames: [
-          { x: 0, y: 128, width: 128, height: 128, duration: 0.15 },
-          { x: 128, y: 128, width: 128, height: 128, duration: 0.15 },
-        ],
-        loop: true,
-      });
-      
-      // Surprised animation
-      sprite.addAnimation('surprised', {
-        frames: [
-          { x: 256, y: 128, width: 128, height: 128, duration: 0.2 },
-        ],
-        loop: true,
-      });
-      
-      // Hit reaction animation (7 frames from original)
-      sprite.addAnimation('hit', {
-        frames: [
-          { x: 0, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 128, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 256, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 384, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 512, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 640, y: 256, width: 128, height: 128, duration: 0.08 },
-          { x: 768, y: 256, width: 128, height: 128, duration: 0.08 },
-        ],
-        loop: false,
-      });
-      
-      // Death animation (5 frames)
-      sprite.addAnimation('death', {
-        frames: [
-          { x: 0, y: 384, width: 128, height: 128, duration: 0.12 },
-          { x: 128, y: 384, width: 128, height: 128, duration: 0.12 },
-          { x: 256, y: 384, width: 128, height: 128, duration: 0.12 },
-          { x: 384, y: 384, width: 128, height: 128, duration: 0.12 },
-          { x: 512, y: 384, width: 128, height: 128, duration: 0.12 },
-        ],
-        loop: false,
-      });
-      
-      sprite.playAnimation('idle');
-      obj.addComponent(sprite);
-    }
-
-    // Add physics (no gravity - Rokudou flies)
-    const physics = this.componentPools.physics.allocate();
-    if (physics) {
-      physics.setUseGravity(false);
-      physics.setMaxVelocity(200, 200);
-      obj.addComponent(physics);
-    }
-
-    // Add movement
-    const movement = this.componentPools.movement.allocate();
-    if (movement && this.collisionSystem) {
-      movement.setCollisionSystem(this.collisionSystem);
-      obj.addComponent(movement);
-    }
-
-    // Behaviour (hot-spot flight, guns, hit reaction) is assembled by
-    // LevelSystemNew's ROKUDOU case the way the original assembles it; this
-    // factory path only builds the body.
+    configureRokudou(obj, this.collisionSystem, this.renderSystem,
+      GameObjectType.ENERGY_BALL, GameObjectType.TURRET_BULLET);
   }
 
   /**
@@ -992,6 +871,7 @@ export class GameObjectFactory {
       snailbomb: GameObjectType.ENEMY_SNAILBOMB,
       rokudou: GameObjectType.ENEMY_ROKUDOU,
       coin: GameObjectType.COIN,
+      ruby: GameObjectType.RUBY,
       pearl: GameObjectType.PEARL,
       diary: GameObjectType.DIARY,
       spring: GameObjectType.SPRING,

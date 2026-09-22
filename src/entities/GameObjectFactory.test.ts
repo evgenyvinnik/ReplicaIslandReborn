@@ -18,6 +18,8 @@ import { EnemyAnimationComponent } from './components/EnemyAnimationComponent';
 import { ChangeComponentsComponent } from './components/ChangeComponentsComponent';
 import { SpriteComponent } from './components/SpriteComponent';
 import { CameraSystem } from '../engine/CameraSystem';
+import { NPCComponent } from './components/NPCComponent';
+import { NPCAnimation, NPCAnimationComponent } from './components/NPCAnimationComponent';
 
 afterEach(() => {
   sSystemRegistry.reset();
@@ -149,6 +151,48 @@ describe('GameObjectFactory managed spawns', () => {
     expect(brobot.getComponent(
       ChangeComponentsComponent as unknown as new (...args: unknown[]) => ChangeComponentsComponent
     )).not.toBeNull();
+  });
+
+  test('runtime Rokudou has the finale boss behavior even without a renderer', () => {
+    const manager = new GameObjectManager();
+    const camera = new CameraSystem(480, 320);
+    camera.setPosition(100, 200);
+    manager.setCamera(camera);
+    const factory = new GameObjectFactory(manager);
+    const boss = factory.spawnFromLevelData({ type: 'rokudou', x: 100, y: 200 })!;
+    expect(boss.type).toBe('enemy');
+    expect(boss.subType).toBe('rokudou');
+    expect(boss.team).toBe(Team.ENEMY);
+    expect(boss.life).toBe(3);
+    expect(boss.width).toBe(128);
+    expect(boss.height).toBe(128);
+    expect(boss.getComponents().some(component => component instanceof NPCComponent)).toBe(true);
+    expect(boss.getComponent(MovementComponent)).not.toBeNull();
+    expect(boss.getComponents().some(component => component instanceof GravityComponent)).toBe(false); // Death adds it.
+    expect(boss.getComponents().some(component => component instanceof ChangeComponentsComponent)).toBe(true);
+    const collision = boss.getComponent(DynamicCollisionComponent)!;
+    expect(collision.getVulnerabilityVolumes()?.[0].getHitType()).toBe(HitType.HIT);
+    expect(boss.getComponents().some(component => component instanceof HitReactionComponent)).toBe(true);
+    expect(boss.getComponents().filter(component => component instanceof LaunchProjectileComponent))
+      .toHaveLength(2);
+    const sprite = boss.getComponent(SpriteComponent)!;
+    expect(sprite.getCurrentDraw()?.sprite).toBe('rokudou_stand');
+    const animator = boss.getComponents().find(
+      (component): component is NPCAnimationComponent => component instanceof NPCAnimationComponent
+    )!;
+    boss.setCurrentAction(ActionType.MOVE);
+    boss.setVelocity(50, -100);
+    animator.update(1 / 60, boss);
+    expect(sprite.getCurrentAnimationIndex()).toBe(NPCAnimation.WALK);
+
+    manager.commitUpdates();
+    boss.setPosition(4000, 4000);
+    manager.update(0, 0);
+    manager.commitUpdates();
+    expect(manager.getInactiveObjectCount()).toBe(1);
+    boss.setPosition(100, 200);
+    manager.update(0, 0);
+    expect(manager.getActiveObjects()).toContain(boss);
   });
 
   test('a runtime enemy projectile damages Andou and consumes itself', () => {

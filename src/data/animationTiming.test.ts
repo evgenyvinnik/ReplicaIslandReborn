@@ -175,7 +175,7 @@ describe('object frame timing', () => {
   test('a brobot bullet is drawn with the brobot\'s own walk frames', () => {
     const bullet = createObjectAnimation('projectile', 64, 64, 'brobot_bullet')!;
     expect(bullet.frames.map((f) => f.sprite)).toEqual([
-      'enemy_brobot_walk01', 'enemy_brobot_walk02', 'enemy_brobot_walk03',
+      'brobot_walk01', 'brobot_walk02', 'brobot_walk03',
     ]);
   });
 });

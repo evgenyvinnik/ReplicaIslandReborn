@@ -21,7 +21,9 @@ import { sSystemRegistry } from '../engine/SystemRegistry';
 import { GameObjectManager } from './GameObjectManager';
 import { CameraSystem } from '../engine/CameraSystem';
 import { GameObject } from './GameObject';
+import { GameObjectFactory } from './GameObjectFactory';
 import { DynamicCollisionComponent } from './components/DynamicCollisionComponent';
+import { SpriteComponent } from './components/SpriteComponent';
 import { HitReactionComponent } from './components/HitReactionComponent';
 import { HitPlayerComponent } from './components/HitPlayerComponent';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
@@ -116,6 +118,47 @@ describe('collectibles', () => {
     runFrame([player, coin]);
 
     expect(coin.life).toBe(0);
+  });
+
+  test.each([
+    ['coin', 'coin01', 16],
+    ['ruby', 'ruby01', 32],
+    ['diary', 'diary01', 32],
+  ] as const)('runtime %s uses the authored art and can be collected', (kind, firstFrame, size) => {
+    const player = makePlayer(100, 100);
+    const item = new GameObjectFactory(manager).spawnFromLevelData({ type: kind, x: 100, y: 100 })!;
+    expect(item.type).toBe(kind);
+    expect(item.width).toBe(size);
+    expect(item.height).toBe(size);
+    expect(item.getComponent(SpriteComponent)?.getCurrentDraw()?.sprite).toBe(firstFrame);
+    expect(item.getComponents().some(component => component instanceof HitPlayerComponent))
+      .toBe(kind === 'coin');
+    expect(item.getComponent(DynamicCollisionComponent)?.getVulnerabilityVolumes()?.[0].getHitType())
+      .toBe(kind === 'coin' ? undefined : HitType.COLLECT);
+
+    runFrame([player, item]);
+    expect(item.life).toBe(0);
+    expect(player.life).toBe(3);
+  });
+
+  test('uncollected runtime pickups sleep off-screen and return with their animation', () => {
+    const factory = new GameObjectFactory(manager);
+    const items = (['coin', 'ruby', 'diary'] as const).map(type =>
+      factory.spawnFromLevelData({ type, x: 100, y: 100 })!
+    );
+    manager.commitUpdates();
+    items.forEach(item => item.setPosition(4000, 4000));
+    manager.update(0, 0);
+    manager.commitUpdates();
+    expect(manager.getInactiveObjectCount()).toBe(3);
+
+    items.forEach(item => item.setPosition(100, 100));
+    manager.update(0, 0);
+    for (const item of items) {
+      expect(manager.getActiveObjects()).toContain(item);
+      expect(item.life).toBe(1);
+      expect(item.getComponent(SpriteComponent)?.getCurrentDraw()).not.toBeNull();
+    }
   });
 
   test('a coin out of range is left alone', () => {
