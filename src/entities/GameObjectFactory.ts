@@ -14,6 +14,7 @@ import { PlayerComponent } from './components/PlayerComponent';
 import { configurePlayerObject } from './player';
 import { configureCollectible } from './collectible';
 import { configureRokudou } from './rokudou';
+import { configureButton, configureDoor } from './buttonGate';
 import { PatrolComponent } from './components/PatrolComponent';
 import { LaunchProjectileComponent } from './components/LaunchProjectileComponent';
 import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
@@ -83,6 +84,12 @@ export enum GameObjectType {
   DIARY = 'diary',
   SPRING = 'spring',
   DOOR = 'door',
+  DOOR_RED = 'door_red',
+  DOOR_BLUE = 'door_blue',
+  DOOR_GREEN = 'door_green',
+  DOOR_RED_NONBLOCKING = 'door_red_nonblocking',
+  DOOR_BLUE_NONBLOCKING = 'door_blue_nonblocking',
+  DOOR_GREEN_NONBLOCKING = 'door_green_nonblocking',
   CANNON = 'cannon',
   CRUSHER = 'crusher',
   SMOKE_POOF = 'smoke_poof',
@@ -102,6 +109,9 @@ export enum GameObjectType {
   GHOST = 'ghost',
   MOVING_PLATFORM = 'moving_platform',
   BUTTON = 'button',
+  BUTTON_RED = 'button_red',
+  BUTTON_BLUE = 'button_blue',
+  BUTTON_GREEN = 'button_green',
   CANNON_BALL = 'cannon_ball',
   ENERGY_BALL = 'energy_ball',
   WANDA_SHOT = 'wanda_shot',
@@ -250,6 +260,35 @@ export class GameObjectFactory {
       case GameObjectType.SPRING:
         this.configureSpring(obj);
         break;
+      case GameObjectType.DOOR:
+      case GameObjectType.DOOR_RED:
+        configureDoor(obj, 'red');
+        break;
+      case GameObjectType.DOOR_BLUE:
+        configureDoor(obj, 'blue');
+        break;
+      case GameObjectType.DOOR_GREEN:
+        configureDoor(obj, 'green');
+        break;
+      case GameObjectType.DOOR_RED_NONBLOCKING:
+        configureDoor(obj, 'red', false);
+        break;
+      case GameObjectType.DOOR_BLUE_NONBLOCKING:
+        configureDoor(obj, 'blue', false);
+        break;
+      case GameObjectType.DOOR_GREEN_NONBLOCKING:
+        configureDoor(obj, 'green', false);
+        break;
+      case GameObjectType.BUTTON:
+      case GameObjectType.BUTTON_RED:
+        configureButton(obj, 'red');
+        break;
+      case GameObjectType.BUTTON_BLUE:
+        configureButton(obj, 'blue');
+        break;
+      case GameObjectType.BUTTON_GREEN:
+        configureButton(obj, 'green');
+        break;
       case GameObjectType.SMOKE_POOF:
         this.configureSmokePoof(obj);
         break;
@@ -313,8 +352,12 @@ export class GameObjectFactory {
   private attachObjectSprite(obj: GameObject): void {
     // The Source owns five independent layer priorities, not one generic sprite.
     if (obj.subType === 'the_source') return;
-    obj.getComponent(SpriteComponent)?.setPriority(drawPriorityFor(obj));
-    if (obj.getComponent(SpriteComponent)?.getCurrentAnimation()) return;
+    const existing = obj.getComponent(SpriteComponent);
+    if (existing) {
+      existing.setPriority(drawPriorityFor(obj));
+      if (this.renderSystem) existing.setRenderSystem(this.renderSystem);
+      if (existing.getCurrentAnimation()) return;
+    }
 
     const animation = createObjectAnimation(obj.type, obj.width, obj.height, obj.subType);
     if (!animation) return;
@@ -876,6 +919,12 @@ export class GameObjectFactory {
       diary: GameObjectType.DIARY,
       spring: GameObjectType.SPRING,
       door: GameObjectType.DOOR,
+      door_red: GameObjectType.DOOR_RED,
+      door_blue: GameObjectType.DOOR_BLUE,
+      door_green: GameObjectType.DOOR_GREEN,
+      door_red_nonblocking: GameObjectType.DOOR_RED_NONBLOCKING,
+      door_blue_nonblocking: GameObjectType.DOOR_BLUE_NONBLOCKING,
+      door_green_nonblocking: GameObjectType.DOOR_GREEN_NONBLOCKING,
       cannon: GameObjectType.CANNON,
       crusher: GameObjectType.CRUSHER,
       smoke: GameObjectType.SMOKE_POOF,
@@ -885,9 +934,13 @@ export class GameObjectFactory {
       ghost: GameObjectType.GHOST,
       platform: GameObjectType.MOVING_PLATFORM,
       button: GameObjectType.BUTTON,
+      button_red: GameObjectType.BUTTON_RED,
+      button_blue: GameObjectType.BUTTON_BLUE,
+      button_green: GameObjectType.BUTTON_GREEN,
     };
 
-    const type = typeMap[objectData.type] || GameObjectType.PLAYER;
+    const type = typeMap[objectData.type];
+    if (!type) return null;
     return this.spawn(type, objectData.x, objectData.y, objectData.flipX || false);
   }
 

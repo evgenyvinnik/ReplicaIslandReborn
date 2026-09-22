@@ -4,6 +4,14 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Runtime button and gate factory
+
+The separate runtime GameObjectFactory exposed DOOR and BUTTON types, but its switch fell through to a generic 32px object without channel, collision, or gate animation. Colored variants were absent from its type map, and unknown type names silently spawned a new player. Placed campaign gates were configured in LevelSystem, so this was a concrete runtime-factory omission, not proof of the user's still-unidentified placed-gate complaint.
+
+Button and gate composition is now shared between LevelSystem and the runtime factory. All red/blue/green doors, plates, and nonblocking gate variants get the same five-second channel, animation frames, lower-half plate vulnerability, closing-frame crush hit and offscreen-sleep behavior. The factory's sprite attachment now connects an already-animated object's renderer before returning; otherwise those runtime gates could animate internally without drawing. The level-data string adapter recognizes the colored variants and returns null for unknown types, as Android's object factory does, instead of creating an extra player.
+
+The new runtime regressions check color-specific channel opening, actual queued sprite frames, closing, nonblocking crush frames, offscreen reactivation and unknown-type rejection. All existing placed-campaign gate checks pass after the shared composition change. Fresh validation: 873 tests pass across 143 files (46,642 assertions), typecheck, lint, production build and diff whitespace checks pass. The existing large-bundle warning remains. The exact gate/stuck level still needs a reproduction.
+
 The earlier fixes and player-spawn lifecycle work are in commit `42725d1`, which GitHub Pages successfully deployed on September 20 (Actions run 35489050172). The next batch adds the Rokudou and runtime-collectible factory corrections below. Published-site menu load was observed; no new published-level playthrough is claimed.
 
 The September 22 gate follow-up checked CanvasControls' multitouch ownership, the channel timing against Android's DoorAnimationComponent, and every campaign button/gate pairing. No new live gate defect was established without the failing level/location. One unit test had kept the pre-fix upper-half button vulnerability and an artificially overlapping actor; its mock now uses the production lower-half hitbox and a player/brobot resting at the button's real height. All 11 focused button/gate tests pass (1,992 assertions), including the placed-campaign checks. This test correction does not change production gate behavior or resolve the user's unidentified gate/stuck report.
