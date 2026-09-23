@@ -4,6 +4,10 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Old gate and platform surfaces cleared on level swap
+
+`CollisionSystem.setTileCollision()` replaced the tile map but retained both active and queued temporary solid surfaces. A scripted exit can start loading after the old objects submit their gate/platform surfaces but before the surface-buffer swap; the new level's first frame could then collide with geometry from the old map. A failing-first regression seeded one active and one queued old gate, installed an empty new map, and found the old wall still raycastable. Installing a new tile map now clears both buffers. The regression checks the immediate raycast and the subsequent buffer swap, while the focused campaign/button tests still pass. Full verification: 898 tests across 151 files (46,988 assertions), lint, typecheck, Pages-base build and whitespace check pass. Production build emits `index-Dgd1MaQj.js`; the existing large-bundle warning remains. This corrects a concrete map-boundary collision leak, not the user's unidentified stuck Memory or physical-device behavior. No browser route was replayed for this exact transition.
+
 ### Transient effects reset with each level attempt
 
 LevelSystem clears objects, collisions and channels on a successful load, but the web-only EffectsSystem pool was separate and retained live smoke, sparks and dust into the next attempt. Android's effects are level objects, so the original reset clears them. The shared `startLevelAttempt` hook now clears the separate pool; Game passes that same pool on startup, scripted transitions, results Continue and death retries. A failing-first regression carried two effects across an attempt, then verified clearing and immediate pool reuse. The Game wiring check ensures the real App supplies its effect pool. All 897 tests pass across 150 files (46,982 assertions); lint, type checking, Pages-base build and whitespace checks pass. This is effect-lifecycle parity, not a reproduction of the user's unspecified stuck level, and it has not had a separate browser check. The existing large-bundle warning remains.

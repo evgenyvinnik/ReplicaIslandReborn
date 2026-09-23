@@ -163,6 +163,12 @@ export class CollisionSystem {
     tileWidth: number,
     tileHeight: number
   ): void {
+    // Gates and platforms submit transient world-space surfaces each frame.
+    // A map swap can happen after the old world submits them but before the
+    // pending/active buffers are exchanged; neither buffer belongs in the new
+    // level, even for its first simulation frame.
+    this.temporarySurfaces = [];
+    this.pendingTemporarySurfaces = [];
     this.worldTiles = tiles;
     this.worldWidth = width;
     this.worldHeight = height;
