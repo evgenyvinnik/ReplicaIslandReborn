@@ -4,6 +4,18 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Startup contact guard and phantom first-frame grounding
+
+Android `GameObject.touchingGround/Ceiling/LeftWall/RightWall` ignores contact stamps until game time exceeds 0.1 seconds. The web port reduced that guard to 0.016 seconds while leaving fresh stamps at zero, so a new object at game time 0.05 reported all four surfaces as touched without colliding. This can affect initial fuel refill, ground-jump eligibility and contact-driven actors. A new regression failed on the old behavior; the web guard now matches Android's 0.1 seconds in all four methods. Two player tests that had assumed ground contact within that guarded startup window were corrected to test after it, with the fuel test allowing the first six frames of air-rate refill. This is a proven parity defect, not an established cause of the user's unidentified gate or freeze report.
+
+Focused gate, swept-collision, landing and contact checks passed. The full suite passed 879 tests across 144 files (46,910 assertions), and lint, typecheck, the Pages-base production build and the isolated full-App build passed; bundle `index-BfMJfJdc.js` retains the existing size warning. A fresh, separate full-App browser tab loaded ID 6 after the change: the real player appeared at x288/y3120 with 3/3 health and ordinary rightward input changed position, triggered the authored diary and combat, with no browser warnings/errors. That is startup smoke coverage, not a measure of the first 0.1 seconds or proof of a full level route. The earlier Memory #022 checkpoint was preserved in its own tab. No physical Android-device behavior is established by these checks.
+
+### Memory #022 entry shaft and report ambiguity
+
+The isolated full-App save from the previous handoff loaded ID 23 (Memory #022) at its authored spawn with 3/3 health and zero pickups. Ordinary rightward input collected six coins and stopped at the corridor's far-right wall at x576 rather than passing through it. Flying at that edge rose only partway; moving left into the shaft and flying again reached x553/y1271 and collected eleven coins total, still 3/3 health. The game was paused there, with no browser warning/error logs. This checks one early wall and shaft; it is not a full route or proof about the user's unidentified stuck level.
+
+The user's phrase “my android simply stuck” is ambiguous between Andou being unable to move and the Android browser/device freezing. That distinction and the Memory number were requested before attributing this to collision or performance. No production behavior was changed in this check.
+
 ### Memory #017 normal-input completion and sparse-save handoff
 
 The isolated full-App save continued Memory #017 using only ordinary keyboard input. Andou walked over the authored upper wall, collected the second ruby after flying over the far-right solid stone pillar, and backtracked over a second solid pillar. The lower sloped passage above the sleeping Namazu remained traversable; Andou collected the third ruby at x608/y685 with 3/3 health. The normal win sequence produced the results screen (three rubies, final score 3009) and Continue advanced the saved level to ID 23, Memory #022. This route did not reproduce a stuck player or a pass-through solid wall. The two breakable blocks removed on the upper route were smashed by Wanda's existing scripted action.

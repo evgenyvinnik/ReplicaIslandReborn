@@ -66,7 +66,9 @@ describe('PlayerComponent play controls', () => {
     const { player, component } = makePlayer();
     expect(component.fuel).toBe(0);
     const delta = 1 / 60;
-    for (let frame = 1; frame <= 30; frame++) {
+    // Contact stamps are ignored until game time exceeds 0.1s, matching
+    // Android's startup guard. The first six frames refill at the air rate.
+    for (let frame = 1; frame <= 36; frame++) {
       const time = frame * delta;
       player.setGameTime(time);
       player.setLastTouchedFloorTime(time);
@@ -81,10 +83,10 @@ describe('PlayerComponent play controls', () => {
     const { input, player, component } = makePlayer();
     input.setVirtualButton('fly', true);
 
-    player.setGameTime(0.1);
-    player.setLastTouchedFloorTime(0.1);
+    player.setGameTime(0.11);
+    player.setLastTouchedFloorTime(0.11);
     component.update(1 / 60, player);
-    expect(component.jumpTime).toBe(0.1);
+    expect(component.jumpTime).toBe(0.11);
     expect(component.rocketsOn).toBe(false);
 
     // Still held on a later landing: this is continuous jet input, not a new
@@ -94,7 +96,7 @@ describe('PlayerComponent play controls', () => {
     player.getVelocity().zero();
     component.update(1 / 60, player);
 
-    expect(component.jumpTime).toBe(0.1);
+    expect(component.jumpTime).toBe(0.11);
     expect(component.rocketsOn).toBe(true);
   });
 

@@ -15,6 +15,7 @@ import type { GameComponent } from './GameComponent';
 import { Poolable } from '../utils/ObjectPool';
 
 const COLLISION_SURFACE_DECAY_TIME = 0.3;
+const COLLISION_CONTACT_START_TIME = 0.1;
 const DEFAULT_LIFE = 1;
 
 export class GameObject implements Poolable {
@@ -221,31 +222,31 @@ export class GameObject implements Poolable {
 
   // Collision surface checks (ported from original)
   touchingGround(): boolean {
-    // Small delay (1 frame at 60fps) to prevent edge cases at game start
-    // Original had 0.1s but that's too long for responsive gameplay
+    // Fresh contact stamps start at zero. Android ignores them for the first
+    // 0.1s, so a new object cannot mistake the start of the clock for contact.
     return (
-      this.gameTime > 0.016 &&
+      this.gameTime > COLLISION_CONTACT_START_TIME &&
       Math.abs(this.lastTouchedFloorTime - this.gameTime) < COLLISION_SURFACE_DECAY_TIME
     );
   }
 
   touchingCeiling(): boolean {
     return (
-      this.gameTime > 0.016 &&
+      this.gameTime > COLLISION_CONTACT_START_TIME &&
       Math.abs(this.lastTouchedCeilingTime - this.gameTime) < COLLISION_SURFACE_DECAY_TIME
     );
   }
 
   touchingLeftWall(): boolean {
     return (
-      this.gameTime > 0.016 &&
+      this.gameTime > COLLISION_CONTACT_START_TIME &&
       Math.abs(this.lastTouchedLeftWallTime - this.gameTime) < COLLISION_SURFACE_DECAY_TIME
     );
   }
 
   touchingRightWall(): boolean {
     return (
-      this.gameTime > 0.016 &&
+      this.gameTime > COLLISION_CONTACT_START_TIME &&
       Math.abs(this.lastTouchedRightWallTime - this.gameTime) < COLLISION_SURFACE_DECAY_TIME
     );
   }
