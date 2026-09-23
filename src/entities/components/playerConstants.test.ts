@@ -34,6 +34,13 @@ describe('player constants', () => {
   test('fuel and jets match the original', () => {
     expect(PlayerComponent.FUEL_AMOUNT).toBe(1.0);
     expect(PlayerComponent.JUMP_TO_JETS_DELAY).toBe(0.5);
+    // PlayerComponent.java reset() starts each attempt empty. Ground contact
+    // refills it; creating a component and resetting a reused one must agree.
+    const player = new PlayerComponent();
+    expect(player.fuel).toBe(0);
+    player.fuel = 0.75;
+    player.reset();
+    expect(player.fuel).toBe(0);
   });
 
   test('the stomp matches the original', () => {

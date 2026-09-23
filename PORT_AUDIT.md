@@ -4,6 +4,14 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Original empty-tank player lifecycle
+
+Android `PlayerComponent.reset()` initializes `mFuel` to zero; the web component initialized both fresh and reset attempts at a full tank. Its existing refill path already matched the original difficulty rates, so the fix changes only the starting/reset value to zero. A failing-first source-parity regression now checks fresh construction and in-place reset; a movement regression checks that thirty grounded 60 Hz updates refill the tank to one. The isolated App fixture additionally reports live fuel. After rebuilding it, a normal-spawn Memory #017 attempt showed a full tank after load/ground refill and moved right from x64 to x218 with full health and no browser errors. This does not establish full level completion or reproduce the user's unspecified stuck incident.
+
+Before the correction, a separate normal-input Memory #017 run collected Diary 10 and explored the pillar/flight section without staging state. Ground movement stopped at the first stone pillar; flight cleared it. A sustained aerial climb eventually lost lift as fuel emptied, while landing on a floating platform allowed the route to continue. The upper ruby and boss were not completed in that run. These observations motivated the fuel-source comparison but do not themselves prove a wall or fuel bug.
+
+Validation after the fix: 877 tests across 143 files (46,902 assertions), typecheck, lint, production build, isolated verification build and diff whitespace checks pass. Production bundle is `index-DM2F3VEc.js`; the pre-existing large-bundle warning remains. The exact gate/soft-lock level and physical-device behavior are still unknown.
+
 ### Normal-input gate and diary checks on the deployed-source build
 
 The production-style isolated browser fixture now accepts any mapped campaign level ID, rejects unmapped IDs without reloading, and reports current pickup counts, active diary positions and persisted diary IDs. It changes only its namespaced session save; it does not touch the published player's save or actor state. The rebuilt fixture passed Vite's verification build and its level selector was exercised with IDs 6 and 17 plus invalid ID 44.

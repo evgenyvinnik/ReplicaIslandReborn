@@ -142,7 +142,9 @@ export class PlayerComponent extends GameComponent {
   public currentState: PlayerState = PlayerState.MOVE;
   public stateTimer: number = 0;
   
-  public fuel: number = PlayerComponent.FUEL_AMOUNT;
+  // Android reset() begins empty; touching ground fills the tank in 0.5s
+  // on Kids difficulty. Keep a fresh component and a reused one identical.
+  public fuel: number = 0;
   public jumpTime: number = 0;
   public touchingGround: boolean = false;
   public wasTouchingGround: boolean = false;
@@ -1070,7 +1072,7 @@ export class PlayerComponent extends GameComponent {
     // Force the animation to be re-selected on the next update.
     this.playingAnimation = null;
     this.stateTimer = 0;
-    this.fuel = PlayerComponent.FUEL_AMOUNT;
+    this.fuel = 0;
     this.jumpTime = 0;
     this.touchingGround = false;
     this.wasTouchingGround = false;

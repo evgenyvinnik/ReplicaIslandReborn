@@ -125,7 +125,7 @@ PAUSE 50</textarea><br>
     const sprite = player?.getComponent(SpriteComponent);
     const draw = sprite?.getCurrentDraw();
     document.querySelector('#player-status').textContent = player && control
-      ? `Player: state=${control.currentState}, life=${player.life}/${player.maxLife}, ghost=${control.ghostActive}, active=${player.isActive()}, visible=${player.isVisible()}, flicker=${control.isFlickerHidden()}, position=${player.getPosition().x.toFixed(0)},${player.getPosition().y.toFixed(0)}, sprite=${draw?.sprite ?? 'blank'}, loaded=${draw ? sSystemRegistry.renderSystem?.hasSprite(draw.sprite) : false}`
+      ? `Player: state=${control.currentState}, life=${player.life}/${player.maxLife}, fuel=${control.fuel.toFixed(2)}, ghost=${control.ghostActive}, active=${player.isActive()}, visible=${player.isVisible()}, flicker=${control.isFlickerHidden()}, position=${player.getPosition().x.toFixed(0)},${player.getPosition().y.toFixed(0)}, sprite=${draw?.sprite ?? 'blank'}, loaded=${draw ? sSystemRegistry.renderSystem?.hasSprite(draw.sprite) : false}`
       : 'Player not loaded';
     const inventory = getInventory();
     const nearbyDiaries = sSystemRegistry.gameObjectManager?.getActiveObjects()

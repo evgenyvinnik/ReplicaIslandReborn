@@ -62,6 +62,21 @@ describe('PlayerComponent play controls', () => {
     }
   });
 
+  test('a new attempt refills empty fuel through contact, not at spawn', () => {
+    const { player, component } = makePlayer();
+    expect(component.fuel).toBe(0);
+    const delta = 1 / 60;
+    for (let frame = 1; frame <= 30; frame++) {
+      const time = frame * delta;
+      player.setGameTime(time);
+      player.setLastTouchedFloorTime(time);
+      component.update(delta, player);
+    }
+    expect(component.fuel).toBeCloseTo(1, 5);
+    component.reset();
+    expect(component.fuel).toBe(0);
+  });
+
   test('holding fly does not retrigger the ground-jump impulse after landing', () => {
     const { input, player, component } = makePlayer();
     input.setVirtualButton('fly', true);
