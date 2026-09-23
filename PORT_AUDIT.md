@@ -8,7 +8,7 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 Android `PlayerComponent.deactivateGhost()` records the game-time end of the return delay, enters `POST_GHOST_DELAY` even when that delay is zero, and permits another charge only when game time is strictly greater than the end plus `GHOST_REACTIVATION_DELAY` (0.3 seconds). The web component declared that constant but never applied it: a zero-delay release went straight to MOVE, and a held attack could start charging immediately after either a zero or nonzero return delay. Two failing-first component regressions reproduced both cases. The controller now retains the absolute deactivation timestamp, uses the simulation clock for post-return recovery, and enforces the additional cooldown before charging again. This is a source-confirmed missing possession rule; it is not a reproduction of the user's unspecified stuck level or gate symptom.
 
-All 882 tests pass across 145 files (46,922 assertions). Lint, type checking and the Pages-base production build pass; the existing large-bundle warning remains. Production bundle: `index-BGOszrq4.js`. No physical Android-device or published-site interaction test is claimed for this change.
+All 882 tests pass across 145 files (46,922 assertions). Lint, type checking and the Pages-base production build pass; the existing large-bundle warning remains. Pages-base bundle: `index-EWrwgWqz.js`, also served by the successful deployment of commit `eb27229`. No physical Android-device gameplay test is claimed for this change.
 
 ### Full-campaign startup simulation now includes gate/platform solidity
 
