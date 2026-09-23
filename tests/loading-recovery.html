@@ -12,6 +12,9 @@
   <button id="fail">Fail collision loading</button>
   <button id="restore">Restore requests</button>
   <span id="status" role="status">Requests work normally</span>
+  <button id="hold-next-level">Hold next level request</button>
+  <button id="release-next-level">Release held level request</button>
+  <span id="load-hold-status" role="status">No level request held</span>
   <button id="sewer-start">Prepare sewer save (ID 26)</button>
   <button id="sewer-27-start">Prepare sewer save (ID 27)</button>
   <button id="underground-start">Prepare underground save (ID 36)</button>
@@ -232,6 +235,9 @@ PAUSE 50</textarea><br>
     control.beginWin(time);
   };
   let fail = false;
+  let holdNextLevel = false;
+  let releaseHeldLevel = null;
+  let heldGameTime = null;
   const originalFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
@@ -239,7 +245,29 @@ PAUSE 50</textarea><br>
       document.querySelector('#status').textContent = 'Collision request failed (503)';
       return Promise.resolve(new Response(null, { status: 503 }));
     }
+    if (holdNextLevel && url.includes('/assets/levels/') && url.endsWith('.json')) {
+      holdNextLevel = false;
+      heldGameTime = sSystemRegistry.timeSystem?.getGameTime() ?? null;
+      document.querySelector('#load-hold-status').textContent = `Held ${url.split('/').pop()}; game time at request=${heldGameTime?.toFixed(3) ?? 'n/a'}`;
+      return new Promise(resolve => {
+        releaseHeldLevel = () => {
+          releaseHeldLevel = null;
+          resolve(originalFetch(input, init));
+        };
+      });
+    }
     return originalFetch(input, init);
+  };
+  document.querySelector('#hold-next-level').onclick = () => {
+    holdNextLevel = true;
+    document.querySelector('#load-hold-status').textContent = 'Next level JSON request armed';
+  };
+  document.querySelector('#release-next-level').onclick = () => {
+    const now = sSystemRegistry.timeSystem?.getGameTime();
+    document.querySelector('#load-hold-status').textContent = releaseHeldLevel
+      ? `Released held request; game time ${heldGameTime?.toFixed(3) ?? 'n/a'} → ${now?.toFixed(3) ?? 'n/a'}`
+      : 'No held level request';
+    releaseHeldLevel?.();
   };
   document.querySelector('#fail').onclick = () => {
     fail = true;

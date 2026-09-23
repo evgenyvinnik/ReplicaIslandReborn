@@ -172,7 +172,14 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   
   const [isInitialized, setIsInitialized] = useState(false);
   const [scale, setScale] = useState(1);
-  const [levelLoading, setLevelLoading] = useState(true);
+  const [levelLoading, setLevelLoadingState] = useState(true);
+  // React state controls the UI, but the fixed-step callback must observe a
+  // transition in the same tick that starts it, before React can render.
+  const levelLoadingRef = useRef(true);
+  const markLevelLoading = useCallback((loading: boolean): void => {
+    levelLoadingRef.current = loading;
+    setLevelLoadingState(loading);
+  }, []);
   const [startupError, setStartupError] = useState<string | null>(null);
   const [startupAttempt, setStartupAttempt] = useState(0);
 
@@ -340,13 +347,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               goToLevelSelect();
               return;
             }
-            setLevelLoading(true);
+            markLevelLoading(true);
             hasShownIntroDialogRef.current = false;
             levelSystem.loadLevel(nextLevelId).then((success) => {
               if (levelSystemRef.current !== levelSystem) return;
               if (!success) {
                 // console.error('[Game] Failed to load next level (NPC trigger):', nextLevelId);
-                setLevelLoading(false);
+                markLevelLoading(false);
                 levelTransitionInProgressRef.current = false;
                 goToMainMenu();
                 return;
@@ -383,10 +390,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
               }
               
               
-              setLevelLoading(false);
+              markLevelLoading(false);
               levelTransitionInProgressRef.current = false;
             }).catch(() => {
-              setLevelLoading(false);
+              markLevelLoading(false);
               levelTransitionInProgressRef.current = false;
               goToMainMenu();
             });
@@ -407,7 +414,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     return (): void => {
       gameFlowEvent.removeListener(handleGameFlowEvent);
     };
-  }, [isInitialized, setLevel, playCutscene, goToMainMenu, goToLevelSelect, recordAutomaticLevelCompletion, beginLevelAttempt]);
+  }, [isInitialized, setLevel, playCutscene, goToMainMenu, goToLevelSelect, recordAutomaticLevelCompletion, beginLevelAttempt, markLevelLoading]);
 
   // Track previous level to detect level changes
   const prevLevelRef = useRef(state.currentLevel);
@@ -433,12 +440,12 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     // Update previous level
     prevLevelRef.current = state.currentLevel;
     
-    setLevelLoading(true);
+    markLevelLoading(true);
     hasShownIntroDialogRef.current = false;
     
     levelSystem.loadLevel(state.currentLevel).then((success) => {
       if (levelSystemRef.current !== levelSystem || currentLevelRef.current !== state.currentLevel) return;
-      if (!success) { setLevelLoading(false); goToMainMenu(); return; }
+      if (!success) { markLevelLoading(false); goToMainMenu(); return; }
       gameObjectManager.commitUpdates();
       
       // Check if we need to show memory playback toast
@@ -477,9 +484,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         player.getVelocity().y = 0;
       }
       
-      setLevelLoading(false);
+      markLevelLoading(false);
     });
-  }, [isInitialized, state.currentLevel, beginLevelAttempt, goToMainMenu]);
+  }, [isInitialized, state.currentLevel, beginLevelAttempt, goToMainMenu, markLevelLoading]);
 
   // Handle Canvas Dialog when activeDialog changes
   useEffect(() => {
@@ -694,13 +701,13 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 goToLevelSelect();
                 return;
               }
-              setLevelLoading(true); // Mark level as loading
+              markLevelLoading(true); // Mark level as loading
               hasShownIntroDialogRef.current = false;
               levelSys.loadLevel(nextLevelId).then((success) => {
                 if (levelSystemRef.current !== levelSys) return;
                 if (!success) {
                   // console.error('[Game] Failed to load next level:', nextLevelId);
-                  setLevelLoading(false);
+                  markLevelLoading(false);
                   goToMainMenu();
                   return;
                 }
@@ -737,10 +744,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 }
                 
                 
-                setLevelLoading(false); // Mark level as loaded
+                markLevelLoading(false); // Mark level as loaded
                 resumeGame();
               }).catch(() => {
-                setLevelLoading(false);
+                markLevelLoading(false);
                 goToMainMenu();
               });
             } else {
@@ -769,7 +776,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         levelCompleteProcessedRef.current = null;
       }
     }
-  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, goToLevelSelect, beginLevelAttempt, storeUnlockExtra]);
+  }, [state.gameState, state.currentLevel, resumeGame, setLevel, goToMainMenu, goToLevelSelect, beginLevelAttempt, storeUnlockExtra, markLevelLoading]);
 
   // Attach/detach Canvas Controls when settings change
   useEffect(() => {
@@ -1352,7 +1359,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
     // Load assets and level
     const initializeGame = async (): Promise<void> => {
-      setLevelLoading(true);
+      markLevelLoading(true);
       setStartupError(null);
       
       // Reset inventory for new game. Lives come from the selected difficulty,
@@ -1459,7 +1466,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         return;
       }
       
-      setLevelLoading(false);
+      markLevelLoading(false);
       
       // Start game loop AFTER initialization completes
       gameLoop.start();
@@ -1634,7 +1641,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           return;
         }
       }
-      if (gameStateRef.current !== GameState.PLAYING || deathReloadInProgress) {
+      if (gameStateRef.current !== GameState.PLAYING || deathReloadInProgress || levelLoadingRef.current) {
         canvasControlsRef.current?.releaseAll();
         return;
       }
@@ -1690,7 +1697,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       // Components may defer dialogs or ending cutscenes with post(). The
       // Android engine drains GameFlowEvent once per frame; without this call
       // those events remain queued forever outside tests.
+      // A scripted exit can begin its asynchronous fetch in this dispatch;
+      // do not finish the old-world frame after that handoff starts.
       gameFlowEvent.update();
+      if (levelLoadingRef.current) return;
 
       // Resolve object-vs-object hits. DynamicCollisionComponent submits each
       // object's volumes during the FRAME_END phase above, so this has to run
@@ -2341,7 +2351,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       soundSystem.destroy();
       vibrationSystem.destroy();
     };
-  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, goToMainMenu, goToLevelSelect, recordAutomaticLevelCompletion, beginLevelAttempt, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.isLinearMode, startupAttempt]);
+  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, goToMainMenu, goToLevelSelect, recordAutomaticLevelCompletion, beginLevelAttempt, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.isLinearMode, startupAttempt, markLevelLoading]);
 
   // Handle resize
   useEffect(() => {

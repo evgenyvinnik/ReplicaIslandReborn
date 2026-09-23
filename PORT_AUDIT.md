@@ -4,6 +4,12 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Scripted exits freeze the old world during a pending level fetch
+
+`Game.tsx` marked asynchronous level transitions as loading for React UI and control attachment, but its fixed-step callback checked only `GameState.PLAYING` and the death-reload flag. Scripted NPC exits remain in PLAYING while the next JSON is fetched, so the old world could keep advancing under its black fade on a slow connection. The loading marker now updates a ref immediately; the fixed-step callback stops pending-load frames and also stops the current frame immediately after a scripted event begins a load. Startup, level selection, results Continue and NPC exits share the same marker.
+
+A failing-first wiring regression captured the absent immediate guard and then the missing mid-frame stop. The isolated full-App browser fixture then held the actual `level_3_11_sewer.json` request after Kyle's authored level-31 exit. With the request pending, its game clock stayed at **9.417 → 9.417 seconds**; releasing it loaded level 32 and displayed Wanda's authored introduction. Browser warning/error logs were empty. This verifies a real scripted handoff with an intentionally delayed request, not the player's unidentified stuck-level incident or mobile-network behavior. All 893 tests pass across 148 files (46,974 assertions); lint, type checking, Pages-base production build and whitespace checks pass. The existing large-bundle warning remains.
+
 ### Coin and gem HUD now matches Android geometry
 
 Original `HudSystem` draws the 32×32 `ui_pearl` at x224/y8 and `ui_gem` at x340/y8 on the 480×320 screen, with each x-mark starting 24 pixels after its icon and half-width digit overlap. The web HUD instead reduced both icons to 24×24, shifted the coin group left to x178, the gem group to x328, and placed the numbers 4–8 pixels too high. A failing-first renderer regression captured the wrong 24×24/x178 draw and now checks the exact zero-count icon/x-mark/digit geometry plus a 12-coin/3-gem count. The original art is unchanged. All 892 tests pass across 147 files (46,968 assertions); type checking, lint, Pages-base build and whitespace checks pass. The build emits `index-rx7amHVc.js` with the existing large-bundle warning. This improves visibility and source fidelity of the counter but does not add any coin pickups to Memory #000 or establish which screen the user meant.
