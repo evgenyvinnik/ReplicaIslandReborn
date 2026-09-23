@@ -4,6 +4,10 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Invisible smoke and debris emitters
+
+Android's cannon-smoke and breakable-block-piece spawners are one-pixel logic objects with lifetime and projectile components but no RenderComponent. The web factory left them visible, so Game's missing-sprite safety fallback painted a small gray square during those effects. Both now suppress drawing while retaining particle emission, motion and expiry. Source-backed regressions failed on both emitters before correction, then passed with all existing smoke/debris assertions. Fresh validation: 874 tests pass across 143 files (46,697 assertions); typecheck, lint, Pages-base production build and diff whitespace checks pass. The existing bundle-size warning remains. This does not resolve the unidentified gate/stuck location or the user-choice-dependent missing Diary 2 placement.
+
 ### Invisible authored camera markers
 
 Android's spawnCameraBias creates a logic-only marker with CameraBiasComponent and no RenderComponent. The web level loader had left all 12 shipped markers visible in three campaign maps, so Game's missing-sprite fallback drew gray 32px squares at their locations. The marker is now visually hidden while retaining camera updates and distance-based activation. A placed-level visibility regression failed on all three maps before the fix; the existing component check still verifies that an invisible marker moves the camera. A new campaign-wide check verifies that every *visible* placed actor has an actual sprite animation or layered art, apart from the original's intentionally invisible GHOST_NPC proxy.

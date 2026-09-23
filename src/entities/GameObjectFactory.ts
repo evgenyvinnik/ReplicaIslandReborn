@@ -484,6 +484,8 @@ export class GameObjectFactory {
   private configureBlockPieceSpawner(obj: GameObject): void {
     obj.type = 'effect';
     obj.subType = 'block_piece_spawner';
+    // Android gives this one-pixel projectile emitter no RenderComponent.
+    obj.setVisible(false);
     obj.width = obj.height = 1;
     obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
     const lifetime = new LifetimeComponent();
@@ -549,6 +551,8 @@ export class GameObjectFactory {
     obj.team = Team.NONE;
     obj.type = 'effect';
     obj.subType = 'smoke_poof';
+    // Only the launched smoke particles draw; the source emitter is invisible.
+    obj.setVisible(false);
     obj.width = obj.height = 1;
     obj.life = 1;
     const lifetime = new LifetimeComponent();

@@ -36,6 +36,7 @@ test('a cannon emits three large and three small moving smoke particles at its o
   const emitter = manager.getActiveObjects().find(o => o.subType === 'smoke_poof')!;
   expect(emitter).toBeDefined();
   expect(emitter.getComponent(SpriteComponent)).toBeNull();
+  expect(emitter.isVisible()).toBe(false);
   expect(emitter.getPosition().x).toBe(132);
   expect(emitter.getPosition().y).toBe(242); // 200 + 128 - 85 - emitter height
   expect(shot.getVelocity().y).toBeCloseTo(-2000);

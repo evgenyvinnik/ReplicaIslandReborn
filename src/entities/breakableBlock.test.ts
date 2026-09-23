@@ -115,6 +115,7 @@ test('debris is emitted at the old block centre with original velocity envelope 
   expect(resolveBreakableBlockDeath(block)).toBe(true);
   manager.commitUpdates();
   const emitter = manager.getActiveObjects().find(o => o.subType === 'block_piece_spawner')!;
+  expect(emitter.isVisible()).toBe(false);
   expect(emitter.getPosition().y + emitter.height).toBe(352);
   // Deterministic angle: sin(0)=0, cos(0)=1; Y-up -1000 becomes Canvas +1000.
   const random = Math.random;
