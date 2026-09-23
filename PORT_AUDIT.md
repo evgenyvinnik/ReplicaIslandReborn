@@ -4,6 +4,22 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Coin and gem HUD now matches Android geometry
+
+Original `HudSystem` draws the 32×32 `ui_pearl` at x224/y8 and `ui_gem` at x340/y8 on the 480×320 screen, with each x-mark starting 24 pixels after its icon and half-width digit overlap. The web HUD instead reduced both icons to 24×24, shifted the coin group left to x178, the gem group to x328, and placed the numbers 4–8 pixels too high. A failing-first renderer regression captured the wrong 24×24/x178 draw and now checks the exact zero-count icon/x-mark/digit geometry plus a 12-coin/3-gem count. The original art is unchanged. All 892 tests pass across 147 files (46,968 assertions); type checking, lint, Pages-base build and whitespace checks pass. The build emits `index-rx7amHVc.js` with the existing large-bundle warning. This improves visibility and source fidelity of the counter but does not add any coin pickups to Memory #000 or establish which screen the user meant.
+
+### Closing gate kills and retries instead of pinning Andou
+
+The isolated full App's lab crush fixture placed Andou inside the original green gate's narrow hit strip and set its existing channel to 4.5 game-seconds since activation; it did not change gate terrain or directly damage the player. The gate played closing frames 04→03→02→01. Andou reached DEATH state with 0/3 life at x730/y48, then the normal death path restarted the level at its authored x96/y464 spawn with 3/3 life. Browser warning/error logs were empty. This staged case rules out a permanent pin for that gate interaction, but not a different gate or the user's unidentified stuck level. No production code changed in this check.
+
+### Opening memory has no authored coins
+
+The first playable map, `level_0_1_sewer` (ID 1, Memory #000), contains zero COIN object tiles. The second lab map contains 19 and the first island map contains 32. The full binary/JSON tile parity check passed again (329 assertions), establishing this is not a dropped conversion in the first map. Therefore seeing no coin pickups in Memory #000 is expected source content; coin/HUD behavior must be judged on a later map that actually has coins. Earlier normal-input lab evidence collected 17 coins. This does not decide whether the user's phrase “no coins being displayed” referred to a zero-count HUD element or a specific later level.
+
+### Live green-gate open and close check
+
+In the isolated full App, the lab's authored green gate at x736 and its plate at x768 were left unchanged. The position-only fixture placed Andou beside each side of the puzzle. Right input stopped at x704 against the closed gate. Walking left from the far side pressed the real plate: the gate diagnostic observed sprites 01→02→03→04, and Andou crossed to x562 with 3/3 life. A subsequent dialogue held the open frame while gameplay was paused, so wall-clock waiting there did not test the five-second game-time close. After dismissing it, a fresh plate contact observed the same opening frames; moving off the plate and letting gameplay advance, then returning to the gate, showed closed frame 01. Browser warning/error logs were empty. This establishes one functioning authored pair, not the user's unidentified bad gate or a complete lab route. No production code changed in this check.
+
 ### Catch-up frames respect pause and stop
 
 `GameLoop.tick()` accumulated up to 0.1 seconds of fixed updates per display frame, but its catch-up loop ignored a pause or stop requested by an update callback. A failing-first regression paused on the first update of a delayed frame and observed six updates instead of one. The loop now ends that batch immediately, discards its leftover accumulator, and does not render or schedule another frame if gameplay stopped. Two further regressions cover stop during update and render. All 891 tests pass across 146 files (46,961 assertions); type checking, lint, Pages-base build and whitespace checks pass. The build emits `index-81UZNns4.js` with the existing large-bundle warning. This corrects a loop lifecycle invariant; `Game.tsx` currently handles most overlays through its own game-state guards, so this is not proof of the user's unidentified freeze.

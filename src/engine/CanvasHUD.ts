@@ -23,8 +23,8 @@ const FUEL_BAR_BG_HEIGHT = 16;
 const FUEL_BAR_INNER_OFFSET = 2;
 const FUEL_BAR_INNER_MAX_WIDTH = 96;
 
-/** Both collectable icons are 32x32 in the original and drawn the same size. */
-const COLLECTABLE_ICON_SIZE = 24;
+/** Original ui_pearl and ui_gem textures are both drawn at their 32x32 size. */
+const COLLECTABLE_ICON_SIZE = 32;
 
 const DIGIT_SPRITE_WIDTH = 32;
 const DIGIT_SPRITE_HEIGHT = 32;
@@ -323,13 +323,11 @@ export class CanvasHUD {
     const centerX = this.width / 2;
     const y = COLLECTABLE_EDGE_PADDING;
     
-    // Both HUD icons are 32x32 and are drawn at the same size. COIN_SPRITE_SIZE
-    // dates from when this drew the 16x16 world coin instead.
-    const iconX = centerX - COLLECTABLE_ICON_SIZE / 2 - 50;
+    const iconX = centerX - COLLECTABLE_ICON_SIZE / 2;
     this.ctx.drawImage(coinSprite, iconX, y, COLLECTABLE_ICON_SIZE, COLLECTABLE_ICON_SIZE);
     
     // Draw "x" and count
-    this.drawNumber(this.coins, iconX + COLLECTABLE_ICON_SIZE + 4, y - 8, true);
+    this.drawNumber(this.coins, iconX + COLLECTABLE_ICON_SIZE * 0.75, y, true);
   }
   
   private drawRubies(): void {
@@ -339,11 +337,11 @@ export class CanvasHUD {
     const centerX = this.width / 2 + RUBY_OFFSET_FROM_CENTER;
     const y = COLLECTABLE_EDGE_PADDING;
     
-    const iconX = centerX - COLLECTABLE_ICON_SIZE / 2;
+    const iconX = centerX;
     this.ctx.drawImage(rubySprite, iconX, y, COLLECTABLE_ICON_SIZE, COLLECTABLE_ICON_SIZE);
     
     // Draw "x" and count
-    this.drawNumber(this.rubies, iconX + COLLECTABLE_ICON_SIZE + 4, y - 4, true);
+    this.drawNumber(this.rubies, iconX + COLLECTABLE_ICON_SIZE * 0.75, y, true);
   }
   
   private drawFPS(): void {
