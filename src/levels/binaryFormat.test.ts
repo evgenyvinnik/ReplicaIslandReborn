@@ -81,6 +81,52 @@ describe('level binary format', () => {
     expect(mismatches).toEqual([]);
   });
 
+  test('all converted level tiles agree with their Android binaries', () => {
+    const parser = new LevelParser();
+    const mismatches: string[] = [];
+    let checked = 0;
+    let tileCount = 0;
+    for (const name of binaryLevels()) {
+      const source = parser.parseLevelData(new Uint8Array(readFileSync(join(rawDir, `${name}.bin`))));
+      const converted = JSON.parse(readFileSync(join(jsonDir, `${name}.json`), 'utf8')) as {
+        backgroundId: number;
+        layers: Array<{ typeId: number; themeId: number; scrollSpeed: number;
+          world: { width: number; height: number; tiles: number[][] } }>;
+      };
+      expect(source, name).not.toBeNull();
+      checked++;
+      if (source!.backgroundIndex !== converted.backgroundId ||
+          source!.layers.length !== converted.layers.length) {
+        mismatches.push(`${name}: header`);
+        continue;
+      }
+      for (const [index, layer] of source!.layers.entries()) {
+        const json = converted.layers[index];
+        if (layer.type !== json.typeId || layer.themeIndex !== json.themeId ||
+            Math.abs(layer.scrollSpeed - json.scrollSpeed) > 0.00001 ||
+            layer.world.width !== json.world.width || layer.world.height !== json.world.height) {
+          mismatches.push(`${name}: layer ${index} metadata`);
+          continue;
+        }
+        for (let y = 0; y < layer.world.height; y++) {
+          for (let x = 0; x < layer.world.width; x++) {
+            tileCount++;
+            const binaryTile = layer.world.tiles[x][y];
+            // The binary parser calculates background skip lengths; each
+            // negative value still denotes the same empty tile as JSON -1.
+            const normalized = binaryTile < 0 ? -1 : binaryTile;
+            if (normalized !== json.world.tiles[y][x] && mismatches.length < 20) {
+              mismatches.push(`${name}: layer ${index} tile ${x},${y}: ${String(binaryTile)} vs ${json.world.tiles[y][x]}`);
+            }
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(40);
+    expect(tileCount).toBeGreaterThan(700_000);
+    expect(mismatches).toEqual([]);
+  });
+
   test('tile bytes are read as signed, so 255 means empty', () => {
     // TiledWorld.java reads each tile as `(byte)byteStream.read()`, so 0xff is
     // -1 rather than 255. An unsigned read would turn every empty tile into a

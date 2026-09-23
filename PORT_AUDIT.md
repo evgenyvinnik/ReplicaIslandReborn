@@ -4,6 +4,10 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Complete binary/converted-map parity
+
+A full comparison of 44 Android level binaries against the shipped JSON covered 748,020 tile positions, including every collision, object and hotspot tile. Collision and object data match exactly. Background differences are only the Android parser's negative empty-run skip markers versus JSON's `-1`. The only other difference was 2,738 trailing hotspot cells where the Android binary ends early: Java reads these as `-1`, but the web binary parser had left them `undefined`. The parser now matches Java's EOF behavior, and a failing-first full-tile parity regression passes. A separate read-only comparison found all 53 collision-tile definitions and 205 line segments in `collision.json` match `collision.bin` after the documented Y-axis conversion. This rules out conversion drift as the cause of the still-unidentified gate/wall/stuck report; runtime behavior remains to investigate.
+
 ### Diary 2 pickup repair
 
 Both Android's level tree and the web campaign tree assign Diary 2 to Memory #005 (`level_1_3_island`), but the original binary and converted JSON have no DIARY tile. The web level loader now supplies exactly one pickup at an empty tile two columns right and one row above Andou's start, only when that map still lacks an authored diary. The original assets remain untouched. This is a deliberate web-only repair of missing source content, not a claim about an original Android placement. A failing-first real-map test now covers all 15 assigned diaries, normal Diary 2 collision, and collected-log replay suppression. The exact gate/stuck location remains unidentified.

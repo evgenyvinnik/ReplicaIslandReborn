@@ -179,11 +179,12 @@ function parseTiledWorld(data: Uint8Array, offset: number): { world: TiledWorldD
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       // Tile values are signed bytes
-      let tileValue = data[currentOffset++];
-      // Convert to signed
-      if (tileValue > 127) {
-        tileValue = tileValue - 256;
-      }
+      const rawValue = data[currentOffset++];
+      // Java's `(byte)byteStream.read()` returns -1 at EOF. A few original
+      // final hotspot layers end early; leaving those cells undefined makes
+      // them unlike both Android and the converted JSON's empty tiles.
+      const tileValue = rawValue === undefined ? -1 :
+        rawValue > 127 ? rawValue - 256 : rawValue;
       tiles[x][y] = tileValue;
     }
   }
