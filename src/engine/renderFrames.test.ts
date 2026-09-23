@@ -161,6 +161,87 @@ test('30/60/120/144Hz displays advance UI by elapsed time and keep rendering whi
   }
 });
 
+test('pausing during a catch-up frame stops the remaining simulation steps', () => {
+  const originalRequest = globalThis.requestAnimationFrame;
+  const originalCancel = globalThis.cancelAnimationFrame;
+  const now = spyOn(performance, 'now').mockReturnValue(0);
+  let pending: Parameters<typeof requestAnimationFrame>[0] | undefined;
+  globalThis.requestAnimationFrame = (callback): number => { pending = callback; return 1; };
+  globalThis.cancelAnimationFrame = (): void => { pending = undefined; };
+
+  try {
+    const loop = new GameLoop();
+    let updates = 0;
+    let renders = 0;
+    loop.setUpdateCallback(() => {
+      updates++;
+      if (updates === 1) loop.pause();
+    });
+    loop.setRenderCallback(() => { renders++; });
+    loop.start();
+    pending?.(100); // A delayed display frame would otherwise run six updates.
+    expect(updates).toBe(1);
+    expect(renders).toBe(1);
+    expect(loop.isPaused()).toBe(true);
+    loop.stop();
+  } finally {
+    now.mockRestore();
+    globalThis.requestAnimationFrame = originalRequest;
+    globalThis.cancelAnimationFrame = originalCancel;
+  }
+});
+
+test('stopping during a catch-up frame does not render or queue another frame', () => {
+  const originalRequest = globalThis.requestAnimationFrame;
+  const originalCancel = globalThis.cancelAnimationFrame;
+  const now = spyOn(performance, 'now').mockReturnValue(0);
+  let pending: Parameters<typeof requestAnimationFrame>[0] | undefined;
+  globalThis.requestAnimationFrame = (callback): number => { pending = callback; return 1; };
+  globalThis.cancelAnimationFrame = (): void => { pending = undefined; };
+
+  try {
+    const loop = new GameLoop();
+    let updates = 0;
+    let renders = 0;
+    loop.setUpdateCallback(() => { updates++; loop.stop(); });
+    loop.setRenderCallback(() => { renders++; });
+    loop.start();
+    pending?.(100);
+    expect(updates).toBe(1);
+    expect(renders).toBe(0);
+    expect(pending).toBeUndefined();
+    expect(loop.isRunning()).toBe(false);
+  } finally {
+    now.mockRestore();
+    globalThis.requestAnimationFrame = originalRequest;
+    globalThis.cancelAnimationFrame = originalCancel;
+  }
+});
+
+test('stopping during rendering does not queue another frame', () => {
+  const originalRequest = globalThis.requestAnimationFrame;
+  const originalCancel = globalThis.cancelAnimationFrame;
+  const now = spyOn(performance, 'now').mockReturnValue(0);
+  let pending: Parameters<typeof requestAnimationFrame>[0] | undefined;
+  globalThis.requestAnimationFrame = (callback): number => { pending = callback; return 1; };
+  globalThis.cancelAnimationFrame = (): void => { pending = undefined; };
+
+  try {
+    const loop = new GameLoop();
+    let renders = 0;
+    loop.setRenderCallback(() => { renders++; loop.stop(); });
+    loop.start();
+    pending?.(1000 / 60);
+    expect(renders).toBe(1);
+    expect(pending).toBeUndefined();
+    expect(loop.isRunning()).toBe(false);
+  } finally {
+    now.mockRestore();
+    globalThis.requestAnimationFrame = originalRequest;
+    globalThis.cancelAnimationFrame = originalCancel;
+  }
+});
+
 test('death fades cover the current screen immediately, independent of camera position', () => {
   const fills: unknown[][] = [];
   const transforms: number[][] = [];

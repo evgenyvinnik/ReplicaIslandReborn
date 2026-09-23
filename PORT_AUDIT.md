@@ -4,6 +4,18 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Catch-up frames respect pause and stop
+
+`GameLoop.tick()` accumulated up to 0.1 seconds of fixed updates per display frame, but its catch-up loop ignored a pause or stop requested by an update callback. A failing-first regression paused on the first update of a delayed frame and observed six updates instead of one. The loop now ends that batch immediately, discards its leftover accumulator, and does not render or schedule another frame if gameplay stopped. Two further regressions cover stop during update and render. All 891 tests pass across 146 files (46,961 assertions); type checking, lint, Pages-base build and whitespace checks pass. The build emits `index-81UZNns4.js` with the existing large-bundle warning. This corrects a loop lifecycle invariant; `Game.tsx` currently handles most overlays through its own game-state guards, so this is not proof of the user's unidentified freeze.
+
+### Later-campaign browser startup scan
+
+Using only the isolated full-App save's level selector and normal Continue action, level IDs 33–40 each loaded at their authored spawn with an active, visible Andou, 3/3 life, and a loaded `andou_stand` sprite. The diagnostic positions were ID 33 (64,48), 34 (320,208), 35 (not recorded), 36 (64,848), 37 (96,176), 38 (64,304), 39 (128,816), and 40 (64,1808). Browser warning/error logs were empty during the scan. Some startup checks needed another observation after Continue while asynchronous assets loaded; no persistent stall was found. This verifies startup, not whole routes, gate solutions, frame pacing on physical Android, or the user's unidentified stuck moment. No production code or published build changed.
+
+### Late-campaign gate contact is recoverable
+
+An isolated full-App save loaded level ID 34, Memory #032 (`level_4_2_underground`), at its authored x320/y208 spawn with 3/3 life. Ordinary right input reached x1504/y336 and collected one coin. The closed red gate at object tile (48,11) stopped further right input, including right-plus-fly; left input then moved Andou back to x1132/y336 with 3/3 life. Browser warning/error logs were empty. This is a normal gate collision and recovery smoke check, not evidence that the user's unidentified stuck level or poorly animated gate is fixed. No production code, real save, or published build changed in this pass.
+
 ### Deferred game-flow events cannot monopolize one frame
 
 `GameFlowEvent.post()` documents next-frame delivery, but its `update()` loop drained the live queue until empty. A listener that posts another deferred event was therefore invoked again in the same update; a self-reposting listener could keep the JavaScript frame busy indefinitely. A failing-first test confirmed that a short re-entrant chain ran to completion in one call. `update()` now takes a snapshot of the pending batch, leaving newly posted events for the next update. A second regression preserves reset semantics: if a handler resets the flow system, the remainder of the in-flight batch is discarded. This is a real scheduler/liveness correction on the story-transition path, not evidence that the user's unidentified stuck level contained a self-reposting listener.

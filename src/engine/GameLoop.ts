@@ -167,21 +167,29 @@ export class GameLoop {
       this.accumulator += deltaTime;
 
       // Update game state at fixed intervals
-      while (this.accumulator >= this.fixedDeltaTime) {
+      while (this.running && !this.paused && this.accumulator >= this.fixedDeltaTime) {
         if (this.updateCallback) {
           this.guard('update', this.updateCallback, this.fixedDeltaTime);
+        }
+        // An update can open a modal or stop the game. Do not run the rest of
+        // a delayed frame's catch-up steps after that state change.
+        if (this.paused || !this.running) {
+          this.accumulator = 0;
+          break;
         }
         this.accumulator -= this.fixedDeltaTime;
       }
     }
+
+    if (!this.running) return;
 
     // A paused simulation still draws and advances its menus/dialogue.
     if (this.renderCallback) {
       this.guard('render', this.renderCallback, this.accumulator / this.fixedDeltaTime, deltaTime);
     }
 
-    // Schedule next frame
-    this.animationFrameId = requestAnimationFrame(this.tick);
+    // Rendering may also end the session (for example, on an overlay handoff).
+    if (this.running) this.animationFrameId = requestAnimationFrame(this.tick);
   }
 
   /**
