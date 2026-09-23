@@ -2,8 +2,12 @@ import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { file } from 'bun';
 import { join } from 'node:path';
 import { CollisionSystem } from '../engine/CollisionSystemNew';
+import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { GameObjectManager } from '../entities/GameObjectManager';
+import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
+import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { createPlayerVolumeSets } from '../entities/playerCollisionVolumes';
 import { resourceToLevelId } from '../data/levelTree';
 import { LevelSystem } from './LevelSystemNew';
 import { useGameStore } from '../stores/useGameStore';
@@ -88,9 +92,9 @@ test('an already cancelled load does not fetch or populate a level', async () =>
 test('all placed campaign diaries award their own log and disappear on replay', async () => {
   useGameStore.setState({ progress: { ...originalProgress, levels: {}, diariesCollected: [] } });
   let checked = 0;
-  // Both original and converted island 1_3 maps lack a diary object, although
-  // the campaign trees assign entry 2 there. Do not invent a pickup placement.
-  const bindings = [[4, 1], [8, 4], [11, 14], [14, 5], [16, 8], [17, 10],
+  // The original island 1_3 binary omits its assigned Diary 2 pickup. The web
+  // loader supplies one explicit repair so every authored log is obtainable.
+  const bindings = [[4, 1], [6, 2], [8, 4], [11, 14], [14, 5], [16, 8], [17, 10],
     [19, 11], [20, 15], [24, 12], [28, 3], [30, 6], [33, 7], [34, 9], [38, 13]];
   for (const [levelId, diaryId] of bindings) {
     const { level, manager } = rig();
@@ -107,6 +111,32 @@ test('all placed campaign diaries award their own log and disappear on replay', 
     expect(manager.getActiveObjects().some((object) => object.type === 'diary')).toBe(false);
     level.dispose();
   }
-  expect(checked).toBe(14);
+  expect(checked).toBe(15);
   expect(useGameStore.getState().progress.diariesCollected).toEqual(bindings.map(([, diaryId]) => diaryId));
+});
+
+test('the repaired Memory #005 diary is reachable and uses normal pickup collision', async () => {
+  const { level, manager } = rig();
+  const collisions = new GameObjectCollisionSystem();
+  sSystemRegistry.register(collisions, 'gameObjectCollision');
+  expect(await level.loadLevel(resourceToLevelId.level_1_3_island)).toBe(true);
+  manager.commitUpdates();
+  const diary = manager.getActiveObjects().find((object) => object.type === 'diary')!;
+  const player = manager.getPlayer()!;
+  expect(diary).toBeDefined();
+  expect(diary.getPosition().x - player.getPosition().x).toBe(64);
+  expect(diary.getPosition().y - player.getPosition().y).toBe(-16);
+  expect(diary.getComponent(SpriteComponent)?.getCurrentDraw()?.sprite).toBe('diary01');
+
+  // Walking two tiles right from the authored spawn places Andou's body and
+  // COLLECT volume over the repaired pickup; no special collection path exists.
+  player.setPosition(diary.getPosition().x, player.getPosition().y);
+  const playerCollision = player.getComponent(DynamicCollisionComponent)!;
+  const volumes = createPlayerVolumeSets().normal;
+  playerCollision.setCollisionVolumes(volumes.attack, volumes.vulnerability);
+  expect(diary.getComponent(DynamicCollisionComponent)!.getVulnerabilityVolumes()?.length).toBeGreaterThan(0);
+  playerCollision.update(0, player);
+  diary.getComponent(DynamicCollisionComponent)!.update(0, diary);
+  collisions.update(0);
+  expect(diary.life).toBe(0);
 });

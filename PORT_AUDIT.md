@@ -4,6 +4,10 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Diary 2 pickup repair
+
+Both Android's level tree and the web campaign tree assign Diary 2 to Memory #005 (`level_1_3_island`), but the original binary and converted JSON have no DIARY tile. The web level loader now supplies exactly one pickup at an empty tile two columns right and one row above Andou's start, only when that map still lacks an authored diary. The original assets remain untouched. This is a deliberate web-only repair of missing source content, not a claim about an original Android placement. A failing-first real-map test now covers all 15 assigned diaries, normal Diary 2 collision, and collected-log replay suppression. The exact gate/stuck location remains unidentified.
+
 ### Invisible smoke and debris emitters
 
 Android's cannon-smoke and breakable-block-piece spawners are one-pixel logic objects with lifetime and projectile components but no RenderComponent. The web factory left them visible, so Game's missing-sprite safety fallback painted a small gray square during those effects. Both now suppress drawing while retaining particle emission, motion and expiry. Source-backed regressions failed on both emitters before correction, then passed with all existing smoke/debris assertions. Fresh validation: 874 tests pass across 143 files (46,697 assertions); typecheck, lint, Pages-base production build and diff whitespace checks pass. The existing bundle-size warning remains. This does not resolve the unidentified gate/stuck location or the user-choice-dependent missing Diary 2 placement.

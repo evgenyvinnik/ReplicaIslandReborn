@@ -63,6 +63,12 @@ import { createEnemyCollisionProfile, selectEnemyAttackVolumes } from '../entiti
 /** Original: GameObjectFactory.sSurprisedNPCChannel. */
 const SURPRISED_NPC_CHANNEL = 'SURPRISED';
 
+// Both Android's binary and its converted JSON omit this pickup even though
+// both campaign trees assign Diary 2 to Memory #005. Keep the source assets
+// intact and repair only the missing, reachable web spawn. If a corrected map
+// later includes a diary, the authored placement takes precedence.
+const MISSING_DIARY2_TILE = { x: 11, y: 97 } as const;
+
 /**
  * Objects the original gives a MovementComponent but no GravityComponent: the
  * flyers hold altitude, and Rokudou only falls once his death swap adds gravity
@@ -521,6 +527,18 @@ export class LevelSystem {
           tileY: y,
         });
       }
+    }
+
+    if (this.currentLevelId === resourceToLevelId.level_1_3_island &&
+        !spawnList.some((spawn) => spawn.type === GameObjectTypeIndex.DIARY) &&
+        objectLayer.tiles[MISSING_DIARY2_TILE.x]?.[MISSING_DIARY2_TILE.y] === -1) {
+      spawnList.push({
+        type: GameObjectTypeIndex.DIARY,
+        x: MISSING_DIARY2_TILE.x * this.tileWidth,
+        y: MISSING_DIARY2_TILE.y * this.tileHeight,
+        tileX: MISSING_DIARY2_TILE.x,
+        tileY: MISSING_DIARY2_TILE.y,
+      });
     }
 
     // console.log(`[LevelSystem] Found ${spawnList.length} objects to spawn`);
