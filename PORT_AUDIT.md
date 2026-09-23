@@ -4,6 +4,14 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Normal-input gate and diary checks on the deployed-source build
+
+The production-style isolated browser fixture now accepts any mapped campaign level ID, rejects unmapped IDs without reloading, and reports current pickup counts, active diary positions and persisted diary IDs. It changes only its namespaced session save; it does not touch the published player's save or actor state. The rebuilt fixture passed Vite's verification build and its level selector was exercised with IDs 6 and 17 plus invalid ID 44.
+
+From level 27's authored spawn, timed keyboard inputs reached the red plate at tile (29, 11), then crossed its gate at tile (44, 12) before the original five-second channel expired. Andou reached x1549 with full 3/3 life; no actor, gate or terrain was staged. This is another successful route through **one** gate, not a reproduction of the user's still-unidentified gate or stuck level.
+
+In Memory #005, the new Diary 2 pickup was collected and persisted. In a separate normal-spawn Memory #017 run, walking right collected the authored Diary 10, displayed its paper reader, scrolled to the final paragraph with PageDown, closed with Enter and removed the active pickup. The isolated save reported diary IDs 2 and 10. The published GitHub Pages page loaded the latest `index-Dz-enT44.js` bundle and reported no startup errors. These checks establish the tested paths only; the user's particular log failure has not been reproduced.
+
 ### All placed gate variants through their channels
 
 The campaign button→gate integration test previously skipped all nine nonblocking gates in `level_3_6_sewer` because their subtype includes `_nonblocking`, unlike their button's colour-only subtype. The test now drives every such gate from its real plate, verifies that it opens, and checks timer-driven closure without accidentally granting it a solid wall; all nine pass. During the closure check, a full-system update renewed the red channel in `level_1_3_island` while the test player was away; the authored map has a brobot beside a second red plate, consistent with another actor holding it. The isolated closure check updates the gate alone after the stamp expires. No production gate change was justified by this evidence, and the user's reported gate/soft-lock location remains unknown.
