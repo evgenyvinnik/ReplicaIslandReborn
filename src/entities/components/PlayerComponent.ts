@@ -169,6 +169,8 @@ export class PlayerComponent extends GameComponent {
   public ghostChargeTime: number = 0;
   public ghostActive: boolean = false;
   public postGhostDelay: number = 0;
+  /** Android's mGhostDeactivatedTime includes the return-camera delay. */
+  private ghostDeactivatedTime: number = 0;
   
   public animFrame: number = 0;
   public animTimer: number = 0;
@@ -554,7 +556,8 @@ export class PlayerComponent extends GameComponent {
     }
 
     // Ghost mechanic
-    if (this.currentState === PlayerState.MOVE && input.attack && this.touchingGround && !this.stomping && !this.ghostActive) {
+    if (this.currentState === PlayerState.MOVE && input.attack && this.touchingGround && !this.stomping &&
+        !this.ghostActive && gameTime > this.ghostDeactivatedTime + PlayerComponent.GHOST_REACTIVATION_DELAY) {
       this.ghostChargeTime += deltaTime;
       
       if (this.ghostChargeTime >= PlayerComponent.GHOST_CHARGE_TIME) {
@@ -579,8 +582,8 @@ export class PlayerComponent extends GameComponent {
     
     // Post-ghost delay
     if (this.currentState === PlayerState.POST_GHOST_DELAY) {
-      this.postGhostDelay -= deltaTime;
-      if (this.postGhostDelay <= 0) {
+      this.postGhostDelay = Math.max(0, this.ghostDeactivatedTime - gameTime);
+      if (gameTime > this.ghostDeactivatedTime) {
         this.currentState = PlayerState.MOVE;
         this.ghostActive = false;
       }
@@ -1094,6 +1097,7 @@ export class PlayerComponent extends GameComponent {
     this.ghostChargeTime = 0;
     this.ghostActive = false;
     this.postGhostDelay = 0;
+    this.ghostDeactivatedTime = 0;
     this.animFrame = 0;
     this.animTimer = 0;
     this.lastAnimState = '';
@@ -1129,8 +1133,8 @@ export class PlayerComponent extends GameComponent {
     this.ghostActive = false;
     this.ghostChargeTime = 0;
     this.postGhostDelay = Math.max(0, delay);
-    this.currentState = this.postGhostDelay > 0
-      ? PlayerState.POST_GHOST_DELAY
-      : PlayerState.MOVE;
+    const now = sSystemRegistry.timeSystem?.getGameTime() ?? this.parent?.getGameTime() ?? 0;
+    this.ghostDeactivatedTime = now + this.postGhostDelay;
+    this.currentState = PlayerState.POST_GHOST_DELAY;
   }
 }

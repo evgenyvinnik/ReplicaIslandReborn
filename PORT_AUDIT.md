@@ -4,6 +4,12 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Possession reactivation after the orb returns
+
+Android `PlayerComponent.deactivateGhost()` records the game-time end of the return delay, enters `POST_GHOST_DELAY` even when that delay is zero, and permits another charge only when game time is strictly greater than the end plus `GHOST_REACTIVATION_DELAY` (0.3 seconds). The web component declared that constant but never applied it: a zero-delay release went straight to MOVE, and a held attack could start charging immediately after either a zero or nonzero return delay. Two failing-first component regressions reproduced both cases. The controller now retains the absolute deactivation timestamp, uses the simulation clock for post-return recovery, and enforces the additional cooldown before charging again. This is a source-confirmed missing possession rule; it is not a reproduction of the user's unspecified stuck level or gate symptom.
+
+All 882 tests pass across 145 files (46,922 assertions). Lint, type checking and the Pages-base production build pass; the existing large-bundle warning remains. Production bundle: `index-BGOszrq4.js`. No physical Android-device or published-site interaction test is claimed for this change.
+
 ### Full-campaign startup simulation now includes gate/platform solidity
 
 The existing `campaignGameplay.test.ts` already simulated one second with right/fly input in every playable level and checked scripted movement from all spawns, but its headless harness never promoted SolidSurfaceComponent submissions into the collision system's active temporary surfaces. That left doors and platforms non-solid inside those broad tests. A failing-first test placed the real lab player beside its green gate and found zero active gate surfaces. The harness now installs the SolidSurface registry and swaps pending surfaces after each frame, matching the full App's order. The regression sees all four gate sides, and all 32 campaign-gameplay tests still pass, including the every-level startup/movement checks. This strengthens the evidence against an immediate spawn wedge, but says nothing about an unspecified later-level lockup or physical-device freeze. No production behavior changed.
