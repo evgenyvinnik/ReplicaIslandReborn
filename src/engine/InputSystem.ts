@@ -217,6 +217,15 @@ export class InputSystem {
     return this.getInputState().horizontal * 0.25;
   }
 
+  /** Continuous two-axis steering for the orb's web touch-pad substitute. */
+  getOrbSteering(): { x: number; y: number } {
+    const state = this.getInputState();
+    const vertical = Math.abs(this.virtualJoystickY) > 0.001
+      ? this.virtualJoystickY
+      : (state.down ? 1 : 0) - (state.up ? 1 : 0);
+    return { x: state.horizontal, y: vertical * this.movementSensitivity };
+  }
+
   /**
    * Check if an action is currently active (held)
    */

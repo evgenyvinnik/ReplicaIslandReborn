@@ -4,6 +4,12 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Proportional two-axis orb-pad steering
+
+The orb's web control pad already emitted continuous X/Y values, but `GhostComponent` read only `InputState.left/right/up/down`. Those booleans do not engage until a virtual axis crosses 0.3; a gentle 20% drag therefore produced no movement, while a 50% drag became a full-strength command. Failing-first regression checks found zero target velocity at 20%. `InputSystem.getOrbSteering()` now exposes the scaled continuous horizontal and vertical axes with keyboard/controller fallback, and the orb consumes those values directly. Real `CanvasControls` touch events at x97/y239 on the native 480×320 canvas reach the spawned orb as approximately 20.3% X/Y commands; release clears both axes. This is a web touch-pad adaptation to Android's continuous tilt input, not an implementation of a device-orientation sensor or proof of physical-phone behavior.
+
+All 886 tests pass across 145 files (46,940 assertions). Type checking, lint, Pages-base build and whitespace checks pass. The build emits `index-DSKHPX2X.js`; the existing large-bundle warning remains. The user's particular gate and stuck-level location remain unidentified.
+
 ### Possessed-enemy jump edge
 
 Android `GhostComponent` jumps a possessed ground target only when `InputButton.getTriggered()` reports a fresh Fly press; action-changing possessed targets separately act while Fly is held. The web component used the held Fly state for both branches, so a possessed ground enemy could jump again automatically whenever it landed. It also replaced an existing vertical impulse instead of adding the jump to it. Failing-first assertions reproduce both differences with grounded updates and confirm a new press can jump again; a companion check keeps held-button actions intact. The web controller now consumes the per-frame Fly press edge and adds the jump impulse. This fixes source-confirmed possession-control mismatches, not the still-unidentified gate or stuck-level incident.

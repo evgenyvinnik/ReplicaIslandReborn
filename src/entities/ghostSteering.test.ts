@@ -48,6 +48,24 @@ test('a rendered possession orb moves left/up on command without down-right drif
   }
 });
 
+test('the orb receives proportional steering from a gentle two-axis touch drag', () => {
+  sSystemRegistry.reset();
+  const manager = new GameObjectManager();
+  const input = new InputSystem();
+  sSystemRegistry.register(input, 'input');
+  const factory = new GameObjectFactory(manager);
+  factory.setSystemRegistry(sSystemRegistry);
+  const orb = factory.spawnGhost(600, 600, 2)!;
+  input.setVirtualJoystick(0.2, -0.2);
+  orb.update(1 / 60, 1);
+  expect(orb.getTargetVelocity().x).toBeCloseTo(400);
+  expect(orb.getTargetVelocity().y).toBeCloseTo(-400);
+  input.setVirtualJoystick(0.5, -0.5);
+  orb.update(1 / 60, 1 + 1 / 60);
+  expect(orb.getTargetVelocity().x).toBeCloseTo(1000);
+  expect(orb.getTargetVelocity().y).toBeCloseTo(-1000);
+});
+
 test('the orb bounces off tiles in every direction, including at its original top speed', async () => {
   const collision = new CollisionSystem();
   const originalFetch = globalThis.fetch;

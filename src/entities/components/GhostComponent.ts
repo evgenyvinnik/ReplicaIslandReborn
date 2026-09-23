@@ -226,18 +226,11 @@ export class GhostComponent extends GameComponent {
         const acceleration = parent.getAcceleration();
 
         if (this.config.useOrientationSensor) {
-          // Use orientation sensor (tilt) for movement - both X and Y
-          // Note: Web uses DeviceOrientation API, but for now use directional input
-          let moveX = 0;
-          let moveY = 0;
-
-          if (inputState.left) moveX -= 1;
-          if (inputState.right) moveX += 1;
-          if (inputState.up) moveY -= 1;
-          if (inputState.down) moveY += 1;
-
-          targetVelocity.x = moveX * this.config.movementSpeed;
-          targetVelocity.y = moveY * this.config.movementSpeed;
+          // Android reads a continuous two-axis tilt. The web pad supplies
+          // proportional values, with keyboard/controller axes as fallbacks.
+          const steering = input.getOrbSteering();
+          targetVelocity.x = steering.x * this.config.movementSpeed;
+          targetVelocity.y = steering.y * this.config.movementSpeed;
           acceleration.x = this.config.acceleration;
           acceleration.y = this.config.acceleration;
         } else {

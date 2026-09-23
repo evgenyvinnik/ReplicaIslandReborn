@@ -109,6 +109,25 @@ test.each([[84, 188, 0, -1], [84, 316, 0, 1], [20, 252, -1, 0], [148, 252, 1, 0]
   }
 );
 
+test('a small orb-pad drag remains proportional below the digital direction threshold', () => {
+  const manager = new GameObjectManager();
+  sSystemRegistry.register(manager, 'gameObject');
+  sSystemRegistry.register(input, 'input');
+  const factory = new GameObjectFactory(manager);
+  factory.setSystemRegistry(sSystemRegistry);
+  const orb = factory.spawnGhost(600, 600, 2)!;
+  controls.setOrbControlMode(true);
+  const finger = touch(1, 97, 239);
+  send('touchstart', [finger]);
+  expect(input.getInputState().right).toBe(false);
+  expect(input.getInputState().up).toBe(false);
+  orb.update(1 / 60, 1);
+  expect(orb.getTargetVelocity().x).toBeCloseTo(406.25);
+  expect(orb.getTargetVelocity().y).toBeCloseTo(-406.25);
+  send('touchend', [finger], []);
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+});
+
 test('orb possession or release clears pad steering and restores horizontal-only movement', () => {
   controls.setOrbControlMode(true);
   const finger = touch(1, 148, 188);
