@@ -160,7 +160,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const gameObjectManager = systemRegistryRef.current?.gameObjectManager;
     if (gameObjectManager) {
       activeGhostRef.current = null;
-      startLevelAttempt(levelId, gameObjectManager, getDifficultySettings());
+      startLevelAttempt(levelId, gameObjectManager, getDifficultySettings(), effectsSystemRef.current);
       const level = levelSystemRef.current;
       const camera = systemRegistryRef.current?.cameraSystem;
       if (level && camera) focusLevelCamera(level, gameObjectManager, camera, height);

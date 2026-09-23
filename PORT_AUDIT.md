@@ -4,6 +4,10 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Transient effects reset with each level attempt
+
+LevelSystem clears objects, collisions and channels on a successful load, but the web-only EffectsSystem pool was separate and retained live smoke, sparks and dust into the next attempt. Android's effects are level objects, so the original reset clears them. The shared `startLevelAttempt` hook now clears the separate pool; Game passes that same pool on startup, scripted transitions, results Continue and death retries. A failing-first regression carried two effects across an attempt, then verified clearing and immediate pool reuse. The Game wiring check ensures the real App supplies its effect pool. All 897 tests pass across 150 files (46,982 assertions); lint, type checking, Pages-base build and whitespace checks pass. This is effect-lifecycle parity, not a reproduction of the user's unspecified stuck level, and it has not had a separate browser check. The existing large-bundle warning remains.
+
 ### Bounded level fetches recover from a stalled mobile request
 
 The converted-level parser called `fetch()` and `response.json()` without a timeout or an abort signal. A request that never settled could leave a scripted exit under its black fade indefinitely; startup cancellation also waited for the request instead of ending promptly. A failing-first pair of tests held a fetch open and observed both timeout and external cancellation hanging. Level JSON loads now use a 20-second abortable deadline, pass the startup/disposal signal through the parser, and clear their timer and listener on every result. The unused legacy JSON loader uses the same bounded fetch helper.
