@@ -487,6 +487,10 @@ export class LevelSystem {
 
     // Clear all existing objects before spawning new level objects
     // This prevents crashes when transitioning between levels
+    // An exit can begin loading after the old world's collision volumes were
+    // submitted but before the hit-resolution phase. Discard those records
+    // before pooled objects and components are reused for this map.
+    sSystemRegistry.gameObjectCollisionSystem?.reset();
     this.gameObjectManager.clear();
 
     // Reset channel system to clear stale channel data from previous level
@@ -1887,6 +1891,7 @@ export class LevelSystem {
 
     // Clear all existing objects before spawning new level objects
     // This prevents crashes when transitioning between levels
+    sSystemRegistry.gameObjectCollisionSystem?.reset();
     this.gameObjectManager.clear();
 
     for (const objData of objects) {

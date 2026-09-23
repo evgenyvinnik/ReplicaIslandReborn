@@ -26,7 +26,7 @@ import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { DifficultySettings } from '../stores/useGameStore';
 import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
-import { ActionType, HitType } from '../types';
+import { ActionType, HitType, Team } from '../types';
 import { GravityComponent } from '../entities/components/GravityComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
@@ -37,7 +37,8 @@ import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { MultiSpriteAnimComponent } from '../entities/components/MultiSpriteAnimComponent';
 import { NPCAnimation } from '../entities/components/NPCAnimationComponent';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
-import type { GameObject } from '../entities/GameObject';
+import { GameObject } from '../entities/GameObject';
+import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { ScreenFade } from '../engine/ScreenFade';
 import { readFileSync } from 'node:fs';
 import { getDialogsForLevel, LevelDialogs, type Dialog } from '../data/dialogs';
@@ -163,6 +164,51 @@ async function playableLevels(): Promise<Array<{ resource: string; levelId: numb
 }
 
 describe('campaign gameplay simulation', () => {
+  test('loading a new level discards hitboxes queued by the old world', async () => {
+    const harness = createHarness();
+    const objectCollision = sSystemRegistry.gameObjectCollisionSystem!;
+    const oldAttacker = new GameObject();
+    oldAttacker.type = 'player';
+    oldAttacker.team = Team.PLAYER;
+    oldAttacker.width = oldAttacker.height = 32;
+    oldAttacker.setPosition(100, 100);
+    const box = new AABoxCollisionVolume(0, 0, 32, 32);
+    objectCollision.registerForCollisions(
+      oldAttacker, null, box, [new AABoxCollisionVolume(0, 0, 32, 32, HitType.HIT)], null
+    );
+
+    expect(await harness.levelSystem.loadLevel(resourceToLevelId.level_0_2_lab)).toBe(true);
+
+    const newVictim = new GameObject();
+    newVictim.type = 'enemy';
+    newVictim.team = Team.ENEMY;
+    newVictim.width = newVictim.height = 32;
+    newVictim.life = newVictim.maxLife = 3;
+    newVictim.setPosition(100, 100);
+    objectCollision.registerForCollisions(
+      newVictim, new HitReactionComponent(), box, null,
+      [new AABoxCollisionVolume(0, 0, 32, 32, HitType.HIT)]
+    );
+    objectCollision.update(FRAME);
+    expect(newVictim.life).toBe(3);
+
+    // The reset is scoped to old submissions, not a disabled collision system.
+    const newAttacker = new GameObject();
+    newAttacker.type = 'player';
+    newAttacker.team = Team.PLAYER;
+    newAttacker.width = newAttacker.height = 32;
+    newAttacker.setPosition(100, 100);
+    objectCollision.registerForCollisions(
+      newAttacker, null, box, [new AABoxCollisionVolume(0, 0, 32, 32, HitType.HIT)], null
+    );
+    objectCollision.registerForCollisions(
+      newVictim, new HitReactionComponent(), box, null,
+      [new AABoxCollisionVolume(0, 0, 32, 32, HitType.HIT)]
+    );
+    objectCollision.update(FRAME);
+    expect(newVictim.life).toBe(2);
+  });
+
   test('the simulation includes a placed gate\'s temporary solid surfaces', async () => {
     const harness = createHarness();
     expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
