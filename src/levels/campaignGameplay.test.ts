@@ -32,7 +32,7 @@ import { ChangeComponentsComponent } from '../entities/components/ChangeComponen
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { LauncherComponent } from '../entities/components/LauncherComponent';
-import { SolidSurfaceComponent } from '../entities/components/SolidSurfaceComponent';
+import { SolidSurfaceComponent, setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { MultiSpriteAnimComponent } from '../entities/components/MultiSpriteAnimComponent';
 import { NPCAnimation } from '../entities/components/NPCAnimationComponent';
@@ -108,6 +108,7 @@ function createHarness(): Harness {
   sSystemRegistry.register(objectCollision, 'gameObjectCollision');
   sSystemRegistry.register(flow, 'gameFlowEvent');
   sSystemRegistry.register(time, 'time');
+  setSolidSurfaceSystemRegistry(sSystemRegistry);
 
   let gameTime = 0;
   const run = (frames: number): void => {
@@ -133,6 +134,9 @@ function createHarness(): Harness {
       // Mirrors Game.tsx: volumes are submitted at FRAME_END, resolved here.
       objectCollision.update(FRAME);
       flow.update();
+      // Door/platform surfaces submitted in POST_COLLISION become the solid
+      // geometry the next simulation frame reads, as in the full App loop.
+      collision.updateTemporarySurfaces();
     }
   };
 
@@ -159,6 +163,24 @@ async function playableLevels(): Promise<Array<{ resource: string; levelId: numb
 }
 
 describe('campaign gameplay simulation', () => {
+  test('the simulation includes a placed gate\'s temporary solid surfaces', async () => {
+    const harness = createHarness();
+    expect(await harness.collision.loadCollisionData('/assets/collision.json')).toBe(true);
+    expect(await harness.levelSystem.loadLevel(resourceToLevelId.level_0_2_lab)).toBe(true);
+    harness.manager.commitUpdates();
+    const player = harness.manager.getPlayer()!;
+    const gate = harness.manager.getActiveObjects().find(
+      (object) => object.type === 'door' && object.subType === 'green'
+    )!;
+    expect(gate).toBeDefined();
+    player.setPosition(gate.getPosition().x - 64, gate.getPosition().y + 16);
+
+    harness.run(1);
+
+    expect(harness.collision.getTemporarySurfaces().filter((surface) => surface.owner === gate))
+      .toHaveLength(4);
+  });
+
   test('visible placed actors have artwork rather than the fallback debug box', async () => {
     const failures: string[] = [];
     const resources = new Set(linearLevelTree.flatMap(group => group.levels.map(level => level.resource)));

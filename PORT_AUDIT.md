@@ -4,6 +4,18 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Full-campaign startup simulation now includes gate/platform solidity
+
+The existing `campaignGameplay.test.ts` already simulated one second with right/fly input in every playable level and checked scripted movement from all spawns, but its headless harness never promoted SolidSurfaceComponent submissions into the collision system's active temporary surfaces. That left doors and platforms non-solid inside those broad tests. A failing-first test placed the real lab player beside its green gate and found zero active gate surfaces. The harness now installs the SolidSurface registry and swaps pending surfaces after each frame, matching the full App's order. The regression sees all four gate sides, and all 32 campaign-gameplay tests still pass, including the every-level startup/movement checks. This strengthens the evidence against an immediate spawn wedge, but says nothing about an unspecified later-level lockup or physical-device freeze. No production behavior changed.
+
+The full suite now passes 880 tests across 144 files (46,914 assertions); typecheck, lint and whitespace checks pass. The previously published production build remains unchanged by this test-only patch.
+
+The earlier isolated Memory #022 browser tab is no longer present in the in-app browser inventory, and the Mac is currently locked. Its actor-position checkpoint cannot be resumed; a later interactive route would have to restart from the isolated saved level after the Mac is unlocked. This does not affect the test run or the player's real published save.
+
+### Gate access topology across the shipped maps
+
+A read-only sweep of all converted JSON maps found 84 blocking gates across 21 maps. Starting at each map's player spawn, a generous 32x48-player tile flood fill treated full collision tiles and unopened gate bodies as blocked, allowed authored slope tiles, and iteratively opened a color when its plate became reachable. It found an accessible plate/channel for 83 gates. The sole exception is the red gate at tile (2,17) in `level_3_11_sewer`, which has no red button in that map; the earlier normal-spawn Memory #030.5 playthrough completed without opening it. This is an over-approximation: it does not prove actual flight-fuel, enemy, five-second gate-timing or physical-input routes. An optimistic shortest-path sweep with all gates open put every paired gate within 1,376px of a same-color plate, but real traversal may be longer. No production code changed. The still-unspecified gate report needs its Memory number/location before the observed failure can be attributed.
+
 ### Startup contact guard and phantom first-frame grounding
 
 Android `GameObject.touchingGround/Ceiling/LeftWall/RightWall` ignores contact stamps until game time exceeds 0.1 seconds. The web port reduced that guard to 0.016 seconds while leaving fresh stamps at zero, so a new object at game time 0.05 reported all four surfaces as touched without colliding. This can affect initial fuel refill, ground-jump eligibility and contact-driven actors. A new regression failed on the old behavior; the web guard now matches Android's 0.1 seconds in all four methods. Two player tests that had assumed ground contact within that guarded startup window were corrected to test after it, with the fuel test allowing the first six frames of air-rate refill. This is a proven parity defect, not an established cause of the user's unidentified gate or freeze report.
