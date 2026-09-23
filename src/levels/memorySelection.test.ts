@@ -52,6 +52,18 @@ test('either newly unlocked memory can be chosen without skipping its sibling', 
   }
 });
 
+test('an explicitly unlocked destination remains selectable when earlier records are missing', () => {
+  // Completing a selected memory unlocks its sibling even if the save was
+  // imported or repaired without a contiguous record of every older group.
+  // LevelSystem persists that explicit unlock; Level Select must not discard it.
+  const completed = new Set(['level_2_6_grass']);
+  const unlocked = new Set(['level_3_2_sewer']);
+  const list = generateLevelList(completed, true, false, false, unlocked);
+  const byResource = new Map(list.map(entry => [entry.level.resource, entry]));
+  expect(byResource.get('level_3_2_sewer')?.enabled).toBe(true);
+  expect(byResource.get('level_3_3_sewer')?.enabled ?? false).toBe(false);
+});
+
 test('both next-level paths offer memory selection before loading the destination', () => {
   const game = readFileSync(new URL('../components/Game.tsx', import.meta.url), 'utf8');
   const handoffs = [...game.matchAll(/setLevel\(nextLevelId\);([\s\S]*?)\.loadLevel\(nextLevelId\)/g)];

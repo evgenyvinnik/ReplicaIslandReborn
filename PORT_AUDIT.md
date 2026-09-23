@@ -4,6 +4,24 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Memory #017 normal-input completion and sparse-save handoff
+
+The isolated full-App save continued Memory #017 using only ordinary keyboard input. Andou walked over the authored upper wall, collected the second ruby after flying over the far-right solid stone pillar, and backtracked over a second solid pillar. The lower sloped passage above the sleeping Namazu remained traversable; Andou collected the third ruby at x608/y685 with 3/3 health. The normal win sequence produced the results screen (three rubies, final score 3009) and Continue advanced the saved level to ID 23, Memory #022. This route did not reproduce a stuck player or a pass-through solid wall. The two breakable blocks removed on the upper route were smashed by Wanda's existing scripted action.
+
+The isolated save intentionally lacked older completion records. After Continue, Level Select initially offered only Memory #000 despite LevelSystem persisting an explicit unlock for ID 23. A failing-first regression demonstrated the omitted handoff. Level Select now honors persisted `unlocked` flags when building its list and prefers the current level for selection/scroll, while leaving unrelated later memories locked. The rebuilt full-App fixture showed Memory #022 enabled and loaded it at its normal spawn (3/3 health, zero pickups). This fixes an observed sparse/imported-save progression issue, not necessarily the user's reported freeze in an unknown level. The specific faulty gate also remains unidentified.
+
+### Published build and Memory #017 upper route
+
+The repository's configured Pages URL opened `https://evgenyvinnik.github.io/ReplicaIslandReborn/` and loaded `index-DEno8j53.js`, the same hashed bundle in the current local `dist/index.html`. The latest Pages workflow for the fuel-reset source commit completed successfully, and the published title rendered without browser warnings or errors. This rules out an obviously stale deployment for the current source, but does not test gameplay on the public origin; its Continue button may read the user's save, so this check did not start a game there.
+
+In the separate isolated full-App Memory #017 session, ordinary pause-assisted keyboard input reached and landed on the authored floating ledge at x364/y433, refilled fuel, flew above the tall wall, collected its upper ruby, and stood at x604/y112 with 3/3 health and one ruby. No actor, terrain, pickup or inventory state was assigned. The previous failed landing was a steering/timing miss, not evidence of a frozen player or pass-through wall. This is a partial route: the other two rubies, the exact user-reported stuck level and the still-unspecified bad gate remain unverified.
+
+### Gate follow-up and placed-object coverage
+
+The still-unidentified gate report was checked again against Android's `DoorAnimationComponent` and `spawnObjectDoor`: the web opening/closing state transitions, 5-second channel hold, four authored frames, closed solid surface and second-closing-frame crush hit have the same intended behavior. A fresh focused run passes 19 gate, solid-object and possession-orb regressions (2,701 assertions), including all placed plate/door pairings and a normal walking pass through the lab gate. This does not reproduce or clear the user's particular gate failure; its Memory number and symptom are still needed.
+
+A read-only sweep of all 44 shipped JSON maps found every placed nonempty object type has an explicit `LevelSystemNew` case. The separate string-based runtime spawn adapter has incomplete legacy aliases, but no production caller uses that adapter. A normal-input Memory #017 continuation climbed beside its first floating ledge, exhausted/refilled flight fuel and retained movement and 3/3 health; the timed steering missed the ledge, so this is neither a completed route nor evidence of a collision failure or freeze. No production code or published build changed in this check.
+
 ### Original empty-tank player lifecycle
 
 Android `PlayerComponent.reset()` initializes `mFuel` to zero; the web component initialized both fresh and reset attempts at a full tank. Its existing refill path already matched the original difficulty rates, so the fix changes only the starting/reset value to zero. A failing-first source-parity regression now checks fresh construction and in-place reset; a movement regression checks that thirty grounded 60 Hz updates refill the tank to one. The isolated App fixture additionally reports live fuel. After rebuilding it, a normal-spawn Memory #017 attempt showed a full tank after load/ground refill and moved right from x64 to x218 with full health and no browser errors. This does not establish full level completion or reproduce the user's unspecified stuck incident.

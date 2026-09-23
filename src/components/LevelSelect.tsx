@@ -181,18 +181,26 @@ export function LevelSelect(): React.JSX.Element {
   // Generate level list based on completed levels and mode
   useEffect(() => {
     const completedSet = completedLevelIdsToResourceSet(getCompletedLevelIds(levelProgress));
+    const unlockedSet = completedLevelIdsToResourceSet(
+      Object.entries(levelProgress)
+        .filter(([, progress]) => progress.unlocked)
+        .map(([levelId]) => Number(levelId))
+    );
 
     // Generate level list - use linear tree in linear mode (all levels enabled)
-    const list = generateLevelList(completedSet, true, state.isLinearMode, state.unlockAllLevelSelect);
+    const list = generateLevelList(completedSet, true, state.isLinearMode, state.unlockAllLevelSelect, unlockedSet);
     const sorted = sortLevelsByTime(list);
     setLevelList(sorted);
 
-    // Auto-select first enabled level.
-    const firstEnabledIndex = sorted.findIndex((l) => l.enabled);
-    if (firstEnabledIndex >= 0) {
-      setSelectedIndex(firstEnabledIndex);
+    // Continue hands this menu the newly unlocked destination. Prefer it over
+    // an unrelated older memory when a save has gaps or a branch remains open.
+    const currentIndex = sorted.findIndex((entry) =>
+      entry.enabled && resourceToLevelId[entry.level.resource] === state.currentLevel);
+    const preferredIndex = currentIndex >= 0 ? currentIndex : sorted.findIndex((entry) => entry.enabled);
+    if (preferredIndex >= 0) {
+      setSelectedIndex(preferredIndex);
     }
-  }, [levelProgress, state.isLinearMode, state.unlockAllLevelSelect]);
+  }, [levelProgress, state.currentLevel, state.isLinearMode, state.unlockAllLevelSelect]);
 
   // The list is sorted chronologically, so the only playable level can sit far
   // down it (Memory #000 is stamped + 07:12:03 and lands near the bottom).
@@ -200,11 +208,13 @@ export function LevelSelect(): React.JSX.Element {
   // wall of locked levels with nothing clickable.
   useEffect(() => {
     if (levelList.length === 0 || !listRef.current) return;
-    const firstEnabledIndex = levelList.findIndex((l) => l.enabled);
-    if (firstEnabledIndex > 0) {
-      listRef.current.scrollTop = firstEnabledIndex * ROW_HEIGHT;
+    const currentIndex = levelList.findIndex((entry) =>
+      entry.enabled && resourceToLevelId[entry.level.resource] === state.currentLevel);
+    const preferredIndex = currentIndex >= 0 ? currentIndex : levelList.findIndex((entry) => entry.enabled);
+    if (preferredIndex > 0) {
+      listRef.current.scrollTop = preferredIndex * ROW_HEIGHT;
     }
-  }, [levelList]);
+  }, [levelList, state.currentLevel]);
 
   // Handle level selection with flicker animation
   const handleLevelClick = useCallback(

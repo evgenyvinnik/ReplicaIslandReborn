@@ -844,12 +844,15 @@ export function completedLevelIdsToResourceSet(
  * @param onlyAllowThePast If true, only show past levels plus the next unlocked present level
  * @param useLinearTree If true, use the linear level tree (Extras mode - all levels unlocked)
  * @param unlockAll Enable all entries without changing the selected progression tree
+ * @param explicitlyUnlocked Levels unlocked by an actual story handoff, even
+ *   when earlier completion records are missing from an imported/repaired save
  */
 export function generateLevelList(
   completedLevels: Set<string>,
   onlyAllowThePast: boolean = true,
   useLinearTree: boolean = false,
-  unlockAll: boolean = false
+  unlockAll: boolean = false,
+  explicitlyUnlocked: ReadonlySet<string> = new Set()
 ): LevelMetaData[] {
   const result: LevelMetaData[] = [];
   const tree = useLinearTree ? linearLevelTree : levelTree;
@@ -884,7 +887,7 @@ export function generateLevelList(
       level.completed = completedLevels.has(level.resource);
 
       let enabled = false;
-      if (!level.completed && !oneBranchUnlocked) {
+      if (!level.completed && (explicitlyUnlocked.has(level.resource) || !oneBranchUnlocked)) {
         enabled = true;
         anyUnlocksThisBranch = true;
       }
