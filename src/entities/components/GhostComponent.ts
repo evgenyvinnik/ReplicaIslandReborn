@@ -252,21 +252,14 @@ export class GhostComponent extends GameComponent {
         }
 
         // Handle jump button
-        if (inputState.jump) {
-          // The original requires velocity.y <= 0, which in its Y-up space
-          // means "not already moving upward". Up is negative here, so the
-          // same condition is velocity.y >= 0.
-          if (
-            parent.touchingGround() &&
-            parent.getVelocity().y >= 0 &&
-            !this.config.changeActionOnButton
-          ) {
-            // Apply jump impulse
-            parent.getImpulse().y = -this.config.jumpImpulse;
-          } else if (this.config.changeActionOnButton) {
-            // Change action on button press
-            parent.setCurrentAction(this.config.buttonPressedAction);
-          }
+        // Android jumps on InputButton.getTriggered(), not getPressed(): a
+        // held Fly must not make a possessed ground enemy auto-jump on landing.
+        // Action-changing targets are different and keep their held-button rule.
+        if (input.isActionPressed('jump') && parent.touchingGround() &&
+            parent.getVelocity().y >= 0 && !this.config.changeActionOnButton) {
+          parent.getImpulse().y -= this.config.jumpImpulse;
+        } else if (this.config.changeActionOnButton && inputState.jump) {
+          parent.setCurrentAction(this.config.buttonPressedAction);
         }
 
         // The ghost is spawned by holding attack, so require the button to be

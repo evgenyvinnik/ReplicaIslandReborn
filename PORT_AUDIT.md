@@ -4,6 +4,12 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Possessed-enemy jump edge
+
+Android `GhostComponent` jumps a possessed ground target only when `InputButton.getTriggered()` reports a fresh Fly press; action-changing possessed targets separately act while Fly is held. The web component used the held Fly state for both branches, so a possessed ground enemy could jump again automatically whenever it landed. It also replaced an existing vertical impulse instead of adding the jump to it. Failing-first assertions reproduce both differences with grounded updates and confirm a new press can jump again; a companion check keeps held-button actions intact. The web controller now consumes the per-frame Fly press edge and adds the jump impulse. This fixes source-confirmed possession-control mismatches, not the still-unidentified gate or stuck-level incident.
+
+All 884 tests pass across 145 files (46,931 assertions). Type checking, lint, Pages-base build and whitespace checks pass. The build emits `index-B1ck8fAT.js` and retains the existing large-bundle warning. Physical Android-device controls and the player's particular level remain unverified.
+
 ### Possession reactivation after the orb returns
 
 Android `PlayerComponent.deactivateGhost()` records the game-time end of the return delay, enters `POST_GHOST_DELAY` even when that delay is zero, and permits another charge only when game time is strictly greater than the end plus `GHOST_REACTIVATION_DELAY` (0.3 seconds). The web component declared that constant but never applied it: a zero-delay release went straight to MOVE, and a held attack could start charging immediately after either a zero or nonzero return delay. Two failing-first component regressions reproduced both cases. The controller now retains the absolute deactivation timestamp, uses the simulation clock for post-return recovery, and enforces the additional cooldown before charging again. This is a source-confirmed missing possession rule; it is not a reproduction of the user's unspecified stuck level or gate symptom.

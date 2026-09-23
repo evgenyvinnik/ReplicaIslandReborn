@@ -8,6 +8,8 @@ import { GameObjectFactory } from './GameObjectFactory';
 import { GameObjectManager } from './GameObjectManager';
 import { GameObject } from './GameObject';
 import { SolidSurfaceComponent, setSolidSurfaceSystemRegistry } from './components/SolidSurfaceComponent';
+import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
+import { ActionType } from '../types';
 
 afterEach(() => sSystemRegistry.reset());
 
@@ -108,4 +110,56 @@ test('a closed object gate also blocks and reflects the possession orb', () => {
   ghost.update(1 / 60, 1 / 60);
   expect(ghost.getPosition().x + ghost.width).toBeLessThanOrEqual(320);
   expect(ghost.getVelocity().x).toBeCloseTo(-1200);
+});
+
+test('a possessed ground enemy jumps only on a fresh Fly press', () => {
+  const input = new InputSystem();
+  sSystemRegistry.register(input, 'input');
+  setGhostSystemRegistry(sSystemRegistry);
+  const target = new GameObject();
+  target.life = 1;
+  target.setCurrentAction(ActionType.MOVE);
+  const ghost = new GhostComponent({ jumpImpulse: 300 });
+  target.addComponent(ghost);
+  let gameTime = 1;
+  const frame = (initialImpulseY = 0): void => {
+    gameTime += 1 / 60;
+    input.update();
+    target.setGameTime(gameTime);
+    target.setLastTouchedFloorTime(gameTime);
+    target.getVelocity().y = 0;
+    target.getImpulse().set(0, initialImpulseY);
+    ghost.update(1 / 60, target);
+  };
+
+  input.setVirtualButton('fly', true);
+  frame(-20);
+  expect(target.getImpulse().y).toBe(-320);
+  frame();
+  expect(target.getImpulse().y).toBe(0);
+  input.setVirtualButton('fly', false);
+  frame();
+  input.setVirtualButton('fly', true);
+  frame();
+  expect(target.getImpulse().y).toBe(-300);
+});
+
+test('a possessed action-changing target still acts while Fly is held', () => {
+  const input = new InputSystem();
+  sSystemRegistry.register(input, 'input');
+  setGhostSystemRegistry(sSystemRegistry);
+  const target = new GameObject();
+  target.life = 1;
+  const ghost = new GhostComponent();
+  ghost.changeActionOnButton(ActionType.ATTACK);
+  target.addComponent(ghost);
+  input.setVirtualButton('fly', true);
+  for (let frame = 0; frame < 3; frame++) {
+    input.update();
+    target.setCurrentAction(ActionType.IDLE);
+    target.getImpulse().zero();
+    ghost.update(1 / 60, target);
+    expect(target.getCurrentAction()).toBe(ActionType.ATTACK);
+    expect(target.getImpulse().y).toBe(0);
+  }
 });
