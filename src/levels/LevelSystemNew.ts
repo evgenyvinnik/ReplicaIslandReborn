@@ -1305,6 +1305,9 @@ export class LevelSystem {
       case GameObjectTypeIndex.CAMERA_BIAS: {
         // Camera bias point - shifts camera when player is nearby
         obj.type = 'camera_bias';
+        // Android gives this logic-only marker no RenderComponent. Keep the
+        // camera update, but suppress Game's missing-sprite fallback box.
+        obj.setVisible(false);
         objWidth = 32;
         objHeight = 32;
         // Original spawnCameraBias: only nearby markers influence the view.

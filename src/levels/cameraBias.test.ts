@@ -81,6 +81,7 @@ describe('authored camera focus markers', () => {
     const marker = new GameObject();
     marker.width = marker.height = 32;
     marker.setPosition(1000, 980); // Original anchor is (1000, 1012), below focus.
+    marker.setVisible(false);
     new CameraBiasComponent().update(0.1, marker);
     camera.update(0.1);
     expect(centreY(camera)).toBe(1040);
@@ -105,7 +106,12 @@ describe('authored camera focus markers', () => {
       const markers = manager.getActiveObjects().filter(object => object.type === 'camera_bias');
       expect(markers).toHaveLength(count);
       const radius = Math.hypot(240, 160) + 128; // spawnCameraBias: mTightActivationRadius.
-      for (const marker of markers) expect(marker.activationRadius).toBeCloseTo(radius, 8);
+      for (const marker of markers) {
+        expect(marker.activationRadius).toBeCloseTo(radius, 8);
+        // Android gives these logic-only markers no RenderComponent. Game.tsx
+        // must not paint its missing-sprite fallback box over their location.
+        expect(marker.isVisible()).toBe(false);
+      }
 
       camera.setBounds(null);
       camera.setPosition(-10000, -10000);

@@ -34,6 +34,7 @@ import { HitReactionComponent } from '../entities/components/HitReactionComponen
 import { LauncherComponent } from '../entities/components/LauncherComponent';
 import { SolidSurfaceComponent } from '../entities/components/SolidSurfaceComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
+import { MultiSpriteAnimComponent } from '../entities/components/MultiSpriteAnimComponent';
 import { NPCAnimation } from '../entities/components/NPCAnimationComponent';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
 import type { GameObject } from '../entities/GameObject';
@@ -158,6 +159,28 @@ async function playableLevels(): Promise<Array<{ resource: string; levelId: numb
 }
 
 describe('campaign gameplay simulation', () => {
+  test('visible placed actors have artwork rather than the fallback debug box', async () => {
+    const failures: string[] = [];
+    const resources = new Set(linearLevelTree.flatMap(group => group.levels.map(level => level.resource)));
+    for (const resource of resources) {
+      const harness = createHarness();
+      expect(await harness.levelSystem.loadLevel(resourceToLevelId[resource]), resource).toBe(true);
+      harness.manager.commitUpdates();
+      for (const object of harness.manager.getActiveObjects()) {
+        if (!object.isVisible() || object.type === 'player') continue;
+        // The original's GHOST_NPC is an invisible scripting proxy and Game
+        // deliberately excludes it from the missing-sprite debug fallback.
+        if (object.type === 'npc' && object.subType === 'ghost') continue;
+        const sprite = object.getComponent(SpriteComponent);
+        const layered = object.getComponent(MultiSpriteAnimComponent);
+        if (!sprite?.getCurrentAnimation() && !layered?.getCurrentSpriteName()) {
+          failures.push(`${resource}: ${object.type}/${object.subType || '-'} at ${object.getPosition().x},${object.getPosition().y}`);
+        }
+      }
+    }
+    expect(failures).toEqual([]);
+  }, 180_000);
+
   test('every playable level survives a second of simulation with input held', async () => {
     const levels = await playableLevels();
     expect(levels.length).toBeGreaterThan(0);

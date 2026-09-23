@@ -4,6 +4,12 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Invisible authored camera markers
+
+Android's spawnCameraBias creates a logic-only marker with CameraBiasComponent and no RenderComponent. The web level loader had left all 12 shipped markers visible in three campaign maps, so Game's missing-sprite fallback drew gray 32px squares at their locations. The marker is now visually hidden while retaining camera updates and distance-based activation. A placed-level visibility regression failed on all three maps before the fix; the existing component check still verifies that an invisible marker moves the camera. A new campaign-wide check verifies that every *visible* placed actor has an actual sprite animation or layered art, apart from the original's intentionally invisible GHOST_NPC proxy.
+
+Fresh validation: 874 tests pass across 143 files (46,695 assertions); typecheck, lint, Pages-base production build and diff whitespace checks pass. The existing large-bundle warning remains. This visual correction does not establish the user's unidentified gate or stuck-level failure.
+
 ### Runtime button and gate factory
 
 The separate runtime GameObjectFactory exposed DOOR and BUTTON types, but its switch fell through to a generic 32px object without channel, collision, or gate animation. Colored variants were absent from its type map, and unknown type names silently spawned a new player. Placed campaign gates were configured in LevelSystem, so this was a concrete runtime-factory omission, not proof of the user's still-unidentified placed-gate complaint.
