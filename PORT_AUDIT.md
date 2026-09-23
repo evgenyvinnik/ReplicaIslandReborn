@@ -4,6 +4,12 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Bounded level fetches recover from a stalled mobile request
+
+The converted-level parser called `fetch()` and `response.json()` without a timeout or an abort signal. A request that never settled could leave a scripted exit under its black fade indefinitely; startup cancellation also waited for the request instead of ending promptly. A failing-first pair of tests held a fetch open and observed both timeout and external cancellation hanging. Level JSON loads now use a 20-second abortable deadline, pass the startup/disposal signal through the parser, and clear their timer and listener on every result. The unused legacy JSON loader uses the same bounded fetch helper.
+
+In the isolated full App, the fixture intercepted the actual `level_3_11_sewer.json` request following Kyle's authored level-31 exit and held it until the browser's abort signal fired. The request aborted after the configured deadline, the App returned to the menu instead of remaining black, and the isolated save still recorded level 31 completed with level 32 selected. Clicking Continue then loaded level 32 at x1440/y528 with 3/3 life and Wanda's introduction. Browser warning/error logs were empty. This tests a deliberately stalled fetch, not an actual mobile connection or the player's unidentified stuck Memory. All 895 tests pass across 149 files (46,978 assertions); type checking, lint, Pages-base build and whitespace checks pass. The existing large-bundle warning remains.
+
 ### Scripted exits freeze the old world during a pending level fetch
 
 `Game.tsx` marked asynchronous level transitions as loading for React UI and control attachment, but its fixed-step callback checked only `GameState.PLAYING` and the death-reload flag. Scripted NPC exits remain in PLAYING while the next JSON is fetched, so the old world could keep advancing under its black fade on a slow connection. The loading marker now updates a ref immediately; the fixed-step callback stops pending-load frames and also stops the current frame immediately after a scripted event begins a load. Startup, level selection, results Continue and NPC exits share the same marker.

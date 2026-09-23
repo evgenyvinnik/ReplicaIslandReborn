@@ -8,7 +8,7 @@ import { HitType, Team, ActionType } from '../types';
 import type { CollisionSystem } from '../engine/CollisionSystemNew';
 import type { GameObjectManager } from '../entities/GameObjectManager';
 import type { GameObject } from '../entities/GameObject';
-import { LevelParser, type ParsedLevel } from './LevelParser';
+import { LevelParser, fetchLevelJson, type ParsedLevel } from './LevelParser';
 import { HotSpotSystem } from '../engine/HotSpotSystem';
 import { GameObjectTypeIndex, getObjectTypeName } from '../types/GameObjectTypes';
 import { NPCComponent } from '../entities/components/NPCComponent';
@@ -345,9 +345,9 @@ export class LevelSystem {
     try {
       // All levels now use JSON format (converted from binary)
       if (levelInfo.binary) {
-        return await this.loadConvertedJsonLevel(levelId, levelInfo, cancelled);
+        return await this.loadConvertedJsonLevel(levelId, levelInfo, cancelled, signal);
       } else {
-        return await this.loadJsonLevel(levelId, levelInfo, cancelled);
+        return await this.loadJsonLevel(levelId, levelInfo, cancelled, signal);
       }
     } catch {
       // Error loading level - return false
@@ -358,11 +358,11 @@ export class LevelSystem {
   /**
    * Load a converted JSON level file (originally binary, now in JSON format)
    */
-  private async loadConvertedJsonLevel(levelId: number, levelInfo: LevelInfo, cancelled: () => boolean): Promise<boolean> {
+  private async loadConvertedJsonLevel(levelId: number, levelInfo: LevelInfo, cancelled: () => boolean, signal?: globalThis.AbortSignal): Promise<boolean> {
     // Use .json extension (levels were converted from .bin to .json)
     const url = assetPath(`/assets/levels/${levelInfo.file}.json`);
     
-    const parsed = await this.levelParser.parseJsonLevel(url);
+    const parsed = await this.levelParser.parseJsonLevel(url, signal);
     
     if (!parsed || cancelled()) {
       // console.error(`Failed to parse JSON level: ${levelInfo.file}`);
@@ -416,14 +416,9 @@ export class LevelSystem {
   /**
    * Load a JSON level file (legacy format)
    */
-  private async loadJsonLevel(levelId: number, levelInfo: LevelInfo, cancelled: () => boolean): Promise<boolean> {
-    const response = await fetch(assetPath(`/assets/levels/${levelInfo.file}.json`));
-    if (!response.ok) {
-      throw new Error(`Failed to load level: ${response.status}`);
-    }
-
-    const levelData: LevelData = await response.json();
-    if (cancelled()) return false;
+  private async loadJsonLevel(levelId: number, levelInfo: LevelInfo, cancelled: () => boolean, signal?: globalThis.AbortSignal): Promise<boolean> {
+    const levelData = await fetchLevelJson<LevelData>(assetPath(`/assets/levels/${levelInfo.file}.json`), signal);
+    if (!levelData || cancelled()) return false;
     this.currentLevel = levelData;
     this.currentLevelId = levelId;
     this.parsedLevel = null;

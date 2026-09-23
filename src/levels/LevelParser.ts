@@ -216,6 +216,31 @@ function calculateSkips(world: TiledWorldData): void {
   }
 }
 
+/** A stalled mobile request must eventually return control to the menu. */
+export const LEVEL_FETCH_TIMEOUT_MS = 20_000;
+
+export async function fetchLevelJson<T>(
+  url: string,
+  signal?: globalThis.AbortSignal,
+  timeoutMs = LEVEL_FETCH_TIMEOUT_MS
+): Promise<T | null> {
+  if (signal?.aborted) return null;
+  const controller = new globalThis.AbortController();
+  const abort = (): void => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  const timeout = setTimeout(abort, timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) return null;
+    return await response.json() as T;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
+  }
+}
+
 /**
  * Main level parser class
  */
@@ -345,15 +370,10 @@ export class LevelParser {
    * Parse a JSON level file (converted from binary format)
    * JSON format: { format, version, background, backgroundId, layers: [...] }
    */
-  async parseJsonLevel(url: string): Promise<ParsedLevel | null> {
+  async parseJsonLevel(url: string, signal?: globalThis.AbortSignal, timeoutMs?: number): Promise<ParsedLevel | null> {
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        // console.error(`Failed to fetch level: ${response.status} ${response.statusText}`);
-        return null;
-      }
-
-      const jsonData = await response.json();
+      const jsonData = await fetchLevelJson<Parameters<LevelParser['parseJsonLevelData']>[0]>(url, signal, timeoutMs);
+      if (!jsonData) return null;
       return this.parseJsonLevelData(jsonData);
     } catch {
       // Error parsing JSON level - return null

@@ -249,9 +249,18 @@ PAUSE 50</textarea><br>
       holdNextLevel = false;
       heldGameTime = sSystemRegistry.timeSystem?.getGameTime() ?? null;
       document.querySelector('#load-hold-status').textContent = `Held ${url.split('/').pop()}; game time at request=${heldGameTime?.toFixed(3) ?? 'n/a'}`;
-      return new Promise(resolve => {
+      return new Promise((resolve, reject) => {
+        const signal = init?.signal;
+        const onAbort = () => {
+          releaseHeldLevel = null;
+          document.querySelector('#load-hold-status').textContent = `Held ${url.split('/').pop()} aborted`;
+          reject(new DOMException('Aborted', 'AbortError'));
+        };
+        if (signal?.aborted) { onAbort(); return; }
+        signal?.addEventListener('abort', onAbort, { once: true });
         releaseHeldLevel = () => {
           releaseHeldLevel = null;
+          signal?.removeEventListener('abort', onAbort);
           resolve(originalFetch(input, init));
         };
       });
