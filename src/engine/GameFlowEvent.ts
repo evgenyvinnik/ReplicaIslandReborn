@@ -32,6 +32,7 @@ export class GameFlowEvent {
   private listeners: Set<GameFlowEventListener> = new Set();
   private pendingEvents: Array<{ event: GameFlowEventType; dataIndex: number }> = [];
   private processingEvents: boolean = false;
+  private generation: number = 0;
 
   /**
    * Add an event listener
@@ -71,18 +72,21 @@ export class GameFlowEvent {
       return;
     }
 
+    // A handler can post another event. Leave that event for the next update,
+    // as post() promises, instead of draining a re-entrant chain indefinitely
+    // in one game frame.
+    const events = this.pendingEvents;
+    this.pendingEvents = [];
     this.processingEvents = true;
-    
-    // Process all pending events
-    while (this.pendingEvents.length > 0) {
-      const eventData = this.pendingEvents.shift();
-      if (eventData) {
-        // Debug: // console.log('GameFlowEvent: Execute Game Flow Event:', eventData.event, eventData.dataIndex);
+    const generation = this.generation;
+    try {
+      for (const eventData of events) {
+        if (this.generation !== generation) break;
         this.dispatchEvent(eventData.event, eventData.dataIndex);
       }
+    } finally {
+      this.processingEvents = false;
     }
-
-    this.processingEvents = false;
   }
 
   /**
@@ -102,6 +106,7 @@ export class GameFlowEvent {
    * Reset the event system
    */
   reset(): void {
+    this.generation++;
     this.pendingEvents = [];
     this.processingEvents = false;
     // Note: We don't clear listeners here as they may be needed for the next level

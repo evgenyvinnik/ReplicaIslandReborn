@@ -4,6 +4,12 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Deferred game-flow events cannot monopolize one frame
+
+`GameFlowEvent.post()` documents next-frame delivery, but its `update()` loop drained the live queue until empty. A listener that posts another deferred event was therefore invoked again in the same update; a self-reposting listener could keep the JavaScript frame busy indefinitely. A failing-first test confirmed that a short re-entrant chain ran to completion in one call. `update()` now takes a snapshot of the pending batch, leaving newly posted events for the next update. A second regression preserves reset semantics: if a handler resets the flow system, the remainder of the in-flight batch is discarded. This is a real scheduler/liveness correction on the story-transition path, not evidence that the user's unidentified stuck level contained a self-reposting listener.
+
+All 888 tests pass across 146 files (46,951 assertions), with type checking, lint, Pages-base production build and whitespace checks passing. The build emits `index-BNHKPVJC.js`; the existing large-bundle warning remains. Exact gate/stuck-level reproduction and physical-device behavior remain open.
+
 ### Proportional two-axis orb-pad steering
 
 The orb's web control pad already emitted continuous X/Y values, but `GhostComponent` read only `InputState.left/right/up/down`. Those booleans do not engage until a virtual axis crosses 0.3; a gentle 20% drag therefore produced no movement, while a 50% drag became a full-strength command. Failing-first regression checks found zero target velocity at 20%. `InputSystem.getOrbSteering()` now exposes the scaled continuous horizontal and vertical axes with keyboard/controller fallback, and the orb consumes those values directly. Real `CanvasControls` touch events at x97/y239 on the native 480×320 canvas reach the spawned orb as approximately 20.3% X/Y commands; release clears both axes. This is a web touch-pad adaptation to Android's continuous tilt input, not an implementation of a device-orientation sensor or proof of physical-phone behavior.
