@@ -4,6 +4,10 @@ Updated September 22, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### All placed gate variants through their channels
+
+The campaign button→gate integration test previously skipped all nine nonblocking gates in `level_3_6_sewer` because their subtype includes `_nonblocking`, unlike their button's colour-only subtype. The test now drives every such gate from its real plate, verifies that it opens, and checks timer-driven closure without accidentally granting it a solid wall; all nine pass. During the closure check, a full-system update renewed the red channel in `level_1_3_island` while the test player was away; the authored map has a brobot beside a second red plate, consistent with another actor holding it. The isolated closure check updates the gate alone after the stamp expires. No production gate change was justified by this evidence, and the user's reported gate/soft-lock location remains unknown.
+
 ### Complete binary/converted-map parity
 
 A full comparison of 44 Android level binaries against the shipped JSON covered 748,020 tile positions, including every collision, object and hotspot tile. Collision and object data match exactly. Background differences are only the Android parser's negative empty-run skip markers versus JSON's `-1`. The only other difference was 2,738 trailing hotspot cells where the Android binary ends early: Java reads these as `-1`, but the web binary parser had left them `undefined`. The parser now matches Java's EOF behavior, and a failing-first full-tile parity regression passes. A separate read-only comparison found all 53 collision-tile definitions and 205 line segments in `collision.json` match `collision.bin` after the documented Y-axis conversion. This rules out conversion drift as the cause of the still-unidentified gate/wall/stuck report; runtime behavior remains to investigate.

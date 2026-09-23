@@ -292,9 +292,11 @@ test('pressing a button opens the door on its channel', async () => {
   // The second half of the chain. A button that registers DEPRESS but never
   // moves its door leaves the level exactly as impassable as one that ignores
   // the player: ButtonAnimationComponent writes the channel,
-  // DoorAnimationComponent reads it and removes the door's SolidSurfaceComponent.
+  // DoorAnimationComponent reads it, retracts a blocking door's solid surface,
+  // and animates a nonblocking door through the same colour channel.
   const failures: string[] = [];
   let checked = 0;
+  let nonblockingChecked = 0;
 
   const seen = new Set<string>();
   for (const group of linearLevelTree) {
@@ -320,9 +322,10 @@ test('pressing a button opens the door on its channel', async () => {
       // buttons instead re-tests the same door in levels that field two of a
       // colour, which reads as a failure that is really a duplicate.
       for (const door of doors) {
-        const button = buttons.find((b) => b.subType === door.subType);
+        const nonblocking = door.subType.endsWith('_nonblocking');
+        const button = buttons.find((b) => b.subType === door.subType.replace('_nonblocking', ''));
         if (!button) continue;
-        if (!door.getComponents().some((c) => c instanceof SolidSurfaceComponent)) continue; // non-blocking door
+        if (!nonblocking && !door.getComponents().some((c) => c instanceof SolidSurfaceComponent)) continue;
 
         // Press the button with the camera on it, then walk the camera over to
         // the door - which is how it happens in play, and the only way both
@@ -345,23 +348,44 @@ test('pressing a button opens the door on its channel', async () => {
 
         const doorPos = door.getPosition();
         rig.camera.setPosition(doorPos.x, doorPos.y);
+        const animation = door.getComponents().find(
+          (component): component is DoorAnimationComponent => component instanceof DoorAnimationComponent
+        )!;
         let opened = false;
         for (let i = 0; i < 120 && !opened; i++) {
           rig.time.update(FRAME);
           rig.manager.update(FRAME, rig.time.getGameTime());
           rig.oc.update(FRAME);
-          if (!door.getComponents().some((c) => c instanceof SolidSurfaceComponent)) opened = true;
+          opened = [DoorAnimation.OPEN, DoorAnimation.OPENING].includes(animation.getCurrentState()) &&
+            (nonblocking || !door.getComponents().some((c) => c instanceof SolidSurfaceComponent));
         }
 
         checked++;
+        if (nonblocking) nonblockingChecked++;
         if (!opened) {
           failures.push(`${entry.resource}: the ${door.subType} door never opened`);
+          continue;
         }
+        // Stop holding the plate: a standing player should renew its channel
+        // indefinitely, so closure only follows after the contact ends.
+        player.setPosition(-1000, -1000);
+        rig.time.update(FRAME);
+        rig.manager.update(FRAME, rig.time.getGameTime());
+        rig.oc.update(FRAME);
+        rig.time.update(6);
+        // Advance the door alone: another actor may be holding a different
+        // plate on the same channel in this authored level.
+        door.update(0, rig.time.getGameTime());
+        expect(animation.getCurrentState(), `${entry.resource}: ${door.subType} did not close`)
+          .toBe(DoorAnimation.CLOSED);
+        expect(door.getComponents().some((c) => c instanceof SolidSurfaceComponent),
+          `${entry.resource}: ${door.subType} has the wrong closed solidity`).toBe(!nonblocking);
       }
     }
   }
 
   expect(checked, 'no button/door pairs were found').toBeGreaterThan(2);
+  expect(nonblockingChecked, 'the nine authored nonblocking gates were not all exercised').toBe(9);
   expect(failures, 'these doors stayed shut').toEqual([]);
 }, 180_000);
 
