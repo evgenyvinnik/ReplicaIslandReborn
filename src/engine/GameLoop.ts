@@ -11,6 +11,7 @@ import { SystemRegistry } from './SystemRegistry';
 export type UpdateCallback = (deltaTime: number) => void;
 // UI animation follows display time, independently of fixed-step physics.
 export type RenderCallback = (interpolation: number, deltaTime: number) => void;
+export type FrameErrorCallback = (phase: 'update' | 'render', error: unknown) => void;
 
 export class GameLoop {
   private running: boolean = false;
@@ -37,8 +38,12 @@ export class GameLoop {
   // rest of the session. Callbacks are guarded now, and the first few failures
   // are logged so the underlying bug is still visible.
   private static readonly MAX_LOGGED_ERRORS = 5;
+  private static readonly PERSISTENT_ERROR_THRESHOLD = 3;
   private loggedErrors: number = 0;
   private lastError: unknown = null;
+  private consecutiveUpdateErrors = 0;
+  private consecutiveRenderErrors = 0;
+  private frameErrorCallback: FrameErrorCallback | null = null;
 
   // System registry reference
   private systemRegistry: SystemRegistry | null = null;
@@ -61,6 +66,11 @@ export class GameLoop {
     this.renderCallback = callback;
   }
 
+  /** Called once when a frame callback repeatedly fails and play cannot continue. */
+  setFrameErrorCallback(callback: FrameErrorCallback): void {
+    this.frameErrorCallback = callback;
+  }
+
   /**
    * Set the system registry
    */
@@ -78,6 +88,8 @@ export class GameLoop {
     this.paused = false;
     this.lastTime = performance.now();
     this.accumulator = 0;
+    this.consecutiveUpdateErrors = 0;
+    this.consecutiveRenderErrors = 0;
     this.animationFrameId = requestAnimationFrame(this.tick);
   }
 
@@ -195,9 +207,11 @@ export class GameLoop {
   /**
    * Run a frame callback without letting a throw tear down the loop.
    */
-  private guard<T extends number[]>(label: string, callback: (...args: T) => void, ...args: T): void {
+  private guard<T extends number[]>(label: 'update' | 'render', callback: (...args: T) => void, ...args: T): void {
     try {
       callback(...args);
+      if (label === 'update') this.consecutiveUpdateErrors = 0;
+      else this.consecutiveRenderErrors = 0;
     } catch (error) {
       this.lastError = error;
       if (this.loggedErrors < GameLoop.MAX_LOGGED_ERRORS) {
@@ -205,6 +219,17 @@ export class GameLoop {
         console.error(`[GameLoop] ${label} callback threw:`, error);
         if (this.loggedErrors === GameLoop.MAX_LOGGED_ERRORS) {
           console.error('[GameLoop] further frame errors will be suppressed');
+        }
+      }
+      const failures = label === 'update'
+        ? ++this.consecutiveUpdateErrors
+        : ++this.consecutiveRenderErrors;
+      if (failures >= GameLoop.PERSISTENT_ERROR_THRESHOLD && this.frameErrorCallback && this.running) {
+        this.stop();
+        try {
+          this.frameErrorCallback(label, error);
+        } catch (handlerError) {
+          console.error('[GameLoop] frame error handler threw:', handlerError);
         }
       }
     }

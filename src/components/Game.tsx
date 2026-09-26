@@ -189,6 +189,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     setLevelLoadingState(loading);
   }, []);
   const [startupError, setStartupError] = useState<string | null>(null);
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [startupAttempt, setStartupAttempt] = useState(0);
 
   const recordAutomaticLevelCompletion = useCallback((levelId: number): void => {
@@ -1369,6 +1370,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     const initializeGame = async (): Promise<void> => {
       markLevelLoading(true);
       setStartupError(null);
+      setRuntimeError(null);
       
       // Reset inventory for new game. Lives come from the selected difficulty,
       // matching DifficultyConstants.getMaxPlayerLife() in the original.
@@ -1492,6 +1494,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     gameLoopRef.current = gameLoop;
 
     gameLoop.setSystemRegistry(systemRegistry);
+    gameLoop.setFrameErrorCallback((phase, error) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      setRuntimeError(`Game ${phase} failed repeatedly: ${detail.slice(0, 160)}`);
+      soundSystem.pauseAll();
+    });
 
     /**
      * Wanda smashes through breakable walls on her scripted run.
@@ -2448,11 +2455,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         />
         
         {/* Startup recovery must remain usable while the canvas loop is stopped. */}
-        {startupError && (
+        {(startupError || runtimeError) && (
           <div role="alert" style={{ position: 'absolute', inset: 0, background: '#1a1a2e', color: 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 20, textAlign: 'center' }}>
-            <h2 style={{ margin: 0 }}>Unable to load game</h2>
-            <p style={{ margin: 0 }}>{startupError}</p>
-            <p style={{ margin: 0 }}>Check your connection, then retry.</p>
+            <h2 style={{ margin: 0 }}>{runtimeError ? 'Game stopped unexpectedly' : 'Unable to load game'}</h2>
+            <p style={{ margin: 0 }}>{runtimeError || startupError}</p>
+            <p style={{ margin: 0 }}>{runtimeError ? 'Retry to restart this level.' : 'Check your connection, then retry.'}</p>
             <div style={{ display: 'flex', gap: 12 }}>
               <button type="button" onClick={(): void => setStartupAttempt(attempt => attempt + 1)}>Retry</button>
               <button type="button" onClick={goToMainMenu}>Main menu</button>

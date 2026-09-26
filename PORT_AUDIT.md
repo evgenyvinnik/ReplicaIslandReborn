@@ -1260,6 +1260,12 @@ An earlier screenshot sequence appeared to show persistent invisibility after re
 
 No full-port completion claim has been made.
 
+### Persistent frame-error recovery
+
+The frame loop already caught update/render exceptions so a single throw would not permanently cancel `requestAnimationFrame`, but a deterministic throw every frame left the level apparently frozen while errors disappeared after the first five console messages. After three consecutive failures in either phase, the live loop now stops and displays a Retry/Main menu recovery overlay with a short error detail. A successful call resets that phase's failure count, so isolated errors do not interrupt play. Retrying rebuilds the current level through the existing initialization path; it does not preserve the interrupted attempt.
+
+Three new loop tests cover repeated update errors, transient errors, and repeated render errors. The full 928-test suite (47,118 assertions), type checking and focused lint pass. This mitigates an exception-driven stall, but is not evidence that the unidentified Android level stall was caused by an exception or that its underlying bug is fixed. The exact level and what stops responding remain needed for reproduction; no physical-phone run was performed.
+
 ### Display-setting changes no longer restart a live level
 
 The main Game initialization effect depended on `showFPS` and `onScreenControlsEnabled`. Changing either setting while Game was mounted cleaned up the loop, controls, sound and level, then rebuilt the engine at the level spawn. These are presentation settings, so the HUD and controls renderer now read their current values without making them initialization dependencies. The separate controls attachment effect still handles enabled/disabled input.
