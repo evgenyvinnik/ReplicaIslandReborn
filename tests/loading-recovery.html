@@ -100,7 +100,6 @@ PAUSE 50</textarea><br>
   const { SpriteComponent } = await import('../src/entities/components/SpriteComponent.ts');
   const { GhostComponent } = await import('../src/entities/components/GhostComponent.ts');
   const { PlayerComponent } = await import('../src/entities/components/PlayerComponent.ts');
-  const { BackgroundCollisionComponent } = await import('../src/entities/components/BackgroundCollisionComponent.ts');
   const { resetPlayerRuntimeState } = await import('../src/entities/resetPlayerRuntimeState.ts');
   const { levelTree, resourceToLevelId } = await import('../src/data/levelTree.ts');
   const { getInventory, setInventory } = await import('../src/entities/components/InventoryComponent.ts');
@@ -433,9 +432,6 @@ PAUSE 50</textarea><br>
     resetPlayerRuntimeState(player);
     // Reset/refill Andou on existing floor. Targets, geometry and AI are unchanged.
     player.setPosition(x, feetY - player.height);
-    // The background collision component remembers the pre-stage position; otherwise the
-    // next sweep crosses the whole map and snaps Andou to an intervening wall.
-    player.getComponent(BackgroundCollisionComponent)?.reset();
     sSystemRegistry.cameraSystem?.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
     possessionStaged = true;
     previousControlledTurret = null;
