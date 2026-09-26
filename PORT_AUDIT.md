@@ -4,6 +4,10 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Gate route-distance follow-up, not a timing change
+
+A read-only scan of the shipped object layers found three paired gates more than 700px in straight-line distance from their nearest matching plate: `level_1_8_island` red (gate 3,64; plate 10,36; 924px), `level_1_9_island` red (gate 96,8; plate 68,11; 901px), and `level_4_2_underground` red (gate 20,27; plate 27,6; 708px). All other paired gates are closer in Euclidean distance. This is a candidate list, not a travel-time result: routes can involve terrain, falling, other same-colour plates, or enemies that hold a plate. Android and the web both use the same five-second channel hold and player ground/air speed limits. No gate timer or geometry was changed on this evidence. The still-unidentified user gate and stuck Memory require a location or a reproducible route before attributing a defect.
+
 ### Level backdrops follow Android's level-sized parallax
 
 Original `LevelBuilder` stretches one backdrop to 1.5× the longer 480×320 viewport axis (720×720), then chooses X/Y scroll speeds so its far edges meet the viewport at the level's far edges, capped at 1. The web Game had instead repeated the native 512×512 image horizontally and used fixed 0.3 X / 0.1 Y rates for every level. It now draws one 720×720 image at the original level-derived offset. A failing-first layout regression covers the beginning, middle and far corner of a 1920×960 level; the already-existing tile-map renderer retains the original separate-axis parallax rule for tile layers. Full validation passes 915 tests across 151 files (47,047 assertions), type checking, lint, Pages-base build and whitespace check. The build emits `index-B2EGL52W.js` with its existing large-bundle warning. The Mac's browser UI was locked during this pass, so no rendered-device inspection is claimed. This visual parity fix does not reproduce the user's still-unidentified faulty gate or stuck level.
