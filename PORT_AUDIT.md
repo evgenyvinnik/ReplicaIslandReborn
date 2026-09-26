@@ -4,6 +4,10 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Touch-driven gate route on a shipped map
+
+The existing long island red-plate route in `level_1_2_island` used a direct test-only virtual axis. It now runs twice: once with that axis and once with an actual scaled-canvas `touchstart` on `CanvasControls` at the full-left slider endpoint. The touch route passes through `InputSystem`, the shipped PlayerComponent and collision map, the real plate channel, all four gate images and the temporary solid-surface removal. In both cases Andou crosses alive before the Android five-second hold expires. This verifies one complete touch-to-gate chain in simulation; it is not a physical-phone test or proof that the user's unidentified gate behaves correctly.
+
 ### Phone movement knob reaches the speed shown by its position
 
 The on-screen slider interpreted a touch at its bar endpoints (x20/x148 on the 480px game canvas) as full left/right, but drew the 64px knob with its centre only at x52/x116 at those extremes. Touching where the knob visibly stopped therefore produced only half-strength movement, a plausible contributor to missed five-second gate passages on a phone. Android's `InputGameInterface` and `HudSystem` use the full slider travel. The web drawing now centers the knob directly under the mapped touch position, including both endpoints; input timing, acceleration and the gate hold time are unchanged.

@@ -24,6 +24,7 @@ import { HotSpotSystem } from '../engine/HotSpotSystem';
 import { InputSystem } from '../engine/InputSystem';
 import { SoundSystem } from '../engine/SoundSystem';
 import { CameraSystem } from '../engine/CameraSystem';
+import { CanvasControls } from '../engine/CanvasControls';
 import { GameObjectCollisionSystem } from '../engine/GameObjectCollisionSystem';
 import { GameFlowEvent } from '../engine/GameFlowEvent';
 import { ChannelSystem } from '../engine/ChannelSystem';
@@ -493,7 +494,7 @@ test('the authored sewer red plate opens its blocking and nonblocking gate corri
   }
 });
 
-test('the long island red-plate corridor stays open long enough for normal passage', async () => {
+test.each(['virtual axis', 'touch slider'])('the long island red-plate corridor stays open for %s passage', async (control) => {
   const rig = (await load('level_1_2_island'))!;
   const player = rig.manager.getPlayer()!;
   const objects = allOfType(rig, object => object.type === 'button' || object.type === 'door');
@@ -525,9 +526,37 @@ test('the long island red-plate corridor stays open long enough for normal passa
   expect(plate.lastReceivedHitType).toBe(HitType.DEPRESS);
   expect(rig.channels.findChannel('RED BUTTON')?.value).not.toBeNull();
   const startTime = rig.time.getGameTime();
-  sSystemRegistry.inputSystem!.setVirtualAxis('horizontal', -1);
-  for (let i = 0; i < 240 && player.getPosition().x >= gate.getPosition().x - player.width; i++) frame();
-  sSystemRegistry.inputSystem!.setVirtualAxis('horizontal', 0);
+  const input = sSystemRegistry.inputSystem!;
+  const priorWindow = globalThis.window;
+  const events = new globalThis.EventTarget();
+  const canvas = new globalThis.EventTarget();
+  Object.defineProperty(canvas, 'getBoundingClientRect', {
+    value: () => ({ left: 0, top: 0, width: 480, height: 320 }),
+  });
+  let controls: CanvasControls | null = null;
+  try {
+    if (control === 'touch slider') {
+      globalThis.window = events as unknown as typeof priorWindow;
+      controls = new CanvasControls({} as CanvasRenderingContext2D, canvas as HTMLCanvasElement, 480, 320);
+      controls.setCallbacks((x, y) => input.setVirtualJoystick(x, y), () => {}, () => {}, () => {}, () => {});
+      controls.attach();
+      const press = new globalThis.Event('touchstart', { cancelable: true });
+      Object.defineProperty(press, 'changedTouches', {
+        value: [{ identifier: 1, clientX: 20, clientY: 260 }],
+      });
+      canvas.dispatchEvent(press);
+      expect(press.defaultPrevented).toBe(true);
+      expect(input.getInputState().horizontal).toBe(-1);
+    } else {
+      input.setVirtualAxis('horizontal', -1);
+    }
+    for (let i = 0; i < 240 && player.getPosition().x >= gate.getPosition().x - player.width; i++) frame();
+  } finally {
+    controls?.detach();
+    globalThis.window = priorWindow;
+    input.setVirtualAxis('horizontal', 0);
+    input.setVirtualAxis('vertical', 0);
+  }
 
   expect(player.getPosition().x).toBeLessThan(gate.getPosition().x - player.width);
   expect(rig.time.getGameTime() - startTime).toBeLessThan(5);
