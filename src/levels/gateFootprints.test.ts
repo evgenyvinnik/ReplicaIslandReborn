@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { file } from 'bun';
 import { join } from 'node:path';
-import { linearLevelTree } from '../data/levelTree';
+import { levelTree, linearLevelTree } from '../data/levelTree';
 import { GameObjectTypeIndex } from '../types/GameObjectTypes';
 import { LevelParser } from './LevelParser';
 
@@ -15,7 +15,9 @@ test('authored gate openings and player spawns are not obstructed by converted t
   const gateOverlaps: string[] = [];
   const spawnOverlaps: string[] = [];
   let gatesChecked = 0;
-  for (const resource of new Set(linearLevelTree.flatMap(group => group.levels.map(level => level.resource)))) {
+  const resources = new Set([...levelTree, ...linearLevelTree]
+    .flatMap(group => group.levels.map(level => level.resource)));
+  for (const resource of resources) {
     const json = await file(join(import.meta.dir, `../../public/assets/levels/${resource}.json`)).json();
     const parsed = parser.parseJsonLevelData(json);
     if (!parsed?.objectLayer || !parsed.collisionLayer) continue;
