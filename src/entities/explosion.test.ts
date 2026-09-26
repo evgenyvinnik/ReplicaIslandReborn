@@ -142,5 +142,5 @@ test('Game startup preloads every small, large and giant frame under its actual 
     }
   }
   const game = readFileSync(new URL('../components/Game.tsx', import.meta.url), 'utf8');
-  expect(game).toContain('await Promise.all([effectsSystem.preloadSprites(), preloadExplosionSprites(renderSystem)])');
+  expect(game).toContain('await Promise.all([effectsSystem.preloadSprites(signal), preloadExplosionSprites(renderSystem, signal)])');
 });

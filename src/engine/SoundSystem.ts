@@ -4,6 +4,7 @@
  */
 
 import { assetPath } from '../utils/helpers';
+import { fetchWithDeadline } from '../utils/fetchWithDeadline';
 
 /**
  * Sound effect names mapping
@@ -231,7 +232,8 @@ export class SoundSystem {
   /**
    * Load a sound file
    */
-  async loadSound(name: string, url: string, optional: boolean = false): Promise<void> {
+  async loadSound(name: string, url: string, optional: boolean = false,
+    signal?: globalThis.AbortSignal, timeoutMs?: number): Promise<void> {
     if (!this.audioContext) {
       await this.initialize();
     }
@@ -239,7 +241,10 @@ export class SoundSystem {
     if (!this.audioContext) return;
 
     try {
-      const response = await fetch(url);
+      const { response, arrayBuffer } = await fetchWithDeadline(url, async response => ({
+        response,
+        arrayBuffer: response.ok ? await response.arrayBuffer() : new ArrayBuffer(0),
+      }), signal, timeoutMs);
       if (!response.ok) {
         if (optional) {
           // Silently skip optional sounds that don't exist
@@ -258,8 +263,8 @@ export class SoundSystem {
         throw new Error(`Invalid content type: ${contentType}`);
       }
       
-      const arrayBuffer = await response.arrayBuffer();
       if (this.destroyed) return;
+      if (signal?.aborted) return;
       
       // Check if we got actual audio data (at least a few bytes)
       if (arrayBuffer.byteLength < 100) {
@@ -453,7 +458,7 @@ export class SoundSystem {
   /**
    * Load background music
    */
-  async loadBackgroundMusic(url: string): Promise<boolean> {
+  async loadBackgroundMusic(url: string, signal?: globalThis.AbortSignal, timeoutMs?: number): Promise<boolean> {
     if (!this.audioContext) {
       await this.initialize();
     }
@@ -461,7 +466,10 @@ export class SoundSystem {
     if (!this.audioContext) return false;
 
     try {
-      const response = await fetch(url);
+      const { response, arrayBuffer } = await fetchWithDeadline(url, async response => ({
+        response,
+        arrayBuffer: response.ok ? await response.arrayBuffer() : new ArrayBuffer(0),
+      }), signal, timeoutMs);
       if (!response.ok) {
         // console.log(`Background music not found: ${url}`);
         return false;
@@ -473,8 +481,8 @@ export class SoundSystem {
         return false;
       }
       
-      const arrayBuffer = await response.arrayBuffer();
       if (this.destroyed) return false;
+      if (signal?.aborted) return false;
       if (arrayBuffer.byteLength < 100) {
         // console.log('Music file too small or empty');
         return false;
@@ -501,21 +509,20 @@ export class SoundSystem {
    * harpsichord-ish voice. The result is an ordinary AudioBuffer, so looping,
    * pausing and volume all go through the same path as a normal audio file.
    */
-  async loadBackgroundMusicScore(url: string): Promise<boolean> {
+  async loadBackgroundMusicScore(url: string, signal?: globalThis.AbortSignal, timeoutMs?: number): Promise<boolean> {
     if (!this.audioContext) {
       await this.initialize();
     }
     if (!this.audioContext) return false;
 
     try {
-      const response = await fetch(url);
-      if (!response.ok) return false;
-
-      const score = await response.json() as {
+      const score = await fetchWithDeadline(url, async response => response.ok ? await response.json() as {
         duration?: number;
         notes?: Array<{ time: number; duration: number; pitch: number; velocity: number }>;
-      };
+      } : null, signal, timeoutMs);
+      if (!score) return false;
       if (this.destroyed) return false;
+      if (signal?.aborted) return false;
       const notes = score.notes ?? [];
       if (notes.length === 0) return false;
 
@@ -751,8 +758,8 @@ export class SoundSystem {
   /**
    * Preload all game sounds
    */
-  async preloadAllSounds(): Promise<void> {
-    if (this.destroyed) return;
+  async preloadAllSounds(signal?: globalThis.AbortSignal): Promise<void> {
+    if (this.destroyed || signal?.aborted) return;
     const soundFiles = [
       'deep_clang',
       'ding',
@@ -779,20 +786,20 @@ export class SoundSystem {
     ];
 
     const loadPromises = soundFiles.map(name =>
-      this.loadSound(name, assetPath(`/assets/sounds/${name}.ogg`)).catch(_err => {
+      this.loadSound(name, assetPath(`/assets/sounds/${name}.ogg`), false, signal).catch(_err => {
         // Failed to load sound - silently ignore
       })
     );
 
     await Promise.all(loadPromises);
-    if (this.destroyed) return;
+    if (this.destroyed || signal?.aborted) return;
     
     // Background music. Prefer a real audio file if one has been dropped in,
     // otherwise synthesize the original's bwv_115.mid from its converted score.
-    const loadedAudioFile = await this.loadBackgroundMusic(assetPath('/assets/sounds/music.ogg'));
-    if (this.destroyed) return;
+    const loadedAudioFile = await this.loadBackgroundMusic(assetPath('/assets/sounds/music.ogg'), signal);
+    if (this.destroyed || signal?.aborted) return;
     if (!loadedAudioFile) {
-      await this.loadBackgroundMusicScore(assetPath('/assets/sounds/bwv_115.json'));
+      await this.loadBackgroundMusicScore(assetPath('/assets/sounds/bwv_115.json'), signal);
     }
   }
 

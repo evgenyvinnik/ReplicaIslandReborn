@@ -217,7 +217,7 @@ export class EffectsSystem {
   /**
    * Preload all effect sprites
    */
-  async preloadSprites(): Promise<void> {
+  async preloadSprites(signal?: globalThis.AbortSignal): Promise<void> {
     if (!this.renderSystem || this.spritesLoaded) return;
     
     const allFrames: string[] = [];
@@ -231,7 +231,7 @@ export class EffectsSystem {
     
     await Promise.all(
       allFrames.map(async (frame) => {
-        await this.renderSystem!.loadSingleImage(frame, assetPath(`/assets/sprites/${frame}`));
+        await this.renderSystem!.loadSingleImage(frame, assetPath(`/assets/sprites/${frame}`), signal);
         this.loadedSprites.add(frame);
       })
     );

@@ -7,6 +7,7 @@ import type { RenderCommand, CameraState } from '../types';
 import { placeholders } from '../utils/PlaceholderSprites';
 import { assetPath } from '../utils/helpers';
 import { SortConstants } from './SortConstants';
+import { loadImage } from '../utils/loadImage';
 
 export interface Sprite {
   image: HTMLImageElement | HTMLCanvasElement;
@@ -116,24 +117,24 @@ export class RenderSystem {
     name: string,
     url: string,
     frameWidth: number,
-    frameHeight: number
+    frameHeight: number,
+    signal?: globalThis.AbortSignal,
+    timeoutMs?: number
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = (): void => {
-        const framesPerRow = Math.floor(image.width / frameWidth);
-        this.sprites.set(name, {
-          image,
-          frameWidth,
-          frameHeight,
-          framesPerRow,
-        });
-        resolve();
-      };
-      image.onerror = (): void => {
-        reject(new Error(`Failed to load sprite: ${name}`));
-      };
-      image.src = url;
+    let image: HTMLImageElement;
+    try {
+      image = await loadImage(url, signal, timeoutMs);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Failed to load image:')) {
+        throw new Error(`Failed to load sprite: ${name}`);
+      }
+      throw error;
+    }
+    this.sprites.set(name, {
+      image,
+      frameWidth,
+      frameHeight,
+      framesPerRow: Math.floor(image.width / frameWidth),
     });
   }
 
@@ -155,22 +156,21 @@ export class RenderSystem {
   /**
    * Load a single image (no frames)
    */
-  async loadSingleImage(name: string, url: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      image.onload = (): void => {
-        this.sprites.set(name, {
-          image,
-          frameWidth: image.width,
-          frameHeight: image.height,
-          framesPerRow: 1,
-        });
-        resolve();
-      };
-      image.onerror = (): void => {
-        reject(new Error(`Failed to load image: ${name}`));
-      };
-      image.src = url;
+  async loadSingleImage(name: string, url: string, signal?: globalThis.AbortSignal, timeoutMs?: number): Promise<void> {
+    let image: HTMLImageElement;
+    try {
+      image = await loadImage(url, signal, timeoutMs);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('Failed to load image:')) {
+        throw new Error(`Failed to load image: ${name}`);
+      }
+      throw error;
+    }
+    this.sprites.set(name, {
+      image,
+      frameWidth: image.width,
+      frameHeight: image.height,
+      framesPerRow: 1,
     });
   }
 
@@ -178,14 +178,14 @@ export class RenderSystem {
    * Load a tileset image
    * Tilesets use 32x32 tiles arranged in a grid
    */
-  async loadTileset(name: string, url: string, tileSize: number = 32): Promise<void> {
-    return this.loadSprite(name, url, tileSize, tileSize);
+  async loadTileset(name: string, url: string, tileSize: number = 32, signal?: globalThis.AbortSignal): Promise<void> {
+    return this.loadSprite(name, url, tileSize, tileSize, signal);
   }
 
   /**
    * Load all game tilesets
    */
-  async loadAllTilesets(): Promise<void> {
+  async loadAllTilesets(signal?: globalThis.AbortSignal): Promise<void> {
     const tilesets = [
       'grass',
       'island',
@@ -198,7 +198,7 @@ export class RenderSystem {
 
     const tileSize = 32;
     const loadPromises = tilesets.map(name =>
-      this.loadTileset(name, assetPath(`/assets/sprites/${name}.png`), tileSize)
+      this.loadTileset(name, assetPath(`/assets/sprites/${name}.png`), tileSize, signal)
     );
 
     await Promise.all(loadPromises);

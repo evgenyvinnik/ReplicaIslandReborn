@@ -1,6 +1,39 @@
 import { expect, test } from 'bun:test';
 import { SoundSystem } from './SoundSystem';
 
+test('a stalled sound download expires instead of holding game startup', async () => {
+  const originalContext = globalThis.AudioContext;
+  const originalFetch = globalThis.fetch;
+  let requestSignal: globalThis.AbortSignal | undefined;
+  globalThis.AudioContext = class {
+    state = 'running';
+    createGain(): unknown { return { gain: { value: 1 }, connect: (): void => {} }; }
+    close(): Promise<void> { return Promise.resolve(); }
+  } as unknown as typeof AudioContext;
+  globalThis.fetch = ((_url: string | URL | globalThis.Request, init?: globalThis.RequestInit) => {
+    requestSignal = init?.signal ?? undefined;
+    return new Promise<Response>((_resolve, reject) => {
+      requestSignal?.addEventListener('abort', () => reject(new globalThis.DOMException('Aborted', 'AbortError')), { once: true });
+    });
+  }) as typeof fetch;
+  const sound = new SoundSystem();
+  try {
+    await sound.initialize();
+    let settled = false;
+    await Promise.race([
+      sound.loadSound('ding', '/stalled.ogg', false, undefined, 20).then(() => { settled = true; }),
+      new Promise<void>(resolve => setTimeout(resolve, 100)),
+    ]);
+    expect(settled).toBe(true);
+    expect(requestSignal?.aborted).toBe(true);
+    expect(sound.isLoaded('ding')).toBe(false);
+  } finally {
+    sound.destroy();
+    globalThis.AudioContext = originalContext;
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('a pending autoplay resume does not block initialization or sound loading', async () => {
   const originalContext = globalThis.AudioContext;
   const originalFetch = globalThis.fetch;

@@ -4,6 +4,12 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Image, audio and cutscene requests can no longer hold loading indefinitely
+
+The collision JSON deadline left other awaited assets unbounded: required sprites/tilesets, optional HUD/control images, sound downloads and the converted music score. A stalled image or sound request could still leave the startup screen pending. Separately, `CanvasCutscene.play()` awaited every frame image; one stalled Kyle animation frame could trap its scripted story transition on the cutscene loading state. Failing-first tests reproduced the required-image, sound and Kyle-cutscene hangs. Image requests now have a 20-second deadline, propagate startup cancellation, detach handlers and cancel abandoned image URLs. Sound fetches keep their deadline through body reading and use the same startup signal. Cutscene image preloads also have a deadline; stopping or replacing playback aborts outstanding requests, and a missing frame does not prevent the story clock from advancing. Existing image-failure/retry and cutscene presentation behavior remain covered.
+
+All 906 tests pass across 151 files (47,011 assertions); lint, type checking, Pages-base build and whitespace check pass. Build: `index-ClNSMo0g.js`, with the existing large-bundle warning. These are concrete liveness corrections under deliberately stalled requests, not a reproduction of the user's unidentified stuck Memory or verification on a physical Android device. The user-specific gate remains unidentified.
+
 ### Collision-shape startup request now has a deadline
 
 The initial `collision.json` fetch ran before every playable level but had neither a timeout nor an abort signal. A stalled browser request could therefore keep startup on its loading screen indefinitely even though level JSON requests already had a 20-second deadline. Two failing-first tests held this request open and observed both a deadline and startup cancellation hang. Collision-shape loading now uses the same bounded, abortable JSON fetch as level loading, and Game passes its startup/disposal signal. Both tests pass; the full suite has 902 passing tests across 151 files (46,998 assertions), with lint, type checking, the Pages-base build and whitespace check passing. Build: `index-BMkpBo2B.js`, with the existing large-bundle warning. This prevents one concrete loading freeze; it does not identify the user's stuck Memory or verify an Android device.

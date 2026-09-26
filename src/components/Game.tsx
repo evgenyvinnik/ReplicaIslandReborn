@@ -1091,7 +1091,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       ];
 
       const loadPromises = sprites.map(sprite =>
-        renderSystem.loadSingleImage(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`))
+        renderSystem.loadSingleImage(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), signal)
       );
 
       await Promise.all(loadPromises);
@@ -1163,7 +1163,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       ];
 
       const loadPromises = sprites.map(sprite =>
-        renderSystem.loadSingleImage(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`))
+        renderSystem.loadSingleImage(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), signal)
       );
 
       await Promise.all(loadPromises);
@@ -1359,7 +1359,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       ];
 
       const loadPromises = sprites.map(sprite =>
-        renderSystem.loadSingleImage(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`))
+        renderSystem.loadSingleImage(sprite.name, assetPath(`/assets/sprites/${sprite.file}.png`), signal)
       );
 
       await Promise.all(loadPromises);
@@ -1381,7 +1381,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         if (!collisionLoaded) throw new Error('Could not load level collision data.');
         
         // Load tilesets
-        await renderSystem.loadAllTilesets();
+        await renderSystem.loadAllTilesets(signal);
         signal.throwIfAborted();
         
         // Load player sprites
@@ -1397,16 +1397,16 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         signal.throwIfAborted();
         
         // Load effect sprites (explosions, smoke, etc.)
-        await Promise.all([effectsSystem.preloadSprites(), preloadExplosionSprites(renderSystem)]);
+        await Promise.all([effectsSystem.preloadSprites(signal), preloadExplosionSprites(renderSystem, signal)]);
         signal.throwIfAborted();
         
         // Load Canvas UI sprites
         if (canvasHUDRef.current) {
-          await canvasHUDRef.current.preload();
+          await canvasHUDRef.current.preload(signal);
           signal.throwIfAborted();
         }
         if (canvasControlsRef.current) {
-          await canvasControlsRef.current.preload();
+          await canvasControlsRef.current.preload(signal);
           signal.throwIfAborted();
         }
         
@@ -1416,7 +1416,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Initialize sound system
         await soundSystem.initialize();
         signal.throwIfAborted();
-        await soundSystem.preloadAllSounds();
+        await soundSystem.preloadAllSounds(signal);
         signal.throwIfAborted();
         
         // Apply sound settings

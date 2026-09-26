@@ -18,6 +18,7 @@ import {
 } from '../data/cutscenes';
 import { attachModalKeyboard, detachModalKeyboard, claimModalPointer, ModalPriority } from './ModalKeyboard';
 import { assetPath } from '../utils/helpers';
+import { IMAGE_LOAD_TIMEOUT_MS, loadImage as loadImageResource } from '../utils/loadImage';
 
 /**
  * Accelerate-decelerate interpolation function
@@ -84,6 +85,7 @@ export class CanvasCutscene {
   
   // A replaced/stopped play cannot finish loading into its successor.
   private playVersion: number = 0;
+  private imageLoadAbort: globalThis.AbortController | null = null;
   
   // Callbacks
   private onComplete: (() => void) | null = null;
@@ -96,7 +98,8 @@ export class CanvasCutscene {
   private boundHandleKeyDown: (e: KeyboardEvent) => void;
   private boundHandleClick: (e: MouseEvent | TouchEvent) => void;
   
-  constructor(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, width: number, height: number) {
+  constructor(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, width: number, height: number,
+    private readonly imageLoadTimeoutMs = IMAGE_LOAD_TIMEOUT_MS) {
     this.ctx = ctx;
     this.canvas = canvas;
     this.width = width;
@@ -120,6 +123,8 @@ export class CanvasCutscene {
   async play(cutsceneType: CutsceneType, onComplete: () => void): Promise<void> {
     this.stop();
     const version = this.playVersion;
+    const imageLoadAbort = new globalThis.AbortController();
+    this.imageLoadAbort = imageLoadAbort;
     this.state.cutscene = getCutscene(cutsceneType);
     this.state.elapsedTime = 0;
     this.state.currentFrame = 0;
@@ -134,8 +139,9 @@ export class CanvasCutscene {
     this.attach();
     
     // Preload images
-    await this.preloadImages();
+    await this.preloadImages(imageLoadAbort.signal);
     if (version !== this.playVersion) return;
+    this.imageLoadAbort = null;
     
     this.state.isLoading = false;
     this.update(0);
@@ -146,6 +152,8 @@ export class CanvasCutscene {
    */
   stop(): void {
     this.playVersion++;
+    this.imageLoadAbort?.abort();
+    this.imageLoadAbort = null;
     this.detach();
     this.state.cutscene = null;
     this.onComplete = null;
@@ -161,7 +169,7 @@ export class CanvasCutscene {
   /**
    * Preload all images for the cutscene
    */
-  private async preloadImages(): Promise<void> {
+  private async preloadImages(signal: globalThis.AbortSignal): Promise<void> {
     if (!this.state.cutscene) return;
     
     const imagesToLoad: string[] = [];
@@ -180,29 +188,20 @@ export class CanvasCutscene {
     
     if (imagesToLoad.length === 0) return;
     
-    const loadPromises = imagesToLoad.map(src => this.loadImage(src));
+    const loadPromises = imagesToLoad.map(src => this.loadImage(src, signal));
     await Promise.all(loadPromises);
   }
   
-  private loadImage(src: string): Promise<void> {
-    return new Promise((resolve) => {
-      if (this.images.has(src)) {
-        resolve();
-        return;
-      }
-      
-      const img = new Image();
-      img.onload = (): void => {
-        this.images.set(src, img);
-        resolve();
-      };
-      img.onerror = (): void => {
-        // console.log(`Failed to load cutscene image: ${src}`);
-        resolve();
-      };
-      // Handle both relative and absolute paths
-      img.src = src.startsWith('/') || src.startsWith('http') ? assetPath(src) : assetPath('/' + src);
-    });
+  private async loadImage(src: string, signal: globalThis.AbortSignal): Promise<void> {
+    if (this.images.has(src) || signal.aborted) return;
+    try {
+      // Handle both relative and absolute paths.
+      const url = src.startsWith('/') || src.startsWith('http') ? assetPath(src) : assetPath('/' + src);
+      const image = await loadImageResource(url, signal, this.imageLoadTimeoutMs);
+      if (!signal.aborted) this.images.set(src, image);
+    } catch {
+      // An unavailable frame may be blank, but must not trap the story transition.
+    }
   }
   
   /**

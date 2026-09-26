@@ -22,6 +22,7 @@ beforeEach(() => {
     get src(): string { return this.path; }
     set src(path: string) {
       this.path = path;
+      if (!path) return;
       const png = readFileSync(join(import.meta.dir, '../../public', path));
       this.width = png.readUInt32BE(16);
       this.height = png.readUInt32BE(20);
@@ -34,7 +35,7 @@ afterEach(() => {
   globalThis.Image = originalImage;
 });
 
-function scene(): {
+function scene(imageTimeoutMs?: number): {
   cutscene: CanvasCutscene;
   images: Array<{ src: string; x: number; y: number }>;
   labels: Array<{ text: string; x: number; y: number; style: string }>;
@@ -51,7 +52,7 @@ function scene(): {
     },
   }, { get: (target, key): unknown => Reflect.get(target, key) ?? ((): void => {}) });
   return { images, labels, cutscene: new CanvasCutscene(ctx as unknown as CanvasRenderingContext2D,
-    new globalThis.EventTarget() as HTMLCanvasElement, 480, 320) };
+    new globalThis.EventTarget() as HTMLCanvasElement, 480, 320, imageTimeoutMs) };
 }
 
 function loadImages(filter: (src: string) => boolean = () => true): void {
@@ -108,6 +109,21 @@ test('late image loading cannot reset replacement playback or revive a stopped c
   enter();
   expect(cutscene.isActive()).toBe(false);
   expect(oldCompleted).toBe(0);
+});
+
+test('a stalled cutscene image cannot hold Kyle’s story transition indefinitely', async () => {
+  const { cutscene } = scene(20);
+  let completed = 0;
+  const loading = cutscene.play(CutsceneType.KYLE_DEATH, () => { completed++; });
+  let settled = false;
+  await Promise.race([
+    loading.then(() => { settled = true; }),
+    new Promise<void>(resolve => setTimeout(resolve, 100)),
+  ]);
+  expect(settled).toBe(true);
+  cutscene.update(2);
+  expect(completed).toBe(1);
+  expect(cutscene.isActive()).toBe(false);
 });
 
 test.each([CutsceneType.WANDA_ENDING, CutsceneType.KABOCHA_ENDING, CutsceneType.ROKUDOU_ENDING])(

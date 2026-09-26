@@ -2,6 +2,55 @@ import { expect, test } from 'bun:test';
 import { RenderSystem } from './RenderSystem';
 import { EffectsSystem } from './EffectsSystem';
 
+test('a stalled required image rejects and releases its request instead of freezing startup', async () => {
+  const originalImage = globalThis.Image;
+  let image: { src: string; onload: (() => void) | null; onerror: (() => void) | null } | undefined;
+  globalThis.Image = class {
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    src = '';
+    constructor() { image = this; }
+  } as unknown as typeof Image;
+  try {
+    const renderer = new RenderSystem({ getContext: () => ({}) } as unknown as HTMLCanvasElement);
+    let hung = true;
+    await Promise.race([
+      renderer.loadSingleImage('coin01', '/stalled.png', undefined, 20).then(() => { hung = false; }, () => { hung = false; }),
+      new Promise<void>(resolve => setTimeout(resolve, 100)),
+    ]);
+    expect(hung).toBe(false);
+    expect(renderer.hasSprite('coin01')).toBe(false);
+    expect(image?.src).toBe('');
+  } finally {
+    globalThis.Image = originalImage;
+  }
+});
+
+test('cancelling startup stops in-flight tileset images and prevents late registration', async () => {
+  const originalImage = globalThis.Image;
+  const images: Array<{ src: string; onload: (() => void) | null; onerror: (() => void) | null }> = [];
+  globalThis.Image = class {
+    onload: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    src = '';
+    constructor() { images.push(this); }
+  } as unknown as typeof Image;
+  try {
+    const renderer = new RenderSystem({ getContext: () => ({}) } as unknown as HTMLCanvasElement);
+    const controller = new globalThis.AbortController();
+    const loading = renderer.loadAllTilesets(controller.signal);
+    expect(images).toHaveLength(7);
+    const staleOnload = images[0].onload;
+    controller.abort();
+    await expect(loading).rejects.toThrow('Image load aborted');
+    expect(images.every(image => image.src === '' && image.onload === null && image.onerror === null)).toBe(true);
+    staleOnload?.();
+    expect(renderer.hasSprite('grass')).toBe(false);
+  } finally {
+    globalThis.Image = originalImage;
+  }
+});
+
 test('required tileset failures propagate and a fresh initialization can retry', async () => {
   const originalImage = globalThis.Image;
   let failLab = true;

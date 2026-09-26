@@ -6,6 +6,7 @@
  */
 
 import { assetPath } from '../utils/helpers';
+import { loadImage } from '../utils/loadImage';
 
 // Layout constants (from original HudSystem.java)
 const MOVEMENT_SLIDER_BASE_X = 20;
@@ -102,7 +103,7 @@ export class CanvasControls {
   /**
    * Preload control sprites
    */
-  async preload(): Promise<void> {
+  async preload(signal?: globalThis.AbortSignal): Promise<void> {
     const spriteNames = [
       'ui_movement_slider_base',
       'ui_movement_slider_button_on',
@@ -113,24 +114,18 @@ export class CanvasControls {
       'ui_button_stomp_off',
     ];
     
-    const loadPromises = spriteNames.map(name => this.loadSprite(name));
+    const loadPromises = spriteNames.map(name => this.loadSprite(name, signal));
     await Promise.all(loadPromises);
     this.spritesLoaded = true;
   }
   
-  private loadSprite(name: string): Promise<void> {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = (): void => {
-        this.sprites.set(name, img);
-        resolve();
-      };
-      img.onerror = (): void => {
-        // console.log(`Failed to load control sprite: ${name}`);
-        resolve();
-      };
-      img.src = assetPath(`/assets/sprites/${name}.png`);
-    });
+  private async loadSprite(name: string, signal?: globalThis.AbortSignal): Promise<void> {
+    try {
+      this.sprites.set(name, await loadImage(assetPath(`/assets/sprites/${name}.png`), signal));
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      // A missing optional control image must not leave startup pending forever.
+    }
   }
   
   /**

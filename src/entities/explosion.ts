@@ -15,9 +15,9 @@ export const EXPLOSION_SPRITES = ['small', 'big'].flatMap(prefix =>
   Array.from({ length: prefix === 'big' ? 9 : 7 }, (_, i) =>
     `effect_explosion_${prefix}${String(i + 1).padStart(2, '0')}.png`));
 
-export async function preloadExplosionSprites(renderer: RenderSystem): Promise<void> {
+export async function preloadExplosionSprites(renderer: RenderSystem, signal?: globalThis.AbortSignal): Promise<void> {
   await Promise.all(EXPLOSION_SPRITES.map(name =>
-    renderer.loadSingleImage(name, assetPath(`/assets/sprites/${name}`))));
+    renderer.loadSingleImage(name, assetPath(`/assets/sprites/${name}`), signal)));
 }
 
 /** Original spawnEffectExplosionSmall/Large: neutral-team damaging animations. */
