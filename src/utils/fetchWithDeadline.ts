@@ -18,3 +18,27 @@ export async function fetchWithDeadline<T>(
     signal?.removeEventListener('abort', abort);
   }
 }
+
+/** Bound browser processing after a response arrives (for example audio decoding).
+ * The browser operation itself may not be cancellable, but late results are ignored.
+ */
+export async function awaitWithDeadline<T>(
+  work: Promise<T>,
+  signal?: globalThis.AbortSignal,
+  timeoutMs = 20_000
+): Promise<T> {
+  if (signal?.aborted) throw new globalThis.DOMException('Processing aborted', 'AbortError');
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let rejectOnAbort = (): void => {};
+  const deadline = new Promise<never>((_resolve, reject) => {
+    rejectOnAbort = (): void => reject(new globalThis.DOMException('Processing aborted', 'AbortError'));
+    signal?.addEventListener('abort', rejectOnAbort, { once: true });
+    timeout = setTimeout(() => reject(new Error('Processing timed out')), timeoutMs);
+  });
+  try {
+    return await Promise.race([work, deadline]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+    signal?.removeEventListener('abort', rejectOnAbort);
+  }
+}

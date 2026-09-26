@@ -4,7 +4,7 @@
  */
 
 import { assetPath } from '../utils/helpers';
-import { fetchWithDeadline } from '../utils/fetchWithDeadline';
+import { awaitWithDeadline, fetchWithDeadline } from '../utils/fetchWithDeadline';
 
 /**
  * Sound effect names mapping
@@ -274,8 +274,8 @@ export class SoundSystem {
         throw new Error('Audio file too small or empty');
       }
       
-      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
-      if (this.destroyed) return;
+      const audioBuffer = await awaitWithDeadline(this.audioContext.decodeAudioData(arrayBuffer), signal, timeoutMs);
+      if (this.destroyed || signal?.aborted) return;
 
       this.sounds.set(name, {
         buffer: audioBuffer,
@@ -488,8 +488,8 @@ export class SoundSystem {
         return false;
       }
       
-      const buffer = await this.audioContext.decodeAudioData(arrayBuffer);
-      if (this.destroyed) return false;
+      const buffer = await awaitWithDeadline(this.audioContext.decodeAudioData(arrayBuffer), signal, timeoutMs);
+      if (this.destroyed || signal?.aborted) return false;
       this.musicBuffer = buffer;
       this.startPendingMusic();
       return true;
@@ -541,8 +541,8 @@ export class SoundSystem {
         this.renderNote(offline, master, note);
       }
 
-      const buffer = await offline.startRendering();
-      if (this.destroyed) return false;
+      const buffer = await awaitWithDeadline(offline.startRendering(), signal, timeoutMs);
+      if (this.destroyed || signal?.aborted) return false;
       this.musicBuffer = buffer;
       this.startPendingMusic();
       return true;

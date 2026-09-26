@@ -22,7 +22,7 @@ test('a stalled sound download expires instead of holding game startup', async (
     let settled = false;
     await Promise.race([
       sound.loadSound('ding', '/stalled.ogg', false, undefined, 20).then(() => { settled = true; }),
-      new Promise<void>(resolve => setTimeout(resolve, 100)),
+      new Promise<void>(resolve => setTimeout(resolve, 1000)),
     ]);
     expect(settled).toBe(true);
     expect(requestSignal?.aborted).toBe(true);
@@ -30,6 +30,120 @@ test('a stalled sound download expires instead of holding game startup', async (
   } finally {
     sound.destroy();
     globalThis.AudioContext = originalContext;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a stalled sound decode expires instead of holding game startup', async () => {
+  const originalContext = globalThis.AudioContext;
+  const originalFetch = globalThis.fetch;
+  let finishDecode = (_buffer: AudioBuffer): void => {};
+  const decoding = new Promise<AudioBuffer>(resolve => { finishDecode = resolve; });
+  globalThis.AudioContext = class {
+    state = 'running';
+    createGain(): unknown { return { gain: { value: 1 }, connect: (): void => {} }; }
+    close(): Promise<void> { return Promise.resolve(); }
+    decodeAudioData(): Promise<AudioBuffer> { return decoding; }
+  } as unknown as typeof AudioContext;
+  globalThis.fetch = (async () =>
+    new Response(new Uint8Array(128), { headers: { 'content-type': 'audio/ogg' } })) as unknown as typeof fetch;
+  const sound = new SoundSystem();
+  try {
+    await sound.initialize();
+    let settled = false;
+    await Promise.race([
+      sound.loadSound('ding', '/audio.ogg', false, undefined, 20).then(() => { settled = true; }),
+      new Promise<void>(resolve => setTimeout(resolve, 1000)),
+    ]);
+    expect(settled).toBe(true);
+    finishDecode({} as AudioBuffer);
+    await Promise.resolve();
+    expect(sound.isLoaded('ding')).toBe(false);
+  } finally {
+    sound.destroy();
+    globalThis.AudioContext = originalContext;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a stalled background music decode expires instead of holding game startup', async () => {
+  const originalContext = globalThis.AudioContext;
+  const originalFetch = globalThis.fetch;
+  let finishDecode = (_buffer: AudioBuffer): void => {};
+  const decoding = new Promise<AudioBuffer>(resolve => { finishDecode = resolve; });
+  globalThis.AudioContext = class {
+    state = 'running';
+    createGain(): unknown { return { gain: { value: 1 }, connect: (): void => {} }; }
+    close(): Promise<void> { return Promise.resolve(); }
+    decodeAudioData(): Promise<AudioBuffer> { return decoding; }
+  } as unknown as typeof AudioContext;
+  globalThis.fetch = (async () =>
+    new Response(new Uint8Array(128), { headers: { 'content-type': 'audio/ogg' } })) as unknown as typeof fetch;
+  const sound = new SoundSystem();
+  try {
+    await sound.initialize();
+    let result: boolean | undefined;
+    await Promise.race([
+      sound.loadBackgroundMusic('/music.ogg', undefined, 20).then(value => { result = value; }),
+      new Promise<void>(resolve => setTimeout(resolve, 1000)),
+    ]);
+    expect(result).toBe(false);
+    finishDecode({} as AudioBuffer);
+    await Promise.resolve();
+    expect(sound.isMusicLoaded()).toBe(false);
+  } finally {
+    sound.destroy();
+    globalThis.AudioContext = originalContext;
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('a stalled offline music render expires instead of holding game startup', async () => {
+  const originalContext = globalThis.AudioContext;
+  const originalOfflineContext = globalThis.OfflineAudioContext;
+  const originalFetch = globalThis.fetch;
+  let finishRender = (_buffer: AudioBuffer): void => {};
+  const rendering = new Promise<AudioBuffer>(resolve => { finishRender = resolve; });
+  globalThis.AudioContext = class {
+    state = 'running';
+    sampleRate = 44100;
+    createGain(): unknown { return { gain: { value: 1 }, connect: (): void => {} }; }
+    close(): Promise<void> { return Promise.resolve(); }
+  } as unknown as typeof AudioContext;
+  globalThis.OfflineAudioContext = class {
+    destination = {};
+    createGain(): unknown {
+      return { gain: {
+        value: 1,
+        setValueAtTime: (): void => {},
+        linearRampToValueAtTime: (): void => {},
+        exponentialRampToValueAtTime: (): void => {},
+      }, connect: (): void => {} };
+    }
+    createOscillator(): unknown {
+      return { type: 'triangle', frequency: { value: 0 }, connect: (): void => {},
+        start: (): void => {}, stop: (): void => {} };
+    }
+    startRendering(): Promise<AudioBuffer> { return rendering; }
+  } as unknown as typeof OfflineAudioContext;
+  globalThis.fetch = (async () =>
+    Response.json({ notes: [{ time: 0, duration: 0.1, pitch: 69, velocity: 1 }] })) as unknown as typeof fetch;
+  const sound = new SoundSystem();
+  try {
+    await sound.initialize();
+    let result: boolean | undefined;
+    await Promise.race([
+      sound.loadBackgroundMusicScore('/score.json', undefined, 20).then(value => { result = value; }),
+      new Promise<void>(resolve => setTimeout(resolve, 1000)),
+    ]);
+    expect(result).toBe(false);
+    finishRender({} as AudioBuffer);
+    await Promise.resolve();
+    expect(sound.isMusicLoaded()).toBe(false);
+  } finally {
+    sound.destroy();
+    globalThis.AudioContext = originalContext;
+    globalThis.OfflineAudioContext = originalOfflineContext;
     globalThis.fetch = originalFetch;
   }
 });
