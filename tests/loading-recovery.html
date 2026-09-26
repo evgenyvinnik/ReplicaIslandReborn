@@ -18,6 +18,9 @@
   <button id="hold-next-level">Hold next level request</button>
   <button id="release-next-level">Release held level request</button>
   <span id="load-hold-status" role="status">No level request held</span>
+  <button id="toggle-fps">Toggle FPS display</button>
+  <button id="toggle-controls">Toggle touch controls</button>
+  <span id="display-settings-status" role="status">Display settings unchanged</span>
   <button id="sewer-start">Prepare sewer save (ID 26)</button>
   <button id="sewer-27-start">Prepare sewer save (ID 27)</button>
   <button id="underground-start">Prepare underground save (ID 36)</button>
@@ -120,6 +123,14 @@ PAUSE 50</textarea><br>
   }
   useGameStore.subscribe(reportSave);
   reportSave();
+  for (const [id, setting] of [['toggle-fps', 'showFPS'], ['toggle-controls', 'onScreenControlsEnabled']]) {
+    document.querySelector(`#${id}`).onclick = () => {
+      const store = useGameStore.getState();
+      store.setSetting(setting, !store.settings[setting]);
+      document.querySelector('#display-settings-status').textContent =
+        `${setting}=${useGameStore.getState().settings[setting]}`;
+    };
+  }
   // Read-only diagnostics: distinguish a blank animation from a hidden body,
   // missing texture, or camera/activation problem during possession recovery.
   let observedVibration;

@@ -2229,7 +2229,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         canvasHUD.setFuel(playerComponent.fuel / PlayerComponent.FUEL_AMOUNT);
         // Display coinsForPowerup (progress toward glow mode) not total coinCount
         canvasHUD.setInventory(playerComponent.coinsForPowerup, getInventory().rubyCount);
-        canvasHUD.setShowFPS(currentSettings.showFPS);
+        // Presentation settings can change while this engine is mounted.
+        // Read them live; making them initialization dependencies tears down
+        // the entire level (including the actor position) on a UI toggle.
+        canvasHUD.setShowFPS(gameSettings.get('showFPS'));
         canvasHUD.setFPS(gameLoop.getFPS());
         canvasHUD.update(displayDelta);
         canvasHUD.render();
@@ -2237,7 +2240,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       // Update and render Canvas Controls (if enabled)
       const canvasControls = canvasControlsRef.current;
-      if (canvasControls && currentSettings.onScreenControlsEnabled) {
+      if (canvasControls && gameSettings.get('onScreenControlsEnabled')) {
         const iSystem = systemRegistryRef.current?.inputSystem;
         if (iSystem) {
           canvasControls.setKeyboardState(
@@ -2350,7 +2353,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       soundSystem.destroy();
       vibrationSystem.destroy();
     };
-  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, goToMainMenu, goToLevelSelect, recordAutomaticLevelCompletion, beginLevelAttempt, currentSettings.onScreenControlsEnabled, currentSettings.showFPS, state.isLinearMode, startupAttempt, markLevelLoading]);
+  }, [width, height, pauseGame, resumeGame, gameOver, completeLevel, setLevel, playCutscene, goToMainMenu, goToLevelSelect, recordAutomaticLevelCompletion, beginLevelAttempt, state.isLinearMode, startupAttempt, markLevelLoading]);
 
   // Handle resize
   useEffect(() => {

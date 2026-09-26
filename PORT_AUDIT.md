@@ -1250,6 +1250,12 @@ An earlier screenshot sequence appeared to show persistent invisibility after re
 
 No full-port completion claim has been made.
 
+### Display-setting changes no longer restart a live level
+
+The main Game initialization effect depended on `showFPS` and `onScreenControlsEnabled`. Changing either setting while Game was mounted cleaned up the loop, controls, sound and level, then rebuilt the engine at the level spawn. These are presentation settings, so the HUD and controls renderer now read their current values without making them initialization dependencies. The separate controls attachment effect still handles enabled/disabled input.
+
+An isolated live-browser check in playable lab ID 2 moved Andou from spawn x96 to x480 and then toggled FPS and touch controls. The player remained at x480/y672 with a loaded sprite after both toggles. The fixture buttons change only its session-isolated settings; they do not assign actor state. The new source-wiring regression passes alongside the full 923-test suite (47,090 assertions), type checking, lint and production build. This fixes an identified reload hazard, not the unidentified reported freeze. The exact Memory/level and freeze behavior are still needed to reproduce that report, and mobile hardware remains untested.
+
 ### Optional phone-tilt control for the possession orb
 
 The Android `InputSystem` feeds a two-axis orientation sensor into `InputGameInterface.getTilt()`, which the free-floating `GhostComponent` reads. The web port had only its two-axis on-screen pad/keyboard/controller substitute, while persisted `tiltControlsEnabled` and `tiltSensitivity` preferences were unused. `InputSystem` now reads device-orientation events when Phone Tilt Controls is enabled, calibrates neutral on the first reading and after screen rotation or focus loss, and maps the sensor into screen axes. The orb uses the original fixed-strength normalized tilt with a dead zone; an active pad, key or controller command takes precedence. With on-screen controls disabled, the preference also gives Andou tilt movement with the original sensitivity factor; other manual inputs remain available. Browsers that require an orientation permission prompt request it from the preference click and leave the option off when permission is denied. Unsupported/no-sensor browsers retain the existing pad and key path.
