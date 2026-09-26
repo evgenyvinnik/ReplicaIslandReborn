@@ -30,6 +30,24 @@ export function focusLevelCamera(level: LevelSystem, manager: GameObjectManager,
   }
 }
 
+/** Android LevelBuilder stretches each backdrop to 1.5x the longer screen
+ * axis, then scrolls it just far enough to meet the map's far edge. */
+export function backgroundDrawLayout(
+  cameraX: number, cameraY: number, levelWidth: number, levelHeight: number,
+  viewportWidth: number, viewportHeight: number
+): { x: number; y: number; size: number } {
+  const size = Math.max(viewportWidth, viewportHeight) * 1.5;
+  const scrollSpeed = (levelSize: number, viewportSize: number): number =>
+    levelSize > viewportSize
+      ? Math.max(0, Math.min((size - viewportSize) / (levelSize - viewportSize), 1))
+      : 0;
+  return {
+    x: cameraX === 0 ? 0 : -cameraX * scrollSpeed(levelWidth, viewportWidth),
+    y: cameraY === 0 ? 0 : -cameraY * scrollSpeed(levelHeight, viewportHeight),
+    size,
+  };
+}
+
 /** An old or failed image request must never leave another level's backdrop visible. */
 export class LevelBackgroundLoader {
   private version = 0;

@@ -7,7 +7,7 @@ import { sSystemRegistry } from '../engine/SystemRegistry';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { resourceToLevelId } from '../data/levelTree';
 import { LevelSystem } from './LevelSystemNew';
-import { focusLevelCamera, LevelBackgroundLoader } from './LevelView';
+import { backgroundDrawLayout, focusLevelCamera, LevelBackgroundLoader } from './LevelView';
 
 const originalFetch = globalThis.fetch;
 const originalImage = globalThis.Image;
@@ -32,6 +32,23 @@ afterEach(() => {
   globalThis.Image = originalImage;
   globalThis.fetch = originalFetch;
   sSystemRegistry.reset();
+});
+
+test('backdrop follows Android LevelBuilder over the full camera range', () => {
+  const viewportWidth = 480;
+  const viewportHeight = 320;
+  const levelWidth = 1920;
+  const levelHeight = 960;
+  const atStart = backgroundDrawLayout(0, 0, levelWidth, levelHeight, viewportWidth, viewportHeight);
+  expect(atStart).toEqual({ x: 0, y: 0, size: 720 });
+
+  // One stretched image, not 512px tiles: its far edges line up with the
+  // far edges of the viewport when the camera reaches the end of the map.
+  const atEnd = backgroundDrawLayout(levelWidth - viewportWidth, levelHeight - viewportHeight,
+    levelWidth, levelHeight, viewportWidth, viewportHeight);
+  expect(atEnd).toEqual({ x: -240, y: -400, size: 720 });
+  expect(backgroundDrawLayout(720, 320, levelWidth, levelHeight, viewportWidth, viewportHeight))
+    .toEqual({ x: -120, y: -200, size: 720 });
 });
 
 test('background changes clear the previous scene and ignore out-of-order loads', () => {

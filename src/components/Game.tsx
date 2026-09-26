@@ -42,7 +42,7 @@ import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { startLevelAttempt } from '../levels/startLevelAttempt';
 import { LevelAttemptTimer } from '../levels/LevelAttemptTimer';
 import { recordLevelResult } from '../levels/levelResult';
-import { focusLevelCamera, restorePlayerCamera, LevelBackgroundLoader } from '../levels/LevelView';
+import { backgroundDrawLayout, focusLevelCamera, restorePlayerCamera, LevelBackgroundLoader } from '../levels/LevelView';
 import { resolveBreakableBlockDeath } from '../entities/breakableBlock';
 import { preloadExplosionSprites } from '../entities/explosion';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
@@ -2097,22 +2097,15 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
 
       // Draw scrolling background image
       const bgImage = backgroundImageRef.current;
-      if (bgImage) {
+      const backgroundLevel = levelSystemRef.current;
+      if (bgImage && backgroundLevel) {
         const ctx = (renderSystem as unknown as { ctx: CanvasRenderingContext2D }).ctx;
         // focusPosition is already the top-left corner of the camera viewport
         const cameraX = cameraSystem.getFocusPositionX();
         const cameraY = cameraSystem.getFocusPositionY();
-        
-        // Simple parallax - background scrolls at 0.3x speed
-        const bgScrollX = -(cameraX * 0.3) % bgImage.width;
-        const bgScrollY = -(cameraY * 0.1);
-        
-        // Draw background tiled if needed
-        ctx.save();
-        for (let x = bgScrollX - bgImage.width; x < width + bgImage.width; x += bgImage.width) {
-          ctx.drawImage(bgImage, x, bgScrollY, bgImage.width, bgImage.height);
-        }
-        ctx.restore();
+        const layout = backgroundDrawLayout(cameraX, cameraY,
+          backgroundLevel.getLevelWidth(), backgroundLevel.getLevelHeight(), width, height);
+        ctx.drawImage(bgImage, layout.x, layout.y, layout.size, layout.size);
       }
 
       // Render tile map
