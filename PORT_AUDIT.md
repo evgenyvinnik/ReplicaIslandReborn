@@ -4,6 +4,10 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Android collision-shape parity
+
+A new regression independently decodes every tile segment in Android's `collision.bin` and compares its Y-flipped coordinates and normals with the shipped `collision.json`, including the file signature, complete byte count, and tile count. All definitions match at the converter's 0.001 precision. The collision-parity, swept-player-wall, and gate-footprint tests pass together (15 tests, 134 assertions). This rules out a collision-definition conversion mismatch as the cause of the reported pass-through walls; it does not prove every runtime collision path, reproduce the user's wall, or explain the unidentified stuck level. No gameplay geometry or collision response was changed on this evidence.
+
 ### Current-build green lab gate recheck
 
 On the current local build (commit `766cba6`), a separate in-app browser tab used the development fixture's isolated save for lab level ID 2. The fixture changed only Andou's position for the gate scenario; it did not alter the plate, gate, terrain, or channel. With right input, Andou stopped at x704 against the closed green gate (`object_door_green01`). From the other side, ordinary left input crossed the real plate and moved him from x812 to x552 while the fixture observed gate frames `01`, `02`, `03`, and `04`; life remained 3/3. This confirms one blocking/opening/passage sequence after the latest deployment, not every gate or a physical Android touch run. The browser screenshot capture failed, so this check relies on the fixture's live state and sprite diagnostics rather than visual inspection. The user's gate/level location remains unidentified; no gameplay code was changed on this evidence.
