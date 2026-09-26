@@ -4,6 +4,14 @@ This document tracks what has been implemented and what still needs to be done t
 
 **Last Updated:** December 7, 2025
 
+> Historical planning snapshot. The completion percentage and claims below
+> predate the component-driven runtime and the later source-backed fixes. They
+> are not evidence that the port is complete or that `PlayerComponent` is
+> unused. See [PORT_AUDIT.md](PORT_AUDIT.md) for current verification and
+> remaining gaps. In particular, the reported gate fault and stuck character
+> or device still need an exact level and reproduction; physical Android touch
+> behavior and full campaign routes have not been verified.
+
 ---
 
 ## 🟢 PROGRESS: ~98% Complete - Fully Playable

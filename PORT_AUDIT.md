@@ -4,6 +4,10 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Current-build green lab gate recheck
+
+On the current local build (commit `766cba6`), a separate in-app browser tab used the development fixture's isolated save for lab level ID 2. The fixture changed only Andou's position for the gate scenario; it did not alter the plate, gate, terrain, or channel. With right input, Andou stopped at x704 against the closed green gate (`object_door_green01`). From the other side, ordinary left input crossed the real plate and moved him from x812 to x552 while the fixture observed gate frames `01`, `02`, `03`, and `04`; life remained 3/3. This confirms one blocking/opening/passage sequence after the latest deployment, not every gate or a physical Android touch run. The browser screenshot capture failed, so this check relies on the fixture's live state and sprite diagnostics rather than visual inspection. The user's gate/level location remains unidentified; no gameplay code was changed on this evidence.
+
 ### Touch-driven gate route on a shipped map
 
 The existing long island red-plate route in `level_1_2_island` used a direct test-only virtual axis. It now runs twice: once with that axis and once with an actual scaled-canvas `touchstart` on `CanvasControls` at the full-left slider endpoint. The touch route passes through `InputSystem`, the shipped PlayerComponent and collision map, the real plate channel, all four gate images and the temporary solid-surface removal. In both cases Andou crosses alive before the Android five-second hold expires. This verifies one complete touch-to-gate chain in simulation; it is not a physical-phone test or proof that the user's unidentified gate behaves correctly.
