@@ -4,6 +4,10 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Every placed blocking gate's dynamic body
+
+A new real-level sweep now covers all 79 blocking doors in the shipped linear campaign. For each placed gate, it activates the authored object at its own coordinates, forces its existing color channel to a settled closed state, and checks the original 32×64 dynamic body stops a player-sized approach from both sides. It then opens the gate through the channel, advances the component/surface pipeline, verifies that body disappears, and closes it again to verify blocking returns. The full `doorsAndButtons.test.ts` file passes 12 tests (2,156 assertions), including the existing actual plate-contact, animation, corridor passage and crush checks. The component order matches Android: POST_COLLISION submits the old surface before ANIMATION changes the door, so collision catches up on the following frame. This test does not simulate the complete route to each button or reproduce the user's unidentified bad gate; no production gameplay behavior was changed.
+
 ### Android collision-shape parity
 
 A new regression independently decodes every tile segment in Android's `collision.bin` and compares its Y-flipped coordinates and normals with the shipped `collision.json`, including the file signature, complete byte count, and tile count. All definitions match at the converter's 0.001 precision. The collision-parity, swept-player-wall, and gate-footprint tests pass together (15 tests, 134 assertions). This rules out a collision-definition conversion mismatch as the cause of the reported pass-through walls; it does not prove every runtime collision path, reproduce the user's wall, or explain the unidentified stuck level. No gameplay geometry or collision response was changed on this evidence.

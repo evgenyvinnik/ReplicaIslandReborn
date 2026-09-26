@@ -39,7 +39,7 @@ import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { DoorAnimation, DoorAnimationComponent } from '../entities/components/DoorAnimationComponent';
 import { HitType } from '../types';
-import type { GameObject } from '../entities/GameObject';
+import { GameObject } from '../entities/GameObject';
 
 const pub = join(import.meta.dir, '../../public');
 const originalFetch = globalThis.fetch;
@@ -89,6 +89,72 @@ test('all campaign gate variants display each opening and closing frame', async 
     }
   }
   expect([...variants].sort()).toEqual(['blue', 'blue_nonblocking', 'green', 'green_nonblocking', 'red', 'red_nonblocking']);
+}, 180_000);
+
+test('every authored blocking gate stops approach from both sides and clears its body when open', async () => {
+  const failures: string[] = [];
+  let checked = 0;
+  const probe = new GameObject();
+  const resources = new Set(linearLevelTree.flatMap(group => group.levels.map(entry => entry.resource)));
+  for (const resource of resources) {
+    const rig = await load(resource);
+    if (!rig) continue;
+    // The full Game wires this registry before objects submit dynamic surfaces.
+    setSolidSurfaceSystemRegistry(sSystemRegistry);
+    // load() has committed every authored spawn but has not culled distant
+    // objects yet; enumerate them before a camera scan can run their AI.
+    const doors = rig.manager.getActiveObjects().filter(object => object.type === 'door');
+    for (const door of doors) {
+      if (door.subType.endsWith('_nonblocking')) continue;
+      const position = door.getPosition();
+      rig.camera.setPosition(position.x, position.y);
+      rig.manager.update(FRAME, rig.time.getGameTime());
+      rig.collision.updateTemporarySurfaces();
+      const channel = rig.channels.registerChannel(`${door.subType.toUpperCase()} BUTTON`)!;
+      // The map can place an enemy on a plate during activation. Force
+      // this door closed without modifying its authored surface or position.
+      channel.value = { value: rig.time.getGameTime() - 100 };
+      door.update(FRAME, rig.time.getGameTime());
+      door.update(FRAME, rig.time.getGameTime());
+      rig.collision.updateTemporarySurfaces();
+
+      const left = rig.collision.sweepTemporaryBox(
+        position.x - 40, position.y + 16, 32, 32, 60, 0, probe
+      );
+      const right = rig.collision.sweepTemporaryBox(
+        position.x + 40, position.y + 16, 32, 32, -60, 0, probe
+      );
+      if (left?.x !== position.x - 32 || right?.x !== position.x + 32) {
+        failures.push(`${resource}: ${door.subType} gate at ${position.x},${position.y} did not block both sides (${left?.x}, ${right?.x})`);
+      }
+
+      channel.value = { value: rig.time.getGameTime() };
+      // POST_COLLISION emits the last closed surface before ANIMATION removes
+      // it; the following frame is the first fully open collision frame.
+      door.update(FRAME, rig.time.getGameTime());
+      rig.collision.updateTemporarySurfaces();
+      door.update(FRAME, rig.time.getGameTime());
+      rig.collision.updateTemporarySurfaces();
+      const nowOpen = rig.collision.getTemporarySurfaces().some(surface => surface.owner === door);
+      if (nowOpen) {
+        failures.push(`${resource}: ${door.subType} gate at ${position.x},${position.y} retained a solid body after opening`);
+      }
+      channel.value = { value: rig.time.getGameTime() - 100 };
+      door.update(FRAME, rig.time.getGameTime());
+      rig.collision.updateTemporarySurfaces();
+      door.update(FRAME, rig.time.getGameTime());
+      rig.collision.updateTemporarySurfaces();
+      const reclosed = rig.collision.sweepTemporaryBox(
+        position.x - 40, position.y + 16, 32, 32, 60, 0, probe
+      );
+      if (reclosed?.x !== position.x - 32) {
+        failures.push(`${resource}: ${door.subType} gate at ${position.x},${position.y} did not block after reclosing`);
+      }
+      checked++;
+    }
+  }
+  expect(checked).toBe(79);
+  expect(failures).toEqual([]);
 }, 180_000);
 
 test.each([[true, false], [false, false], [true, true]])('lab gate closing around Andou (crush frame: %s, glow: %s)', async (crushEnabled, glowing) => {
