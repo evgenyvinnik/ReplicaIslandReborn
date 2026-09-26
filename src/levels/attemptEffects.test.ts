@@ -27,3 +27,10 @@ test('every successful Game load passes its effect pool to shared attempt setup'
   const source = readFileSync(join(import.meta.dir, '../components/Game.tsx'), 'utf8');
   expect(source).toContain('startLevelAttempt(levelId, gameObjectManager, getDifficultySettings(), effectsSystemRef.current);');
 });
+
+test('every successful level attempt samples the new player after assistance', () => {
+  const source = readFileSync(join(import.meta.dir, '../components/Game.tsx'), 'utf8');
+  const setup = source.slice(source.indexOf('const beginLevelAttempt ='), source.indexOf('const [isInitialized'));
+  expect(setup).toMatch(/startLevelAttempt\(levelId,[^;]+;\s*(?:\/\/[^\n]*\n\s*)*lastPlayerLifeRef\.current = gameObjectManager\.getPlayer\(\)\?\.life \?\? -1;/);
+  expect(source).not.toContain('let lastPlayerLife = -1;');
+});

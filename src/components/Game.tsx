@@ -135,6 +135,9 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
   const levelCompleteProcessedRef = useRef<number | null>(null);
   const endingCompletionProcessedRef = useRef<number | null>(null);
   const activeGhostRef = useRef<GameObject | null>(null);
+  // Hit feedback compares life only within one attempt. A successful scripted
+  // handoff can keep this Game instance mounted while replacing the player.
+  const lastPlayerLifeRef = useRef(-1);
 
   // Prevent a hotspot from scheduling the same asynchronous level transition
   // on several consecutive fixed-update frames.
@@ -161,6 +164,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
     if (gameObjectManager) {
       activeGhostRef.current = null;
       startLevelAttempt(levelId, gameObjectManager, getDifficultySettings(), effectsSystemRef.current);
+      // Assistance can change the starting life between consecutive levels.
+      // Capture the new player's post-assistance value before its first frame,
+      // so that change is not mistaken for a hit (and a real first-frame hit
+      // still produces feedback).
+      lastPlayerLifeRef.current = gameObjectManager.getPlayer()?.life ?? -1;
       const level = levelSystemRef.current;
       const camera = systemRegistryRef.current?.cameraSystem;
       if (level && camera) focusLevelCamera(level, gameObjectManager, camera, height);
@@ -1514,7 +1522,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
      * attributed to a hit resolved by GameObjectCollisionSystem. -1 means "not
      * yet sampled" (fresh level or respawn).
      */
-    let lastPlayerLife = -1;
     let deathReloadInProgress = false;
 
     /**
@@ -1529,11 +1536,11 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (player) {
         const playerComponent = player.getComponent(PlayerComponent);
         if (playerComponent) {
-          if (lastPlayerLife < 0 || player.life > lastPlayerLife) {
+          if (lastPlayerLifeRef.current < 0 || player.life > lastPlayerLifeRef.current) {
             // First sample, or the player respawned / gained life.
-            lastPlayerLife = player.life;
-          } else if (player.life < lastPlayerLife) {
-            lastPlayerLife = player.life;
+            lastPlayerLifeRef.current = player.life;
+          } else if (player.life < lastPlayerLifeRef.current) {
+            lastPlayerLifeRef.current = player.life;
             onPlayerHit(player, playerComponent);
           }
         }
@@ -1880,7 +1887,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
           // 3. Restart level automatically (no game over screen)
           playerComponent.beginDeath(player, hotSpot === HotSpotType.DIE);
           setInventory({ lives: player.life });
-          lastPlayerLife = player.life;
+          lastPlayerLifeRef.current = player.life;
           
           // Screen shake for death
           cameraSystem.shake(15, 0.5);
@@ -1946,7 +1953,6 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
                 playerObj.setPosition(spawn.x, spawn.y);
                 playerObj.getVelocity().zero();
               }
-              lastPlayerLife = -1;
               deathReloadInProgress = false;
             }).catch(() => {
               if (signal.aborted) return;

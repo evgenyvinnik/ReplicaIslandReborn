@@ -54,5 +54,6 @@ test('Game uses both clocks, gates pending reloads, retains a black frame and ha
   expect(source).toContain('const alpha = deathReloadInProgress ? 1');
   const retry = source.slice(source.indexOf('if (pComp.advanceDeath'), source.indexOf('// Check collectible pickups'));
   expect(retry).toContain('}).catch(() =>');
-  expect(retry).toContain('lastPlayerLife = -1');
+  expect(retry).toContain('beginLevelAttempt(currentLevelRef.current)');
+  expect(source).toContain('lastPlayerLifeRef.current = gameObjectManager.getPlayer()?.life ?? -1;');
 });
