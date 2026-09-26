@@ -5,8 +5,11 @@
 <link rel="stylesheet" href="/src/index.css">
 <style>
   #test-controls { position: fixed; top: 8px; left: 8px; z-index: 100; color: white; background: #232638; padding: 12px; font: 14px system-ui; max-width: calc(100vw - 16px); max-height: 220px; overflow: auto; box-sizing: border-box; }
+  #test-controls[hidden] { display: none; }
   #test-controls button { padding: 6px 10px; margin-right: 8px; }
+  #toggle-test-controls { position: fixed; top: 8px; right: 8px; z-index: 101; }
 </style>
+<button id="toggle-test-controls" type="button">Hide test controls</button>
 <aside id="test-controls">
   <p>Development-only: real App, isolated session save. Reload restarts the saved level, not the exact actor position.</p>
   <button id="fail">Fail collision loading</button>
@@ -103,6 +106,11 @@ PAUSE 50</textarea><br>
   const { resetPlayerRuntimeState } = await import('../src/entities/resetPlayerRuntimeState.ts');
   const { levelTree, resourceToLevelId } = await import('../src/data/levelTree.ts');
   const { getInventory, setInventory } = await import('../src/entities/components/InventoryComponent.ts');
+  document.querySelector('#toggle-test-controls').onclick = (event) => {
+    const controls = document.querySelector('#test-controls');
+    controls.hidden = !controls.hidden;
+    event.currentTarget.textContent = controls.hidden ? 'Show test controls' : 'Hide test controls';
+  };
   function reportSave() {
     const { progress, activeAttempt } = useGameStore.getState();
     document.querySelector('#save-status').textContent = `Saved level ${progress.currentLevel}; kills pending/campaign/lifetime ${activeAttempt?.enemiesDefeated ?? '-'}/${progress.campaignStats.totalEnemiesDefeated}/${progress.totalStats.totalEnemiesDefeated}`;
