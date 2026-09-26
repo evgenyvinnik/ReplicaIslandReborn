@@ -66,7 +66,7 @@ PAUSE 50</textarea><br>
   <button id="gate-27-red">Place on sewer red plate</button>
   <span id="gate-27-status">Sewer gate scenario not staged</span>
   <p><button id="possession-stage">Place below sewer turrets (ID 24)</button><span id="possession-status" role="status">Possession scenario not staged</span></p>
-  <p><button id="exposed-turret-stage">Place below exposed turret (ID 36)</button>Staged position only; targets and terrain are unchanged.</p>
+  <p><button id="exposed-turret-stage">Place below exposed turret (ID 36, Memory #034)</button>Staged position only; targets and terrain are unchanged.</p>
   <p><button id="terminal-stage">Place at Rokudou terminal (ID 36)</button><span id="terminal-status">Stages position only; real contact must open character-2 dialogue.</span></p>
   <p><button id="fatal-hit-stage">Stage fatal player hit</button>Sets player life to zero; the full App handles death, fade and level progression. Isolated save only.</p>
   <p><button id="win-stage">Stage player win sequence</button>Sets three test rubies and enters WIN; real fade, results and Continue handle progression. Does not test pickup collision.</p>
@@ -100,6 +100,7 @@ PAUSE 50</textarea><br>
   const { SpriteComponent } = await import('../src/entities/components/SpriteComponent.ts');
   const { GhostComponent } = await import('../src/entities/components/GhostComponent.ts');
   const { PlayerComponent } = await import('../src/entities/components/PlayerComponent.ts');
+  const { BackgroundCollisionComponent } = await import('../src/entities/components/BackgroundCollisionComponent.ts');
   const { resetPlayerRuntimeState } = await import('../src/entities/resetPlayerRuntimeState.ts');
   const { levelTree, resourceToLevelId } = await import('../src/data/levelTree.ts');
   const { getInventory, setInventory } = await import('../src/entities/components/InventoryComponent.ts');
@@ -432,6 +433,9 @@ PAUSE 50</textarea><br>
     resetPlayerRuntimeState(player);
     // Reset/refill Andou on existing floor. Targets, geometry and AI are unchanged.
     player.setPosition(x, feetY - player.height);
+    // The background collision component remembers the pre-stage position; otherwise the
+    // next sweep crosses the whole map and snaps Andou to an intervening wall.
+    player.getComponent(BackgroundCollisionComponent)?.reset();
     sSystemRegistry.cameraSystem?.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
     possessionStaged = true;
     previousControlledTurret = null;
