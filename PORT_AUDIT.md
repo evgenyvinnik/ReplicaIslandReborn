@@ -4,6 +4,10 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Gate follow-up awaiting a reproducible location
+
+The September 26 source comparison found the web button channel, gate open/close timing, reversal offsets, solidity changes, and four door frames aligned with Android's `ButtonAnimationComponent` and `DoorAnimationComponent`. A fresh focused run passed 30 button/gate/enemy-collision tests (2,457 assertions), including every authored campaign button/door pair, the lab's open/pass/reclose route, and the four-door sewer corridor. The GitHub Pages HTML currently points to `index-Caza4lIT.js`, matching the previously verified production bundle. This does **not** reproduce the user's report that some gates still behave badly, or their Android/Andou stuck incident; the Memory number/location and symptom are still needed. No production code changed in this follow-up.
+
 ### Memory #010 near-spawn wall checked in the full App
 
 In an isolated full-App save, internal level ID 10 (`level_1_8_island`, Memory #010) loaded at its authored x160/y5008 spawn with 3/3 life and no pickups. Ordinary left input stopped Andou at x128 against the stone barrier between spawn and the nearby cannon. A subsequent 1.5-second left+fly input raised him briefly to y4941, but he returned to the same x128/y5008 floor position without reaching the cannon. The browser reported no warnings/errors. This verifies blocking at one original wall, not the user's unidentified pass-through wall, a successful cannon route, or their stuck level. No gameplay code changed.
