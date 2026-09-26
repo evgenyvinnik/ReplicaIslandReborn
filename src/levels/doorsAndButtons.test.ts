@@ -447,3 +447,48 @@ test('walking over the real lab button animates its gate and allows passage, the
   expect(player.getPosition().x).toBe(352); // Reclosed gate blocks from the other side too.
   expect(player.life).toBeGreaterThan(0); // Standing beside the gate is not a crush.
 });
+
+test('the authored sewer red plate opens its blocking and nonblocking gate corridor for passage', async () => {
+  const rig = (await load('level_3_6_sewer'))!;
+  const player = rig.manager.getPlayer()!;
+  const objects = allOfType(rig, object => object.type === 'button' || object.type === 'door');
+  const plate = objects.find(object => object.type === 'button' && object.subType === 'red' &&
+    object.getPosition().x === 19 * 32 && object.getPosition().y === 45 * 32)!;
+  const gates = objects.filter(object => object.type === 'door' && object.subType.startsWith('red') &&
+    object.getPosition().y === 46 * 32 - object.height &&
+    object.getPosition().x >= 20 * 32 && object.getPosition().x <= 23 * 32);
+  expect(plate).toBeDefined();
+  expect(gates.map(gate => gate.getPosition().x).sort((a, b) => a - b)).toEqual([640, 672, 704, 736]);
+  expect(gates.filter(gate => gate.subType.endsWith('_nonblocking'))).toHaveLength(2);
+
+  player.getComponent(PlayerComponent)!.setSystems(sSystemRegistry.inputSystem!, rig.collision,
+    sSystemRegistry.soundSystem!, rig.levelSystem);
+  player.setPosition(plate.getPosition().x, 46 * 32 - player.height);
+  player.getVelocity().zero();
+  rig.camera.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
+  rig.manager.update(0, rig.time.getGameTime());
+  const frames = new Map(gates.map(gate => [gate, new Set<string>()]));
+  const frame = (): void => {
+    rig.time.update(FRAME);
+    const now = rig.time.getGameTime();
+    player.update(FRAME, now);
+    plate.update(FRAME, now);
+    for (const gate of gates) gate.update(FRAME, now);
+    rig.oc.update(FRAME);
+    rig.collision.updateTemporarySurfaces();
+    for (const gate of gates) frames.get(gate)!.add(gate.getComponent(SpriteComponent)!.getCurrentDraw()!.sprite);
+  };
+  for (let i = 0; i < 16; i++) frame();
+  expect(plate.getComponent(SpriteComponent)!.getCurrentDraw()?.sprite,
+    `player=${player.getPosition().x},${player.getPosition().y}; plate=${plate.getPosition().x},${plate.getPosition().y}; hit=${plate.lastReceivedHitType}`)
+    .toBe('object_button_pressed_red');
+  sSystemRegistry.inputSystem!.setVirtualAxis('horizontal', 1);
+  for (let i = 0; i < 45; i++) frame();
+  sSystemRegistry.inputSystem!.setVirtualAxis('horizontal', 0);
+  expect(player.getPosition().x).toBeGreaterThan(768);
+  expect(player.life).toBe(3);
+  for (const gate of gates) {
+    expect(frames.get(gate), `red gate at x${gate.getPosition().x}`)
+      .toEqual(new Set(['01', '02', '03', '04'].map(n => `object_door_red${n}`)));
+  }
+});

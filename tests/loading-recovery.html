@@ -62,6 +62,9 @@ PAUSE 50</textarea><br>
   <span id="gate-status" role="status">Gate scenario not staged</span>
   <p>Crush check: places Andou inside the green gate and gives its channel half a second before closing. Terrain is unchanged.</p>
   <button id="gate-crush">Stage green gate crush</button>
+  <p>Level 27 red-gate corridor: place Andou on the authored left plate at tile (19,45); gate geometry and channels remain unchanged.</p>
+  <button id="gate-27-red">Place on sewer red plate</button>
+  <span id="gate-27-status">Sewer gate scenario not staged</span>
   <p><button id="possession-stage">Place below sewer turrets (ID 24)</button><span id="possession-status" role="status">Possession scenario not staged</span></p>
   <p><button id="exposed-turret-stage">Place below exposed turret (ID 36)</button>Staged position only; targets and terrain are unchanged.</p>
   <p><button id="terminal-stage">Place at Rokudou terminal (ID 36)</button><span id="terminal-status">Stages position only; real contact must open character-2 dialogue.</span></p>
@@ -396,6 +399,20 @@ PAUSE 50</textarea><br>
     const time = sSystemRegistry.timeSystem;
     if (channel && time) channel.value = { value: time.getGameTime() - 4.5 };
   };
+  let sewerGateStaged = false;
+  const sewerGateFrames = new Map();
+  document.querySelector('#gate-27-red').onclick = () => {
+    const player = sSystemRegistry.gameObjectManager?.getPlayer();
+    if (!player || sSystemRegistry.levelSystem?.getCurrentLevelId() !== 27) {
+      document.querySelector('#gate-27-status').textContent = 'Load sewer ID 27 first';
+      return;
+    }
+    resetPlayerRuntimeState(player);
+    player.setPosition(19 * 32, 46 * 32 - player.height);
+    sSystemRegistry.cameraSystem?.setPosition(player.getCenteredPositionX(), player.getCenteredPositionY());
+    sewerGateFrames.clear();
+    sewerGateStaged = true;
+  };
   let possessionStaged = false;
   let previousControlledTurret = null;
   let takeovers = 0;
@@ -435,6 +452,21 @@ PAUSE 50</textarea><br>
       if (frame) gateFrames.add(frame);
       const x = manager?.getPlayer()?.getPosition().x;
       document.querySelector('#gate-status').textContent = `${frame ?? 'Gate out of view'}; player x=${x?.toFixed(1)}; observed ${[...gateFrames].join(', ')}`;
+    }
+    if (sewerGateStaged) {
+      const manager = sSystemRegistry.gameObjectManager;
+      const player = manager?.getPlayer();
+      const gates = manager?.getActiveObjects().filter(o => o.type === 'door' &&
+        o.subType.startsWith('red') && o.getPosition().y === 46 * 32 - o.height &&
+        o.getPosition().x >= 20 * 32 && o.getPosition().x <= 23 * 32) ?? [];
+      for (const gate of gates) {
+        const frames = sewerGateFrames.get(gate.getPosition().x) ?? new Set();
+        const frame = gate.getComponent(SpriteComponent)?.getCurrentDraw()?.sprite;
+        if (frame) frames.add(frame);
+        sewerGateFrames.set(gate.getPosition().x, frames);
+      }
+      document.querySelector('#gate-27-status').textContent = `Player x=${player?.getPosition().x.toFixed(1)}, life=${player?.life}; ` +
+        [...sewerGateFrames].map(([x, frames]) => `x${x}: ${[...frames].join(',')}`).join('; ');
     }
     if (possessionStaged) {
       const manager = sSystemRegistry.gameObjectManager;
