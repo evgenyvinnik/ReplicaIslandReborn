@@ -159,7 +159,7 @@ export class CanvasControls {
     this.interactionAllowed = check;
   }
 
-  /** The original orb uses two-axis tilt; the web touch equivalent is a visible pad. */
+  /** The orb's touch alternative to phone tilt is a visible two-axis pad. */
   setOrbControlMode(enabled: boolean): void {
     if (this.orbControlMode === enabled) return;
     this.orbControlMode = enabled;

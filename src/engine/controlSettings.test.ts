@@ -53,6 +53,63 @@ test('Game applies saved controls on initialization and subsequent setting chang
   expect(game).toContain("gameSettings.get('keyBindings').pause.includes(e.code)");
 });
 
+function orientation(beta: number | null, gamma: number | null): void {
+  const event = new globalThis.Event('deviceorientation');
+  Object.defineProperties(event, { beta: { value: beta }, gamma: { value: gamma } });
+  events.dispatchEvent(event);
+}
+
+test('phone tilt steers the orb after neutral calibration, while touch input takes precedence', () => {
+  input.setControlSettings({ tiltControlsEnabled: true });
+  orientation(70, 10);
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+  orientation(61, 28);
+  expect(input.getOrbSteering().x).toBeCloseTo(0.2);
+  expect(input.getOrbSteering().y).toBeCloseTo(-0.1);
+  input.setVirtualJoystick(-0.5, 0.25);
+  expect(input.getOrbSteering()).toEqual({ x: -0.5, y: 0.25 });
+  input.setVirtualJoystick(0, 0);
+  events.dispatchEvent(new globalThis.Event('blur'));
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+  events.dispatchEvent(new globalThis.Event('focus'));
+  orientation(null, 50);
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+  orientation(30, 50);
+  orientation(30, 68);
+  expect(input.getOrbSteering().x).toBeCloseTo(0.2);
+  input.setControlSettings({ tiltControlsEnabled: false });
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+  orientation(30, 50);
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+});
+
+test('phone tilt follows screen rotation and only replaces Andou controls when the slider is off', () => {
+  Object.defineProperty(events, 'screen', { configurable: true, value: { orientation: { angle: 90 } } });
+  input.setControlSettings({ tiltControlsEnabled: true, tiltSensitivity: 50, onScreenControlsEnabled: false });
+  orientation(70, 10);
+  orientation(88, 1);
+  expect(input.getOrbSteering().x).toBeCloseTo(0.2);
+  expect(input.getOrbSteering().y).toBeCloseTo(0.1);
+  expect(input.getDirectionalPadX()).toBeCloseTo(0.31);
+  key('keydown', 'ArrowLeft'); input.update();
+  expect(input.getDirectionalPadX()).toBe(-0.25);
+  key('keyup', 'ArrowLeft'); input.update();
+  input.setControlSettings({ onScreenControlsEnabled: true });
+  expect(input.getDirectionalPadX()).toBe(0);
+  expect(input.getOrbSteering().x).toBeCloseTo(0.2);
+  input.destroy();
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+});
+
+test('legacy landscape orientation maps phone tilt into the screen axes', () => {
+  Object.defineProperty(events, 'orientation', { configurable: true, value: -90 });
+  input.setControlSettings({ tiltControlsEnabled: true });
+  orientation(70, 10);
+  orientation(88, 1);
+  expect(input.getOrbSteering().x).toBeCloseTo(-0.2);
+  expect(input.getOrbSteering().y).toBeCloseTo(-0.1);
+});
+
 test('saved remapping replaces default gameplay keys and sensitivity scales keys, pad and slider, not menus', () => {
   input.setControlSettings({ keyBindings: {
     left: ['KeyF'], right: ['KeyH'], up: ['KeyT'], down: ['KeyG'], jump: ['KeyQ'], attack: ['KeyE'], pause: ['KeyR'],

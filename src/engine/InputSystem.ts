@@ -1,14 +1,19 @@
 /**
- * Input System - Handles keyboard, touch, and gamepad input
+ * Input System - Handles keyboard, touch, gamepad, and optional phone tilt input
  * Ported from: Original/src/com/replica/replicaisland/InputSystem.java
  */
 
 import type { InputState } from '../types';
 import { isSurfaceActive } from './GameSurfaceActivity';
 
+type OrientationInputEvent = globalThis.Event & { beta: number | null; gamma: number | null };
+
 export interface InputConfig {
   surface?: globalThis.HTMLElement;
   movementSensitivity: number; // Persisted 0-100 preference.
+  tiltControlsEnabled: boolean;
+  tiltSensitivity: number; // Persisted 0-100 preference.
+  onScreenControlsEnabled: boolean;
   clickAttackEnabled: boolean;
   /** A newly mounted screen must not reuse a held controller confirmation. */
   blockInitialGamepadInput: boolean;
@@ -49,6 +54,12 @@ export class InputSystem {
   private pendingKeyReleases: Set<string> = new Set();
   private keyBindings: InputConfig['keyBindings'];
   private movementSensitivity = 1;
+  private tiltControlsEnabled = false;
+  private tiltSensitivity = 0.5;
+  private onScreenControlsEnabled = true;
+  private initialized = false;
+  private tiltBaseline: { x: number; y: number; angle: number } | null = null;
+  private tilt: { x: number; y: number } | null = null;
   private clickAttackEnabled = true;
   private readonly surface?: globalThis.HTMLElement;
 
@@ -84,6 +95,7 @@ export class InputSystem {
   private boundGamepadDisconnected: (e: GamepadEvent) => void;
   private boundBlur: () => void;
   private boundFocus: () => void;
+  private boundOrientation: (e: OrientationInputEvent) => void;
 
   constructor(config?: Partial<InputConfig>) {
     this.surface = config?.surface;
@@ -102,6 +114,8 @@ export class InputSystem {
     this.boundGamepadDisconnected = this.handleGamepadDisconnected.bind(this);
     this.boundBlur = (): void => {
       this.focused = false;
+      this.tiltBaseline = null;
+      this.tilt = null;
       this.releaseAllKeys();
     };
     this.boundFocus = (): void => {
@@ -110,12 +124,14 @@ export class InputSystem {
       // must be released before they can operate the game or a modal.
       this.suppressNextGamepadPoll = true;
     };
+    this.boundOrientation = this.handleOrientation.bind(this);
   }
 
   /**
    * Initialize input listeners
    */
   initialize(): void {
+    this.initialized = true;
     this.suppressNextGamepadPoll = this.blockInitialGamepadInput;
     this.focused = window.document?.hasFocus?.() ?? true;
     window.addEventListener('keydown', this.boundKeyDown);
@@ -130,12 +146,14 @@ export class InputSystem {
     window.addEventListener('gamepaddisconnected', this.boundGamepadDisconnected);
     window.addEventListener('blur', this.boundBlur);
     window.addEventListener('focus', this.boundFocus);
+    if (this.tiltControlsEnabled) window.addEventListener('deviceorientation', this.boundOrientation);
   }
 
   /**
    * Cleanup input listeners
    */
   destroy(): void {
+    this.initialized = false;
     window.removeEventListener('keydown', this.boundKeyDown);
     window.removeEventListener('keyup', this.boundKeyUp);
     window.removeEventListener('touchstart', this.boundTouchStart);
@@ -146,6 +164,9 @@ export class InputSystem {
     window.removeEventListener('gamepaddisconnected', this.boundGamepadDisconnected);
     window.removeEventListener('blur', this.boundBlur);
     window.removeEventListener('focus', this.boundFocus);
+    window.removeEventListener('deviceorientation', this.boundOrientation);
+    this.tiltBaseline = null;
+    this.tilt = null;
   }
 
   /**
@@ -208,12 +229,24 @@ export class InputSystem {
     }
 
     state.horizontal *= this.movementSensitivity;
+    // The Android preference uses tilt only when its on-screen slider is off.
+    // Keep explicit keys, controller and pad usable if the sensor is absent.
+    if (this.tiltControlsEnabled && !this.onScreenControlsEnabled && this.tilt &&
+        !this.hasManualHorizontalInput()) {
+      state.horizontal = this.filterTilt(this.tilt.x * (0.1 + 2.9 * this.tiltSensitivity));
+      state.left = state.horizontal < 0;
+      state.right = state.horizontal > 0;
+    }
     return state;
   }
 
   /** Android InputGameInterface KEY_FILTER/SLIDER_FILTER are both 0.25.
    * Keep normalized UI axes separate from the magnitude consumed by actors. */
   getDirectionalPadX(): number {
+    if (this.tiltControlsEnabled && !this.onScreenControlsEnabled && this.tilt &&
+        !this.hasManualHorizontalInput()) {
+      return this.filterTilt(this.tilt.x * (0.1 + 2.9 * this.tiltSensitivity));
+    }
     return this.getInputState().horizontal * 0.25;
   }
 
@@ -223,7 +256,46 @@ export class InputSystem {
     const vertical = Math.abs(this.virtualJoystickY) > 0.001
       ? this.virtualJoystickY
       : (state.down ? 1 : 0) - (state.up ? 1 : 0);
-    return { x: state.horizontal, y: vertical * this.movementSensitivity };
+    const manualX = this.hasManualHorizontalInput() ? state.horizontal : 0;
+    const manualY = vertical * this.movementSensitivity;
+    if (manualX !== 0 || manualY !== 0 || !this.tiltControlsEnabled || !this.tilt) {
+      return { x: manualX, y: manualY };
+    }
+    return { x: this.filterTilt(this.tilt.x), y: this.filterTilt(this.tilt.y) };
+  }
+
+  private hasManualHorizontalInput(): boolean {
+    return Math.abs(this.virtualJoystickX) > 0.001 || this.gamepadHorizontal !== 0 ||
+      [...this.keyBindings.left, ...this.keyBindings.right].some(key => this.keys.has(key));
+  }
+
+  private filterTilt(value: number): number {
+    const magnitude = Math.min(1, Math.abs(value));
+    if (magnitude < 0.03) return 0;
+    return Math.sign(value) * (magnitude < 0.1 ? magnitude * 0.75 : magnitude);
+  }
+
+  private handleOrientation(event: OrientationInputEvent): void {
+    if (!this.focused || event.beta === null || event.gamma === null ||
+        !Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) return;
+    // DeviceOrientation angles use the natural (usually portrait) axes.
+    // Rotate into the current screen axes, and use a neutral baseline so a
+    // normally held phone does not send the orb off-screen immediately.
+    const legacyAngle = globalThis.Reflect.get(window, 'orientation');
+    const screenAngle = window.screen?.orientation?.angle ??
+      (typeof legacyAngle === 'number' ? legacyAngle : 0);
+    const angle = ((screenAngle % 360) + 360) % 360;
+    const radians = angle * Math.PI / 180;
+    const x = event.gamma * Math.cos(radians) + event.beta * Math.sin(radians);
+    const y = event.beta * Math.cos(radians) - event.gamma * Math.sin(radians);
+    if (!this.tiltBaseline || this.tiltBaseline.angle !== angle) {
+      this.tiltBaseline = { x, y, angle };
+      this.tilt = { x: 0, y: 0 };
+      return;
+    }
+    const delta = (value: number, baseline: number): number =>
+      (((value - baseline + 540) % 360) - 180) / 90;
+    this.tilt = { x: delta(x, this.tiltBaseline.x), y: delta(y, this.tiltBaseline.y) };
   }
 
   /**
@@ -523,13 +595,26 @@ export class InputSystem {
   }
 
   /** Apply the persisted controls at startup and when preferences change. */
-  setControlSettings(settings: Partial<Pick<InputConfig, 'keyBindings' | 'movementSensitivity' | 'clickAttackEnabled'>>): void {
+  setControlSettings(settings: Partial<Pick<InputConfig, 'keyBindings' | 'movementSensitivity' | 'clickAttackEnabled' | 'tiltControlsEnabled' | 'tiltSensitivity' | 'onScreenControlsEnabled'>>): void {
     if (settings.keyBindings) this.setKeyBindings(settings.keyBindings);
     if (settings.movementSensitivity !== undefined) {
       this.movementSensitivity = Number.isFinite(settings.movementSensitivity)
         ? Math.max(0, Math.min(100, settings.movementSensitivity)) / 100 : 1;
     }
     if (settings.clickAttackEnabled !== undefined) this.clickAttackEnabled = settings.clickAttackEnabled;
+    if (settings.onScreenControlsEnabled !== undefined) this.onScreenControlsEnabled = settings.onScreenControlsEnabled;
+    if (settings.tiltSensitivity !== undefined && Number.isFinite(settings.tiltSensitivity)) {
+      this.tiltSensitivity = Math.max(0, Math.min(100, settings.tiltSensitivity)) / 100;
+    }
+    if (settings.tiltControlsEnabled !== undefined && settings.tiltControlsEnabled !== this.tiltControlsEnabled) {
+      this.tiltControlsEnabled = settings.tiltControlsEnabled;
+      this.tiltBaseline = null;
+      this.tilt = null;
+      if (this.initialized) {
+        if (this.tiltControlsEnabled) window.addEventListener('deviceorientation', this.boundOrientation);
+        else window.removeEventListener('deviceorientation', this.boundOrientation);
+      }
+    }
   }
 
   /**

@@ -226,8 +226,8 @@ export class GhostComponent extends GameComponent {
         const acceleration = parent.getAcceleration();
 
         if (this.config.useOrientationSensor) {
-          // Android reads a continuous two-axis tilt. The web pad supplies
-          // proportional values, with keyboard/controller axes as fallbacks.
+          // Android reads continuous two-axis tilt. Web players can enable
+          // phone tilt or use the proportional touch pad, keys or controller.
           const steering = input.getOrbSteering();
           targetVelocity.x = steering.x * this.config.movementSpeed;
           targetVelocity.y = steering.y * this.config.movementSpeed;

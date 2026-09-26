@@ -59,6 +59,7 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
   const showKeyboardConfig = keyboardConfig.draft !== null;
   const keyBindingMode = keyboardConfig.listening;
   const [showEraseToast, setShowEraseToast] = useState(false);
+  const [tiltPermissionDenied, setTiltPermissionDenied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Handle key binding capture
@@ -92,6 +93,29 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
 
   const updateSetting = <K extends keyof GameSettings>(key: K, value: GameSettings[K]): void => {
     setSetting(key, value);
+  };
+
+  const updateTiltEnabled = async (enabled: boolean): Promise<void> => {
+    if (enabled) {
+      // Browsers that expose this method require a user gesture. This handler
+      // is invoked directly by the preference button's click.
+      const orientation = globalThis.DeviceOrientationEvent as typeof globalThis.DeviceOrientationEvent & {
+        requestPermission?: () => Promise<string>;
+      } | undefined;
+      if (orientation?.requestPermission) {
+        try {
+          if (await orientation.requestPermission() !== 'granted') {
+            setTiltPermissionDenied(true);
+            return;
+          }
+        } catch {
+          setTiltPermissionDenied(true);
+          return;
+        }
+      }
+    }
+    setTiltPermissionDenied(false);
+    updateSetting('tiltControlsEnabled', enabled);
   };
 
   const handleEraseSaveData = (): void => {
@@ -716,6 +740,20 @@ export function OptionsMenu({ onClose, onStartLevel }: OptionsMenuProps): React.
           summary={UIStrings.preference_enable_screen_controls_summary}
           checked={settings.onScreenControlsEnabled}
           onChange={(v): void => updateSetting('onScreenControlsEnabled', v)}
+        />
+        <CheckBoxPreference
+          title={UIStrings.preference_enable_tilt_controls}
+          summary={tiltPermissionDenied ? 'Motion sensor access was denied. The on-screen pad still works.' : UIStrings.preference_enable_tilt_controls_summary}
+          checked={settings.tiltControlsEnabled}
+          onChange={(v): void => { void updateTiltEnabled(v); }}
+        />
+        <SliderPreference
+          title={UIStrings.preference_tilt_sensitivity}
+          summary={UIStrings.preference_tilt_sensitivity_summary}
+          value={settings.tiltSensitivity}
+          minText={UIStrings.preference_movement_min}
+          maxText={UIStrings.preference_movement_max}
+          onChange={(v): void => updateSetting('tiltSensitivity', v)}
         />
       </div>
     </>
