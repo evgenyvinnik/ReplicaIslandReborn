@@ -492,3 +492,45 @@ test('the authored sewer red plate opens its blocking and nonblocking gate corri
       .toEqual(new Set(['01', '02', '03', '04'].map(n => `object_door_red${n}`)));
   }
 });
+
+test('the long island red-plate corridor stays open long enough for normal passage', async () => {
+  const rig = (await load('level_1_2_island'))!;
+  const player = rig.manager.getPlayer()!;
+  const objects = allOfType(rig, object => object.type === 'button' || object.type === 'door');
+  const plate = objects.find(object => object.type === 'button' && object.subType === 'red' &&
+    object.getPosition().x === 21 * 32 && object.getPosition().y === 68 * 32)!;
+  const gate = objects.find(object => object.type === 'door' && object.subType === 'red' &&
+    object.getPosition().x === 8 * 32 && object.getPosition().y === 69 * 32 - object.height)!;
+  expect(plate).toBeDefined();
+  expect(gate).toBeDefined();
+  player.getComponent(PlayerComponent)!.setSystems(sSystemRegistry.inputSystem!, rig.collision,
+    sSystemRegistry.soundSystem!, rig.levelSystem);
+  setSolidSurfaceSystemRegistry(sSystemRegistry);
+  player.setPosition(plate.getPosition().x, 69 * 32 - player.height);
+  player.getVelocity().zero();
+  rig.camera.setPosition(player.getCenteredPositionX() - 240, player.getCenteredPositionY() - 160);
+  rig.manager.update(0, rig.time.getGameTime());
+  const gateFrames = new Set<string>();
+
+  const frame = (): void => {
+    rig.time.update(FRAME);
+    const now = rig.time.getGameTime();
+    rig.camera.setPosition(player.getCenteredPositionX() - 240, player.getCenteredPositionY() - 160);
+    rig.manager.update(FRAME, now);
+    rig.oc.update(FRAME);
+    rig.collision.updateTemporarySurfaces();
+    if (gate.isActive()) gateFrames.add(gate.getComponent(SpriteComponent)!.getCurrentDraw()!.sprite);
+  };
+  for (let i = 0; i < 12; i++) frame();
+  expect(plate.lastReceivedHitType).toBe(HitType.DEPRESS);
+  expect(rig.channels.findChannel('RED BUTTON')?.value).not.toBeNull();
+  const startTime = rig.time.getGameTime();
+  sSystemRegistry.inputSystem!.setVirtualAxis('horizontal', -1);
+  for (let i = 0; i < 240 && player.getPosition().x >= gate.getPosition().x - player.width; i++) frame();
+  sSystemRegistry.inputSystem!.setVirtualAxis('horizontal', 0);
+
+  expect(player.getPosition().x).toBeLessThan(gate.getPosition().x - player.width);
+  expect(rig.time.getGameTime() - startTime).toBeLessThan(5);
+  expect(gateFrames).toEqual(new Set(['01', '02', '03', '04'].map(frame => `object_door_red${frame}`)));
+  expect(player.life).toBeGreaterThan(0);
+});
