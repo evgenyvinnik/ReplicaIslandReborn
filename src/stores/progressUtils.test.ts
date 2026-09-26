@@ -3,6 +3,7 @@ import {
   getCompletedLevelIds,
   hasPersistedGameProgress,
   inferCurrentLevel,
+  resolvePlayableLevelId,
   type LevelProgressSummary,
 } from './progressUtils';
 
@@ -33,5 +34,16 @@ describe('progress helpers', () => {
     expect(hasPersistedGameProgress({ 1: level(false) }, 1)).toBe(false);
     expect(hasPersistedGameProgress({ 1: level(false, 1, 100) }, 1)).toBe(true);
     expect(hasPersistedGameProgress({ 1: level(false) }, 4)).toBe(true);
+  });
+
+  test('resumes only levels in the selected campaign without discarding the save', () => {
+    expect(resolvePlayableLevelId(6, false)).toBe(6);
+    expect(resolvePlayableLevelId(7, false)).toBe(8);
+    expect(resolvePlayableLevelId(21, false)).toBe(22);
+    expect(resolvePlayableLevelId(7, true)).toBe(8);
+    expect(resolvePlayableLevelId(1, true)).toBe(2);
+    expect(resolvePlayableLevelId(0, false)).toBeNull();
+    expect(resolvePlayableLevelId(999, false)).toBeNull();
+    expect(resolvePlayableLevelId(Number.NaN, false)).toBeNull();
   });
 });

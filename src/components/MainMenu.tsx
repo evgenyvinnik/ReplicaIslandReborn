@@ -12,7 +12,7 @@ import { useMenuGamepad } from './useMenuGamepad';
 import { useGameContext } from '../context/GameContext';
 import { assetPath } from '../utils/helpers';
 import { useGameStore } from '../stores/useGameStore';
-import { hasPersistedGameProgress } from '../stores/progressUtils';
+import { hasPersistedGameProgress, resolvePlayableLevelId } from '../stores/progressUtils';
 
 export function MainMenu(): React.JSX.Element {
   const { startNewGame, startGame, goToLevelSelect, goToOptions, goToExtras } = useGameContext();
@@ -113,7 +113,14 @@ export function MainMenu(): React.JSX.Element {
             <ImageButton 
               src={assetPath('/assets/sprites/ui_button_continue.png')} 
               alt="Continue Game"
-              onClick={(): void => startGame(progress.currentLevel)}
+              onClick={(): void => {
+                const levelId = resolvePlayableLevelId(progress.currentLevel, progress.isLinearMode);
+                if (levelId === null) {
+                  goToLevelSelect();
+                } else {
+                  startGame(levelId);
+                }
+              }}
             />
           ) : (
             <ImageButton 
