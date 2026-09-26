@@ -122,6 +122,27 @@ store.getState().resetAllProgress();
 await reloadFromStorage();
 assert.deepEqual(store.getState().progress, initial.progress);
 assert.deepEqual(store.getState().highScores, []);
+
+// Version 5 could mark a level's diary as collected under the wrong entry ID.
+// Hydration must let that level's authored entry be read on replay, while
+// retaining global IDs that may be from a previous campaign.
+const legacyDiarySave = JSON.parse(configuredStorage.getItem(key)!);
+legacyDiarySave.version = 5;
+legacyDiarySave.state.progress.levels[8] = {
+  ...legacyDiarySave.state.progress.levels[1],
+  diariesCollected: [2],
+  timesPlayed: 1,
+};
+legacyDiarySave.state.progress.diariesCollected = [2];
+configuredStorage.setItem(key, JSON.stringify(legacyDiarySave));
+await reloadFromStorage();
+assert.deepEqual(store.getState().progress.levels[8].diariesCollected, []);
+assert.deepEqual(store.getState().progress.diariesCollected, [2]);
+assert.equal(store.getState().progress.levels[8].timesPlayed, 1);
+const { collectLevelDiary } = await import('../src/stores/diaryProgress');
+assert.equal(collectLevelDiary(8)?.id, 4);
+assert.deepEqual(store.getState().progress.levels[8].diariesCollected, [4]);
+assert.deepEqual(store.getState().progress.diariesCollected, [2, 4]);
 assert.equal(store.getState().settings.soundVolume, 37);
 
 store.getState().recordLevelAttempt(8);

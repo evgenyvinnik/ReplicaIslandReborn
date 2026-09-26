@@ -7,7 +7,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { hasPersistedGameProgress, inferCurrentLevel } from './progressUtils';
+import { hasPersistedGameProgress, inferCurrentLevel, repairLegacyDiaryAssignments } from './progressUtils';
 import { levelTree, linearLevelTree, resourceToLevelId } from '../data/levelTree';
 
 export type NewGameMode = 'story' | 'linear' | 'levelSelect';
@@ -251,7 +251,7 @@ const DEFAULT_PROGRESS: GameProgress = {
   },
 };
 
-const CURRENT_VERSION = 5;
+const CURRENT_VERSION = 6;
 const MAX_HIGH_SCORES = 100;
 
 // ============================================================================
@@ -630,6 +630,9 @@ export const useGameStore = create<GameStore>()(
         const persisted = persistedState as Partial<GameStoreState>;
         const persistedProgress = persisted.progress;
         const levels = persistedProgress?.levels ?? DEFAULT_PROGRESS.levels;
+        const repairedDiaries = repairLegacyDiaryAssignments(
+          levels, persistedProgress?.diariesCollected ?? DEFAULT_PROGRESS.diariesCollected
+        );
 
         return {
           ...persisted,
@@ -646,8 +649,9 @@ export const useGameStore = create<GameStore>()(
               : persistedProgress.currentLevel,
             levels: {
               ...DEFAULT_PROGRESS.levels,
-              ...levels,
+              ...repairedDiaries.levels,
             },
+            diariesCollected: repairedDiaries.diariesCollected,
             totalStats: {
               ...DEFAULT_PROGRESS.totalStats,
               ...persistedProgress?.totalStats,

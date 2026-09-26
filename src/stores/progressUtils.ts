@@ -4,7 +4,8 @@
  * without a browser/localStorage environment.
  */
 
-import { levelTree, linearLevelTree, resourceToLevelId } from '../data/levelTree';
+import { levelTree, linearLevelTree, resourceToLevelId, levelIdToResource } from '../data/levelTree';
+import { LevelDiaryIds } from '../data/diaries';
 
 export interface LevelProgressSummary {
   completed: boolean;
@@ -68,4 +69,44 @@ export function resolvePlayableLevelId(
     return null;
   }
   return playableIds.find((id) => id > savedLevelId) ?? null;
+}
+
+/**
+ * Older builds awarded the next uncollected log instead of the log authored
+ * for that level. A level can contain only one diary, so its nonempty local
+ * claim identifies the bad assignment. Make that diary collectible again so
+ * the player can actually read the right entry on replay. Keep unrelated
+ * global IDs: they may have been earned in an earlier campaign whose level
+ * records were reset.
+ */
+export function repairLegacyDiaryAssignments<T extends { diariesCollected: number[] }>(
+  levels: Record<number, T>,
+  globalDiaries: number[]
+): { levels: Record<number, T>; diariesCollected: number[] } {
+  let repairedLevels = levels;
+  let repairedGlobal = globalDiaries;
+
+  for (const [rawLevelId, progress] of Object.entries(levels)) {
+    if (!Array.isArray(progress.diariesCollected) || progress.diariesCollected.length === 0) continue;
+    const resource = levelIdToResource[Number(rawLevelId)];
+    const authoredId = resource ? LevelDiaryIds[resource] : undefined;
+    if (authoredId === undefined) continue;
+
+    if (!progress.diariesCollected.includes(authoredId)) {
+      repairedLevels = {
+        ...repairedLevels,
+        [rawLevelId]: { ...progress, diariesCollected: [] },
+      };
+      continue;
+    }
+    if (progress.diariesCollected.length !== 1) {
+      repairedLevels = {
+        ...repairedLevels,
+        [rawLevelId]: { ...progress, diariesCollected: [authoredId] },
+      };
+    }
+    if (!repairedGlobal.includes(authoredId)) repairedGlobal = [...repairedGlobal, authoredId];
+  }
+
+  return { levels: repairedLevels, diariesCollected: repairedGlobal };
 }

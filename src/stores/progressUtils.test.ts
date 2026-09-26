@@ -4,6 +4,7 @@ import {
   hasPersistedGameProgress,
   inferCurrentLevel,
   resolvePlayableLevelId,
+  repairLegacyDiaryAssignments,
   type LevelProgressSummary,
 } from './progressUtils';
 
@@ -45,5 +46,24 @@ describe('progress helpers', () => {
     expect(resolvePlayableLevelId(0, false)).toBeNull();
     expect(resolvePlayableLevelId(999, false)).toBeNull();
     expect(resolvePlayableLevelId(Number.NaN, false)).toBeNull();
+  });
+
+  test('makes a misassigned log collectible again without erasing older global finds', () => {
+    const levels = {
+      4: { diariesCollected: [1], completed: true },
+      8: { diariesCollected: [2], completed: false },
+      12: { diariesCollected: [], completed: false },
+    };
+    const result = repairLegacyDiaryAssignments(levels, [1, 2, 9]);
+    expect(result.levels[4]).toBe(levels[4]);
+    expect(result.levels[8].diariesCollected).toEqual([]);
+    expect(result.levels[8].completed).toBe(false);
+    expect(result.levels[12]).toBe(levels[12]);
+    expect(result.diariesCollected).toEqual([1, 2, 9]);
+    expect(levels[8].diariesCollected).toEqual([2]);
+    expect(repairLegacyDiaryAssignments({ 8: { diariesCollected: [4, 2] } }, [])).toEqual({
+      levels: { 8: { diariesCollected: [4] } },
+      diariesCollected: [4],
+    });
   });
 });

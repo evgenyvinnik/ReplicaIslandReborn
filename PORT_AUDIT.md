@@ -4,6 +4,12 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Legacy log-entry recovery
+
+An older collection path assigned the next uncollected log ID instead of the diary authored for the current level. The current pickup path uses the authored binding, but saved per-level `diariesCollected` flags from that build still suppress the diary object on replay. Save format version 6 now detects a nonempty per-level claim that lacks its XML-authored ID and clears only that level's diary flag. The diary can then be found again and the correct text shown. It retains the historical global list because older campaigns may have earned those IDs independently. If a per-level claim already includes the authored ID, migration normalizes it and restores the global index if missing.
+
+A version-5 save round-trip test hydrates a wrong ID for level 8, verifies it becomes collectible again without changing play count or unrelated global entries, and then collects its authored entry 4. Focused tests and the full 932-test suite (47,139 assertions) pass, as do lint, type checking and production build. This repairs identifiable old-save suppression, not a reproduction of the user's specific unpublished save or proof that every log pickup route is reachable.
+
 ### Every placed blocking gate's dynamic body
 
 A new real-level sweep now covers all 79 blocking doors in the shipped linear campaign. For each placed gate, it activates the authored object at its own coordinates, forces its existing color channel to a settled closed state, and checks the original 32×64 dynamic body stops a player-sized approach from both sides. It then opens the gate through the channel, advances the component/surface pipeline, verifies that body disappears, and closes it again to verify blocking returns. The full `doorsAndButtons.test.ts` file passes 12 tests (2,156 assertions), including the existing actual plate-contact, animation, corridor passage and crush checks. The component order matches Android: POST_COLLISION submits the old surface before ANIMATION changes the door, so collision catches up on the following frame. This test does not simulate the complete route to each button or reproduce the user's unidentified bad gate; no production gameplay behavior was changed.
