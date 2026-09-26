@@ -102,6 +102,20 @@ test('standard d-pad buttons supply full strength and vertical orb directions', 
   }
 });
 
+test('the possession orb keeps both controller stick axes analogue regardless of walking sensitivity', () => {
+  axes[0] = 0.35;
+  axes[1] = -0.4;
+  input.update();
+  expect(input.getOrbSteering()).toEqual({ x: 0.35, y: -0.4 });
+  input.setControlSettings({ movementSensitivity: 25 });
+  expect(input.getOrbSteering()).toEqual({ x: 0.35, y: -0.4 });
+  input.setVirtualAxis('vertical', 0.2);
+  expect(input.getOrbSteering()).toEqual({ x: 0.35, y: 0.2 });
+  input.setVirtualAxis('vertical', 0);
+  input.consumeGamepadForMenu();
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+});
+
 test.each(['event', 'missing', 'denied'])('%s disconnect clears controller inputs without clearing keyboard or touch', mode => {
   axes[0] = -1;
   buttons[0].pressed = true;

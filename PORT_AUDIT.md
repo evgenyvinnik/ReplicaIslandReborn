@@ -4,6 +4,16 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Orb analogue steering and suspended input
+
+The free possession orb's web fallback used `getInputState()` for its Y axis, so a gentle controller-stick deflection became a full up/down command after the digital threshold. Its X and Y also inherited ordinary walking sensitivity, contrary to the control help and Android's separate raw `getTilt()` path. Failing-first tests observed controller Y=-1 for a -0.4 stick and orb target velocity 200 instead of 1,000 after walking sensitivity was reduced to 20%. `getOrbSteering()` now combines continuous two-axis touch/controller values with keyboard fallback and keeps all of them independent of walking sensitivity. Consumed/held controller input remains blocked after menu handoff. Phone-OS suspension also clears the vertical controller value and tilt calibration; the first orientation reading after return is neutral.
+
+Focused tests now cover the actual spawned orb's target velocity, analogue controller X/Y, touch priority, sensitivity independence, controller consumption and cover/return recalibration. The full suite passes 921 tests across 151 files (47,081 assertions); type checking, lint, production build and whitespace checks pass. The build emits `index-BqD2CJ8q.js` with the existing large-bundle warning. This is synthetic control and component evidence, not a physical controller/phone test or reproduction of the user's specific possession report.
+
+### Gate artwork and terrain overlap audit
+
+The shipped red gate PNGs are byte-identical to Android's four source frames and differ from one another. Scanning all authored blocking and nonblocking gate footprints against the collision layers found just two overlaps: `level_3_6_sewer` gate (12,44) crosses part of slope tile 58 at its upper edge, and `level_3_11_sewer` gate (17,2) sits inside two full tile-17 blocks. The campaign map parity test confirms these collision/object coordinates are present in the original binaries. This is not evidence that the gate state machine should clear terrain; changing these source-authored tiles would alter the level. The exact gate from the user's report remains unknown.
+
 ### Gate route-distance follow-up, not a timing change
 
 A read-only scan of the shipped object layers found three paired gates more than 700px in straight-line distance from their nearest matching plate: `level_1_8_island` red (gate 3,64; plate 10,36; 924px), `level_1_9_island` red (gate 96,8; plate 68,11; 901px), and `level_4_2_underground` red (gate 20,27; plate 27,6; 708px). All other paired gates are closer in Euclidean distance. This is a candidate list, not a travel-time result: routes can involve terrain, falling, other same-colour plates, or enemies that hold a plate. Android and the web both use the same five-second channel hold and player ground/air speed limits. No gate timer or geometry was changed on this evidence. The still-unidentified user gate and stuck Memory require a location or a reproducible route before attributing a defect.

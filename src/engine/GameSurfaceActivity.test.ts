@@ -30,6 +30,30 @@ function key(type: string, code: string, repeat = false): void {
   Object.defineProperties(event, { code: { value: code }, repeat: { value: repeat } });
   keys.dispatchEvent(event);
 }
+function orientation(beta: number, gamma: number): void {
+  const event = new globalThis.Event('deviceorientation');
+  Object.defineProperties(event, { beta: { value: beta }, gamma: { value: gamma } });
+  keys.dispatchEvent(event);
+}
+
+test('phone cover clears orb tilt, and return calibrates again before movement', () => {
+  input.setControlSettings({ tiltControlsEnabled: true });
+  orientation(70, 10);
+  orientation(70, 28);
+  expect(input.getOrbSteering().x).toBeCloseTo(0.2);
+  const activity = new GameSurfaceActivity(surface, input,
+    { pauseAll: (): void => undefined, resumeAll: (): void => undefined }, () => undefined);
+  covered = true;
+  expect(activity.allowFrame()).toBe(false);
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+  orientation(70, 46);
+  covered = false;
+  expect(activity.allowFrame()).toBe(true);
+  orientation(70, 46);
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+  orientation(70, 64);
+  expect(input.getOrbSteering().x).toBeCloseTo(0.2);
+});
 
 test.each(['covered', 'hidden'])('%s surfaces freeze both fixed-step and display clocks, then resume once', condition => {
   let pauses = 0, resumes = 0, releases = 0, displayTime = 0;

@@ -78,6 +78,7 @@ export class InputSystem {
   // Gamepad state
   private gamepadIndex: number = -1;
   private gamepadHorizontal = 0;
+  private gamepadVertical = 0;
   private consumedGamepadKeys: Set<string> = new Set();
   private focusBlockedGamepadKeys: Set<string> = new Set();
   private focused = true;
@@ -252,15 +253,24 @@ export class InputSystem {
 
   /** Continuous two-axis steering for the orb's web touch-pad substitute. */
   getOrbSteering(): { x: number; y: number } {
-    const state = this.getInputState();
-    const vertical = Math.abs(this.virtualJoystickY) > 0.001
-      ? this.virtualJoystickY
-      : (state.down ? 1 : 0) - (state.up ? 1 : 0);
-    const manualX = this.hasManualHorizontalInput() ? state.horizontal : 0;
-    const manualY = vertical * this.movementSensitivity;
-    if (manualX !== 0 || manualY !== 0 || !this.tiltControlsEnabled || !this.tilt) {
-      return { x: manualX, y: manualY };
-    }
+    const held = (bindings: string[]): boolean => bindings.some(key => this.keys.has(key));
+    const left = held(this.keyBindings.left), right = held(this.keyBindings.right);
+    const up = held(this.keyBindings.up), down = held(this.keyBindings.down);
+    const usablePad = (value: number, negative: string, positive: string): number => {
+      const key = value < 0 ? negative : positive;
+      return this.focused && !this.consumedGamepadKeys.has(key) &&
+        !this.focusBlockedGamepadKeys.has(key) ? value : 0;
+    };
+    const padX = usablePad(this.gamepadHorizontal, GAMEPAD_BINDINGS.left, GAMEPAD_BINDINGS.right);
+    const padY = usablePad(this.gamepadVertical, GAMEPAD_BINDINGS.up, GAMEPAD_BINDINGS.down);
+    const touchX = Math.abs(this.virtualJoystickX) > 0.001;
+    const touchY = Math.abs(this.virtualJoystickY) > 0.001;
+    const manualX = touchX ? this.virtualJoystickX : left || right ? Number(right) - Number(left) : padX;
+    const manualY = touchY ? this.virtualJoystickY : up || down ? Number(down) - Number(up) : padY;
+    // The free orb uses Android's raw tilt, not the ordinary walking
+    // sensitivity. The web pad/keys/controller likewise retain full range.
+    if (touchX || touchY || left || right || up || down || padX !== 0 || padY !== 0 ||
+        !this.tiltControlsEnabled || !this.tilt) return { x: manualX, y: manualY };
     return { x: this.filterTilt(this.tilt.x), y: this.filterTilt(this.tilt.y) };
   }
 
@@ -276,6 +286,11 @@ export class InputSystem {
   }
 
   private handleOrientation(event: OrientationInputEvent): void {
+    if (!isSurfaceActive(this.surface)) {
+      this.tiltBaseline = null;
+      this.tilt = null;
+      return;
+    }
     if (!this.focused || event.beta === null || event.gamma === null ||
         !Number.isFinite(event.beta) || !Number.isFinite(event.gamma)) return;
     // DeviceOrientation angles use the natural (usually portrait) axes.
@@ -389,6 +404,9 @@ export class InputSystem {
     this.virtualJoystickX = 0;
     this.virtualJoystickY = 0;
     this.gamepadHorizontal = 0;
+    this.gamepadVertical = 0;
+    this.tiltBaseline = null;
+    this.tilt = null;
   }
 
   /**
@@ -547,6 +565,7 @@ export class InputSystem {
     const x = pressed(14) || pressed(15) ? dpadX : axis(gamepad.axes[0]);
     const y = pressed(12) || pressed(13) ? dpadY : axis(gamepad.axes[1]);
     this.gamepadHorizontal = x;
+    this.gamepadVertical = y;
     this.setGamepadKey('left', x < 0);
     this.setGamepadKey('right', x > 0);
     this.setGamepadKey('up', y < 0);
@@ -575,6 +594,7 @@ export class InputSystem {
 
   private clearGamepad(): void {
     this.gamepadHorizontal = 0;
+    this.gamepadVertical = 0;
     for (const action of Object.keys(GAMEPAD_BINDINGS) as (keyof typeof GAMEPAD_BINDINGS)[]) {
       this.setGamepadKey(action, false);
     }

@@ -6,6 +6,8 @@ import { SystemRegistry } from './SystemRegistry';
 import type { SoundSystem } from './SoundSystem';
 import type { LevelSystem } from '../levels/LevelSystemNew';
 import { GameObject } from '../entities/GameObject';
+import { GameObjectFactory } from '../entities/GameObjectFactory';
+import { GameObjectManager } from '../entities/GameObjectManager';
 import { PlayerComponent } from '../entities/components/PlayerComponent';
 import { GhostComponent, setGhostSystemRegistry } from '../entities/components/GhostComponent';
 import { UIStrings } from '../data/strings';
@@ -81,6 +83,26 @@ test('phone tilt steers the orb after neutral calibration, while touch input tak
   expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
   orientation(30, 50);
   expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+});
+
+test('a real spawned possession orb keeps a gentle controller stick input proportional', () => {
+  const registry = new SystemRegistry();
+  const manager = new GameObjectManager();
+  registry.register(input, 'input');
+  registry.register(manager, 'gameObject');
+  const factory = new GameObjectFactory(manager);
+  factory.setSystemRegistry(registry);
+  const orb = factory.spawnGhost(600, 600, 2)!;
+  axes[0] = 0.35;
+  axes[1] = -0.4;
+  input.update();
+  orb.update(1 / 60, 1);
+  expect(orb.getTargetVelocity().x).toBeCloseTo(700);
+  expect(orb.getTargetVelocity().y).toBeCloseTo(-800);
+  input.setControlSettings({ movementSensitivity: 20 });
+  orb.update(1 / 60, 1 + 1 / 60);
+  expect(orb.getTargetVelocity().x).toBeCloseTo(700);
+  expect(orb.getTargetVelocity().y).toBeCloseTo(-800);
 });
 
 test('phone tilt follows screen rotation and only replaces Andou controls when the slider is off', () => {

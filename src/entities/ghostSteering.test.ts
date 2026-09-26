@@ -64,6 +64,10 @@ test('the orb receives proportional steering from a gentle two-axis touch drag',
   orb.update(1 / 60, 1 + 1 / 60);
   expect(orb.getTargetVelocity().x).toBeCloseTo(1000);
   expect(orb.getTargetVelocity().y).toBeCloseTo(-1000);
+  input.setControlSettings({ movementSensitivity: 20 });
+  orb.update(1 / 60, 1 + 2 / 60);
+  expect(orb.getTargetVelocity().x).toBeCloseTo(1000);
+  expect(orb.getTargetVelocity().y).toBeCloseTo(-1000);
 });
 
 test('the orb bounces off tiles in every direction, including at its original top speed', async () => {
