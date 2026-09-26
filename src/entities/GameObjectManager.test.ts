@@ -21,6 +21,54 @@ class TrackingComponent extends GameComponent {
 }
 
 describe('GameObjectManager level reset', () => {
+  test('objects rejected at capacity are released instead of leaking', () => {
+    const manager = new GameObjectManager(1);
+    const admitted = manager.createObject();
+    const rejected = manager.createObject();
+    rejected.addComponent(new TrackingComponent());
+    const released: number[] = [];
+    manager.setComponentReleaseHandler(object => { released.push(object.id); });
+    manager.add(admitted);
+    manager.add(rejected);
+
+    manager.commitUpdates();
+
+    expect(manager.getActiveObjects()).toEqual([admitted]);
+    expect(manager.getObjectById(rejected.id)).toBeNull();
+    expect(rejected.getComponents()).toHaveLength(0);
+    expect(released).toEqual([rejected.id]);
+  });
+
+  test('a duplicate queued addition cannot release an admitted object', () => {
+    const manager = new GameObjectManager(1);
+    const object = manager.createObject();
+    const component = new TrackingComponent();
+    object.addComponent(component);
+    manager.add(object);
+    manager.add(object);
+
+    manager.commitUpdates();
+
+    expect(manager.getActiveObjects()).toEqual([object]);
+    expect(object.getComponents()).toEqual([component]);
+    manager.update(1 / 60, 1);
+    expect(component.updates).toBe(1);
+  });
+
+  test('a rejected player is not retained as a stale manager reference', () => {
+    const manager = new GameObjectManager(1);
+    const admitted = manager.createObject();
+    const rejectedPlayer = manager.createObject();
+    manager.setPlayer(rejectedPlayer);
+    manager.add(admitted);
+    manager.add(rejectedPlayer);
+
+    manager.commitUpdates();
+
+    expect(manager.getPlayer()).toBeNull();
+    expect(manager.getActiveObjects()).toEqual([admitted]);
+  });
+
   test('pooled objects do not retain components from the previous level', () => {
     const manager = new GameObjectManager(1);
     const previousLevelObject = manager.createObject();

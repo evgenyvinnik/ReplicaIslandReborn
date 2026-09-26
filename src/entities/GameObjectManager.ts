@@ -156,10 +156,18 @@ export class GameObjectManager {
    */
   commitUpdates(): void {
     // Add pending objects
-    for (const object of this.pendingAdditions) {
+    for (const object of new Set(this.pendingAdditions)) {
+      // A repeated add request must not consume two slots, or turn a later
+      // capacity rejection into the release of an already-live object.
+      if (this.objects.find(active => active === object) ||
+          this.inactiveObjects.find(inactive => inactive === object)) continue;
       const added = this.objects.add(object);
       if (!added) {
-        // console.error('[GameObjectManager] Failed to add object - capacity exceeded:', object.type, object.id);
+        // A spawner may exceed the fixed active-object budget. The object is
+        // still checked out from our pool, so dropping the queue entry alone
+        // leaks it and every pooled component it owns for the whole session.
+        if (object === this.player) this.player = null;
+        this.releaseObject(object);
       }
     }
     this.pendingAdditions = [];
