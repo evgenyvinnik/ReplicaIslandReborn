@@ -231,7 +231,12 @@ export class GameObjectManager {
     // Android so that swapped-in objects have already been checked this frame.
     for (let index = this.objects.getCount() - 1; index >= 0; index--) {
       const object = this.objects.get(index)!;
-      if (withinRadius(object)) continue;
+      if (withinRadius(object)) {
+        // An object can remain in the active collection when the inactive one
+        // is full. Wake it when the camera returns instead of stranding it.
+        object.setActive(true);
+        continue;
+      }
       object.setActive(false);
       if (object.destroyOnDeactivation) {
         object.markForRemoval();
@@ -239,8 +244,10 @@ export class GameObjectManager {
         // or launch shots). Queue reclamation for the normal commit phase.
         this.pendingRemovals.push(object);
       } else {
-        this.objects.remove(object);
-        this.inactiveObjects.add(object);
+        // Never remove from the owning collection until the destination has
+        // room. Both arrays are fixed-size and a failed add otherwise drops
+        // this live object (and its components) without releasing it.
+        if (this.inactiveObjects.add(object)) this.objects.remove(object);
       }
     }
 
@@ -250,9 +257,10 @@ export class GameObjectManager {
     });
 
     for (const object of toReactivate) {
-      this.inactiveObjects.remove(object);
-      object.setActive(true);
-      this.objects.add(object);
+      if (this.objects.add(object)) {
+        this.inactiveObjects.remove(object);
+        object.setActive(true);
+      }
     }
   }
 

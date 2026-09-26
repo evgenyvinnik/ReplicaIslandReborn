@@ -7,6 +7,7 @@ import type { LevelSystem } from '../levels/LevelSystemNew';
 import { GameObject } from './GameObject';
 import { PlayerComponent } from './components/PlayerComponent';
 import { Vector2 } from '../utils/Vector2';
+import { levelTree, linearLevelTree } from '../data/levelTree';
 
 let collision: CollisionSystem;
 beforeEach(async () => {
@@ -22,7 +23,8 @@ beforeEach(async () => {
   }
 });
 
-function scene(x: number, y: number, vx: number, vy: number): {
+function scene(x: number, y: number, vx: number, vy: number,
+  worldSize: { width: number; height: number } = { width: 640, height: 640 }): {
   player: GameObject; input: InputSystem; frame: () => void;
 } {
   const player = new GameObject();
@@ -33,7 +35,7 @@ function scene(x: number, y: number, vx: number, vy: number): {
   const input = new InputSystem();
   const control = new PlayerComponent();
   control.setSystems(input, collision, { playSfx: () => undefined } as unknown as SoundSystem,
-    { getLevelSize: () => ({ width: 640, height: 640 }) } as unknown as LevelSystem);
+    { getLevelSize: () => worldSize } as unknown as LevelSystem);
   player.addComponent(control);
   let time = 1;
   return { player, input, frame: (): void => player.update(1 / 60, time += 1 / 60) };
@@ -126,6 +128,101 @@ test('walking uphill follows the authored ramp instead of stopping at a tile wal
     previousX = x;
   }
   expect(previousX).toBeGreaterThan(100);
+});
+
+test('Andou can climb the actual multi-tile lab ramp after the wall-edge fix', async () => {
+  const data = await file(new URL('../../public/assets/levels/level_0_3_lab.json', import.meta.url)).json() as {
+    layers: Array<{ type: string; world: { tiles: number[][] } }>;
+  };
+  const grid = data.layers.find((layer) => layer.type === 'collision')!.world.tiles;
+  const worldSize = { width: grid[0].length * 32, height: grid.length * 32 };
+  collision.setTileCollision(grid.flat(), grid[0].length, grid.length, 32, 32);
+  // Start on the lower floor leading into the level's rising ramp at (7,17).
+  const { player, input, frame } = scene(5 * 32, 18 * 32 - 48, 0, 0, worldSize);
+  frame();
+  input.setVirtualAxis('horizontal', 1);
+  let highestPoint = player.getPosition().y;
+  for (let i = 0; i < 90; i++) {
+    frame();
+    highestPoint = Math.min(highestPoint, player.getPosition().y);
+  }
+  expect(player.getPosition().x).toBeGreaterThan(9 * 32);
+  expect(highestPoint).toBeLessThan(18 * 32 - 48 - 128);
+});
+
+test('Andou can climb the opposite-facing island ramp after the wall-edge fix', async () => {
+  const data = await file(new URL('../../public/assets/levels/level_1_1_island.json', import.meta.url)).json() as {
+    layers: Array<{ type: string; world: { tiles: number[][] } }>;
+  };
+  const grid = data.layers.find((layer) => layer.type === 'collision')!.world.tiles;
+  const worldSize = { width: grid[0].length * 32, height: grid.length * 32 };
+  collision.setTileCollision(grid.flat(), grid[0].length, grid.length, 32, 32);
+  // Reverse-facing slope at (4,9), with the lower floor on its right.
+  const { player, input, frame } = scene(8 * 32, 10 * 32 - 48, 0, 0, worldSize);
+  frame();
+  input.setVirtualAxis('horizontal', -1);
+  let highestPoint = player.getPosition().y;
+  for (let i = 0; i < 65; i++) {
+    frame();
+    highestPoint = Math.min(highestPoint, player.getPosition().y);
+  }
+  expect(player.getPosition().x).toBeLessThan(3 * 32);
+  expect(highestPoint).toBeLessThan(10 * 32 - 48 - 32);
+});
+
+test('clear approaches to authored 45-degree ramps do not wedge Andou', async () => {
+  const resources = new Set([...levelTree, ...linearLevelTree]
+    .flatMap((group) => group.levels.map((level) => level.resource)));
+  const failures: string[] = [];
+  let checked = 0;
+  const checkedByDirection = { left: 0, right: 0 };
+
+  for (const resource of resources) {
+    const data = await file(new URL(`../../public/assets/levels/${resource}.json`, import.meta.url)).json() as {
+      layers: Array<{ type: string; world: { tiles: number[][] } }>;
+    };
+    const grid = data.layers.find((layer) => layer.type === 'collision')?.world.tiles;
+    if (!grid) continue;
+    const width = grid[0].length, height = grid.length;
+    const worldSize = { width: width * 32, height: height * 32 };
+    collision.setTileCollision(grid.flat(), width, height, 32, 32);
+
+    for (let y = 2; y < height - 3; y++) for (let x = 2; x < width - 3; x++) {
+      const tile = grid[y][x];
+      if (tile !== 36 && tile !== 37) continue;
+      const direction = tile === 36 ? 1 : -1;
+      if (grid[y][x - direction] >= 0 ||
+          ![1, 17].includes(grid[y + 1][x - direction]) ||
+          ![1, 17].includes(grid[y][x + direction]) ||
+          grid[y - 1][x - direction] >= 0 || grid[y - 1][x] >= 0 ||
+          grid[y - 1][x + direction] >= 0 ||
+          grid[y - 2][x - direction] >= 0 || grid[y - 2][x] >= 0 ||
+          grid[y - 2][x + direction] >= 0) continue;
+
+      const startX = (x - direction) * 32;
+      const startY = (y + 1) * 32 - 48;
+      const { player, input, frame } = scene(startX, startY, 0, 0, worldSize);
+      frame();
+      input.setVirtualAxis('horizontal', direction);
+      let highestPoint = player.getPosition().y;
+      let progress = 0;
+      for (let i = 0; i < 45; i++) {
+        frame();
+        highestPoint = Math.min(highestPoint, player.getPosition().y);
+        progress = Math.max(progress, (player.getPosition().x - startX) * direction);
+      }
+      checked++;
+      checkedByDirection[direction < 0 ? 'left' : 'right']++;
+      if (progress < 36 || highestPoint > startY - 8) {
+        failures.push(`${resource} (${x},${y}) ${tile}: moved ${progress.toFixed(1)}, rose ${(startY - highestPoint).toFixed(1)}`);
+      }
+    }
+  }
+
+  expect(checked).toBeGreaterThan(15);
+  expect(checkedByDirection.left).toBeGreaterThan(0);
+  expect(checkedByDirection.right).toBeGreaterThan(0);
+  expect(failures).toEqual([]);
 });
 
 test('diagonal rays in all quadrants visit crossed side tiles', () => {

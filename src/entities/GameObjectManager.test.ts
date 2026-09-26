@@ -144,3 +144,65 @@ describe('terminal removal is not camera deactivation', () => {
     expect(manager.getActiveObjects()).toEqual([living]);
   });
 });
+
+describe('camera activation at object capacity', () => {
+  test('an off-screen object is not lost when the inactive collection is full', () => {
+    const manager = new GameObjectManager(1);
+    const camera = new CameraSystem(480, 320);
+    manager.setCamera(camera);
+    const first = manager.createObject();
+    first.activationRadius = 100;
+    first.setPosition(2000, 2000);
+    const firstTracker = new TrackingComponent();
+    first.addComponent(firstTracker);
+    manager.add(first);
+    manager.update(0, 1);
+    expect(manager.getInactiveObjectCount()).toBe(1);
+
+    const second = manager.createObject();
+    second.activationRadius = 100;
+    second.setPosition(240, 160);
+    const secondTracker = new TrackingComponent();
+    second.addComponent(secondTracker);
+    manager.add(second);
+    manager.update(0, 2);
+    camera.setPosition(2000, 2000);
+    manager.update(0, 3);
+
+    expect(manager.getObjectById(second.id)).toBe(second);
+    expect(second.getComponents()).toContain(secondTracker);
+    expect(second.isActive()).toBe(false);
+    expect(secondTracker.updates).toBe(1);
+    camera.setPosition(240, 160);
+    manager.update(0, 4);
+    expect(second.isActive()).toBe(true);
+    expect(secondTracker.updates).toBe(2);
+  });
+
+  test('an inactive object is not lost when the active collection is full', () => {
+    const manager = new GameObjectManager(1);
+    const camera = new CameraSystem(480, 320);
+    manager.setCamera(camera);
+    const offscreen = manager.createObject();
+    offscreen.activationRadius = 100;
+    offscreen.setPosition(2000, 2000);
+    const tracker = new TrackingComponent();
+    offscreen.addComponent(tracker);
+    manager.add(offscreen);
+    manager.update(0, 1);
+
+    const alwaysActive = manager.createObject();
+    alwaysActive.activationRadius = -1;
+    manager.add(alwaysActive);
+    manager.update(0, 2);
+    camera.setPosition(2000, 2000);
+    manager.update(0, 3);
+
+    expect(manager.getObjectById(offscreen.id)).toBe(offscreen);
+    expect(offscreen.getComponents()).toContain(tracker);
+    expect(offscreen.isActive()).toBe(false);
+    manager.remove(alwaysActive);
+    manager.update(0, 4);
+    expect(offscreen.isActive()).toBe(true);
+  });
+});

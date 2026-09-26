@@ -4,6 +4,12 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Camera-capacity ownership and authored-ramp regression
+
+The fixed-size active and inactive object collections can each fill independently during a long level. Camera deactivation/reactivation previously removed a persistent object from its owning collection before checking whether the destination could accept it. Two failing-first one-slot regressions confirmed both loss paths: a second off-screen object disappeared when inactive storage was full, and an inactive object disappeared when active storage was full. The manager now adds to the destination first. If inactive storage is full, the object remains managed but sleeps in the active collection and wakes when the camera returns; if active storage is full, it stays in the inactive collection until a slot opens. This prevents silent ownership/component loss; it does not establish that either collection actually filled in the user's unidentified level.
+
+After the partial-height wall fix, a scripted player climbed real lab and island multi-tile ramps. A broader scan of the shipped story and linear collision maps found 21 clear approaches to authored 45-degree ramps with unobstructed headroom; each made horizontal and uphill progress without wedging. Authored walls over other ramp ends are excluded rather than treated as traversable paths. These are collision simulations, not full campaign routes or a physical-phone test. All 942 tests (47,180 assertions), lint, type checking, production build and whitespace checks pass. The reported gate and stuck-level locations are still needed for direct reproduction.
+
 ### Partial-height walls no longer pass through Andou
 
 The original center-to-leading-edge horizontal sweep can miss a one-tile wall when its face intersects only the upper or lower part of the 32×48 player collision body. A failing-first test launched Andou at 4,000px/s across a single authored full-solid tile and saw x344.56 after crossing its x320..352 wall, instead of stopping at x288. Mirrored left/right and upper/lower tests reproduced all four cases. `BackgroundCollisionComponent` now makes two additional near-edge sweeps when the center ray finds no surface and accepts only cardinal vertical-wall normals. A grounded actor's lower-edge check is skipped so the side of a flat tile adjoining a ramp does not trap Andou during a legitimate uphill step. An additional hanging-wall case confirms the upper edge still blocks a grounded player.
