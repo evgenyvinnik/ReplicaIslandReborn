@@ -1376,7 +1376,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       
       try {
         // Load collision segment data (for proper slope handling)
-        const collisionLoaded = await collisionSystem.loadCollisionData(assetPath('/assets/collision.json'));
+        const collisionLoaded = await collisionSystem.loadCollisionData(assetPath('/assets/collision.json'), signal);
         signal.throwIfAborted();
         if (!collisionLoaded) throw new Error('Could not load level collision data.');
         

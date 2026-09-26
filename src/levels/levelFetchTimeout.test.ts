@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
 import { LevelParser } from './LevelParser';
 import { LevelSystem } from './LevelSystemNew';
+import { CollisionSystem } from '../engine/CollisionSystemNew';
 
 const realFetch = globalThis.fetch;
 
@@ -42,6 +43,22 @@ test('disposing a loading game aborts its in-flight level request', async () => 
   const signal = holdFetch();
   const controller = new globalThis.AbortController();
   const loading = new LevelSystem().loadLevel(1, controller.signal);
+  controller.abort();
+  expect(await beforeHang(loading)).toBe(false);
+  expect(signal()?.aborted).toBe(true);
+});
+
+test('a stalled collision-shape response aborts instead of freezing startup', async () => {
+  const signal = holdFetch();
+  const loaded = await beforeHang(new CollisionSystem().loadCollisionData('/assets/collision.json', undefined, 20));
+  expect(loaded).toBe(false);
+  expect(signal()?.aborted).toBe(true);
+});
+
+test('cancelling startup aborts its in-flight collision-shape request', async () => {
+  const signal = holdFetch();
+  const controller = new globalThis.AbortController();
+  const loading = new CollisionSystem().loadCollisionData('/assets/collision.json', controller.signal);
   controller.abort();
   expect(await beforeHang(loading)).toBe(false);
   expect(signal()?.aborted).toBe(true);

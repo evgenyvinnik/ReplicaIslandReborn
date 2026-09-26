@@ -11,6 +11,7 @@ import { Vector2 } from '../utils/Vector2';
 import type { Rect } from '../types';
 import type { GameObject } from '../entities/GameObject';
 import { FixedSizeArray } from '../utils/ObjectPool';
+import { fetchLevelJson } from '../levels/LevelParser';
 
 // ============================================================================
 // Interfaces
@@ -109,15 +110,10 @@ export class CollisionSystem {
   /**
    * Load collision tile definitions from collision.json
    */
-  async loadCollisionData(url: string): Promise<boolean> {
+  async loadCollisionData(url: string, signal?: globalThis.AbortSignal, timeoutMs?: number): Promise<boolean> {
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        // console.error(`Failed to load collision data: ${response.statusText}`);
-        return false;
-      }
-      
-      const data: CollisionData = await response.json();
+      const data = await fetchLevelJson<CollisionData>(url, signal, timeoutMs);
+      if (!data) return false;
       
       // Store collision tile definitions
       this.collisionTileDefinitions.clear();

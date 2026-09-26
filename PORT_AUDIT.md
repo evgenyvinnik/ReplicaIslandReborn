@@ -1,8 +1,12 @@
 # Port verification notes
 
-Updated September 22, 2026 (Pacific time). This is an evidence log, not a declaration that the port is complete. The older completion percentages in TODO.md are not reliable verification.
+Updated September 26, 2026 (Pacific time). This is an evidence log, not a declaration that the port is complete. The older completion percentages in TODO.md are not reliable verification.
 
 ## Current local batch
+
+### Collision-shape startup request now has a deadline
+
+The initial `collision.json` fetch ran before every playable level but had neither a timeout nor an abort signal. A stalled browser request could therefore keep startup on its loading screen indefinitely even though level JSON requests already had a 20-second deadline. Two failing-first tests held this request open and observed both a deadline and startup cancellation hang. Collision-shape loading now uses the same bounded, abortable JSON fetch as level loading, and Game passes its startup/disposal signal. Both tests pass; the full suite has 902 passing tests across 151 files (46,998 assertions), with lint, type checking, the Pages-base build and whitespace check passing. Build: `index-BMkpBo2B.js`, with the existing large-bundle warning. This prevents one concrete loading freeze; it does not identify the user's stuck Memory or verify an Android device.
 
 ### Hit feedback baseline follows each successful attempt
 
