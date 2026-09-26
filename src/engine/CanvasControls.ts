@@ -509,7 +509,10 @@ export class CanvasControls {
       else position = 0.5;
     }
     
-    const buttonX = baseX + position * (MOVEMENT_SLIDER_WIDTH - SLIDER_BUTTON_WIDTH);
+    // The knob centre, not its left edge, travels across the full slider bar.
+    // Match both InputGameInterface's touch range and HudSystem's original
+    // MOVEMENT_SLIDER_BUTTON_X + offset * (MOVEMENT_SLIDER_WIDTH / 2).
+    const buttonX = baseX + position * MOVEMENT_SLIDER_WIDTH - SLIDER_BUTTON_WIDTH / 2;
     const buttonY = baseY - (SLIDER_BUTTON_HEIGHT - MOVEMENT_SLIDER_HEIGHT) / 2 - 8;
     
     // Draw button

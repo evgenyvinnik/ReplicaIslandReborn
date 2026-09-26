@@ -4,6 +4,12 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Phone movement knob reaches the speed shown by its position
+
+The on-screen slider interpreted a touch at its bar endpoints (x20/x148 on the 480px game canvas) as full left/right, but drew the 64px knob with its centre only at x52/x116 at those extremes. Touching where the knob visibly stopped therefore produced only half-strength movement, a plausible contributor to missed five-second gate passages on a phone. Android's `InputGameInterface` and `HudSystem` use the full slider travel. The web drawing now centers the knob directly under the mapped touch position, including both endpoints; input timing, acceleration and the gate hold time are unchanged.
+
+A new render-and-input regression failed before the change at full-left (drawn centre x52 versus touched x20), then passed at left, centre and right after the change. The 924-test suite (47,095 assertions), type checking, lint, production build and existing gate tests pass. This is a source-backed control fix, not a physical Android verification or proof of the user's unidentified stuck level/gate. The gate/level location has been requested again for a targeted reproduction.
+
 ### Orb analogue steering and suspended input
 
 The free possession orb's web fallback used `getInputState()` for its Y axis, so a gentle controller-stick deflection became a full up/down command after the digital threshold. Its X and Y also inherited ordinary walking sensitivity, contrary to the control help and Android's separate raw `getTilt()` path. Failing-first tests observed controller Y=-1 for a -0.4 stick and orb target velocity 200 instead of 1,000 after walking sensitivity was reduced to 20%. `getOrbSteering()` now combines continuous two-axis touch/controller values with keyboard fallback and keeps all of them independent of walking sensitivity. Consumed/held controller input remains blocked after menu handoff. Phone-OS suspension also clears the vertical controller value and tilt calibration; the first orientation reading after return is neutral.

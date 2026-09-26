@@ -80,6 +80,44 @@ test('scaled canvas slider and action buttons independently own concurrent touch
   expect(input.getInputState().horizontal).toBe(0);
 });
 
+test('movement knob stays centered under full-speed touch endpoints', () => {
+  const draws: Array<{ image: object; x: number; width: number }> = [];
+  const base = {} as HTMLImageElement;
+  const knob = {} as HTMLImageElement;
+  const context = {
+    save: (): void => {},
+    restore: (): void => {},
+    drawImage: (image: object, x: number, _y: number, width: number): void => {
+      draws.push({ image, x, width });
+    },
+    globalAlpha: 1,
+    imageSmoothingEnabled: false,
+  };
+  Object.assign(controls, {
+    ctx: context,
+    spritesLoaded: true,
+    sprites: new Map([
+      ['ui_movement_slider_base', base],
+      ['ui_movement_slider_button_off', knob],
+      ['ui_movement_slider_button_on', knob],
+    ]),
+  });
+  const knobCenter = (): number => {
+    draws.length = 0;
+    controls.render();
+    const draw = draws.find(entry => entry.image === knob)!;
+    return draw.x + draw.width / 2;
+  };
+
+  expect(knobCenter()).toBe(84);
+  send('touchstart', [touch(1, 20, 260)]);
+  expect(input.getInputState().horizontal).toBe(-1);
+  expect(knobCenter()).toBe(20);
+  send('touchmove', [touch(1, 148, 260)]);
+  expect(input.getInputState().horizontal).toBe(1);
+  expect(knobCenter()).toBe(148);
+});
+
 test('a stomp touch on the right of the window never also triggers flight', () => {
   send('touchstart', [touch(1, 440, 225)]);
   expect(input.getInputState().attack).toBe(true);
