@@ -80,6 +80,34 @@ for (const direction of [-1, 1]) {
   });
 }
 
+for (const side of [-1, 1]) for (const half of ['upper', 'lower'] as const) {
+  test(`a fast side impact cannot pass through the ${half} half of a one-tile wall from ${side}`, () => {
+    const wallRow = half === 'lower' ? 10 : 9;
+    collision.setTileCollision(Array.from({ length: 400 }, (_, i) =>
+      i === wallRow * 20 + 10 ? 1 : -1), 20, 20, 32, 32);
+    // The body's centre misses the tile, but its upper/lower edge overlaps it.
+    const y = half === 'lower' ? 286 : 306;
+    const { player, frame } = scene(side > 0 ? 279 : 361, y, side * 4000, 0);
+    frame();
+    expect(player.getPosition().x).toBeCloseTo(side > 0 ? 288 : 352, 2);
+    expect(side > 0 ? player.touchingRightWall() : player.touchingLeftWall()).toBe(true);
+    player.getVelocity().x = -side * 200;
+    frame();
+    expect((player.getPosition().x - (side > 0 ? 288 : 352)) * -side).toBeGreaterThan(0);
+  });
+}
+
+test('the upper edge still stops a grounded player at a hanging wall', () => {
+  collision.setTileCollision(Array.from({ length: 400 }, (_, i) => {
+    const row = Math.floor(i / 20);
+    return row === 10 || i === 8 * 20 + 10 ? 1 : -1;
+  }), 20, 20, 32, 32);
+  const { player, frame } = scene(279, 272, 4000, 0);
+  frame();
+  expect(player.getPosition().x).toBeCloseTo(288, 2);
+  expect(player.touchingRightWall()).toBe(true);
+});
+
 test('walking uphill follows the authored ramp instead of stopping at a tile wall', () => {
   collision.setTileCollision(Array.from({ length: 400 }, (_, i) => {
     const row = Math.floor(i / 20), col = i % 20;

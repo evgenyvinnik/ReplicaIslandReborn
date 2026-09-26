@@ -61,6 +61,10 @@ export class BackgroundCollisionComponent extends GameComponent {
   private rayEnd: Vector2 = new Vector2();
   private testPointStart: Vector2 = new Vector2();
   private testPointEnd: Vector2 = new Vector2();
+  private edgeRayStart: Vector2 = new Vector2();
+  private edgeRayEnd: Vector2 = new Vector2();
+  private edgeHitPoint: Vector2 = new Vector2();
+  private edgeHitNormal: Vector2 = new Vector2();
   private mergedNormal: Vector2 = new Vector2();
 
   /**
@@ -423,9 +427,36 @@ export class BackgroundCollisionComponent extends GameComponent {
     if (hit) {
       // Snap position
       currentPosition.x = hitPoint.x + offset;
+      return true;
     }
 
-    return hit;
+    // The centre ray can pass above/below a one-tile wall even though the
+    // upper or lower part of the box strikes its vertical face. Sweep both
+    // near-edge points across the full frame displacement. Accept only true
+    // vertical walls here; diagonal ramp normals belong to the original
+    // centre/vertical response and must not turn a walkable slope into a wall.
+    const leadingX = delta.x > 0 ? right : left;
+    const top = this.verticalOffset;
+    const bottom = top + this.collisionHeight;
+    const inset = Math.min(0.5, this.collisionHeight / 4);
+    for (let edge = 0; edge < 2; edge++) {
+      // A grounded actor needs to climb a ramp into its adjoining flat tile.
+      // Its foot ray sees that flat tile's side before the vertical response
+      // lifts it onto the top; treating that as a wall wedges it at the seam.
+      if (edge === 1 && _parent.touchingGround()) continue;
+      const edgeY = edge === 0 ? top + inset : bottom - inset;
+      this.edgeRayStart.set(this.previousPosition.x + leadingX, this.previousPosition.y + edgeY);
+      this.edgeRayEnd.set(currentPosition.x + leadingX, currentPosition.y + edgeY);
+      if (!this.castRay(this.edgeRayStart, this.edgeRayEnd, this.filterDirection,
+        this.edgeHitPoint, this.edgeHitNormal, _parent)) continue;
+      if (Math.abs(this.edgeHitNormal.x) < 0.99 || Math.abs(this.edgeHitNormal.y) > 0.01) continue;
+      hitPoint.set(this.edgeHitPoint);
+      hitNormal.set(this.edgeHitNormal);
+      currentPosition.x = hitPoint.x + offset;
+      return true;
+    }
+
+    return false;
   }
 
   /**

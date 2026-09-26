@@ -4,6 +4,12 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Partial-height walls no longer pass through Andou
+
+The original center-to-leading-edge horizontal sweep can miss a one-tile wall when its face intersects only the upper or lower part of the 32×48 player collision body. A failing-first test launched Andou at 4,000px/s across a single authored full-solid tile and saw x344.56 after crossing its x320..352 wall, instead of stopping at x288. Mirrored left/right and upper/lower tests reproduced all four cases. `BackgroundCollisionComponent` now makes two additional near-edge sweeps when the center ray finds no surface and accepts only cardinal vertical-wall normals. A grounded actor's lower-edge check is skipped so the side of a flat tile adjoining a ramp does not trap Andou during a legitimate uphill step. An additional hanging-wall case confirms the upper edge still blocks a grounded player.
+
+The five new cases pass, including reversal away from each partial wall, as do the existing ramp-seam and gate-corridor tests. In the isolated real-App browser fixture, lab ID 2 loaded normally; Andou stopped at x704 against its closed green gate, then walked across its real button and the opened gate from x812 to x562 with 3/3 life and no browser warnings/errors. Full validation passes 937 tests (47,158 assertions), lint, type checking, production build and whitespace checks. This fixes a reproducible wall pass-through but does not identify the specific wall, gate or Memory reported by the user; a physical Android browser has not been exercised.
+
 ### Legacy log-entry recovery
 
 An older collection path assigned the next uncollected log ID instead of the diary authored for the current level. The current pickup path uses the authored binding, but saved per-level `diariesCollected` flags from that build still suppress the diary object on replay. Save format version 6 now detects a nonempty per-level claim that lacks its XML-authored ID and clears only that level's diary flag. The diary can then be found again and the correct text shown. It retains the historical global list because older campaigns may have earned those IDs independently. If a per-level claim already includes the authored ID, migration normalizes it and restores the global index if missing.
