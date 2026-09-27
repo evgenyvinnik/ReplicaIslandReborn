@@ -4,6 +4,12 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Four-gate sewer corridor: current art and collision state
+
+On the current source build in an isolated full-App browser session, level ID 27 loaded from its normal spawn. The development-only fixture then placed Andou on the authored left red plate at tile (19,45), leaving the plate, channel, gates and terrain unchanged. Continuous right input for 2.5 seconds crossed all four gates from x608 to x1762 with 3/3 life. After six unpaused seconds, left input returned him to x276 alive; that return passed the far-side red plate and therefore is not evidence of walking through closed doors.
+
+The fixture now reports each corridor door's *current* sprite, variant and collision body in addition to all frames observed. A fresh staged press displayed red door frames 01, 02, 03 and 04 on all four gates. After Andou moved left off the plate and six unpaused seconds elapsed, all displayed frame 01. The blocking doors at x640 and x736 again owned solid bodies; the nonblocking doors at x672 and x704 had none. This verifies one complete visual/open/close cycle and body restoration after the latest wall change, not the user's still-unidentified faulty gate. Only the development fixture and this evidence log changed; its production-style verification build and diff whitespace checks pass. The user save and published game are untouched by this check.
+
 ### Camera-capacity ownership and authored-ramp regression
 
 The fixed-size active and inactive object collections can each fill independently during a long level. Camera deactivation/reactivation previously removed a persistent object from its owning collection before checking whether the destination could accept it. Two failing-first one-slot regressions confirmed both loss paths: a second off-screen object disappeared when inactive storage was full, and an inactive object disappeared when active storage was full. The manager now adds to the destination first. If inactive storage is full, the object remains managed but sleeps in the active collection and wakes when the camera returns; if active storage is full, it stays in the inactive collection until a slot opens. This prevents silent ownership/component loss; it does not establish that either collection actually filled in the user's unidentified level.

@@ -104,6 +104,8 @@ PAUSE 50</textarea><br>
   const { default: App } = await import('../src/App.tsx');
   const { sSystemRegistry } = await import('../src/engine/SystemRegistry.ts');
   const { SpriteComponent } = await import('../src/entities/components/SpriteComponent.ts');
+  const { DoorAnimationComponent } = await import('../src/entities/components/DoorAnimationComponent.ts');
+  const { SolidSurfaceComponent } = await import('../src/entities/components/SolidSurfaceComponent.ts');
   const { GhostComponent } = await import('../src/entities/components/GhostComponent.ts');
   const { PlayerComponent } = await import('../src/entities/components/PlayerComponent.ts');
   const { resetPlayerRuntimeState } = await import('../src/entities/resetPlayerRuntimeState.ts');
@@ -470,7 +472,8 @@ PAUSE 50</textarea><br>
       const frame = gate?.getComponent(SpriteComponent)?.getCurrentDraw()?.sprite;
       if (frame) gateFrames.add(frame);
       const x = manager?.getPlayer()?.getPosition().x;
-      document.querySelector('#gate-status').textContent = `${frame ?? 'Gate out of view'}; player x=${x?.toFixed(1)}; observed ${[...gateFrames].join(', ')}`;
+      const solid = gate ? !!gate.getComponent(SolidSurfaceComponent) : 'offscreen';
+      document.querySelector('#gate-status').textContent = `current=${frame ?? 'Gate out of view'}, body=${solid}; player x=${x?.toFixed(1)}; observed ${[...gateFrames].join(', ')}`;
     }
     if (sewerGateStaged) {
       const manager = sSystemRegistry.gameObjectManager;
@@ -478,14 +481,19 @@ PAUSE 50</textarea><br>
       const gates = manager?.getActiveObjects().filter(o => o.type === 'door' &&
         o.subType.startsWith('red') && o.getPosition().y === 46 * 32 - o.height &&
         o.getPosition().x >= 20 * 32 && o.getPosition().x <= 23 * 32) ?? [];
+      const current = new Map();
       for (const gate of gates) {
         const frames = sewerGateFrames.get(gate.getPosition().x) ?? new Set();
         const frame = gate.getComponent(SpriteComponent)?.getCurrentDraw()?.sprite;
         if (frame) frames.add(frame);
         sewerGateFrames.set(gate.getPosition().x, frames);
+        const surfaceEnabled = gate.getComponent(DoorAnimationComponent)?.isSolidSurfaceEnabled();
+        const body = !!gate.getComponent(SolidSurfaceComponent);
+        current.set(gate.getPosition().x,
+          `${gate.subType}, ${frame ?? 'no frame'}, surfaceEnabled=${surfaceEnabled}, body=${body}`);
       }
       document.querySelector('#gate-27-status').textContent = `Player x=${player?.getPosition().x.toFixed(1)}, life=${player?.life}; ` +
-        [...sewerGateFrames].map(([x, frames]) => `x${x}: ${[...frames].join(',')}`).join('; ');
+        [...sewerGateFrames].map(([x, frames]) => `x${x}: now=${current.get(x) ?? 'offscreen'}; seen=${[...frames].join(',')}`).join('; ');
     }
     if (possessionStaged) {
       const manager = sSystemRegistry.gameObjectManager;
