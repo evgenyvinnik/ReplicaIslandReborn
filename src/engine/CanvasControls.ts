@@ -163,7 +163,19 @@ export class CanvasControls {
   setOrbControlMode(enabled: boolean): void {
     if (this.orbControlMode === enabled) return;
     this.orbControlMode = enabled;
-    // Do not carry a held movement direction across a control handoff.
+    // A finger already dragging the movement slider also owns the orb pad.
+    // Dropping it here makes the newly charged orb ignore further touchmove
+    // events until the player lifts and touches down again. Keep horizontal
+    // steering, but begin the new vertical axis at neutral until that finger
+    // moves on the two-axis pad.
+    if (enabled && this.touchState.isSliderActive &&
+        (this.sliderTouchId !== null || this.mouseZone === 'slider')) {
+      this.orbVertical = 0;
+      this.onMovementChange?.((this.touchState.sliderPosition - 0.5) * 2, 0);
+      return;
+    }
+    // Possession or release returns control to a different body, so a held
+    // direction must not leak back into ordinary horizontal movement.
     for (const [id, zone] of this.activeTouches) {
       if (zone === 'slider') this.activeTouches.delete(id);
     }

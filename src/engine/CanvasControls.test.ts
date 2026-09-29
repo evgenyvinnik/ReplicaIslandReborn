@@ -166,6 +166,20 @@ test('a small orb-pad drag remains proportional below the digital direction thre
   expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
 });
 
+test('a held movement finger continues steering when the orb appears', () => {
+  const finger = touch(1, 148, 252);
+  send('touchstart', [finger]);
+  expect(input.getInputState().horizontal).toBe(1);
+
+  controls.setOrbControlMode(true);
+  expect(input.getOrbSteering()).toEqual({ x: 1, y: 0 });
+  send('touchmove', [touch(1, 148, 188)]);
+  expect(input.getOrbSteering()).toEqual({ x: 1, y: -1 });
+
+  send('touchend', [touch(1, 148, 188)], []);
+  expect(input.getOrbSteering()).toEqual({ x: 0, y: 0 });
+});
+
 test('orb possession or release clears pad steering and restores horizontal-only movement', () => {
   controls.setOrbControlMode(true);
   const finger = touch(1, 148, 188);

@@ -62,6 +62,7 @@ PAUSE 50</textarea><br>
     <button id="cancel-sequence">Cancel keyboard input</button>
   </p>
   <p><button id="orb-up">Charge orb + drag pad up</button><span id="orb-status" role="status">Orb pad not checked</span></p>
+  <p><button id="orb-held-slider">Charge orb while holding slider</button><span id="orb-held-status" role="status">Held-slider handoff not checked</span></p>
   <p>Staged scenario: load lab (ID 2), dismiss its intro, then place Andou near the original green gate. No terrain or gate state is changed.</p>
   <button id="gate-left">Place left of green gate</button>
   <button id="gate-right">Place right of green button</button>
@@ -393,6 +394,40 @@ PAUSE 50</textarea><br>
         inputRunning = false;
       }, 600);
     }, 1500);
+  };
+  document.querySelector('#orb-held-slider').onclick = () => {
+    if (inputRunning) return;
+    const canvas = document.querySelector('#root canvas');
+    if (!canvas) return;
+    inputRunning = true;
+    const status = document.querySelector('#orb-held-status');
+    status.textContent = 'Holding slider and attack through orb charge';
+    const rect = canvas.getBoundingClientRect();
+    const finger = (identifier, x, y) => new Touch({ identifier, target: canvas,
+      clientX: rect.left + rect.width * x / 480,
+      clientY: rect.top + rect.height * y / 320 });
+    const emitTouch = (type, changedTouches, touches) => canvas.dispatchEvent(
+      new TouchEvent(type, { bubbles: true, cancelable: true, changedTouches, touches,
+        targetTouches: touches }));
+    const slider = finger(51, 84, 252);
+    const attack = finger(52, 440, 225);
+    emitTouch('touchstart', [slider], [slider]);
+    emitTouch('touchstart', [attack], [slider, attack]);
+    setTimeout(() => {
+      const orb = sSystemRegistry.gameObjectManager?.getActiveObjects().find(o => o.type === 'ghost');
+      if (!orb) {
+        emitTouch('touchend', [attack, slider], []);
+        status.textContent = 'No orb spawned — dismiss dialogue and try again';
+        inputRunning = false;
+        return;
+      }
+      const raised = finger(51, 84, 188);
+      emitTouch('touchmove', [raised], [raised, attack]);
+      const up = sSystemRegistry.inputSystem?.getOrbSteering().y;
+      emitTouch('touchend', [attack, raised], []);
+      status.textContent = `Held slider survived orb handoff: up=${up}; released=${sSystemRegistry.inputSystem?.getOrbSteering().y === 0}`;
+      inputRunning = false;
+    }, 1100);
   };
   let gateStaged = false;
   const gateFrames = new Set();
