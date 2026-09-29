@@ -4,6 +4,10 @@ Updated September 29, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Published delivery is not stuck on an older deployment
+
+The live Pages HTML returned HTTP 200 with a ten-minute `Cache-Control: max-age=600`; its script and stylesheet URLs are versioned under `/ReplicaIslandReborn/assets/`, and Vite rewrote the favicon to that same project base. The live favicon is HTTP 200 at the project path (the domain-root asset path is 404, but is not what the published HTML uses). The latest GitHub Pages deployment run completed successfully from pushed gameplay commit `49548d7`; the two subsequent local commits at this check contain only audit notes. The repository has no service-worker registration. These facts make a permanently stale deployment an unlikely explanation for the remaining report, but do not inspect the user's Android browser cache or reproduce their level.
+
 ### Tall-map responsiveness and placed-object coverage
 
 The largest shipped level JSON files are about 132 KB; `TileMapRenderer` iterates only visible tiles each frame and does not allocate a full-map canvas. In an isolated full-App local browser session, tall island level ID 10 loaded at its authored x160/y5008 spawn with the standing sprite, 3/3 life, the zero-count coin HUD and a displayed 60 FPS. A normal three-second rightward input moved Andou to x607/y5008, leaving him active and visible; no browser warnings/errors were reported. A read-only sweep of every nonnegative object tile in the shipped converted levels found a named `GameObjectTypeIndex` and a `LevelSystemNew.spawnObjectByType` case for each placed type. This rules out an obvious unhandled placed-object or full-map-canvas explanation in that local route, not an Android device memory/frame-rate failure or the user's unidentified level. No production code changed.
