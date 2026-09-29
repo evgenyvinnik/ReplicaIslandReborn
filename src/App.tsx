@@ -90,6 +90,12 @@ function AppContent(): React.JSX.Element {
     }
   }, [osMode, state.gameState, pauseGame, handleAppLaunch]);
 
+  const handleMobilePause = useCallback(() => {
+    if (osMode !== 'app') return;
+    if (state.gameState === GameState.PLAYING) pauseGame();
+    else if (state.gameState === GameState.PAUSED) resumeGame();
+  }, [osMode, state.gameState, pauseGame, resumeGame]);
+
   // Simulate initial loading
   useEffect(() => {
     const loadGame = async (): Promise<void> => {
@@ -159,6 +165,10 @@ function AppContent(): React.JSX.Element {
       onBack={handleBack}
       onHome={handleHome}
       onRecents={handleRecents}
+      onPause={handleMobilePause}
+      isPaused={state.gameState === GameState.PAUSED}
+      showPauseControl={osMode === 'app' && !state.isLoading &&
+        (state.gameState === GameState.PLAYING || state.gameState === GameState.PAUSED)}
     >
       <div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
         <div 

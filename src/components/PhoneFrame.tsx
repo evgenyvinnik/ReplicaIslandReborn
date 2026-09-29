@@ -18,6 +18,9 @@ interface PhoneFrameProps {
   onBack?: () => void;
   onHome?: () => void;
   onRecents?: () => void;
+  onPause?: () => void;
+  isPaused?: boolean;
+  showPauseControl?: boolean;
 }
 
 export function PhoneFrame({ 
@@ -26,7 +29,10 @@ export function PhoneFrame({
   gameHeight, 
   onBack, 
   onHome, 
-  onRecents 
+  onRecents,
+  onPause,
+  isPaused = false,
+  showPauseControl = false,
 }: PhoneFrameProps): React.JSX.Element {
   const keyBindings = useGameStore((state) => state.settings.keyBindings);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +71,23 @@ export function PhoneFrame({
 
   return (
     <div className="phone-frame-container" ref={containerRef}>
+      {showPauseControl && (
+        <div className="mobile-game-actions">
+          {isPaused && (
+            <button type="button" className="mobile-game-action" onClick={onBack} aria-label="Return to main menu">
+              Menu
+            </button>
+          )}
+          <button
+            type="button"
+            className="mobile-game-action"
+            onClick={onPause}
+            aria-label={isPaused ? 'Resume game' : 'Pause game'}
+          >
+            {isPaused ? 'Resume' : 'Pause'}
+          </button>
+        </div>
+      )}
       <div className="phone-frame-outer-wrapper" ref={frameRef} style={{ transform: `scale(${scale})` }}>
         {/* Row with phone frame and sound controls */}
         <div className="phone-frame-row">

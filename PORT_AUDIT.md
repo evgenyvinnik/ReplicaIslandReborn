@@ -1,8 +1,14 @@
 # Port verification notes
 
-Updated September 26, 2026 (Pacific time). This is an evidence log, not a declaration that the port is complete. The older completion percentages in TODO.md are not reliable verification.
+Updated September 29, 2026 (Pacific time). This is an evidence log, not a declaration that the port is complete. The older completion percentages in TODO.md are not reliable verification.
 
 ## Current local batch
+
+### Mobile players can pause and leave a stalled attempt
+
+The responsive phone layout hides the decorative Android bezel, but its controls were the only on-screen navigation outside the game canvas. `CanvasControls` has movement, flight and stomp/orb controls but no pause action, so touch-only players could not open Pause without a keyboard or controller. A native-size mobile action now calls the same `pauseGame`/`resumeGame` context actions as keyboard/controller input. While paused it also exposes Menu, using the existing Back-to-main route; neither button appears at the main menu or while the simulated phone OS covers the app. The action sits outside the scaled 480×320 canvas, retaining a 44px minimum touch target at narrow viewports.
+
+In the isolated real-App lab session at a 360×800 browser viewport, the Pause button appeared above the fully visible game screen. Clicking it showed the canvas PAUSED overlay and changed the action to Resume. Resume restored the same Kabocha dialogue. A second pause exposed Menu, and clicking it returned to the main title. At 800×360 landscape, Pause remained outside the visible game canvas. The published GitHub Pages build was separately viewed at 360×800 and its previous responsive menu fit within the viewport; that read-only check did not include this new local pause change. A static rendering regression covers the two action states and main-menu absence. All 947 tests (47,190 assertions), type checking, lint, production build and whitespace checks pass; the existing large-bundle warning remains. This is browser pointer input, not physical Android touch, and does not identify the user's particular gate or in-level stall.
 
 ### Narrow-viewport gameplay no longer clips the phone screen
 

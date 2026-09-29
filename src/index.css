@@ -138,6 +138,7 @@ button:focus {
 
 /* Phone Frame Styles */
 .phone-frame-container {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -145,6 +146,10 @@ button:focus {
   height: 100%;
   padding: 20px;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+.mobile-game-actions {
+  display: none;
 }
 
 .phone-frame {
@@ -561,6 +566,28 @@ button:focus {
    Keep the original 480x320 game coordinates and scale the whole canvas; its
    touch input converts client coordinates through getBoundingClientRect(). */
 @media (max-width: 700px), (max-height: 500px) {
+  .mobile-game-actions {
+    display: flex;
+    gap: 8px;
+    position: absolute;
+    z-index: 4000;
+    top: 8px;
+    right: 8px;
+  }
+
+  .mobile-game-action {
+    min-width: 72px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid #79a6cf;
+    border-radius: 8px;
+    background: rgba(14, 30, 55, 0.92);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    touch-action: manipulation;
+  }
+
   .phone-frame-container {
     height: 100dvh;
     padding: 8px;
@@ -599,5 +626,11 @@ button:focus {
     top: 8px;
     right: 8px;
     margin-left: 0;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .mobile-game-actions {
+    top: 44px;
   }
 }
