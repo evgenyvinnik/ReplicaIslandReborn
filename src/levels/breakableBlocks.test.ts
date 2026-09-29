@@ -134,7 +134,7 @@ test('every breakable block the campaign ships can be broken by a stomp', async 
   expect(failures, 'these blocks could not be broken').toEqual([]);
 }, 180_000);
 
-test('a real stomp input breaks an underground shaft block', async () => {
+test('jumping from the underground bridge and stomping breaks its block', async () => {
   sSystemRegistry.reset();
   const collision = new CollisionSystem(), manager = new GameObjectManager();
   const hotSpots = new HotSpotSystem(), camera = new CameraSystem(480, 320);
@@ -167,19 +167,29 @@ test('a real stomp input breaks an underground shaft block', async () => {
   expect(block).toBeDefined();
   const control = player.getComponent(PlayerComponent)!;
   control.setSystems(input, collision, sound, levelSystem);
-  player.setPosition(blockX, blockY - player.height - 16);
+  player.setPosition(blockX, blockY - player.height);
   player.getVelocity().zero();
   // The camera survey can leave a zero-time ground contact; move the clock on
-  // before the airborne input so this is a fresh physical stomp edge.
+  // before standing on the block so ground and attack edges are both fresh.
   time.update(1);
-  input.setVirtualButton('attack', true);
-  for (let frame = 0; frame < 90 && block.life > 0; frame++) {
+  const step = (): void => {
     time.update(FRAME);
     camera.setPosition(player.getCenteredPositionX() - 240, player.getCenteredPositionY() - 160);
     manager.update(FRAME, time.getGameTime());
     oc.update(FRAME);
     collision.updateTemporarySurfaces();
-  }
+  };
+  for (let frame = 0; frame < 6; frame++) step();
+  expect(player.touchingGround()).toBe(true);
+  input.setVirtualButton('jump', true);
+  step();
+  input.setVirtualButton('jump', false);
+  // Android retains grounded contact for 0.3s after takeoff; the stomp key
+  // must be pressed after that grace interval, while still above the block.
+  for (let frame = 0; frame < 25; frame++) step();
+  expect(player.getPosition().y).toBeLessThan(blockY - player.height - 16);
+  input.setVirtualButton('attack', true);
+  for (let frame = 0; frame < 90 && block.life > 0; frame++) step();
   input.setVirtualButton('attack', false);
   expect(block.life).toBe(0);
   expect(block.lastReceivedHitType).toBe(HitType.HIT);
