@@ -4,6 +4,12 @@ Updated September 26, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Narrow-viewport gameplay no longer clips the phone screen
+
+The game previously fixed its canvas at 480×320 inside a 620px-wide decorative phone, centered it in an overflow-hidden page, and supplied no responsive scale. A 360px portrait viewport therefore clipped the game and touch controls. `PhoneFrame` now measures its rendered content and available visual viewport, scaling the complete fixed-resolution game to fit on resize or rotation. At phone-sized widths/heights it hides the decorative bezel and keyboard hint, leaving the canvas and on-screen controls visible; desktop retains the original unscaled presentation. CanvasControls already maps touch coordinates through the canvas's scaled bounding rectangle, so its virtual control geometry remains unchanged.
+
+In the isolated full-App browser fixture, a 360×800 simulated portrait viewport rendered the complete screen within x8..352 (344×229 physical pixels); menu buttons, HUD and control art were visible. A drag on the scaled movement slider moved Andou from x96 to x480 in the authored lab while he remained alive. Switching the live fixture to 800×360 landscape preserved the level and displayed the full gameplay canvas. Browser warning/error logs were empty. These are responsive desktop-browser checks, not physical Android touch or a reproduction of the user's unidentified stuck level. All 946 tests (47,185 assertions), lint, type checking, production build and diff whitespace checks pass. The existing large-bundle warning remains.
+
 ### Four-gate sewer corridor: current art and collision state
 
 On the current source build in an isolated full-App browser session, level ID 27 loaded from its normal spawn. The development-only fixture then placed Andou on the authored left red plate at tile (19,45), leaving the plate, channel, gates and terrain unchanged. Continuous right input for 2.5 seconds crossed all four gates from x608 to x1762 with 3/3 life. After six unpaused seconds, left input returned him to x276 alive; that return passed the far-side red plate and therefore is not evidence of walking through closed doors.

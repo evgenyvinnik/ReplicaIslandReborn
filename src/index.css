@@ -340,6 +340,8 @@ button:focus {
   flex-direction: column;
   align-items: center;
   gap: 15px;
+  flex: none;
+  transform-origin: center;
 }
 
 /* Row containing phone frame and sound controls */
@@ -348,6 +350,7 @@ button:focus {
   flex-direction: row;
   align-items: flex-start;
   gap: 0;
+  flex: none;
 }
 
 /* Keyboard hint below phone frame */
@@ -552,4 +555,49 @@ button:focus {
 .app-container {
   width: 100%;
   height: 100%;
+}
+
+/* On a physical phone the decorative bezel would consume most of the screen.
+   Keep the original 480x320 game coordinates and scale the whole canvas; its
+   touch input converts client coordinates through getBoundingClientRect(). */
+@media (max-width: 700px), (max-height: 500px) {
+  .phone-frame-container {
+    height: 100dvh;
+    padding: 8px;
+  }
+
+  .phone-frame-outer-wrapper {
+    gap: 0;
+  }
+
+  .phone-frame-row {
+    position: relative;
+  }
+
+  .phone-frame {
+    flex: none;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .phone-bezel,
+  .volume-buttons,
+  .power-button,
+  .keyboard-hint-below {
+    display: none;
+  }
+
+  .phone-screen {
+    flex: none;
+    border: 0;
+  }
+
+  .phone-sound-controls {
+    position: absolute;
+    z-index: 3000;
+    top: 8px;
+    right: 8px;
+    margin-left: 0;
+  }
 }

@@ -5,10 +5,11 @@
  * reminiscent of the original Replica Island experience.
  */
 
-import React from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { SoundControls } from './SoundControls';
 import { KeyboardHint } from './KeyboardHint';
 import { useGameStore } from '../stores/useGameStore';
+import { fitPhoneFrame } from './phoneFrameScale';
 
 interface PhoneFrameProps {
   children: React.ReactNode;
@@ -28,9 +29,43 @@ export function PhoneFrame({
   onRecents 
 }: PhoneFrameProps): React.JSX.Element {
   const keyBindings = useGameStore((state) => state.settings.keyBindings);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const frame = frameRef.current;
+    if (!container || !frame) return;
+
+    const updateScale = (): void => {
+      const padding = globalThis.getComputedStyle(container);
+      const horizontalPadding = parseFloat(padding.paddingLeft) + parseFloat(padding.paddingRight);
+      const verticalPadding = parseFloat(padding.paddingTop) + parseFloat(padding.paddingBottom);
+      const viewport = window.visualViewport;
+      const width = Math.min(container.clientWidth, viewport?.width ?? Infinity) - horizontalPadding;
+      const height = Math.min(container.clientHeight, viewport?.height ?? Infinity) - verticalPadding;
+      const next = fitPhoneFrame(width, height, frame.offsetWidth, frame.offsetHeight);
+      setScale(previous => Math.abs(previous - next) > 0.001 ? next : previous);
+    };
+
+    updateScale();
+    const observer = typeof globalThis.ResizeObserver === 'undefined'
+      ? null : new globalThis.ResizeObserver(updateScale);
+    observer?.observe(container);
+    observer?.observe(frame);
+    window.addEventListener('resize', updateScale);
+    window.visualViewport?.addEventListener('resize', updateScale);
+    return (): void => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updateScale);
+      window.visualViewport?.removeEventListener('resize', updateScale);
+    };
+  }, []);
+
   return (
-    <div className="phone-frame-container">
-      <div className="phone-frame-outer-wrapper">
+    <div className="phone-frame-container" ref={containerRef}>
+      <div className="phone-frame-outer-wrapper" ref={frameRef} style={{ transform: `scale(${scale})` }}>
         {/* Row with phone frame and sound controls */}
         <div className="phone-frame-row">
           <div className="phone-frame">
