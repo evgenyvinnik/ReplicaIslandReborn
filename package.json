@@ -1,6 +1,6 @@
 {
   "name": "replica-island-reborn",
-  "version": "1.0.260929.83",
+  "version": "1.0.260929.84",
   "description": "Web port of Replica Island - a classic Android platformer game",
   "type": "module",
   "scripts": {
