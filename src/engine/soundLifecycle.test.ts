@@ -9,7 +9,11 @@ test('effect preload can finish while optional music is still pending', async ()
   let finishMusic = (_loaded: boolean): void => {};
   const pendingMusic = new Promise<boolean>(resolve => { finishMusic = resolve; });
   sound.loadSound = async (): Promise<void> => { effectCount++; };
-  sound.loadBackgroundMusic = async (): Promise<boolean> => { musicCount++; return pendingMusic; };
+  sound.loadBackgroundMusic = async (url: string): Promise<boolean> => {
+    expect(url.endsWith('/assets/sounds/music.m4a')).toBe(true);
+    musicCount++;
+    return pendingMusic;
+  };
   sound.loadBackgroundMusicScore = async (): Promise<boolean> => { scoreCount++; return true; };
 
   await sound.preloadSoundEffects();
@@ -20,6 +24,16 @@ test('effect preload can finish while optional music is still pending', async ()
   finishMusic(false);
   await musicLoading;
   expect(scoreCount).toBe(1);
+  sound.destroy();
+});
+
+test('a decoded pre-rendered score skips the expensive synthesis fallback', async () => {
+  const sound = new SoundSystem();
+  let scoreLoads = 0;
+  sound.loadBackgroundMusic = async (): Promise<boolean> => true;
+  sound.loadBackgroundMusicScore = async (): Promise<boolean> => { scoreLoads++; return true; };
+  await sound.preloadBackgroundMusic();
+  expect(scoreLoads).toBe(0);
   sound.destroy();
 });
 

@@ -4,6 +4,12 @@ Updated September 29, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Pre-rendered background music avoids per-session synthesis on phones
+
+The optional music path still synthesized the original converted 60.5-second MIDI score on every new Game mount: after downloading 210 notes it created an `OfflineAudioContext`, hundreds of gain/oscillator nodes, and a 60.75-second mono buffer. Deferring that preload until after the first playable frame removed it from the startup await chain, but not its subsequent CPU and memory demand while gameplay runs. The score is now rendered once into a 709 KB AAC/M4A asset and loaded as an ordinary browser audio file; the existing score synthesizer remains a fallback for browsers that cannot fetch or decode it. This changes no gate or player logic and is a performance-risk reduction, not a reproduction of the user's particular Android stall.
+
+The committed renderer script uses the web voice's note frequencies, triangle fundamental, quiet sawtooth overtone, plucked envelope, release and master gain. macOS AudioToolbox identified the encoded file as mono 44.1 kHz AAC at 60.75 seconds and decoded it successfully; the decoded signal had a nonzero waveform and a peak below clipping. The local Vite server returns it as `audio/mp4`, and the production build copies it. The browser UI could not be exercised during this batch because the Mac is locked, so actual Android decoding and audible output remain unverified. All 953 tests (47,303 assertions), lint, type checking, production build and whitespace checks pass; the existing large-bundle warning remains.
+
 ### Longer idle simulation and duplicate orb-image startup requests
 
 A new headless campaign smoke test advances every playable map for ten seconds with no input, using the real object manager, camera activation, object-hit resolution, temporary gate/platform surfaces, and collision map. All maps kept updating without a thrown component error or non-finite player position or clock. This broadens the earlier one-second movement check; it cannot reproduce a particular mid-level Android stall without its Memory number or route, and it does not measure a physical phone's frame rate.

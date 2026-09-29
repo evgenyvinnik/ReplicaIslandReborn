@@ -13,6 +13,7 @@ import { file } from 'bun';
 import { join } from 'node:path';
 
 const SCORE = join(import.meta.dir, '../../public/assets/sounds/bwv_115.json');
+const RENDERED = join(import.meta.dir, '../../public/assets/sounds/music.m4a');
 
 interface Score {
   duration: number;
@@ -21,6 +22,14 @@ interface Score {
 }
 
 describe('converted background music score', () => {
+  test('ships a pre-rendered, compressed score for mobile playback', async () => {
+    expect(await file(RENDERED).exists()).toBe(true);
+    const bytes = new Uint8Array(await file(RENDERED).arrayBuffer());
+    expect(bytes.length).toBeGreaterThan(100_000);
+    expect(bytes.length).toBeLessThan(1_500_000);
+    expect(new globalThis.TextDecoder().decode(bytes.subarray(4, 8))).toBe('ftyp');
+  });
+
   test('ships a playable note list', async () => {
     expect(await file(SCORE).exists()).toBe(true);
     const score = await file(SCORE).json() as Score;

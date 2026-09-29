@@ -799,9 +799,10 @@ export class SoundSystem {
   async preloadBackgroundMusic(signal?: globalThis.AbortSignal): Promise<void> {
     if (this.destroyed || signal?.aborted) return;
 
-    // Background music. Prefer a real audio file if one has been dropped in,
-    // otherwise synthesize the original's bwv_115.mid from its converted score.
-    const loadedAudioFile = await this.loadBackgroundMusic(assetPath('/assets/sounds/music.ogg'), signal);
+    // Use the pre-rendered score on phones; building an offline synthesizer
+    // graph for its 210 notes on every mount can compete with live gameplay.
+    // The converted MIDI score remains a fallback if decoding is unsupported.
+    const loadedAudioFile = await this.loadBackgroundMusic(assetPath('/assets/sounds/music.m4a'), signal);
     if (this.destroyed || signal?.aborted) return;
     if (!loadedAudioFile) {
       await this.loadBackgroundMusicScore(assetPath('/assets/sounds/bwv_115.json'), signal);
