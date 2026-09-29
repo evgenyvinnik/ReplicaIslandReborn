@@ -27,6 +27,8 @@ import { sSystemRegistry } from '../engine/SystemRegistry';
 import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { LevelSystem } from './LevelSystemNew';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
+import { setSolidSurfaceSystemRegistry } from '../entities/components/SolidSurfaceComponent';
+import { HitType } from '../types';
 import type { GameObject } from '../entities/GameObject';
 
 const pub = join(import.meta.dir, '../../public');
@@ -131,3 +133,55 @@ test('every breakable block the campaign ships can be broken by a stomp', async 
   expect(checked, 'no breakable blocks were found in the campaign').toBeGreaterThan(3);
   expect(failures, 'these blocks could not be broken').toEqual([]);
 }, 180_000);
+
+test('a real stomp input breaks an underground shaft block', async () => {
+  sSystemRegistry.reset();
+  const collision = new CollisionSystem(), manager = new GameObjectManager();
+  const hotSpots = new HotSpotSystem(), camera = new CameraSystem(480, 320);
+  const time = new TimeSystem(), oc = new GameObjectCollisionSystem();
+  const input = new InputSystem(), sound = new SoundSystem();
+  const levelSystem = new LevelSystem();
+  levelSystem.setSystems(collision, manager, hotSpots);
+  manager.setCamera(camera);
+  sSystemRegistry.register(collision, 'collision');
+  sSystemRegistry.register(manager, 'gameObject');
+  sSystemRegistry.register(hotSpots, 'hotSpot');
+  sSystemRegistry.register(camera, 'camera');
+  sSystemRegistry.register(input, 'input');
+  sSystemRegistry.register(sound, 'sound');
+  sSystemRegistry.register(oc, 'gameObjectCollision');
+  sSystemRegistry.register(new GameFlowEvent(), 'gameFlowEvent');
+  sSystemRegistry.register(new ChannelSystem(), 'channel');
+  sSystemRegistry.register(time, 'time');
+  setSolidSurfaceSystemRegistry(sSystemRegistry);
+  expect(await collision.loadCollisionData('/assets/collision.json')).toBe(true);
+  expect(await levelSystem.loadLevel(resourceToLevelId.level_4_2_underground)).toBe(true);
+  manager.commitUpdates();
+
+  const blockX = 39 * 32, blockY = 12 * 32;
+  camera.setPosition(blockX - 240, blockY - 160);
+  manager.update(FRAME, time.getGameTime());
+  const block = manager.getActiveObjects().find(object => object.type === 'breakable_block' &&
+    object.getPosition().x === blockX && object.getPosition().y === blockY)!;
+  const player = manager.getPlayer()!;
+  expect(block).toBeDefined();
+  const control = player.getComponent(PlayerComponent)!;
+  control.setSystems(input, collision, sound, levelSystem);
+  player.setPosition(blockX, blockY - player.height - 16);
+  player.getVelocity().zero();
+  // The camera survey can leave a zero-time ground contact; move the clock on
+  // before the airborne input so this is a fresh physical stomp edge.
+  time.update(1);
+  input.setVirtualButton('attack', true);
+  for (let frame = 0; frame < 90 && block.life > 0; frame++) {
+    time.update(FRAME);
+    camera.setPosition(player.getCenteredPositionX() - 240, player.getCenteredPositionY() - 160);
+    manager.update(FRAME, time.getGameTime());
+    oc.update(FRAME);
+    collision.updateTemporarySurfaces();
+  }
+  input.setVirtualButton('attack', false);
+  expect(block.life).toBe(0);
+  expect(block.lastReceivedHitType).toBe(HitType.HIT);
+  expect(block.lastDamageSource).toBe(player);
+});
