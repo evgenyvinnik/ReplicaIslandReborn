@@ -4,6 +4,10 @@ Updated September 29, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Published phone-size on-screen control smoke check
+
+At a 360×800 viewport on the live Pages build, the isolated in-app-browser save continued directly into Memory #001. Three normal canvas taps dismissed Kabocha's introduction. A pointer drag on the rendered movement slider moved Andou from the lab start down to its slope while he stayed visible and the ×0 coin HUD remained visible. The Pause button displayed the paused overlay with Menu/Resume controls. On a fresh lab attempt, holding the rendered attack button with a centered pointer drag spawned the glowing possession orb and changed the left slider into the labelled two-axis orb pad; after a subsequent pad drag, the orb was no longer visible and normal controls returned. This verifies touch-control *layout and mouse-pointer wiring* at a phone-sized viewport, not physical Android touch events, target possession, reliable orb steering, the reported gate, or the unidentified freeze. Browser warning/error logs were empty. No gameplay code changed.
+
 ### Published delivery is not stuck on an older deployment
 
 The live Pages HTML returned HTTP 200 with a ten-minute `Cache-Control: max-age=600`; its script and stylesheet URLs are versioned under `/ReplicaIslandReborn/assets/`, and Vite rewrote the favicon to that same project base. The live favicon is HTTP 200 at the project path (the domain-root asset path is 404, but is not what the published HTML uses). The latest GitHub Pages deployment run completed successfully from pushed gameplay commit `49548d7`; the two subsequent local commits at this check contain only audit notes. The repository has no service-worker registration. These facts make a permanently stale deployment an unlikely explanation for the remaining report, but do not inspect the user's Android browser cache or reproduce their level.
