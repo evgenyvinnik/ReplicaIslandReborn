@@ -4,6 +4,10 @@ Updated September 29, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Slow phone frames no longer halve UI time or misreport FPS
+
+The frame loop capped elapsed time at 100 ms to protect fixed-step physics, but also passed that capped value to HUD, dialogue, cutscene and results rendering, and counted it toward FPS. At a sustained five frames per second, one real second therefore advanced display animations only half a second and left the FPS counter at zero. The loop now keeps the 100 ms physics cap, advances display UI from actual frame time (bounded to 250 ms after a long gap), and calculates FPS from actual elapsed time. A failing-first regression covers 5 Hz frames, a multi-second gap, subsequent FPS recovery and unchanged physics capping. The full 954-test suite (47,308 assertions), type checking, lint, production build and diff whitespace checks pass. This fixes a concrete low-frame-rate presentation defect; it does not identify or prove resolution of the particular Android level that stuck. Physical-device and exact-level reproduction remain pending.
+
 ### Pre-rendered background music avoids per-session synthesis on phones
 
 The optional music path still synthesized the original converted 60.5-second MIDI score on every new Game mount: after downloading 210 notes it created an `OfflineAudioContext`, hundreds of gain/oscillator nodes, and a 60.75-second mono buffer. Deferring that preload until after the first playable frame removed it from the startup await chain, but not its subsequent CPU and memory demand while gameplay runs. The score is now rendered once into a 709 KB AAC/M4A asset and loaded as an ordinary browser audio file; the existing score synthesizer remains a fallback for browsers that cannot fetch or decode it. This changes no gate or player logic and is a performance-risk reduction, not a reproduction of the user's particular Android stall.

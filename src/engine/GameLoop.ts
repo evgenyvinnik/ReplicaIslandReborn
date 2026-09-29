@@ -23,6 +23,7 @@ export class GameLoop {
   // Fixed timestep configuration (similar to original game's 16ms target)
   private readonly fixedDeltaTime: number = 1 / 60; // 60 FPS
   private readonly maxDeltaTime: number = 0.1; // Cap delta to prevent spiral of death
+  private readonly maxDisplayDeltaTime: number = 0.25; // Avoid skipping overlays after a suspended tab
 
   // Performance tracking
   private frameCount: number = 0;
@@ -155,22 +156,20 @@ export class GameLoop {
   private tick(currentTime: number): void {
     if (!this.running) return;
 
-    // Calculate delta time in seconds
-    let deltaTime = (currentTime - this.lastTime) / 1000;
+    // Physics may need to discard a slow frame, but the HUD, dialogue and
+    // cutscenes must still follow display time rather than simulation time.
+    const elapsedTime = Math.max(0, (currentTime - this.lastTime) / 1000);
     this.lastTime = currentTime;
-
-    // Cap delta time to prevent spiral of death
-    if (deltaTime > this.maxDeltaTime) {
-      deltaTime = this.maxDeltaTime;
-    }
+    const deltaTime = Math.min(elapsedTime, this.maxDeltaTime);
+    const displayDeltaTime = Math.min(elapsedTime, this.maxDisplayDeltaTime);
 
     // Update FPS counter
     this.frameCount++;
-    this.fpsTimer += deltaTime;
+    this.fpsTimer += elapsedTime;
     if (this.fpsTimer >= 1.0) {
-      this.currentFPS = this.frameCount;
+      this.currentFPS = Math.round(this.frameCount / this.fpsTimer);
       this.frameCount = 0;
-      this.fpsTimer -= 1.0;
+      this.fpsTimer = 0;
     }
 
     // Only update game state if not paused
@@ -197,7 +196,7 @@ export class GameLoop {
 
     // A paused simulation still draws and advances its menus/dialogue.
     if (this.renderCallback) {
-      this.guard('render', this.renderCallback, this.accumulator / this.fixedDeltaTime, deltaTime);
+      this.guard('render', this.renderCallback, this.accumulator / this.fixedDeltaTime, displayDeltaTime);
     }
 
     // Rendering may also end the session (for example, on an overlay handoff).

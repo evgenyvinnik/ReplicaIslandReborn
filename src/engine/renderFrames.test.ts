@@ -161,6 +161,39 @@ test('30/60/120/144Hz displays advance UI by elapsed time and keep rendering whi
   }
 });
 
+test('slow display frames advance UI in real time without uncapping physics', () => {
+  const originalRequest = globalThis.requestAnimationFrame;
+  const originalCancel = globalThis.cancelAnimationFrame;
+  const now = spyOn(performance, 'now').mockReturnValue(0);
+  let pending: Parameters<typeof requestAnimationFrame>[0] | undefined;
+  globalThis.requestAnimationFrame = (callback): number => { pending = callback; return 1; };
+  globalThis.cancelAnimationFrame = (): void => { pending = undefined; };
+
+  try {
+    const loop = new GameLoop();
+    let physicsTime = 0;
+    let displayTime = 0;
+    loop.setUpdateCallback(dt => { physicsTime += dt; });
+    loop.setRenderCallback((_interpolation, dt) => { displayTime += dt; });
+    loop.start();
+    for (let frame = 1; frame <= 5; frame++) pending?.(frame * 200);
+    expect(displayTime).toBeCloseTo(1);
+    expect(physicsTime).toBeCloseTo(0.5);
+    expect(loop.getFPS()).toBe(5);
+
+    // A suspended tab must not fast-forward an entire cutscene on its first frame.
+    pending?.(6000);
+    expect(displayTime).toBeLessThanOrEqual(1.25);
+    for (let frame = 1; frame <= 5; frame++) pending?.(6000 + frame * 200);
+    expect(loop.getFPS()).toBe(5);
+    loop.stop();
+  } finally {
+    now.mockRestore();
+    globalThis.requestAnimationFrame = originalRequest;
+    globalThis.cancelAnimationFrame = originalCancel;
+  }
+});
+
 test('pausing during a catch-up frame stops the remaining simulation steps', () => {
   const originalRequest = globalThis.requestAnimationFrame;
   const originalCancel = globalThis.cancelAnimationFrame;
