@@ -629,3 +629,52 @@ test.each(['virtual axis', 'touch slider'])('the long island red-plate corridor 
   expect(gateFrames).toEqual(new Set(['01', '02', '03', '04'].map(frame => `object_door_red${frame}`)));
   expect(player.life).toBeGreaterThan(0);
 });
+
+test('the rising island route reaches its distant red gate before the plate expires', async () => {
+  const rig = (await load('level_1_9_island'))!;
+  const player = rig.manager.getPlayer()!;
+  const objects = allOfType(rig, object => object.type === 'button' || object.type === 'door');
+  const plate = objects.find(object => object.type === 'button' && object.subType === 'red' &&
+    object.getPosition().x === 68 * 32 && object.getPosition().y === 11 * 32)!;
+  const gate = objects.find(object => object.type === 'door' && object.subType === 'red' &&
+    object.getPosition().x === 96 * 32 && object.getPosition().y === 9 * 32 - object.height)!;
+  expect(plate).toBeDefined();
+  expect(gate).toBeDefined();
+  player.getComponent(PlayerComponent)!.setSystems(sSystemRegistry.inputSystem!, rig.collision,
+    sSystemRegistry.soundSystem!, rig.levelSystem);
+  setSolidSurfaceSystemRegistry(sSystemRegistry);
+  player.setPosition(plate.getPosition().x, 12 * 32 - player.height);
+  player.getVelocity().zero();
+  const gateFrames = new Set<string>();
+  const frame = (): void => {
+    rig.time.update(FRAME);
+    const now = rig.time.getGameTime();
+    rig.camera.setPosition(player.getCenteredPositionX() - 240, player.getCenteredPositionY() - 160);
+    rig.manager.update(FRAME, now);
+    rig.oc.update(FRAME);
+    rig.collision.updateTemporarySurfaces();
+    if (gate.isActive()) gateFrames.add(gate.getComponent(SpriteComponent)!.getCurrentDraw()!.sprite);
+  };
+  for (let i = 0; i < 12; i++) frame();
+  expect(plate.lastReceivedHitType).toBe(HitType.DEPRESS);
+  const start = rig.time.getGameTime();
+  const input = sSystemRegistry.inputSystem!;
+  input.setVirtualAxis('horizontal', 1);
+  let crossedGateFootprint = false;
+  for (let i = 0; i < 300 && player.getPosition().x <= gate.getPosition().x + gate.width; i++) {
+    frame();
+    const playerPos = player.getPosition(), gatePos = gate.getPosition();
+    if (playerPos.x < gatePos.x + gate.width && playerPos.x + player.width > gatePos.x &&
+        playerPos.y < gatePos.y + gate.height && playerPos.y + player.height > gatePos.y) {
+      crossedGateFootprint = true;
+      expect(gate.getComponents().some(component => component instanceof SolidSurfaceComponent)).toBe(false);
+    }
+  }
+  input.setVirtualAxis('horizontal', 0);
+  expect(player.getPosition().x, `player at ${player.getPosition().x},${player.getPosition().y}; gate at ${gate.getPosition().x},${gate.getPosition().y}`)
+    .toBeGreaterThan(gate.getPosition().x + gate.width);
+  expect(rig.time.getGameTime() - start).toBeLessThan(5);
+  expect(crossedGateFootprint).toBe(true);
+  expect(gateFrames).toContain('object_door_red04');
+  expect(player.life).toBeGreaterThan(0);
+});

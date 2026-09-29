@@ -4,6 +4,10 @@ Updated September 29, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Distant rising-island gate is traversable on its authored terrain
+
+The level-1-9 island map places a red plate at object tile (68,11) and a red gate at (96,8), about 900px away and three rows higher. It was one of the longest straight-line plate/gate pairs in the campaign, so a successful channel-only test could miss an impractical route. A new real-map simulation starts Andou standing on that existing plate, lets his ordinary collision volume press it, then holds only right movement while the camera and object manager update normally. He climbs the authored ramp, physically overlaps the gate's footprint while its solid body is absent, and clears the far side before the original five-second channel expires. The test observes the open `object_door_red04` frame and a surviving player. All 948 tests (47,210 assertions), lint, type checking, production build and whitespace checks pass. The existing large-bundle warning remains. No gameplay source changed for this route; it rules out this particular long pair as the reported failing gate, not the other distant pairs or the unidentified gate in the user's session.
+
 ### Mobile players can pause and leave a stalled attempt
 
 The responsive phone layout hides the decorative Android bezel, but its controls were the only on-screen navigation outside the game canvas. `CanvasControls` has movement, flight and stomp/orb controls but no pause action, so touch-only players could not open Pause without a keyboard or controller. A native-size mobile action now calls the same `pauseGame`/`resumeGame` context actions as keyboard/controller input. While paused it also exposes Menu, using the existing Back-to-main route; neither button appears at the main menu or while the simulated phone OS covers the app. The action sits outside the scaled 480×320 canvas, retaining a 44px minimum touch target at narrow viewports.
