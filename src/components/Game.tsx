@@ -1350,11 +1350,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         { name: 'energy_ball02', file: 'energy_ball02', w: 32, h: 32 },
         { name: 'energy_ball03', file: 'energy_ball03', w: 32, h: 32 },
         { name: 'energy_ball04', file: 'energy_ball04', w: 32, h: 32 },
-        // Effect energy balls (alternative graphics)
-        { name: 'effect_energyball01', file: 'effect_energyball01', w: 32, h: 32 },
-        { name: 'effect_energyball02', file: 'effect_energyball02', w: 32, h: 32 },
-        { name: 'effect_energyball03', file: 'effect_energyball03', w: 32, h: 32 },
-        { name: 'effect_energyball04', file: 'effect_energyball04', w: 32, h: 32 },
+        // The four 64px possession-orb frames are already loaded with player art.
         // Dead character decorations (broken robots)
         { name: 'andou_dead', file: 'andou_explode12', w: 64, h: 64 },
         { name: 'kyle_dead', file: 'enemy_kyle_dead', w: 128, h: 32 },

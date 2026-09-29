@@ -4,6 +4,14 @@ Updated September 29, 2026 (Pacific time). This is an evidence log, not a declar
 
 ## Current local batch
 
+### Longer idle simulation and duplicate orb-image startup requests
+
+A new headless campaign smoke test advances every playable map for ten seconds with no input, using the real object manager, camera activation, object-hit resolution, temporary gate/platform surfaces, and collision map. All maps kept updating without a thrown component error or non-finite player position or clock. This broadens the earlier one-second movement check; it cannot reproduce a particular mid-level Android stall without its Memory number or route, and it does not measure a physical phone's frame rate.
+
+Startup also requested all four `effect_energyball` PNGs twice under the same renderer keys: once with player/possession art and again with enemy art. Both groups point to the same 64×64 files, and `loadSingleImage` uses the PNG's native dimensions rather than the unused `w`/`h` list annotations. The redundant enemy-group requests are removed, preserving the orb animation while avoiding four extra image constructions and decodes on each game mount. No gate timer or geometry was changed.
+
+All 951 tests (47,297 assertions), lint, type checking, the Pages-base production build and whitespace checks pass. The pre-existing large-bundle warning remains.
+
 ### Slow in-level startup is visible; optional music no longer blocks play
 
 The isolated full-App fixture loaded the tall island level ID 10 (`level_1_8_island`) from its normal save selection. It spent a conspicuous interval with a black canvas and no visible status, then eventually spawned Andou active and visible at x160/y5008 with loaded standing art and 3/3 life; no browser warnings or errors were captured. This was a slow startup in the local development browser, not a reproduced permanent freeze or a measurement of the user's Android device. Source inspection found `Game` awaited the optional 60.5-second converted MIDI score's `OfflineAudioContext` render before loading the level and starting the loop, even though `SoundSystem` already retains early music-playback intent. Required effects now finish before play, but optional background music starts loading only after the playable loop starts and automatically joins when ready. The full-preload API remains available for callers that explicitly need both.

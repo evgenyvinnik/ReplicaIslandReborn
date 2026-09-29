@@ -291,6 +291,36 @@ describe('campaign gameplay simulation', () => {
     expect(failures).toEqual([]);
   }, 60_000);
 
+  test('every playable level keeps updating for ten seconds without input', async () => {
+    const failures: string[] = [];
+
+    for (const { resource, levelId } of await playableLevels()) {
+      const harness = createHarness();
+      expect(await harness.collision.loadCollisionData('/assets/collision.json'), resource).toBe(true);
+      expect(await harness.levelSystem.loadLevel(levelId), resource).toBe(true);
+      harness.manager.commitUpdates();
+
+      try {
+        harness.run(600);
+      } catch (error) {
+        failures.push(`${resource}: threw during update -> ${(error as Error).message}`);
+      }
+
+      const player = harness.manager.getPlayer();
+      if (player) {
+        const position = player.getPosition();
+        if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+          failures.push(`${resource}: player position became ${position.x},${position.y}`);
+        }
+      }
+      if (!Number.isFinite(harness.time.getGameTime())) {
+        failures.push(`${resource}: simulation clock became invalid`);
+      }
+    }
+
+    expect(failures).toEqual([]);
+  }, 180_000);
+
   test('every enemy the campaign spawns is wired into the collision pipeline', async () => {
     const levels = await playableLevels();
     const seen = new Set<string>();
