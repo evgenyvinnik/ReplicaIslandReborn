@@ -756,9 +756,10 @@ export class SoundSystem {
   }
 
   /**
-   * Preload all game sounds
+   * Preload effect sounds needed by gameplay. The optional score can take much
+   * longer to synthesize and must not hold the first playable frame.
    */
-  async preloadAllSounds(signal?: globalThis.AbortSignal): Promise<void> {
+  async preloadSoundEffects(signal?: globalThis.AbortSignal): Promise<void> {
     if (this.destroyed || signal?.aborted) return;
     const soundFiles = [
       'deep_clang',
@@ -792,8 +793,12 @@ export class SoundSystem {
     );
 
     await Promise.all(loadPromises);
+  }
+
+  /** Load optional music after gameplay is ready; startBackgroundMusic retains intent. */
+  async preloadBackgroundMusic(signal?: globalThis.AbortSignal): Promise<void> {
     if (this.destroyed || signal?.aborted) return;
-    
+
     // Background music. Prefer a real audio file if one has been dropped in,
     // otherwise synthesize the original's bwv_115.mid from its converted score.
     const loadedAudioFile = await this.loadBackgroundMusic(assetPath('/assets/sounds/music.ogg'), signal);
@@ -801,6 +806,12 @@ export class SoundSystem {
     if (!loadedAudioFile) {
       await this.loadBackgroundMusicScore(assetPath('/assets/sounds/bwv_115.json'), signal);
     }
+  }
+
+  /** Full preload remains available to callers that explicitly need both. */
+  async preloadAllSounds(signal?: globalThis.AbortSignal): Promise<void> {
+    await this.preloadSoundEffects(signal);
+    await this.preloadBackgroundMusic(signal);
   }
 
   /**

@@ -30,6 +30,7 @@ import { CanvasDialog } from '../engine/CanvasDialog';
 import { CanvasCutscene } from '../engine/CanvasCutscene';
 import { VibrationSystem } from '../engine/VibrationSystem';
 import { CanvasPauseMenu } from '../engine/CanvasPauseMenu';
+import { LoadingScreen } from './LoadingScreen';
 import { CanvasGameOverScreen } from '../engine/CanvasGameOverScreen';
 import { CanvasLevelCompleteScreen } from '../engine/CanvasLevelCompleteScreen';
 import { CanvasDiaryOverlay } from '../engine/CanvasDiaryOverlay';
@@ -1418,7 +1419,7 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
         // Initialize sound system
         await soundSystem.initialize();
         signal.throwIfAborted();
-        await soundSystem.preloadAllSounds(signal);
+        await soundSystem.preloadSoundEffects(signal);
         signal.throwIfAborted();
         
         // Apply sound settings
@@ -1486,6 +1487,10 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       if (settings.musicEnabled && soundSystem.isInitialized()) {
         soundSystem.setMusicVolume(settings.musicVolume / 100);
         soundSystem.startBackgroundMusic();
+        // The converted MIDI score renders in an OfflineAudioContext. Its
+        // optional buffer must not delay a playable level; SoundSystem starts
+        // it when ready and ignores a result after teardown/abort.
+        void soundSystem.preloadBackgroundMusic(signal).catch(() => {});
       }
     };
 
@@ -2453,6 +2458,8 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
             display: 'block',
           }}
         />
+
+        {levelLoading && !startupError && !runtimeError && <LoadingScreen overlay />}
         
         {/* Startup recovery must remain usable while the canvas loop is stopped. */}
         {(startupError || runtimeError) && (

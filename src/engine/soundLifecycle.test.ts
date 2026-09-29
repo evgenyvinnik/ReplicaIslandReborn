@@ -1,6 +1,28 @@
 import { expect, test } from 'bun:test';
 import { SoundSystem } from './SoundSystem';
 
+test('effect preload can finish while optional music is still pending', async () => {
+  const sound = new SoundSystem();
+  let effectCount = 0;
+  let musicCount = 0;
+  let scoreCount = 0;
+  let finishMusic = (_loaded: boolean): void => {};
+  const pendingMusic = new Promise<boolean>(resolve => { finishMusic = resolve; });
+  sound.loadSound = async (): Promise<void> => { effectCount++; };
+  sound.loadBackgroundMusic = async (): Promise<boolean> => { musicCount++; return pendingMusic; };
+  sound.loadBackgroundMusicScore = async (): Promise<boolean> => { scoreCount++; return true; };
+
+  await sound.preloadSoundEffects();
+  expect(effectCount).toBe(22);
+  expect(musicCount).toBe(0);
+  const musicLoading = sound.preloadBackgroundMusic();
+  expect(musicCount).toBe(1);
+  finishMusic(false);
+  await musicLoading;
+  expect(scoreCount).toBe(1);
+  sound.destroy();
+});
+
 test('a stalled sound download expires instead of holding game startup', async () => {
   const originalContext = globalThis.AudioContext;
   const originalFetch = globalThis.fetch;

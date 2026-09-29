@@ -21,6 +21,8 @@ export function LoadingScreen({
 }: LoadingScreenProps): React.JSX.Element {
   return (
     <div
+      role="status"
+      aria-live="polite"
       style={{
         position: overlay ? 'absolute' : 'relative',
         width: '100%',

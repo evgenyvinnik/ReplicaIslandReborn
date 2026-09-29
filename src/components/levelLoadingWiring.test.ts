@@ -12,3 +12,12 @@ test('a pending level load stops simulation immediately, before React renders', 
   expect(gameSource).not.toContain('setLevelLoading(true);');
   expect(gameSource).not.toContain('setLevelLoading(false);');
 });
+
+test('startup presents a wait state and optional music follows the playable loop', () => {
+  expect(gameSource).toContain('{levelLoading && !startupError && !runtimeError && <LoadingScreen overlay />}');
+  expect(gameSource).toContain('await soundSystem.preloadSoundEffects(signal);');
+  expect(gameSource).not.toContain('await soundSystem.preloadAllSounds(signal);');
+  expect(gameSource.indexOf('gameLoop.start();')).toBeLessThan(
+    gameSource.indexOf('soundSystem.preloadBackgroundMusic(signal)')
+  );
+});
