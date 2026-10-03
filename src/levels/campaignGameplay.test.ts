@@ -21,6 +21,7 @@ import { GameFlowEvent, GameFlowEventType } from '../engine/GameFlowEvent';
 import { TimeSystem } from '../engine/TimeSystem';
 import { GameObjectManager } from '../entities/GameObjectManager';
 import { GameObjectFactory } from '../entities/GameObjectFactory';
+import { resolveBreakableBlockDeath } from '../entities/breakableBlock';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { linearLevelTree, resourceToLevelId } from '../data/levelTree';
 import { DifficultySettings } from '../stores/useGameStore';
@@ -318,6 +319,53 @@ describe('campaign gameplay simulation', () => {
       }
     }
 
+    expect(failures).toEqual([]);
+  }, 180_000);
+
+  test('every playable level stays finite through ten seconds of changing controls', async () => {
+    const failures: string[] = [];
+    const stationary: string[] = [];
+    for (const { resource, levelId } of await playableLevels()) {
+      const harness = createHarness();
+      const factory = new GameObjectFactory(harness.manager);
+      factory.setCollisionSystem(harness.collision);
+      factory.setSystemRegistry(sSystemRegistry);
+      sSystemRegistry.register(factory, 'factory');
+      expect(await harness.collision.loadCollisionData('/assets/collision.json'), resource).toBe(true);
+      expect(await harness.levelSystem.loadLevel(levelId), resource).toBe(true);
+      harness.manager.commitUpdates();
+      const initial = harness.manager.getPlayer()!.getPosition().clone();
+
+      try {
+        for (let frame = 0; frame < 600; frame++) {
+          // Press/release edges exercise more than a held direction while the
+          // camera activates enemies and world objects along each spawn route.
+          harness.input.setVirtualAxis('horizontal', Math.floor(frame / 120) % 2 === 0 ? 1 : -1);
+          harness.input.setVirtualButton('fly', frame % 180 < 75);
+          harness.input.setVirtualButton('attack', frame % 90 === 0);
+          harness.run(1);
+          harness.manager.forEach(object => resolveBreakableBlockDeath(object, sSystemRegistry));
+          if (frame === 59) {
+            const at = harness.manager.getPlayer()?.getPosition();
+            if (at && Math.abs(at.x - initial.x) < 8) stationary.push(resource);
+          }
+        }
+      } catch (error) {
+        failures.push(`${resource}: update threw -> ${(error as Error).message}`);
+        continue;
+      }
+
+      if (!Number.isFinite(harness.time.getGameTime())) {
+        failures.push(`${resource}: simulation clock became invalid`);
+      }
+      for (const object of harness.manager.getActiveObjects()) {
+        const position = object.getPosition(), velocity = object.getVelocity();
+        if (![position.x, position.y, velocity.x, velocity.y].every(Number.isFinite)) {
+          failures.push(`${resource}: ${object.type}/${object.subType} has invalid position or velocity`);
+        }
+      }
+    }
+    expect(stationary, 'player did not move horizontally from an authored spawn').toEqual([]);
     expect(failures).toEqual([]);
   }, 180_000);
 
