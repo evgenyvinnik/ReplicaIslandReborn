@@ -41,7 +41,9 @@ import { GhostComponent } from '../entities/components/GhostComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { ChangeComponentsComponent } from '../entities/components/ChangeComponentsComponent';
-import { HitType, ActionType } from '../types';
+import { AttackAtDistanceComponent } from '../entities/components/AttackAtDistanceComponent';
+import { LaunchProjectileComponent } from '../entities/components/LaunchProjectileComponent';
+import { HitType, ActionType, Team } from '../types';
 import type { GameObject } from '../entities/GameObject';
 import type { RenderSystem } from '../engine/RenderSystem';
 
@@ -96,6 +98,33 @@ async function loadLevel(resource: string): Promise<Rig> {
   manager.commitUpdates();
   return { manager, input, time, camera, oc, collision, levelSystem, sound, factory };
 }
+
+test('the runtime turret path creates a possessable firing emplacement', async () => {
+  const rig = await loadLevel('level_3_3_sewer');
+  const turret = rig.factory.spawnFromLevelData({ type: 'turret', x: 100, y: 100, flipX: true })!;
+  rig.manager.commitUpdates();
+  expect([turret.type, turret.subType, turret.team, turret.width, turret.height, turret.facingDirection.x])
+    .toEqual(['enemy', 'turret', Team.ENEMY, 64, 64, -1]);
+  expect(turret.destroyOnDeactivation).toBe(false);
+  expect(turret.getComponents().some(component => component instanceof AttackAtDistanceComponent)).toBe(true);
+  expect(turret.getComponents().some(component => component instanceof LaunchProjectileComponent)).toBe(true);
+  expect(turret.getComponent(SpriteComponent)?.getCurrentDraw()?.sprite).toBe('object_gunturret01');
+  expect(turret.getComponent(DynamicCollisionComponent)?.getVulnerabilityVolumes()?.[0].getHitType())
+    .toBe(HitType.POSSESS);
+  expect(turret.getComponent(SwapClass)).toBeTruthy();
+
+  rig.camera.setPosition(turret.getPosition().x, turret.getPosition().y);
+  const ghost = rig.factory.spawnGhost(turret.getPosition().x, turret.getPosition().y, 2)!;
+  rig.manager.commitUpdates();
+  for (let frame = 0; frame < 60 && turret.lastReceivedHitType !== HitType.POSSESS; frame++) {
+    ghost.setPosition(turret.getPosition().x, turret.getPosition().y);
+    rig.time.update(FRAME);
+    rig.manager.update(FRAME, rig.time.getGameTime());
+    rig.oc.update(FRAME);
+  }
+  expect(turret.lastReceivedHitType).toBe(HitType.POSSESS);
+  expect(turret.getComponent(GhostClass)).toBeTruthy();
+});
 
 test('holding attack on the ground charges and spawns the ghost', async () => {
   const rig = await loadLevel('level_0_2_lab');

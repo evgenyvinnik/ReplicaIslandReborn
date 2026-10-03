@@ -34,6 +34,7 @@ import { MovementComponent } from '../entities/components/MovementComponent';
 import { attachEnemyCollisionResponse, attachPossessedCollisionResponse } from '../entities/enemyPhysics';
 import { GenericAnimationComponent } from '../entities/components/GenericAnimationComponent';
 import { configureCannon } from '../entities/cannon';
+import { configureTurret } from '../entities/turret';
 import { configureProjectile, type ProjectileKind } from '../entities/projectile';
 import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
@@ -891,36 +892,11 @@ export class LevelSystem {
         
       case GameObjectTypeIndex.TURRET:
       case GameObjectTypeIndex.TURRET_LEFT: {
-        obj.type = 'enemy';
-        obj.subType = 'turret';
-        objWidth = 64;
-        objHeight = 64;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.team = Team.ENEMY;
         obj.facingDirection.x = spawn.type === GameObjectTypeIndex.TURRET_LEFT ? -1 : 1;
-        // Turret uses AttackAtDistanceComponent - stationary, shoots at player
-        const turretAttack = new AttackAtDistanceComponent({
-          attackDistance: 300,
-          attackDelay: 0,
-          attackLength: 1.0,
-          requireFacing: true
-        });
-        obj.addComponent(turretAttack);
-
-        const turretGun = new LaunchProjectileComponent({
-          objectTypeToSpawn: GameObjectType.TURRET_BULLET,
-          offsetX: 54,
-          offsetY: 13,
-          velocityX: 300,
-          // Android Y-up -300 points down; Canvas Y-down uses +300.
-          velocityY: 300,
-          requiredAction: ActionType.ATTACK,
-          projectilesInSet: 1,
-          delayBetweenSets: 0.3,
-          setsPerActivation: -1,
-          shootSound: 'sound_gun',
-        });
-        obj.addComponent(turretGun);
+        configureTurret(obj, TIGHT_ACTIVATION_RADIUS, GameObjectType.TURRET_BULLET,
+          sSystemRegistry.renderSystem);
+        objWidth = obj.width;
+        objHeight = obj.height;
         break;
       }
       
@@ -1645,6 +1621,8 @@ export class LevelSystem {
    * turrets and brobot spawners type theirs POSSESS.
    */
   private attachPossession(obj: GameObject): void {
+    // Hand-built actors already wire their own possession swap.
+    if (obj.getComponent(ChangeComponentsComponent as unknown as new (...args: unknown[]) => ChangeComponentsComponent)) return;
     const collision = obj.getComponent(DynamicCollisionComponent);
     const hitReact = obj.getComponent(
       HitReactionComponent as unknown as new (...args: unknown[]) => HitReactionComponent

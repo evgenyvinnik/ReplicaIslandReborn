@@ -43,6 +43,7 @@ import { configureExplosion } from './explosion';
 import { configureProjectile } from './projectile';
 import { configureBreakableBlock } from './breakableBlock';
 import { configureCannon } from './cannon';
+import { configureTurret } from './turret';
 import {
   setSimpleCollisionSystemRegistry,
 } from './components/SimpleCollisionComponent';
@@ -263,6 +264,9 @@ export class GameObjectFactory {
         break;
       case GameObjectType.CANNON:
         configureCannon(obj, TIGHT_ACTIVATION_RADIUS, GameObjectType.SMOKE_POOF);
+        break;
+      case GameObjectType.TURRET:
+        configureTurret(obj, TIGHT_ACTIVATION_RADIUS, GameObjectType.TURRET_BULLET, this.renderSystem);
         break;
       case GameObjectType.DOOR:
       case GameObjectType.DOOR_RED:

@@ -1362,6 +1362,10 @@ An earlier screenshot sequence appeared to show persistent invisibility after re
 
 No full-port completion claim has been made.
 
+### Runtime turret parity
+
+`spawnFromLevelData('turret')` was accepted by the factory but fell through to a generic 32×32 object. The placed and runtime paths now share the same stationary 64×64 turret configuration: firing, animation, POSSESS collision, controller swap, and offscreen persistence. A new regression fails on the former generic factory result and passes with an actual orb-to-turret collision. The existing shipped-turret firing/possession tests also pass. Full verification: 961 tests (47,454 assertions), type checking, lint, production build, and diff whitespace checks. This factory gap was not established as the cause of the user's unspecified stuck-level or gate report; the exact Memory number, location, and symptom remain needed for a targeted reproduction.
+
 ### Persistent frame-error recovery
 
 The frame loop already caught update/render exceptions so a single throw would not permanently cancel `requestAnimationFrame`, but a deterministic throw every frame left the level apparently frozen while errors disappeared after the first five console messages. After three consecutive failures in either phase, the live loop now stops and displays a Retry/Main menu recovery overlay with a short error detail. A successful call resets that phase's failure count, so isolated errors do not interrupt play. Retrying rebuilds the current level through the existing initialization path; it does not preserve the interrupted attempt.
