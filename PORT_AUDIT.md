@@ -1,5 +1,9 @@
 # Port verification notes
 
+## Original Extras artwork restored
+
+The shipped Android `extras_menu.xml` draws `ui_button_linear_mode`, `ui_button_level_select` and `ui_button_controls` with a centered `ui_locked` stamp on the two locked choices. The web menu still rendered plain text controls and an emoji lock despite those PNGs being present. It now uses the original button and lock art, with accessible button labels and at least 44px hit targets; the lock fades fully away and back at the source animation's 500ms half-cycle so the label can be read. A failing-first static-render regression covers the three sprite references, two locked stamps and accessible names. The isolated real-App menu fixture confirmed zero clipped controls, the locked notice, the unlocked new-game warning and Controls navigation. The full suite passes **965 tests across 159 files (47,492 assertions)**, lint and the Pages-base build pass; the existing main-chunk warning remains. This is UI fidelity, not evidence of a newly fixed gameplay route or physical Android behavior.
+
 ## October 3, 2026 release recheck
 
 The user reports that the previously reported gate problem and Android stall appear fixed; neither incident has an identified Memory number or a physical-device reproduction, so this is not independent verification. A live GitHub Pages sweep fetched and parsed all 44 shipped campaign JSON levels, with no missing or malformed published level. Every sprite filename declared by the current `Game.tsx` preload lists exists in `public/assets/sprites`. The current full suite passes **964 tests across 158 files (47,484 assertions)**; TypeScript, lint and the Pages-base production build pass. Vite still reports the existing 725 kB minified main-chunk warning. These checks rule out missing published level JSON and declared sprite files, but not untested full-campaign routes or device-specific input/performance failures.

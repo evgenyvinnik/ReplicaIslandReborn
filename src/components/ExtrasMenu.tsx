@@ -102,6 +102,7 @@ export function ExtrasMenu({
       position: 'relative',
       overflow: 'hidden',
     }}>
+      <style>{'@keyframes extras-lock-fade { from { opacity: 1; } to { opacity: 0; } }'}</style>
       {/* Background */}
       <img
         src={assetPath('/assets/sprites/title_background.png')}
@@ -150,6 +151,7 @@ export function ExtrasMenu({
           {/* Linear Mode */}
           <MenuButton
             label="Linear Mode"
+            sprite="ui_button_linear_mode"
             locked={!extrasUnlocked.linearMode}
             onClick={handleLinearModeClick}
           />
@@ -157,6 +159,7 @@ export function ExtrasMenu({
           {/* Level Select */}
           <MenuButton
             label="Level Select"
+            sprite="ui_button_level_select"
             locked={!extrasUnlocked.levelSelect}
             onClick={handleLevelSelectClick}
           />
@@ -164,6 +167,7 @@ export function ExtrasMenu({
           {/* Controls */}
           <MenuButton
             label="Controls"
+            sprite="ui_button_controls"
             locked={false}
             onClick={onGoToOptions}
           />
@@ -304,55 +308,57 @@ export function ExtrasMenu({
 
 interface MenuButtonProps {
   label: string;
+  sprite: 'ui_button_linear_mode' | 'ui_button_level_select' | 'ui_button_controls';
   locked: boolean;
   onClick: () => void;
 }
 
-function MenuButton({ label, locked, onClick }: MenuButtonProps): React.JSX.Element {
+function MenuButton({ label, sprite, locked, onClick }: MenuButtonProps): React.JSX.Element {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <div style={{ position: 'relative' }}>
-      <button
-        onClick={onClick}
-        onMouseEnter={(): void => setIsHovered(true)}
-        onMouseLeave={(): void => setIsHovered(false)}
-        style={{
-          minWidth: '180px',
-          padding: '10px 24px',
-          backgroundColor: locked 
-            ? 'rgba(60, 60, 80, 0.7)' 
-            : isHovered 
-              ? 'rgba(80, 80, 120, 0.9)' 
-              : 'rgba(70, 70, 100, 0.8)',
-          border: `2px solid ${locked ? '#555' : '#888'}`,
-          borderRadius: '4px',
-          color: locked ? '#888' : '#FFF',
-          fontSize: '16px',
-          fontFamily: 'sans-serif',
-          cursor: locked ? 'default' : 'pointer',
-          transition: 'all 0.2s',
-          textShadow: locked ? 'none' : '1px 1px 2px rgba(0, 0, 0, 0.5)',
-        }}
-      >
-        {label}
-      </button>
-      
-      {/* Lock indicator */}
+    <button
+      aria-label={locked ? `${label}, locked` : label}
+      onClick={onClick}
+      onMouseEnter={(): void => setIsHovered(true)}
+      onMouseLeave={(): void => setIsHovered(false)}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '234px',
+        minHeight: '44px',
+        padding: 0,
+        border: 0,
+        background: 'none',
+        cursor: 'pointer',
+        transition: 'filter 0.2s',
+        filter: isHovered ? 'brightness(1.2)' : 'none',
+      }}
+    >
+      <img
+        src={assetPath(`/assets/sprites/${sprite}.png`)}
+        alt=""
+        draggable={false}
+        style={{ display: 'block', maxWidth: '100%', height: 'auto', imageRendering: 'pixelated' }}
+      />
       {locked && (
-        <div style={{
+        <img src={assetPath('/assets/sprites/ui_locked.png')} alt="" aria-hidden="true" style={{
           position: 'absolute',
-          right: '10px',
+          left: '50%',
           top: '50%',
-          transform: 'translateY(-50%)',
-          fontSize: '16px',
-          opacity: 0.8,
-          animation: 'pulse 2s infinite',
-        }}>
-          🔒
-        </div>
+          transform: 'translate(-50%, -50%)',
+          width: '91px',
+          height: '22px',
+          imageRendering: 'pixelated',
+          pointerEvents: 'none',
+          // Android's fade_in_out.xml fades the LOCKED stamp fully away every
+          // 500ms, so the button label remains readable between flashes.
+          animation: 'extras-lock-fade 500ms ease-in-out infinite alternate',
+        }} />
       )}
-    </div>
+    </button>
   );
 }
 
