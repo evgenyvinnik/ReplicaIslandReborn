@@ -11,11 +11,13 @@ import type { CollisionVolume } from '../engine/collision/CollisionVolume';
 import { sSystemRegistry } from '../engine/SystemRegistry';
 import { GameObject } from '../entities/GameObject';
 import { GameObjectManager } from '../entities/GameObjectManager';
+import { GameObjectFactory, GameObjectType } from '../entities/GameObjectFactory';
 import { LauncherComponent } from '../entities/components/LauncherComponent';
 import { PlayerComponent, PlayerState } from '../entities/components/PlayerComponent';
 import { SpriteComponent } from '../entities/components/SpriteComponent';
 import { GenericAnimationComponent, GenericAnimation } from '../entities/components/GenericAnimationComponent';
 import { DynamicCollisionComponent } from '../entities/components/DynamicCollisionComponent';
+import { HitReactionComponent } from '../entities/components/HitReactionComponent';
 import { resourceToLevelId } from '../data/levelTree';
 import { ActionType, HitType } from '../types';
 import { LevelSystem } from './LevelSystemNew';
@@ -34,6 +36,48 @@ afterEach(() => { sSystemRegistry.reset(); });
 const cannonLevels = ['level_1_8_island', 'level_3_3_sewer', 'level_3_4_sewer',
   'level_4_5_underground', 'level_4_9_underground'];
 const launcherType = LauncherComponent as unknown as new (...args: unknown[]) => LauncherComponent;
+
+test('runtime cannon uses the shipped launcher, collision, animation and persistence', () => {
+  const collisionSystem = new GameObjectCollisionSystem();
+  sSystemRegistry.gameObjectCollisionSystem = collisionSystem;
+  sSystemRegistry.timeSystem = new TimeSystem();
+  const manager = new GameObjectManager();
+  const factory = new GameObjectFactory(manager);
+  const cannon = factory.spawn(GameObjectType.CANNON, 100, 200)!;
+  expect(cannon.type).toBe('cannon');
+  expect([cannon.width, cannon.height]).toEqual([64, 128]);
+  expect(cannon.destroyOnDeactivation).toBe(false);
+  const launcher = cannon.getComponent(launcherType)!;
+  const collision = cannon.getComponent(DynamicCollisionComponent)!;
+  const sprite = cannon.getComponent(SpriteComponent)!;
+  const animator = cannon.getComponent(GenericAnimationComponent)!;
+  expect(launcher).toBeDefined();
+  expect(collision).toBeDefined();
+  expect(sprite).toBeDefined();
+  expect(animator.getSprite()).toBe(sprite);
+  expect(cannon.getComponents().find(component => component instanceof HitReactionComponent)?.isInvincible()).toBe(false);
+  const idle = sprite.findAnimation(GenericAnimation.IDLE)!;
+  expect(idle.frames[0].sprite).toBe('object_cannon');
+  expect(idle.frames[0].attackVolumes?.[0].getHitType()).toBe(HitType.LAUNCH);
+  expect(sprite.findAnimation(GenericAnimation.ATTACK)?.frames[0].attackVolumes).toBeNull();
+
+  const player = factory.spawn(GameObjectType.PLAYER, 116, 248)!;
+  player.getComponent(PlayerComponent)!.setSystems(new InputSystem(), new CollisionSystem(), new SoundSystem(), new LevelSystem());
+  manager.commitUpdates();
+  // The empty test level clamps the newly configured player during its first
+  // controller update; stage the actual cannon contact only after setup.
+  player.getComponent(PlayerComponent)!.update(0, player);
+  player.setPosition(116, 248);
+  for (const object of [cannon, player]) {
+    object.setGameTime(1);
+    object.getComponent(SpriteComponent)?.update(0, object);
+    object.getComponent(DynamicCollisionComponent)?.update(0, object);
+  }
+  collisionSystem.update(0);
+  expect(launcher.getLoadedShot() === player,
+    `player=${player.getPosition().x},${player.getPosition().y}, attack=${collision.getAttackVolumes()?.length}, player vulnerability=${player.getComponent(DynamicCollisionComponent)?.getVulnerabilityVolumes()?.length}, player hit=${player.lastReceivedHitType}`)
+    .toBe(true);
+});
 
 async function encounter(resource: string): Promise<{
   cannon: GameObject;

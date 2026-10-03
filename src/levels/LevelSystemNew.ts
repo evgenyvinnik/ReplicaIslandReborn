@@ -32,7 +32,8 @@ import { SelectDialogComponent } from '../entities/components/SelectDialogCompon
 import { GravityComponent } from '../entities/components/GravityComponent';
 import { MovementComponent } from '../entities/components/MovementComponent';
 import { attachEnemyCollisionResponse, attachPossessedCollisionResponse } from '../entities/enemyPhysics';
-import { GenericAnimationComponent, GenericAnimation } from '../entities/components/GenericAnimationComponent';
+import { GenericAnimationComponent } from '../entities/components/GenericAnimationComponent';
+import { configureCannon } from '../entities/cannon';
 import { configureProjectile, type ProjectileKind } from '../entities/projectile';
 import { AABoxCollisionVolume } from '../engine/collision/AABoxCollisionVolume';
 import { SphereCollisionVolume } from '../engine/collision/SphereCollisionVolume';
@@ -1114,60 +1115,9 @@ export class LevelSystem {
       // ============================================
 
       case GameObjectTypeIndex.CANNON: {
-        // Cannon - launches player upward on contact
-        obj.type = 'cannon';
-        objWidth = 64;
-        objHeight = 128;
-        obj.activationRadius = TIGHT_ACTIVATION_RADIUS;
-        obj.team = Team.NONE;
-        
-        // Launcher component - launches player with cannon effect
-        const launcherComp = new LauncherComponent({
-          angle: Math.PI, // Canvas Y points down, so PI launches upward
-          magnitude: 2000,
-          launchDelay: 2.0,
-          postLaunchDelay: 1.0,
-          launchEffect: GameObjectType.SMOKE_POOF,
-          launchEffectOffsetX: 32,
-          launchEffectOffsetY: 85,
-          launchSound: 'sound_cannon'
-        });
-        obj.addComponent(launcherComp);
-        
-        // Dynamic collision to detect player contact
-        const cannonCollision = new DynamicCollisionComponent();
-        const cannonAttackVolume = new AABoxCollisionVolume(16, objHeight - 16 - 80, 32, 80, HitType.LAUNCH);
-        cannonCollision.setCollisionVolumes([cannonAttackVolume], null);
-        obj.addComponent(cannonCollision);
-        
-        // Hit reaction
-        const cannonHitReact = new HitReactionComponent({
-          forceInvincibility: true
-        });
-        cannonCollision.setHitReactionComponent(cannonHitReact);
-        // The original fires Andou from HitReactionComponent.hitVictim() when
-        // the cannon's LAUNCH volume overlaps him.
-        cannonHitReact.setLauncherComponent(launcherComp, HitType.LAUNCH);
-        obj.addComponent(cannonHitReact);
-        
-        // The original disables loading during the one-second firing cooldown
-        // by removing the LAUNCH volume from its ATTACK animation frame.
-        const cannonSprite = new SpriteComponent();
-        cannonSprite.setCollisionComponent(cannonCollision);
-        const cannonFrame = { x: 0, y: 0, width: 64, height: 128, duration: 1, sprite: 'object_cannon' };
-        cannonSprite.addAnimationAtIndex(GenericAnimation.IDLE, {
-          name: 'cannon_idle', loop: false,
-          frames: [{ ...cannonFrame, attackVolumes: [cannonAttackVolume], vulnerabilityVolumes: null }],
-        });
-        cannonSprite.addAnimationAtIndex(GenericAnimation.ATTACK, {
-          name: 'cannon_fire', loop: false,
-          frames: [{ ...cannonFrame, attackVolumes: null, vulnerabilityVolumes: null }],
-        });
-        cannonSprite.playAnimation(GenericAnimation.IDLE);
-        obj.addComponent(cannonSprite);
-        const cannonAnim = new GenericAnimationComponent();
-        cannonAnim.setSprite(cannonSprite);
-        obj.addComponent(cannonAnim);
+        configureCannon(obj, TIGHT_ACTIVATION_RADIUS, GameObjectType.SMOKE_POOF);
+        objWidth = obj.width;
+        objHeight = obj.height;
         break;
       }
 

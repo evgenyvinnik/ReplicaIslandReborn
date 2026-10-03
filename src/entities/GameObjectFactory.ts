@@ -42,6 +42,7 @@ import { configureGiantExplosion } from './giantExplosion';
 import { configureExplosion } from './explosion';
 import { configureProjectile } from './projectile';
 import { configureBreakableBlock } from './breakableBlock';
+import { configureCannon } from './cannon';
 import {
   setSimpleCollisionSystemRegistry,
 } from './components/SimpleCollisionComponent';
@@ -259,6 +260,9 @@ export class GameObjectFactory {
         break;
       case GameObjectType.SPRING:
         this.configureSpring(obj);
+        break;
+      case GameObjectType.CANNON:
+        configureCannon(obj, TIGHT_ACTIVATION_RADIUS, GameObjectType.SMOKE_POOF);
         break;
       case GameObjectType.DOOR:
       case GameObjectType.DOOR_RED:
