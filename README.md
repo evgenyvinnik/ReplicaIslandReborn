@@ -2,6 +2,8 @@
 
 A web port of **Replica Island**, one of the earliest and most popular open-source Android games. Originally written in Java by Chris Pruett and Genki Mine, this project brings the classic side-scrolling platformer to the web using React, TypeScript, and HTML5 Canvas.
 
+Play the [published web version](https://evgenyvinnik.github.io/ReplicaIslandReborn/). The campaign, pickups, gates, possession, saves, and endings are implemented, with automated gameplay regressions and selected browser playthroughs. This is a playable release candidate, not a claim that every campaign route or physical Android device has been verified. A player-reported gate issue and a level where Andou or the device gets stuck still need a Memory number, location, and reproduction before they can be closed. See [port verification notes](PORT_AUDIT.md) for the evidence and limits of the checks so far.
+
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 
 ## About the Game
@@ -66,7 +68,7 @@ bun run lint
 bun run lint:fix
 
 # Run tests
-bun test
+bun test --timeout=60000
 ```
 
 ## Project Structure

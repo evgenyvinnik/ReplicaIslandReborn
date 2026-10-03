@@ -43,6 +43,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Gameplay regression tests
+        run: bun test --timeout=60000
+
       - name: Build
         run: bunx --bun vite build --base=/ReplicaIslandReborn/
 
