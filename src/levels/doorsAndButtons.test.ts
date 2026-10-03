@@ -680,21 +680,25 @@ test('the rising island route reaches its distant red gate before the plate expi
   expect(player.life).toBeGreaterThan(0);
 });
 
-test('the underground near plate can open the lower red gate through its bridge route', async () => {
+test('the underground red plates carry Andou through both gates and the bridge route', async () => {
   const rig = (await load('level_4_2_underground'))!;
   const player = rig.manager.getPlayer()!;
-  // Begin on the second red plate. Reaching it through the upper gate is a
-  // separate puzzle; this checks its five-second route to the lower gate.
+  const firstPlate = rig.manager.getActiveObjects().find(object => object.type === 'button' && object.subType === 'red' &&
+    object.getPosition().x === 27 * 32 && object.getPosition().y === 6 * 32)!;
   const plate = rig.manager.getActiveObjects().find(object => object.type === 'button' && object.subType === 'red' &&
     object.getPosition().x === 49 * 32 && object.getPosition().y === 11 * 32)!;
+  const upperGate = rig.manager.getActiveObjects().find(object => object.type === 'door' && object.subType === 'red' &&
+    object.getPosition().x === 48 * 32 && object.getPosition().y === 10 * 32)!;
   const gate = rig.manager.getActiveObjects().find(object => object.type === 'door' && object.subType === 'red' &&
     object.getPosition().x === 20 * 32 && object.getPosition().y === 26 * 32)!;
+  expect(firstPlate).toBeDefined();
   expect(plate).toBeDefined();
+  expect(upperGate).toBeDefined();
   expect(gate).toBeDefined();
   player.getComponent(PlayerComponent)!.setSystems(sSystemRegistry.inputSystem!, rig.collision,
     sSystemRegistry.soundSystem!, rig.levelSystem);
   setSolidSurfaceSystemRegistry(sSystemRegistry);
-  player.setPosition(plate.getPosition().x, 12 * 32 - player.height);
+  player.setPosition(firstPlate.getPosition().x, 7 * 32 - player.height);
   const input = sSystemRegistry.inputSystem!;
   let crossedGate = false;
   const frame = (): void => {
@@ -712,13 +716,17 @@ test('the underground near plate can open the lower red gate through its bridge 
     }
   };
   for (let i = 0; i < 12; i++) frame();
+  expect(firstPlate.lastReceivedHitType).toBe(HitType.DEPRESS);
+  input.setVirtualAxis('horizontal', 1);
+  for (let i = 0; i < 300 && player.getPosition().x <= upperGate.getPosition().x + upperGate.width; i++) frame();
+  expect(player.getPosition().x).toBeGreaterThan(upperGate.getPosition().x + upperGate.width);
   expect(plate.lastReceivedHitType).toBe(HitType.DEPRESS);
   const start = rig.time.getGameTime();
   const trace: string[] = [];
   const mark = (name: string): void => {
     trace.push(`${name}: x=${player.getPosition().x.toFixed(0)} y=${player.getPosition().y.toFixed(0)} t=${(rig.time.getGameTime() - start).toFixed(2)} life=${player.life}`);
   };
-  mark('plate');
+  mark('near plate');
 
   input.setVirtualAxis('horizontal', -1);
   for (let i = 0; i < 180 && player.getPosition().x > 44 * 32; i++) frame();
@@ -754,7 +762,46 @@ test('the underground near plate can open the lower red gate through its bridge 
   input.setVirtualAxis('horizontal', 0);
   mark('gate');
   expect(player.getPosition().x + player.width, trace.join('; ')).toBeLessThan(gate.getPosition().x);
-  expect(rig.time.getGameTime() - start, trace.join('; ')).toBeLessThan(5);
+  const lastRedPress = rig.channels.getFloatValue('RED BUTTON');
+  expect(lastRedPress, trace.join('; ')).toBeGreaterThan(start);
+  expect(rig.time.getGameTime() - lastRedPress, trace.join('; ')).toBeLessThan(5);
   expect(crossedGate, trace.join('; ')).toBe(true);
+  expect(player.life).toBeGreaterThan(0);
+});
+
+test('the first underground red plate opens the upper gate before the near plate', async () => {
+  const rig = (await load('level_4_2_underground'))!;
+  const player = rig.manager.getPlayer()!;
+  const objects = rig.manager.getActiveObjects();
+  const firstPlate = objects.find(object => object.type === 'button' && object.subType === 'red' &&
+    object.getPosition().x === 27 * 32 && object.getPosition().y === 6 * 32)!;
+  const nearPlate = objects.find(object => object.type === 'button' && object.subType === 'red' &&
+    object.getPosition().x === 49 * 32 && object.getPosition().y === 11 * 32)!;
+  const upperGate = objects.find(object => object.type === 'door' && object.subType === 'red' &&
+    object.getPosition().x === 48 * 32 && object.getPosition().y === 10 * 32)!;
+  expect(firstPlate).toBeDefined();
+  expect(nearPlate).toBeDefined();
+  expect(upperGate).toBeDefined();
+  player.getComponent(PlayerComponent)!.setSystems(sSystemRegistry.inputSystem!, rig.collision,
+    sSystemRegistry.soundSystem!, rig.levelSystem);
+  setSolidSurfaceSystemRegistry(sSystemRegistry);
+  player.setPosition(firstPlate.getPosition().x, 7 * 32 - player.height);
+  const frame = (): void => {
+    rig.time.update(FRAME);
+    rig.camera.setPosition(player.getCenteredPositionX() - 240, player.getCenteredPositionY() - 160);
+    rig.manager.update(FRAME, rig.time.getGameTime());
+    rig.oc.update(FRAME);
+    rig.collision.updateTemporarySurfaces();
+  };
+  for (let i = 0; i < 12; i++) frame();
+  expect(firstPlate.lastReceivedHitType).toBe(HitType.DEPRESS);
+  const start = rig.time.getGameTime();
+  sSystemRegistry.inputSystem!.setVirtualAxis('horizontal', 1);
+  for (let i = 0; i < 300 && player.getPosition().x <= upperGate.getPosition().x + upperGate.width; i++) frame();
+  sSystemRegistry.inputSystem!.setVirtualAxis('horizontal', 0);
+  expect(player.getPosition().x, `player ${player.getPosition().x},${player.getPosition().y}; elapsed ${rig.time.getGameTime() - start}s`)
+    .toBeGreaterThan(upperGate.getPosition().x + upperGate.width);
+  expect(rig.time.getGameTime() - start).toBeLessThan(5);
+  expect(nearPlate.lastReceivedHitType).toBe(HitType.DEPRESS);
   expect(player.life).toBeGreaterThan(0);
 });
