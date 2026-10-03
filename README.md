@@ -55,6 +55,10 @@ bun run build
 bun run preview
 ```
 
+### Search and sharing
+
+The canonical URL, Open Graph/X preview tags, and game structured data are in `index.html`. The sitemap is `public/sitemap.xml`, and the share card is `public/social-preview.png`. These use the published GitHub Pages project URL; update all three if the site moves to a custom domain.
+
 ### Other Commands
 
 ```bash

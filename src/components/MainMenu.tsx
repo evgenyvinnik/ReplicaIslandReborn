@@ -68,7 +68,7 @@ export function MainMenu(): React.JSX.Element {
         {/* Title Logo */}
         {/* Let the logo use the space left by the four 44px controls. Fixed
             title/margins pushed Extras outside the 314px screen interior. */}
-        <div style={{ flex: '1 1 0', minHeight: 0, width: 'min(280px, 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <h1 style={{ flex: '1 1 0', minHeight: 0, width: 'min(280px, 100%)', margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <img
             src={assetPath('/assets/sprites/title.png')}
             alt="Replica Island"
@@ -96,7 +96,7 @@ export function MainMenu(): React.JSX.Element {
           >
             REBORN
           </div>
-        </div>
+        </h1>
 
         {/* Menu Buttons - Using original button sprites */}
         <div
