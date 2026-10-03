@@ -1,5 +1,9 @@
 # Port verification notes
 
+## Diary text parity recheck
+
+All 15 playable log entries match the complete `Diary1`–`Diary15` text in the Android `strings.xml` after normalizing typography and whitespace. A source-backed regression now checks every entry, including the three without an original "Log Entry" heading. Existing tests also cover each level's authored diary binding, saved collection and scrolling each entry's final line into view. No missing log text or new diary runtime defect was found in this pass. This does not replace a physical-device pickup check or a full campaign playthrough.
+
 ## Original Extras artwork restored
 
 The shipped Android `extras_menu.xml` draws `ui_button_linear_mode`, `ui_button_level_select` and `ui_button_controls` with a centered `ui_locked` stamp on the two locked choices. The web menu still rendered plain text controls and an emoji lock despite those PNGs being present. It now uses the original button and lock art, with accessible button labels and at least 44px hit targets; the lock fades fully away and back at the source animation's 500ms half-cycle so the label can be read. A failing-first static-render regression covers the three sprite references, two locked stamps and accessible names. The isolated real-App menu fixture confirmed zero clipped controls, the locked notice, the unlocked new-game warning and Controls navigation. The full suite passes **965 tests across 159 files (47,492 assertions)**, lint and the Pages-base build pass; the existing main-chunk warning remains. This is UI fidelity, not evidence of a newly fixed gameplay route or physical Android behavior.
