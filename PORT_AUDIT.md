@@ -1,6 +1,10 @@
 # Port verification notes
 
-Updated September 29, 2026 (Pacific time). This is an evidence log, not a declaration that the port is complete. The older completion percentages in TODO.md are not reliable verification.
+## October 3, 2026 release recheck
+
+The user reports that the previously reported gate problem and Android stall appear fixed; neither incident has an identified Memory number or a physical-device reproduction, so this is not independent verification. A live GitHub Pages sweep fetched and parsed all 44 shipped campaign JSON levels, with no missing or malformed published level. Every sprite filename declared by the current `Game.tsx` preload lists exists in `public/assets/sprites`. The current full suite passes **964 tests across 158 files (47,484 assertions)**; TypeScript, lint and the Pages-base production build pass. Vite still reports the existing 725 kB minified main-chunk warning. These checks rule out missing published level JSON and declared sprite files, but not untested full-campaign routes or device-specific input/performance failures.
+
+Updated October 3, 2026 (Pacific time). This is an evidence log, not a declaration that the port is complete. The older completion percentages in TODO.md are not reliable verification.
 
 ## Current local batch
 
