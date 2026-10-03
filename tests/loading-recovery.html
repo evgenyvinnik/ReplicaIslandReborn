@@ -86,6 +86,9 @@ PAUSE 50</textarea><br>
   import { createRoot } from 'react-dom/client';
   import { createJSONStorage } from 'zustand/middleware';
   import { KeyboardSequence, parseKeySequence } from './keyboard-sequence.ts';
+  // Exercise the Android drawable-ja resource path without changing the host browser locale.
+  const testLocale = new URLSearchParams(location.search).get('locale');
+  if (testLocale) Object.defineProperty(navigator, 'language', { configurable: true, value: testLocale });
   // Protect real saves even during the store's initial auto-hydration/migration.
   const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
   Object.defineProperty(window, 'localStorage', { configurable: true, value: {

@@ -6,6 +6,7 @@
 import type { RenderCommand, CameraState } from '../types';
 import { placeholders } from '../utils/PlaceholderSprites';
 import { assetPath } from '../utils/helpers';
+import { localizedTitleArtwork } from '../utils/localizedArtwork';
 import { SortConstants } from './SortConstants';
 import { loadImage } from '../utils/loadImage';
 
@@ -197,9 +198,12 @@ export class RenderSystem {
     ];
 
     const tileSize = 32;
-    const loadPromises = tilesets.map(name =>
-      this.loadTileset(name, assetPath(`/assets/sprites/${name}.png`), tileSize, signal)
-    );
+    const loadPromises = tilesets.map(name => this.loadTileset(
+      name,
+      assetPath(name === 'titletileset' ? localizedTitleArtwork('titletileset') : `/assets/sprites/${name}.png`),
+      tileSize,
+      signal,
+    ));
 
     await Promise.all(loadPromises);
   }

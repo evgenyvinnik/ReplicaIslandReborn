@@ -11,6 +11,7 @@ import React, { useState, useRef } from 'react';
 import { useMenuGamepad } from './useMenuGamepad';
 import { useGameContext } from '../context/GameContext';
 import { assetPath } from '../utils/helpers';
+import { isJapaneseArtworkLocale, localizedTitleArtwork } from '../utils/localizedArtwork';
 import { useGameStore } from '../stores/useGameStore';
 import { hasPersistedGameProgress, resolvePlayableLevelId } from '../stores/progressUtils';
 
@@ -70,8 +71,8 @@ export function MainMenu(): React.JSX.Element {
             title/margins pushed Extras outside the 314px screen interior. */}
         <h1 style={{ flex: '1 1 0', minHeight: 0, width: 'min(280px, 100%)', margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <img
-            src={assetPath('/assets/sprites/title.png')}
-            alt="Replica Island"
+            src={assetPath(localizedTitleArtwork('title'))}
+            alt={isJapaneseArtworkLocale(globalThis.navigator?.language ?? 'en') ? 'ワンダのレプリカ島' : 'Replica Island'}
             style={{
               display: 'block',
               flex: '1 1 0',

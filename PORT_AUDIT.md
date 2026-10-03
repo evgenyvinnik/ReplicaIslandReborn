@@ -1,5 +1,11 @@
 # Port verification notes
 
+## Original Japanese title artwork restored
+
+Android includes `drawable-ja/title.png` and `drawable-ja/titletileset.png` (both distinct from the English art), but the web build shipped and loaded only the English versions. It now ships byte-identical copies of both Japanese PNGs and selects them when `navigator.language` is `ja` or a Japanese regional locale. The menu's image alternative text changes with the logo; the opening-scene tileset keeps the same renderer key and dimensions. The source Japanese strings file translates only `app_name`, so no Japanese dialogue or menu translation is claimed or synthesized.
+
+The new asset/locale/wiring regressions pass. In an isolated `ja-JP` full-App browser fixture, the original Japanese logo rendered, the opening scene started and displayed Wanda's first dialogue, and the browser reported no warnings or errors. This is locale-overridden browser verification, not a physical Japanese-language Android device.
+
 ## Debug Mode now has a gameplay effect
 
 The visible Debug Mode checkbox persisted `debugMode`, but no gameplay code read it. Its help promised logging and visualizations despite doing neither. The option now draws active object bounds over the world and below the HUD/dialogue: cyan for Andou, magenta for gates, red for enemies, yellow for buttons and green for other objects. The help names the actual visualization rather than promising logging. This is a web developer aid, not a change to Android campaign physics. The game reads the preference on each render frame, so changing it does not rebuild the level.
