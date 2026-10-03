@@ -1,5 +1,11 @@
 # Port verification notes
 
+## Fresh first-island diary and coin route
+
+In an isolated full-App browser session, Memory #003 (`level_1_1_island`, ID 4) loaded at its authored spawn. Ordinary rightward input collected Diary 1 at x320/y288, opened its overlay, and persisted entry 1. Wheel scrolling reached the last word, “beauty.”; Enter closed the overlay and returned Andou to MOVE at the same position. A subsequent three-second right input collected eight coins, and with the fixture controls hidden the original-style coin HUD visibly displayed ×8. The player stayed active and visible after the route, though an enemy hit reduced life to 2/3. No actor, item, terrain, or inventory value was assigned during play. This verifies the reported log/coin path in this one level, not every campaign route or physical Android touch.
+
+The original drawable files absent from `public/assets/sprites` were also classified: the unprefixed Rokudou fight frames are byte-identical to the shipped `enemy_rokudou_fight_*` files; the remaining missing filenames are debug/test or unreferenced UI resources, except `framerate_warning`, which belongs to a factory type not placed by the shipped campaign maps. This comparison found no missing referenced production sprite.
+
 ## Diary text parity recheck
 
 All 15 playable log entries match the complete `Diary1`–`Diary15` text in the Android `strings.xml` after normalizing typography and whitespace. A source-backed regression now checks every entry, including the three without an original "Log Entry" heading. Existing tests also cover each level's authored diary binding, saved collection and scrolling each entry's final line into view. No missing log text or new diary runtime defect was found in this pass. This does not replace a physical-device pickup check or a full campaign playthrough.
