@@ -20,6 +20,7 @@
   <span id="load-hold-status" role="status">No level request held</span>
   <button id="toggle-fps">Toggle FPS display</button>
   <button id="toggle-controls">Toggle touch controls</button>
+  <button id="toggle-debug">Toggle debug outlines</button>
   <span id="display-settings-status" role="status">Display settings unchanged</span>
   <button id="sewer-start">Prepare sewer save (ID 26)</button>
   <button id="sewer-27-start">Prepare sewer save (ID 27)</button>
@@ -126,7 +127,7 @@ PAUSE 50</textarea><br>
   }
   useGameStore.subscribe(reportSave);
   reportSave();
-  for (const [id, setting] of [['toggle-fps', 'showFPS'], ['toggle-controls', 'onScreenControlsEnabled']]) {
+  for (const [id, setting] of [['toggle-fps', 'showFPS'], ['toggle-controls', 'onScreenControlsEnabled'], ['toggle-debug', 'debugMode']]) {
     document.querySelector(`#${id}`).onclick = () => {
       const store = useGameStore.getState();
       store.setSetting(setting, !store.settings[setting]);

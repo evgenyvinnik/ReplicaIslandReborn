@@ -1,5 +1,11 @@
 # Port verification notes
 
+## Debug Mode now has a gameplay effect
+
+The visible Debug Mode checkbox persisted `debugMode`, but no gameplay code read it. Its help promised logging and visualizations despite doing neither. The option now draws active object bounds over the world and below the HUD/dialogue: cyan for Andou, magenta for gates, red for enemies, yellow for buttons and green for other objects. The help names the actual visualization rather than promising logging. This is a web developer aid, not a change to Android campaign physics. The game reads the preference on each render frame, so changing it does not rebuild the level.
+
+A failing-first wiring regression captured the missing gameplay reader. In an isolated full-App island run, the checkbox enabled the outlines at spawn; a test-only toggle then removed and restored them while Andou stayed at x160/y272 with 3/3 life. The test fixture's toggle changes only its session-isolated setting. This browser check verifies the visible setting-to-render path, not physical Android performance while the overlay is on.
+
 ## Fresh first-island diary and coin route
 
 In an isolated full-App browser session, Memory #003 (`level_1_1_island`, ID 4) loaded at its authored spawn. Ordinary rightward input collected Diary 1 at x320/y288, opened its overlay, and persisted entry 1. Wheel scrolling reached the last word, “beauty.”; Enter closed the overlay and returned Andou to MOVE at the same position. A subsequent three-second right input collected eight coins, and with the fixture controls hidden the original-style coin HUD visibly displayed ×8. The player stayed active and visible after the route, though an enemy hit reduced life to 2/3. No actor, item, terrain, or inventory value was assigned during play. This verifies the reported log/coin path in this one level, not every campaign route or physical Android touch.

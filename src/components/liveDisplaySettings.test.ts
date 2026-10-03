@@ -15,3 +15,11 @@ test('display toggles apply to the current engine without restarting the level',
   expect(initialization).toContain("canvasControls && gameSettings.get('onScreenControlsEnabled')");
   expect(gameSource).toContain('currentSettings.onScreenControlsEnabled, isInitialized, levelLoading');
 });
+
+test('the visible Debug Mode preference controls an in-game object-bounds overlay', () => {
+  const initialization = gameSource.slice(gameSource.indexOf('// Initialize game systems'));
+  const dependencies = initialization.match(/\}, \[width, height, ([^\]]+)\]\);/);
+  expect(dependencies?.[1]).not.toContain('currentSettings.debugMode');
+  expect(initialization).toContain("renderSystem.setDebugMode(gameSettings.get('debugMode'));");
+  expect(initialization).toContain('renderSystem.drawDebugRect(');
+});

@@ -2224,6 +2224,22 @@ export function Game({ width = 480, height = 320 }: GameProps): React.JSX.Elemen
       const cameraTopLeftX = cameraSystem.getFocusPositionX();
       const cameraTopLeftY = cameraSystem.getFocusPositionY();
       renderSystem.swap(cameraTopLeftX, cameraTopLeftY);
+
+      // The Debug Mode preference is a live display setting. Draw physical
+      // object bounds over the world but below the HUD and modal overlays;
+      // no engine restart or level reset is needed when it changes.
+      renderSystem.setDebugMode(gameSettings.get('debugMode'));
+      if (gameSettings.get('debugMode')) {
+        gameObjectManager.forEach((object) => {
+          if (!object.isVisible() || object.width <= 0 || object.height <= 0) return;
+          const position = object.getPosition();
+          const color = object === player ? '#00ffff'
+            : object.type === 'door' ? '#ff00ff'
+              : object.type === 'enemy' ? '#ff4444'
+                : object.type === 'button' ? '#ffff00' : '#00ff00';
+          renderSystem.drawDebugRect(position.x, position.y, object.width, object.height, color);
+        });
+      }
       
       // === Canvas UI Layer (rendered after swap, in screen space) ===
       

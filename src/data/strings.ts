@@ -126,7 +126,7 @@ export const UIStrings = {
   preference_show_fps: 'Show FPS',
   preference_show_fps_summary: 'Display frames per second counter.',
   preference_debug_mode: 'Debug Mode',
-  preference_debug_mode_summary: 'Enable debug logging and visualizations.',
+  preference_debug_mode_summary: 'Outline active objects in the game (cyan player, magenta gates, red enemies).',
   // Difficulty
   baby_description: 'No challenge at all.',
   kids_description: 'A comfortable ride to the end.',
