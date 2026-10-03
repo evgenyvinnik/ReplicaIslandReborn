@@ -40,6 +40,7 @@ import { DynamicCollisionComponent } from '../entities/components/DynamicCollisi
 import { DoorAnimation, DoorAnimationComponent } from '../entities/components/DoorAnimationComponent';
 import { HitType } from '../types';
 import { GameObject } from '../entities/GameObject';
+import { resolveBreakableBlockDeath } from '../entities/breakableBlock';
 
 const pub = join(import.meta.dir, '../../public');
 const originalFetch = globalThis.fetch;
@@ -676,5 +677,84 @@ test('the rising island route reaches its distant red gate before the plate expi
   expect(rig.time.getGameTime() - start).toBeLessThan(5);
   expect(crossedGateFootprint).toBe(true);
   expect(gateFrames).toContain('object_door_red04');
+  expect(player.life).toBeGreaterThan(0);
+});
+
+test('the underground near plate can open the lower red gate through its bridge route', async () => {
+  const rig = (await load('level_4_2_underground'))!;
+  const player = rig.manager.getPlayer()!;
+  // Begin on the second red plate. Reaching it through the upper gate is a
+  // separate puzzle; this checks its five-second route to the lower gate.
+  const plate = rig.manager.getActiveObjects().find(object => object.type === 'button' && object.subType === 'red' &&
+    object.getPosition().x === 49 * 32 && object.getPosition().y === 11 * 32)!;
+  const gate = rig.manager.getActiveObjects().find(object => object.type === 'door' && object.subType === 'red' &&
+    object.getPosition().x === 20 * 32 && object.getPosition().y === 26 * 32)!;
+  expect(plate).toBeDefined();
+  expect(gate).toBeDefined();
+  player.getComponent(PlayerComponent)!.setSystems(sSystemRegistry.inputSystem!, rig.collision,
+    sSystemRegistry.soundSystem!, rig.levelSystem);
+  setSolidSurfaceSystemRegistry(sSystemRegistry);
+  player.setPosition(plate.getPosition().x, 12 * 32 - player.height);
+  const input = sSystemRegistry.inputSystem!;
+  let crossedGate = false;
+  const frame = (): void => {
+    rig.time.update(FRAME);
+    rig.camera.setPosition(player.getCenteredPositionX() - 240, player.getCenteredPositionY() - 160);
+    rig.manager.update(FRAME, rig.time.getGameTime());
+    rig.oc.update(FRAME);
+    rig.manager.forEach(object => resolveBreakableBlockDeath(object, sSystemRegistry));
+    rig.collision.updateTemporarySurfaces();
+    const playerPos = player.getPosition(), gatePos = gate.getPosition();
+    if (playerPos.x < gatePos.x + gate.width && playerPos.x + player.width > gatePos.x &&
+        playerPos.y < gatePos.y + gate.height && playerPos.y + player.height > gatePos.y) {
+      crossedGate = true;
+      expect(gate.getComponents().some(component => component instanceof SolidSurfaceComponent)).toBe(false);
+    }
+  };
+  for (let i = 0; i < 12; i++) frame();
+  expect(plate.lastReceivedHitType).toBe(HitType.DEPRESS);
+  const start = rig.time.getGameTime();
+  const trace: string[] = [];
+  const mark = (name: string): void => {
+    trace.push(`${name}: x=${player.getPosition().x.toFixed(0)} y=${player.getPosition().y.toFixed(0)} t=${(rig.time.getGameTime() - start).toFixed(2)} life=${player.life}`);
+  };
+  mark('plate');
+
+  input.setVirtualAxis('horizontal', -1);
+  for (let i = 0; i < 180 && player.getPosition().x > 44 * 32; i++) frame();
+  input.setVirtualAxis('horizontal', 0);
+  for (let i = 0; i < 15; i++) frame();
+  mark('bridge');
+  const blockX = Math.floor((player.getPosition().x + player.width / 2) / 32) * 32;
+  const block = rig.manager.getActiveObjects().find(object => object.type === 'breakable_block' &&
+    object.getPosition().x === blockX && object.getPosition().y === 12 * 32)!;
+  expect(block).toBeDefined();
+  expect(player.touchingGround()).toBe(true);
+  input.setVirtualAxis('horizontal', 1);
+  input.setVirtualButton('jump', true); frame(); input.setVirtualButton('jump', false);
+  for (let i = 0; i < 25; i++) frame();
+  input.setVirtualAxis('horizontal', 0);
+  input.setVirtualButton('attack', true);
+  for (let i = 0; i < 90 && block.life > 0; i++) frame();
+  input.setVirtualButton('attack', false);
+  expect(block.life).toBe(0);
+  for (let i = 0; i < 120 && player.getPosition().y < 20 * 32 - player.height; i++) frame();
+  mark('shaft floor');
+
+  // Run across the shaft floor first. Flying all the way from the bridge is
+  // slower than Android's ground run and lets the gate close during passage.
+  input.setVirtualAxis('horizontal', -1);
+  for (let i = 0; i < 90 && player.getPosition().x > 38 * 32; i++) frame();
+  mark('flight start');
+  input.setVirtualButton('fly', true);
+  for (let i = 0; i < 220 && player.getPosition().x > 29 * 32; i++) frame();
+  input.setVirtualButton('fly', false);
+  mark('past mudman');
+  for (let i = 0; i < 240 && player.getPosition().x + player.width >= gate.getPosition().x; i++) frame();
+  input.setVirtualAxis('horizontal', 0);
+  mark('gate');
+  expect(player.getPosition().x + player.width, trace.join('; ')).toBeLessThan(gate.getPosition().x);
+  expect(rig.time.getGameTime() - start, trace.join('; ')).toBeLessThan(5);
+  expect(crossedGate, trace.join('; ')).toBe(true);
   expect(player.life).toBeGreaterThan(0);
 });
