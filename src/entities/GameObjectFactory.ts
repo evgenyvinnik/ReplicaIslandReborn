@@ -16,6 +16,7 @@ import { configureCollectible } from './collectible';
 import { configureRokudou } from './rokudou';
 import { configureButton, configureDoor } from './buttonGate';
 import { PatrolComponent } from './components/PatrolComponent';
+import { SolidSurfaceComponent } from './components/SolidSurfaceComponent';
 import { LaunchProjectileComponent } from './components/LaunchProjectileComponent';
 import { GhostComponent, setGhostSystemRegistry } from './components/GhostComponent';
 import { setCameraBiasSystemRegistry } from './components/CameraBiasComponent';
@@ -234,6 +235,9 @@ export class GameObjectFactory {
       case GameObjectType.ENEMY_BROBOT:
         this.configureEnemyBrobot(obj);
         break;
+      case GameObjectType.ENEMY_SKELETON:
+        this.configureEnemySkeleton(obj);
+        break;
       case GameObjectType.ENEMY_SNAILBOMB:
         this.configureEnemySnailbomb(obj);
         break;
@@ -408,6 +412,35 @@ export class GameObjectFactory {
     });
     obj.addComponent(patrol);
     this.finishRuntimeEnemy(obj, patrol, { width: 32, height: 48, offsetX: 16, offsetY: 16 });
+  }
+
+  /** Match spawnEnemySkeleton: slow patrol, brief close-range swing and two solid sides. */
+  private configureEnemySkeleton(obj: GameObject): void {
+    obj.type = 'enemy';
+    obj.subType = 'skeleton';
+    obj.team = Team.ENEMY;
+    obj.width = obj.height = 64;
+    obj.life = obj.maxLife = 1;
+    obj.activationRadius = NORMAL_ACTIVATION_RADIUS;
+
+    const patrol = new PatrolComponent({
+      maxSpeed: 20,
+      acceleration: 1000,
+      turnToFacePlayer: true,
+      attack: {
+        enabled: true,
+        atDistance: 75,
+        duration: 7 / 24,
+        delay: 2,
+        stopsMovement: true,
+      },
+    });
+    obj.addComponent(patrol);
+    const surface = new SolidSurfaceComponent(2);
+    surface.addSurfaceFromCoords(25, 64, 25, 0, -1, 0);
+    surface.addSurfaceFromCoords(40, 64, 40, 0, 1, 0);
+    obj.addComponent(surface);
+    this.finishRuntimeEnemy(obj, patrol, { width: 32, height: 48, offsetX: 16, offsetY: 11 });
   }
 
   /**
@@ -709,7 +742,7 @@ export class GameObjectFactory {
     patrol: PatrolComponent,
     collisionBox: { width: number; height: number; offsetX: number; offsetY: number }
   ): void {
-    // Android's Brobots and Snailbombs sleep off-camera instead of being discarded.
+    // Android's persistent runtime enemies sleep off-camera instead of being discarded.
     obj.destroyOnDeactivation = false;
     attachEnemyCollisionResponse(obj);
     const lifetime = new LifetimeComponent();

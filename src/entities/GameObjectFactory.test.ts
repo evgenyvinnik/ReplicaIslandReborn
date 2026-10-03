@@ -20,12 +20,44 @@ import { SpriteComponent } from './components/SpriteComponent';
 import { CameraSystem } from '../engine/CameraSystem';
 import { NPCComponent } from './components/NPCComponent';
 import { NPCAnimation, NPCAnimationComponent } from './components/NPCAnimationComponent';
+import { SolidSurfaceComponent } from './components/SolidSurfaceComponent';
+import { CollisionResponseComponent } from './components/CollisionResponseComponent';
+import { CollisionSystem } from '../engine/CollisionSystemNew';
 
 afterEach(() => {
   sSystemRegistry.reset();
 });
 
 describe('GameObjectFactory managed spawns', () => {
+  test('the accepted runtime skeleton alias creates the original attacking, solid enemy', () => {
+    const manager = new GameObjectManager();
+    const factory = new GameObjectFactory(manager);
+    factory.setCollisionSystem(new CollisionSystem());
+    const skeleton = factory.spawnFromLevelData({ type: 'skeleton', x: 100, y: 200, flipX: true })!;
+    expect([skeleton.type, skeleton.subType, skeleton.team, skeleton.width, skeleton.height,
+      skeleton.facingDirection.x]).toEqual(['enemy', 'skeleton', Team.ENEMY, 64, 64, -1]);
+    expect(skeleton.destroyOnDeactivation).toBe(false);
+    expect(skeleton.getComponent(SpriteComponent)?.getCurrentDraw()?.sprite).toBe('skeleton_stand');
+    expect(skeleton.getComponents().some(component => component instanceof PatrolComponent)).toBe(true);
+    expect(skeleton.getComponent(MovementComponent)).toBeTruthy();
+    expect(skeleton.getComponents().some(component => component instanceof GravityComponent)).toBe(true);
+    expect(skeleton.getComponents().some(component => component instanceof CollisionResponseComponent)).toBe(true);
+    const surfaces = skeleton.getComponents().find(
+      (component): component is SolidSurfaceComponent => component instanceof SolidSurfaceComponent
+    )?.getSurfaces();
+    expect(surfaces?.map(surface => [surface.start.x, surface.end.x, surface.normal.x]))
+      .toEqual([[25, 25, -1], [40, 40, 1]]);
+    const animator = skeleton.getComponent(EnemyAnimationComponent)!;
+    const sprite = skeleton.getComponent(SpriteComponent)!;
+    const collision = skeleton.getComponent(DynamicCollisionComponent)!;
+    skeleton.setCurrentAction(ActionType.ATTACK);
+    animator.update(1 / 60, skeleton);
+    animator.update(1 / 60, skeleton);
+    sprite.update(5 / 24 + 0.001, skeleton);
+    expect(sprite.getCurrentDraw()?.sprite).toBe('skeleton_attack03');
+    expect(collision.getAttackVolumes()?.[0].getHitType()).toBe(HitType.HIT);
+  });
+
   test('headless Snailbomb spawning does not strand a pooled sprite', () => {
     const manager = new GameObjectManager();
     const factory = new GameObjectFactory(manager);
